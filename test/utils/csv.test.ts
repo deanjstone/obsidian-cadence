@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { fromLocalDatetimeValue, parseCSV, toLocalDatetimeValue } from "../../src/legacy/cadence.js";
+import { parseCSV } from "../../src/utils/csv";
+import { fromLocalDatetimeValue, toLocalDatetimeValue } from "../../src/utils/dates";
 
 /* Characterization tests for the CSV parser and the datetime-local helpers
    used by the capture/reminder modals (TZ=UTC). */
@@ -55,7 +56,7 @@ describe("toLocalDatetimeValue / fromLocalDatetimeValue", () => {
     expect(fromLocalDatetimeValue(undefined)).toBeNull();
   });
   it("returns an Invalid Date for garbage", () => {
-    expect(Number.isNaN(fromLocalDatetimeValue("nope").getTime())).toBe(true);
+    expect(Number.isNaN(fromLocalDatetimeValue("nope")?.getTime())).toBe(true);
   });
   it("round-trips at minute precision", () => {
     const d = new Date(2026, 9, 8, 23, 45);

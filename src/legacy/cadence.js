@@ -6,7 +6,12 @@
    src/ modules (see issue #1). Bundled by esbuild into the root main.js.
    ============================================================ */
 import * as obsidian from 'obsidian';
-import { addDays, dailyNotePath, dateInfo, greeting, pad, sameDay, startOfDay, startOfWeek, weekDates, ymd } from '../utils/dates';
+import {
+  addDays, dailyNotePath, dateInfo, fromLocalDatetimeValue, greeting, pad, sameDay, startOfDay, startOfWeek,
+  toLocalDatetimeValue, weekDates, ymd,
+} from '../utils/dates';
+import { autoDetectCsvMapping, csvRowExtras } from '../modals/csv-import-mapping';
+import { parseCSV } from '../utils/csv';
 import {
   parseH2Sections, parseHeaderKey, parseLinkValues, parseMilestones, parseSections, parseTasksList,
   replaceSection, stringifyMilestones, stringifyTasks,
@@ -344,16 +349,6 @@ class CadenceCaptureModal extends obsidian.Modal {
   }
 }
 
-/* Helpers for <input type="datetime-local"> ↔ Date in local TZ */
-function toLocalDatetimeValue(d) {
-  const pad = (n) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-function fromLocalDatetimeValue(s) {
-  if (!s) return null;
-  // datetime-local has no timezone — interpret as local time
-  return new Date(s);
-}
 
 /* ─────────── Reminder edit modal (text/when/repeat/notes/delete) ─────────── */
 class CadenceReminderEditModal extends obsidian.Modal {
@@ -552,43 +547,6 @@ class CadenceReminderEditModal extends obsidian.Modal {
   }
 }
 
-/* ─────────── CSV parser (handles quoted fields, escaped quotes, newlines) ─────────── */
-function parseCSV(text) {
-  if (!text) return [];
-  // Strip BOM
-  if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
-
-  const rows = [];
-  let row = [];
-  let field = '';
-  let inQuote = false;
-  let i = 0;
-  while (i < text.length) {
-    const ch = text[i];
-    if (inQuote) {
-      if (ch === '"') {
-        if (text[i + 1] === '"') { field += '"'; i += 2; continue; }
-        inQuote = false; i++; continue;
-      }
-      field += ch; i++; continue;
-    }
-    if (ch === '"') { inQuote = true; i++; continue; }
-    if (ch === ',') { row.push(field); field = ''; i++; continue; }
-    if (ch === '\r') {
-      row.push(field); rows.push(row); row = []; field = '';
-      i += (text[i + 1] === '\n') ? 2 : 1;
-      continue;
-    }
-    if (ch === '\n') {
-      row.push(field); rows.push(row); row = []; field = '';
-      i++; continue;
-    }
-    field += ch; i++;
-  }
-  if (field !== '' || row.length) { row.push(field); rows.push(row); }
-  // Drop trailing empty row(s)
-  return rows.filter((r) => !(r.length === 1 && r[0] === ''));
-}
 
 /* ─────────── CSV import modal ─────────── */
 class CadenceImportModal extends obsidian.Modal {
@@ -705,39 +663,7 @@ class CadenceImportModal extends obsidian.Modal {
   }
 
   _autoDetectMapping() {
-    this.mapping = {};
-    const def = ENTITIES[this.entityKey];
-    if (!def || !this.headers.length) return;
-
-    const norm = (s) => String(s).toLowerCase().replace(/[^a-z0-9]/g, '');
-    const keyByNorm = {};
-    def.fields.forEach((f) => {
-      keyByNorm[norm(f.key)] = f.key;
-      keyByNorm[norm(f.label)] = f.key;
-    });
-    // Common synonyms
-    const synonyms = {
-      'fullname': 'name', 'displayname': 'name', 'contact': 'name',
-      'companyname': 'company', 'organisation': 'company', 'organization': 'company',
-      'phone': 'name', // not great — leave unmapped
-      'mail': 'email', 'emailaddress': 'email',
-      'amount': 'value', 'price': 'value', 'mrr': 'value', 'arr': 'value',
-      'closedate': 'closeBy', 'expectedclose': 'closeBy',
-      'lastcontacted': 'lastContact', 'lastcontact': 'lastContact',
-    };
-
-    this.headers.forEach((h) => {
-      const n = norm(h);
-      if (!n) { this.mapping[h] = null; return; }
-      if (keyByNorm[n]) { this.mapping[h] = keyByNorm[n]; return; }
-      // Synonyms — only take if the target key is a real field
-      if (synonyms[n] && def.fields.some((f) => f.key === synonyms[n])) {
-        this.mapping[h] = synonyms[n]; return;
-      }
-      // Fuzzy contains
-      const fuzzy = def.fields.find((f) => n.includes(norm(f.key)) || norm(f.key).includes(n));
-      this.mapping[h] = fuzzy ? fuzzy.key : null;
-    });
+    this.mapping = autoDetectCsvMapping(ENTITIES[this.entityKey], this.headers);
   }
 
   _renderPreview() {
@@ -816,30 +742,7 @@ class CadenceImportModal extends obsidian.Modal {
       if (!primaryValue) { failed++; continue; }
       try {
         const file = await createEntity(this.app, this.entityKey, primaryValue);
-        const extras = {};
-        Object.entries(this.mapping).forEach(([header, key]) => {
-          if (!key || key === primaryKey) return;
-          const idx = this.headers.indexOf(header);
-          let val = String(row[idx] || '').trim();
-          if (!val) return;
-          const fdef = def.fields.find((f) => f.key === key);
-          if (fdef) {
-            if (fdef.type === 'number' || fdef.type === 'currency') {
-              const cleaned = val.replace(/[^\d.\-]/g, '');
-              const n = Number(cleaned);
-              if (isNaN(n)) return;
-              val = n;
-            } else if (fdef.type === 'tags') {
-              val = val.split(/[,;]/).map((s) => s.trim()).filter(Boolean);
-              if (!val.length) return;
-            } else if (fdef.type === 'date') {
-              // Try to normalise to YYYY-MM-DD
-              const d = new Date(val);
-              if (!isNaN(d.getTime())) val = d.toISOString().slice(0, 10);
-            }
-          }
-          extras[key] = val;
-        });
+        const extras = csvRowExtras(def, this.mapping, this.headers, row, primaryKey);
         if (Object.keys(extras).length) {
           await this.app.fileManager.processFrontMatter(file, (fm) => {
             Object.entries(extras).forEach(([k, v]) => {
@@ -11126,4 +11029,4 @@ export { CadencePlugin };
 
 /* Characterization seam: exposed so tests can pin current behaviour before
    extraction into src/. */
-export { parseCSV, toLocalDatetimeValue, fromLocalDatetimeValue, CadenceImportModal };
+export { CadenceImportModal };

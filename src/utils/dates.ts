@@ -57,3 +57,15 @@ export function sameDay(a: Date, b: Date): boolean {
     && a.getMonth() === b.getMonth()
     && a.getDate() === b.getDate();
 }
+
+/* Helpers for <input type="datetime-local"> ↔ Date in local TZ */
+export function toLocalDatetimeValue(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+export function fromLocalDatetimeValue(s: string | null | undefined): Date | null {
+  if (!s) return null;
+  // datetime-local has no timezone — interpret as local time
+  return new Date(s);
+}
