@@ -1,0 +1,18 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "types": [
+      "node"
+    ],
+    "paths": {
+      "obsidian": [
+        "./mocks/obsidian.ts"
+      ]
+    }
+  },
+  "include": [
+    "../src/**/*.ts",
+    "./**/*.ts",
+    "../vitest.config.mts"
+  ]
+}

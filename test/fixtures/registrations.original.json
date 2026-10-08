@@ -1,0 +1,690 @@
+{
+  "exportIsClass": true,
+  "commands": [
+    {
+      "id": "open-cadence",
+      "name": "Open Cadence",
+      "hotkeys": null,
+      "hasCallback": true
+    },
+    {
+      "id": "open-cadence-home",
+      "name": "Open Cadence — Home (command centre)",
+      "hotkeys": null,
+      "hasCallback": true
+    },
+    {
+      "id": "open-cadence-today",
+      "name": "Open Cadence — Today",
+      "hotkeys": null,
+      "hasCallback": true
+    },
+    {
+      "id": "open-cadence-calendar",
+      "name": "Open Cadence — Calendar (week)",
+      "hotkeys": null,
+      "hasCallback": true
+    },
+    {
+      "id": "open-cadence-pipeline",
+      "name": "Open Cadence — Pipeline",
+      "hotkeys": null,
+      "hasCallback": true
+    },
+    {
+      "id": "new-daily-entry",
+      "name": "New today entry (creates if missing)",
+      "hotkeys": null,
+      "hasCallback": true
+    },
+    {
+      "id": "quick-capture",
+      "name": "Quick capture (with optional reminder)",
+      "hotkeys": [
+        {
+          "modifiers": [
+            "Mod",
+            "Shift"
+          ],
+          "key": "i"
+        }
+      ],
+      "hasCallback": true
+    },
+    {
+      "id": "open-cadence-inbox",
+      "name": "Open Cadence — Inbox",
+      "hotkeys": null,
+      "hasCallback": true
+    },
+    {
+      "id": "cadence-import-csv",
+      "name": "Import from CSV",
+      "hotkeys": null,
+      "hasCallback": true
+    }
+  ],
+  "views": [
+    "cadence-app"
+  ],
+  "ribbonIcons": [
+    {
+      "icon": "sparkles",
+      "title": "Open Cadence"
+    },
+    {
+      "icon": "plus-circle",
+      "title": "Cadence quick capture"
+    }
+  ],
+  "settingTabs": [
+    "CadenceSettingTab"
+  ],
+  "events": [
+    "changed",
+    "delete"
+  ],
+  "intervals": 1,
+  "layoutReadyCallbacks": 3,
+  "propertyTypes": {
+    "type": "text",
+    "name": "text",
+    "status": "text",
+    "priority": "text",
+    "owner": "multitext",
+    "started": "date",
+    "due": "date",
+    "tags": "tags",
+    "title": "text",
+    "stage": "text",
+    "value": "number",
+    "company": "multitext",
+    "contact": "multitext",
+    "closeBy": "date",
+    "project": "multitext",
+    "email": "multitext",
+    "phone": "multitext",
+    "role": "multitext",
+    "lastContact": "date",
+    "domain": "multitext",
+    "industry": "multitext",
+    "size": "text",
+    "subject": "text",
+    "when": "date",
+    "with": "multitext"
+  },
+  "defaultTemplates": {
+    "Cadence/Templates/contact.md": "---\nname: {{name}}\nemail: []\nphone: []\ncompany: []\nrole: []\nproject:\nlastContact:\ntags: []\ntype: contact\n---\n\n# {{name}}\n\n\n## Bio #notes\n_Background, interests, and how we met..._\n\n## Tasks #tasks\n- [ ] Follow up in 2 weeks\n",
+    "Cadence/Templates/company.md": "---\nname: {{name}}\ndomain: []\nindustry: []\nsize:\nowner:\ntags: []\ntype: company\n---\n\n# {{name}}\n\n\n## Description #notes\n_Company description and profile..._\n\n## Contacts #cross-contact-company-table\n\n## Deals #cross-deal-company-kanban\n",
+    "Cadence/Templates/partner.md": "---\nname: {{name}}\ntier:\nstatus:\nowner:\nregion:\ntype: partner\n---\n\n# {{name}}\n\n\n## Notes #notes\n_Context and general notes..._\n",
+    "Cadence/Templates/registration.md": "---\ntitle: {{name}}\npartner:\nstatus:\nvalue: 0\nsubmitted:\nexpires:\ntype: registration\n---\n\n# {{name}}\n\n\n## Notes #notes\n_Context and general notes..._\n",
+    "Cadence/Templates/commission.md": "---\nreference: {{name}}\npartner:\namount: 0\nstatus:\nperiod:\npaidOn:\ntype: commission\n---\n\n# {{name}}\n\n\n## Notes #notes\n_Context and general notes..._\n",
+    "Cadence/Templates/lead.md": "---\nname: {{name}}\ncompany:\nsource:\nstatus:\nassigned:\ntype: lead\n---\n\n# {{name}}\n\n\n## Notes #notes\n_Context and general notes..._\n",
+    "Cadence/Templates/certification.md": "---\nname: {{name}}\npartner:\nlevel:\nissued:\nexpires:\ntype: certification\n---\n\n# {{name}}\n\n\n## Notes #notes\n_Context and general notes..._\n",
+    "Cadence/Templates/activity.md": "---\nsubject: {{name}}\ntype:\nwhen:\nwith:\ncompany:\nproject:\n---\n\n# {{name}}\n\n\n## Notes #notes\n_Context and general notes..._\n",
+    "Cadence/Templates/sequence.md": "---\nname: {{name}}\naudience:\nsteps: 0\nactive: 0\nstatus:\ntype: sequence\n---\n\n# {{name}}\n\n\n## Notes #notes\n_Context and general notes..._\n",
+    "Cadence/Templates/project.md": "---\ntype: project\nname: {{name}}\nstatus: [active]\npriority: [medium]\nowner: []\nstarted: 2026-01-15\ndue:\ntags: []\nrelated_deals: []\nrelated_partners: []\n---\n\n# {{name}}\n\n## Brief\n_The outcome we want, why now._\n\n\n## Scope\n**In scope:**\n- \n\n**Out of scope:**\n- \n\n## Milestones\n- [ ] 2026-01-15 — First milestone\n\n## Tasks\n- [ ] \n\n## Risks\n- \n\n## Stakeholders\n- \n\n## Notes\n\n",
+    "Cadence/Templates/deal.md": "---\ntitle: {{name}}\nstage: [Lead]\nvalue: 0\ncompany:\ncontact:\ncloseBy:\nproject:\nowner:\ntype: deal\n---\n\n# {{name}}\n\n\n## Notes #notes\n_Context and general notes..._\n",
+    "Cadence/Templates/daily.md": "# {{date}}\n\n## Today\n- [ ] \n\n## Journal\n\n"
+  },
+  "settings": {
+    "dailyNoteFolder": "daily",
+    "dailyNoteFormat": "YYYY-MM-DD",
+    "journalHeading": "## Journal",
+    "tasksHeading": "## Today",
+    "taskManagementSystem": "native",
+    "weekStartsOn": 1,
+    "defaultTab": "home",
+    "openOnStartup": true,
+    "collapsedGroups": {},
+    "currency": "USD",
+    "cadenceAppDark": false,
+    "taskProjectLinks": {},
+    "modules": {
+      "crm": true,
+      "prm": false,
+      "planner": true,
+      "projects": true
+    },
+    "desktopNotifications": true,
+    "reminders": [],
+    "customPages": [],
+    "pageLayouts": {},
+    "pageKanbanGroupBy": {},
+    "crossSections": [],
+    "cadenceApiUrl": "",
+    "cadenceApiToken": "",
+    "projectDashboardWidgets": [
+      {
+        "id": "w1",
+        "title": "Projects by Status",
+        "groupBy": "status",
+        "style": "donut"
+      },
+      {
+        "id": "w2",
+        "title": "Projects by Priority",
+        "groupBy": "priority",
+        "style": "bar"
+      }
+    ],
+    "crmDashboardWidgets": [
+      {
+        "id": "c1",
+        "title": "Deals by Stage",
+        "groupBy": "stage",
+        "style": "donut"
+      },
+      {
+        "id": "c2",
+        "title": "Deals by Owner",
+        "groupBy": "owner",
+        "style": "bar"
+      }
+    ],
+    "prmDashboardWidgets": [
+      {
+        "id": "p1",
+        "title": "Partners by Tier",
+        "groupBy": "tier",
+        "style": "donut"
+      },
+      {
+        "id": "p2",
+        "title": "Partners by Status",
+        "groupBy": "status",
+        "style": "bar"
+      }
+    ],
+    "customEntities": {
+      "project": [
+        {
+          "key": "name",
+          "label": "Name",
+          "primary": true,
+          "type": "text"
+        },
+        {
+          "key": "status",
+          "label": "Status",
+          "type": "enum",
+          "options": [
+            "active",
+            "on_hold",
+            "backlog",
+            "done",
+            "cancelled"
+          ]
+        },
+        {
+          "key": "priority",
+          "label": "Priority",
+          "type": "enum",
+          "options": [
+            "low",
+            "medium",
+            "high"
+          ]
+        },
+        {
+          "key": "owner",
+          "label": "Owner",
+          "type": "multitext",
+          "suggestionSource": "folder:Cadence/Contacts"
+        },
+        {
+          "key": "started",
+          "label": "Started",
+          "type": "date"
+        },
+        {
+          "key": "due",
+          "label": "Due",
+          "type": "date"
+        },
+        {
+          "key": "tags",
+          "label": "Tags",
+          "type": "tags"
+        },
+        {
+          "key": "type",
+          "label": "Type",
+          "type": "text"
+        }
+      ],
+      "contact": [
+        {
+          "key": "name",
+          "label": "Name",
+          "primary": true,
+          "type": "text"
+        },
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "multitext",
+          "isList": true,
+          "suggestionSource": "none"
+        },
+        {
+          "key": "phone",
+          "label": "Phone",
+          "isList": true,
+          "type": "multitext",
+          "suggestionSource": "none"
+        },
+        {
+          "key": "company",
+          "label": "Company",
+          "isList": true,
+          "type": "multitext",
+          "suggestionSource": "folder:Cadence/Companies"
+        },
+        {
+          "key": "role",
+          "label": "Role",
+          "isList": true,
+          "type": "multitext"
+        },
+        {
+          "key": "project",
+          "label": "Project",
+          "type": "multitext",
+          "suggestionSource": "folder:Cadence/Projects"
+        },
+        {
+          "key": "lastContact",
+          "label": "Last contact",
+          "type": "date"
+        },
+        {
+          "key": "tags",
+          "label": "Tags",
+          "type": "tags"
+        },
+        {
+          "key": "type",
+          "label": "Type",
+          "type": "text"
+        }
+      ],
+      "deal": [
+        {
+          "key": "title",
+          "label": "Title",
+          "primary": true,
+          "type": "text"
+        },
+        {
+          "key": "stage",
+          "label": "Stage",
+          "type": "enum",
+          "options": [
+            "Lead",
+            "Qualified",
+            "Proposal",
+            "Negotiation",
+            "Won",
+            "Lost"
+          ]
+        },
+        {
+          "key": "value",
+          "label": "Value",
+          "type": "currency"
+        },
+        {
+          "key": "company",
+          "label": "Company",
+          "type": "multitext",
+          "suggestionSource": "folder:Cadence/Companies"
+        },
+        {
+          "key": "contact",
+          "label": "Contact",
+          "type": "multitext",
+          "suggestionSource": "folder:Cadence/Contacts"
+        },
+        {
+          "key": "closeBy",
+          "label": "Close by",
+          "type": "date"
+        },
+        {
+          "key": "project",
+          "label": "Project",
+          "type": "multitext",
+          "suggestionSource": "folder:Cadence/Projects"
+        },
+        {
+          "key": "owner",
+          "label": "Owner",
+          "type": "multitext",
+          "suggestionSource": "folder:Cadence/Contacts"
+        },
+        {
+          "key": "type",
+          "label": "Type",
+          "type": "text"
+        }
+      ],
+      "company": [
+        {
+          "key": "name",
+          "label": "Name",
+          "primary": true,
+          "type": "text"
+        },
+        {
+          "key": "domain",
+          "label": "Domain",
+          "isList": true,
+          "type": "multitext"
+        },
+        {
+          "key": "industry",
+          "label": "Industry",
+          "isList": true,
+          "type": "multitext"
+        },
+        {
+          "key": "size",
+          "label": "Size",
+          "type": "text"
+        },
+        {
+          "key": "owner",
+          "label": "Owner",
+          "type": "multitext",
+          "suggestionSource": "folder:Cadence/Contacts"
+        },
+        {
+          "key": "tags",
+          "label": "Tags",
+          "type": "tags"
+        },
+        {
+          "key": "type",
+          "label": "Type",
+          "type": "text"
+        }
+      ],
+      "activity": [
+        {
+          "key": "subject",
+          "label": "Subject",
+          "primary": true,
+          "type": "text"
+        },
+        {
+          "key": "type",
+          "label": "Type",
+          "type": "enum",
+          "options": [
+            "Call",
+            "Email",
+            "Meeting",
+            "Note",
+            "Task"
+          ]
+        },
+        {
+          "key": "when",
+          "label": "When",
+          "type": "date"
+        },
+        {
+          "key": "with",
+          "label": "With",
+          "type": "multitext",
+          "suggestionSource": "folder:Cadence/Contacts"
+        },
+        {
+          "key": "company",
+          "label": "Company",
+          "type": "multitext",
+          "suggestionSource": "folder:Cadence/Companies"
+        },
+        {
+          "key": "project",
+          "label": "Project",
+          "type": "multitext",
+          "suggestionSource": "folder:Cadence/Projects"
+        }
+      ],
+      "partner": [
+        {
+          "key": "name",
+          "label": "Name",
+          "primary": true
+        },
+        {
+          "key": "tier",
+          "label": "Tier",
+          "type": "enum",
+          "options": [
+            "Gold",
+            "Silver",
+            "Bronze",
+            "Standard"
+          ]
+        },
+        {
+          "key": "status",
+          "label": "Status",
+          "type": "enum",
+          "options": [
+            "Active",
+            "Onboarding",
+            "Inactive",
+            "Churned"
+          ]
+        },
+        {
+          "key": "owner",
+          "label": "Owner",
+          "type": "multitext",
+          "suggestionSource": "folder:Cadence/Contacts"
+        },
+        {
+          "key": "region",
+          "label": "Region"
+        },
+        {
+          "key": "type",
+          "label": "Type",
+          "type": "text"
+        }
+      ],
+      "registration": [
+        {
+          "key": "title",
+          "label": "Title",
+          "primary": true
+        },
+        {
+          "key": "partner",
+          "label": "Partner"
+        },
+        {
+          "key": "status",
+          "label": "Status",
+          "type": "enum",
+          "options": [
+            "Submitted",
+            "Approved",
+            "Rejected",
+            "Expired"
+          ]
+        },
+        {
+          "key": "value",
+          "label": "Value",
+          "type": "currency"
+        },
+        {
+          "key": "submitted",
+          "label": "Submitted",
+          "type": "date"
+        },
+        {
+          "key": "expires",
+          "label": "Expires",
+          "type": "date"
+        },
+        {
+          "key": "type",
+          "label": "Type",
+          "type": "text"
+        }
+      ],
+      "commission": [
+        {
+          "key": "reference",
+          "label": "Ref",
+          "primary": true
+        },
+        {
+          "key": "partner",
+          "label": "Partner"
+        },
+        {
+          "key": "amount",
+          "label": "Amount",
+          "type": "currency"
+        },
+        {
+          "key": "status",
+          "label": "Status",
+          "type": "enum",
+          "options": [
+            "Pending",
+            "Earned",
+            "Paid",
+            "Disputed"
+          ]
+        },
+        {
+          "key": "period",
+          "label": "Period"
+        },
+        {
+          "key": "paidOn",
+          "label": "Paid on",
+          "type": "date"
+        },
+        {
+          "key": "type",
+          "label": "Type",
+          "type": "text"
+        }
+      ],
+      "lead": [
+        {
+          "key": "name",
+          "label": "Name",
+          "primary": true
+        },
+        {
+          "key": "company",
+          "label": "Company",
+          "type": "multitext",
+          "suggestionSource": "folder:Cadence/Companies"
+        },
+        {
+          "key": "source",
+          "label": "Source"
+        },
+        {
+          "key": "status",
+          "label": "Status",
+          "type": "enum",
+          "options": [
+            "New",
+            "Contacted",
+            "Qualified",
+            "Disqualified",
+            "Converted"
+          ]
+        },
+        {
+          "key": "assigned",
+          "label": "Assigned"
+        },
+        {
+          "key": "type",
+          "label": "Type",
+          "type": "text"
+        }
+      ],
+      "certification": [
+        {
+          "key": "name",
+          "label": "Name",
+          "primary": true
+        },
+        {
+          "key": "partner",
+          "label": "Partner"
+        },
+        {
+          "key": "level",
+          "label": "Level"
+        },
+        {
+          "key": "issued",
+          "label": "Issued",
+          "type": "date"
+        },
+        {
+          "key": "expires",
+          "label": "Expires",
+          "type": "date"
+        },
+        {
+          "key": "type",
+          "label": "Type",
+          "type": "text"
+        }
+      ],
+      "sequence": [
+        {
+          "key": "name",
+          "label": "Name",
+          "primary": true
+        },
+        {
+          "key": "audience",
+          "label": "Audience"
+        },
+        {
+          "key": "steps",
+          "label": "Steps",
+          "type": "number"
+        },
+        {
+          "key": "active",
+          "label": "Active",
+          "type": "number"
+        },
+        {
+          "key": "status",
+          "label": "Status",
+          "type": "enum",
+          "options": [
+            "Draft",
+            "Active",
+            "Paused",
+            "Archived"
+          ]
+        },
+        {
+          "key": "type",
+          "label": "Type",
+          "type": "text"
+        }
+      ]
+    }
+  }
+}
