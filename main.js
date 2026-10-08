@@ -75,14 +75,6 @@ function sameDay(a, b) {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 }
 
-// src/utils/format.ts
-function pctBand(pct) {
-  if (pct < 25) return "rose";
-  if (pct < 50) return "warn";
-  if (pct < 75) return "mint";
-  return "emerald";
-}
-
 // src/utils/parsing.ts
 function parseLinkValues(val) {
   if (val == null || val === "") return [];
@@ -291,91 +283,7 @@ function reminderTimeStr(when) {
   return d.toLocaleDateString(void 0, { month: "short", day: "numeric" }) + " " + time;
 }
 
-// src/legacy/cadence.js
-var VIEW_TYPE_CADENCE_APP = "cadence-app";
-var NAV_GROUPS = [
-  {
-    id: "home_group",
-    label: "",
-    items: [
-      { id: "home", label: "Home", icon: "home", desc: "Command centre \u2014 today, projects, pipeline and upcoming, all on one screen." }
-    ]
-  },
-  {
-    id: "planner",
-    label: "Planner",
-    module: "planner",
-    items: [
-      { id: "planner.inbox", label: "Inbox", icon: "inbox", module: "planner", desc: "Universal capture + reminders. Anything you toss in here surfaces at the right time." },
-      { id: "planner.today", label: "Today", icon: "sun", module: "planner", desc: "Diary view of today's daily note." },
-      { id: "planner.calendar", label: "Calendar", icon: "calendar-days", module: "planner", desc: "Week view across daily notes." }
-    ]
-  },
-  {
-    id: "projects",
-    label: "Projects",
-    module: "projects",
-    items: [
-      { id: "projects.dashboard", label: "Dashboard", icon: "layout-grid", module: "projects", desc: "Projects Dashboard \u2014 high-level stats, status Kanban, priority Kanban, and customizable analytical widgets." },
-      { id: "projects.projects", label: "Projects", icon: "folder-kanban", module: "projects", desc: "Active projects with milestones, owners, statuses \u2014 kanban over project notes." }
-    ]
-  },
-  {
-    id: "crm",
-    label: "CRM",
-    module: "crm",
-    items: [
-      { id: "crm.dashboard", label: "Dashboard", icon: "layout-grid", module: "crm", desc: "Overview cards \u2014 today's tasks, deal momentum, recent contacts, week stats." },
-      { id: "crm.pipeline", label: "Pipeline", icon: "trending-up", module: "crm", desc: "Sales pipeline. Deals as markdown notes with stage, value and contact frontmatter." },
-      { id: "crm.contacts", label: "Contacts", icon: "users", module: "crm", desc: "People as markdown notes \u2014 name, email, company, last-talked-to cadence, tags." },
-      { id: "crm.companies", label: "Companies", icon: "building-2", module: "crm", desc: "Companies as markdown notes \u2014 domain, size, industry, related contacts and deals." },
-      { id: "crm.activities", label: "Activities", icon: "calendar", module: "crm", desc: "Cross-cutting activity timeline \u2014 calls, meetings, notes against any contact or deal." }
-    ]
-  },
-  {
-    id: "prm",
-    label: "PRM",
-    module: "prm",
-    items: [
-      { id: "prm.partners", label: "Partners", icon: "handshake", module: "prm", desc: "Partner organisations \u2014 relationship status, named contacts, joint pipeline." },
-      { id: "prm.registrations", label: "Registrations", icon: "clipboard-check", module: "prm", desc: "Deal registrations submitted by partners \u2014 status, expiry, attached deals." },
-      { id: "prm.commissions", label: "Commissions", icon: "wallet", module: "prm", desc: "Commission ledger across partners \u2014 earned, pending, paid, by quarter." },
-      { id: "prm.leads", label: "Leads", icon: "target", module: "prm", desc: "Lead distribution \u2014 round-robin/queue assignment to partners or reps." },
-      { id: "prm.certifications", label: "Certifications", icon: "award", module: "prm", desc: "Partner certifications \u2014 track expiries, renewals, training completion." },
-      { id: "prm.analytics", label: "Analytics", icon: "bar-chart-3", module: "prm", desc: "PRM analytics \u2014 partner-sourced revenue, top performers, lifecycle funnel." }
-    ]
-  },
-  {
-    id: "workflow",
-    label: "Workflow",
-    items: [
-      { id: "workflow.sequences", label: "Sequences", icon: "zap", desc: "Multi-step outreach sequences \u2014 templates, cadence steps, who's in which step." }
-    ]
-  },
-  {
-    id: "reports",
-    label: "Reports",
-    items: [
-      { id: "reports.pipeline", label: "Pipeline", icon: "trending-up", module: "crm", desc: "Pipeline coverage and weighted forecast \u2014 by stage, owner, source." },
-      { id: "reports.sales", label: "Sales", icon: "bar-chart-3", module: "crm", desc: "Closed won / lost trends \u2014 quota attainment, win rate, average cycle." },
-      { id: "reports.partners", label: "Partners", icon: "handshake", module: "prm", desc: "Partner contribution \u2014 sourced vs influenced revenue, top tiers." },
-      { id: "reports.activity", label: "Activity", icon: "pie-chart", module: "crm", desc: "Activity mix \u2014 calls, meetings, emails by rep and account." },
-      { id: "reports.productivity", label: "Productivity", icon: "sun", desc: "Personal productivity \u2014 completion rate, streaks, focus blocks, journal volume." },
-      { id: "reports.graph", label: "Graph View", icon: "network", desc: "Relationship graph showing connections between contacts, companies, partners, projects, deals, and activities." }
-    ]
-  },
-  {
-    id: "misc",
-    label: "",
-    items: [
-      { id: "team", label: "Team", icon: "user-cog", desc: "Team members, roles, seats \u2014 admin view of your Cadence workspace." },
-      { id: "templates", label: "Templates", icon: "file-text", desc: "Manage your entity templates." },
-      { id: "settings", label: "Settings", icon: "settings-2", desc: "Cadence app settings \u2014 folders, headings, week start, API connection." }
-    ]
-  }
-];
-var ALL_SURFACES = NAV_GROUPS.flatMap((g) => g.items);
-var SURFACE_BY_ID = Object.fromEntries(ALL_SURFACES.map((s) => [s.id, s]));
+// src/constants/entities.ts
 var ENTITIES = {
   contact: {
     folder: "Cadence/Contacts",
@@ -532,19 +440,92 @@ var ENTITIES = {
   }
 };
 var DEAL_STAGES = ["Lead", "Qualified", "Proposal", "Negotiation", "Won", "Lost"];
-function getDealStages() {
-  return getEnumOptions("deal", "stage", DEAL_STAGES);
-}
-function entityKeyFromFile(app, file) {
-  if (!file) return null;
-  const cache = app.metadataCache.getFileCache(file);
-  const t = cache && cache.frontmatter && cache.frontmatter.type;
-  if (t && ENTITIES[t]) return t;
-  for (const [key, def] of Object.entries(ENTITIES)) {
-    if (file.path.startsWith(def.folder + "/")) return key;
+
+// src/constants/nav.ts
+var VIEW_TYPE_CADENCE_APP = "cadence-app";
+var NAV_GROUPS = [
+  {
+    id: "home_group",
+    label: "",
+    items: [
+      { id: "home", label: "Home", icon: "home", desc: "Command centre \u2014 today, projects, pipeline and upcoming, all on one screen." }
+    ]
+  },
+  {
+    id: "planner",
+    label: "Planner",
+    module: "planner",
+    items: [
+      { id: "planner.inbox", label: "Inbox", icon: "inbox", module: "planner", desc: "Universal capture + reminders. Anything you toss in here surfaces at the right time." },
+      { id: "planner.today", label: "Today", icon: "sun", module: "planner", desc: "Diary view of today's daily note." },
+      { id: "planner.calendar", label: "Calendar", icon: "calendar-days", module: "planner", desc: "Week view across daily notes." }
+    ]
+  },
+  {
+    id: "projects",
+    label: "Projects",
+    module: "projects",
+    items: [
+      { id: "projects.dashboard", label: "Dashboard", icon: "layout-grid", module: "projects", desc: "Projects Dashboard \u2014 high-level stats, status Kanban, priority Kanban, and customizable analytical widgets." },
+      { id: "projects.projects", label: "Projects", icon: "folder-kanban", module: "projects", desc: "Active projects with milestones, owners, statuses \u2014 kanban over project notes." }
+    ]
+  },
+  {
+    id: "crm",
+    label: "CRM",
+    module: "crm",
+    items: [
+      { id: "crm.dashboard", label: "Dashboard", icon: "layout-grid", module: "crm", desc: "Overview cards \u2014 today's tasks, deal momentum, recent contacts, week stats." },
+      { id: "crm.pipeline", label: "Pipeline", icon: "trending-up", module: "crm", desc: "Sales pipeline. Deals as markdown notes with stage, value and contact frontmatter." },
+      { id: "crm.contacts", label: "Contacts", icon: "users", module: "crm", desc: "People as markdown notes \u2014 name, email, company, last-talked-to cadence, tags." },
+      { id: "crm.companies", label: "Companies", icon: "building-2", module: "crm", desc: "Companies as markdown notes \u2014 domain, size, industry, related contacts and deals." },
+      { id: "crm.activities", label: "Activities", icon: "calendar", module: "crm", desc: "Cross-cutting activity timeline \u2014 calls, meetings, notes against any contact or deal." }
+    ]
+  },
+  {
+    id: "prm",
+    label: "PRM",
+    module: "prm",
+    items: [
+      { id: "prm.partners", label: "Partners", icon: "handshake", module: "prm", desc: "Partner organisations \u2014 relationship status, named contacts, joint pipeline." },
+      { id: "prm.registrations", label: "Registrations", icon: "clipboard-check", module: "prm", desc: "Deal registrations submitted by partners \u2014 status, expiry, attached deals." },
+      { id: "prm.commissions", label: "Commissions", icon: "wallet", module: "prm", desc: "Commission ledger across partners \u2014 earned, pending, paid, by quarter." },
+      { id: "prm.leads", label: "Leads", icon: "target", module: "prm", desc: "Lead distribution \u2014 round-robin/queue assignment to partners or reps." },
+      { id: "prm.certifications", label: "Certifications", icon: "award", module: "prm", desc: "Partner certifications \u2014 track expiries, renewals, training completion." },
+      { id: "prm.analytics", label: "Analytics", icon: "bar-chart-3", module: "prm", desc: "PRM analytics \u2014 partner-sourced revenue, top performers, lifecycle funnel." }
+    ]
+  },
+  {
+    id: "workflow",
+    label: "Workflow",
+    items: [
+      { id: "workflow.sequences", label: "Sequences", icon: "zap", desc: "Multi-step outreach sequences \u2014 templates, cadence steps, who's in which step." }
+    ]
+  },
+  {
+    id: "reports",
+    label: "Reports",
+    items: [
+      { id: "reports.pipeline", label: "Pipeline", icon: "trending-up", module: "crm", desc: "Pipeline coverage and weighted forecast \u2014 by stage, owner, source." },
+      { id: "reports.sales", label: "Sales", icon: "bar-chart-3", module: "crm", desc: "Closed won / lost trends \u2014 quota attainment, win rate, average cycle." },
+      { id: "reports.partners", label: "Partners", icon: "handshake", module: "prm", desc: "Partner contribution \u2014 sourced vs influenced revenue, top tiers." },
+      { id: "reports.activity", label: "Activity", icon: "pie-chart", module: "crm", desc: "Activity mix \u2014 calls, meetings, emails by rep and account." },
+      { id: "reports.productivity", label: "Productivity", icon: "sun", desc: "Personal productivity \u2014 completion rate, streaks, focus blocks, journal volume." },
+      { id: "reports.graph", label: "Graph View", icon: "network", desc: "Relationship graph showing connections between contacts, companies, partners, projects, deals, and activities." }
+    ]
+  },
+  {
+    id: "misc",
+    label: "",
+    items: [
+      { id: "team", label: "Team", icon: "user-cog", desc: "Team members, roles, seats \u2014 admin view of your Cadence workspace." },
+      { id: "templates", label: "Templates", icon: "file-text", desc: "Manage your entity templates." },
+      { id: "settings", label: "Settings", icon: "settings-2", desc: "Cadence app settings \u2014 folders, headings, week start, API connection." }
+    ]
   }
-  return null;
-}
+];
+var ALL_SURFACES = NAV_GROUPS.flatMap((g) => g.items);
+var SURFACE_BY_ID = Object.fromEntries(ALL_SURFACES.map((s) => [s.id, s]));
 var BUILT_SURFACES = /* @__PURE__ */ new Set([
   "home",
   "planner.inbox",
@@ -574,6 +555,522 @@ var BUILT_SURFACES = /* @__PURE__ */ new Set([
   "templates",
   "settings"
 ]);
+
+// src/utils/daily-notes.ts
+var import_obsidian = require("obsidian");
+async function ensureDailyNote(app, settings, date = /* @__PURE__ */ new Date()) {
+  const path = dailyNotePath(settings, date);
+  let file = app.vault.getAbstractFileByPath(path);
+  if (file) return file;
+  const folder = (settings.dailyNoteFolder || "").replace(/\/$/, "");
+  if (folder && !app.vault.getAbstractFileByPath(folder)) {
+    try {
+      await app.vault.createFolder(folder);
+    } catch (_) {
+    }
+  }
+  let template = "";
+  const dailyTemplatePath = "Cadence/Templates/daily.md";
+  const dailyTemplateFile = app.vault.getAbstractFileByPath(dailyTemplatePath);
+  if (dailyTemplateFile && dailyTemplateFile instanceof import_obsidian.TFile) {
+    const rawTemplate = await app.vault.read(dailyTemplateFile);
+    const now = /* @__PURE__ */ new Date();
+    const timeStr = now.toLocaleTimeString(void 0, { hour: "2-digit", minute: "2-digit" });
+    template = rawTemplate.replace(/\{\{name\}\}/gi, ymd(date)).replace(/\{\{title\}\}/gi, ymd(date)).replace(/\{\{date\}\}/gi, ymd(date)).replace(/\{\{time\}\}/gi, timeStr);
+  } else {
+    template = [
+      `# ${ymd(date)}`,
+      "",
+      settings.tasksHeading,
+      "- [ ] ",
+      "",
+      settings.journalHeading,
+      "",
+      ""
+    ].join("\n");
+  }
+  file = await app.vault.create(path, template);
+  return file;
+}
+
+// src/utils/entities.ts
+var import_obsidian2 = require("obsidian");
+
+// src/utils/vault.ts
+async function ensureFolderSync(app, path) {
+  const parts = path.split("/").filter(Boolean);
+  let cur = "";
+  for (const p of parts) {
+    cur = cur ? `${cur}/${p}` : p;
+    if (!app.vault.getAbstractFileByPath(cur)) {
+      await app.vault.createFolder(cur).catch(() => {
+      });
+    }
+  }
+}
+
+// src/utils/templates.ts
+async function ensureDefaultTemplates(app) {
+  const templatesFolder = "Cadence/Templates";
+  await ensureFolderSync(app, templatesFolder);
+  for (const [entityKey, def] of Object.entries(ENTITIES)) {
+    const targetPath = `${templatesFolder}/${entityKey}.md`;
+    let tFile = app.vault.getAbstractFileByPath(targetPath);
+    if (!tFile) {
+      let templateContent = entityTemplate(entityKey, "{{name}}");
+      if (entityKey === "project") {
+        templateContent = projectTemplate("{{name}}");
+      } else if (entityKey === "company") {
+        templateContent += "\n## Description #notes\n_Company description and profile..._\n\n## Contacts #cross-contact-company-table\n\n## Deals #cross-deal-company-kanban\n";
+      } else if (entityKey === "contact") {
+        templateContent += "\n## Bio #notes\n_Background, interests, and how we met..._\n\n## Tasks #tasks\n- [ ] Follow up in 2 weeks\n";
+      } else {
+        templateContent += "\n## Notes #notes\n_Context and general notes..._\n";
+      }
+      await app.vault.create(targetPath, templateContent);
+    }
+  }
+  const dailyTargetPath = `${templatesFolder}/daily.md`;
+  let dailyTFile = app.vault.getAbstractFileByPath(dailyTargetPath);
+  if (!dailyTFile) {
+    const dailyTemplateContent = [
+      "# {{date}}",
+      "",
+      "## Today",
+      "- [ ] ",
+      "",
+      "## Journal",
+      "",
+      ""
+    ].join("\n");
+    await app.vault.create(dailyTargetPath, dailyTemplateContent);
+  }
+}
+function entityTemplate(entityKey, name) {
+  if (entityKey === "project") return projectTemplate(name);
+  const def = ENTITIES[entityKey];
+  const lines = ["---"];
+  const hasTypeField = def.fields.some((f) => f.key === "type");
+  if (!hasTypeField) lines.push(`type: ${entityKey}`);
+  def.fields.forEach((f) => {
+    if (f.key === "type") {
+      if (entityKey === "activity") {
+        lines.push("type:");
+      } else {
+        lines.push(`type: ${entityKey}`);
+      }
+    } else if (f.key === def.fields[0].key) lines.push(`${f.key}: ${name}`);
+    else if (f.type === "tags" || f.isList) lines.push(`${f.key}: []`);
+    else if (f.type === "number" || f.type === "currency") lines.push(`${f.key}: 0`);
+    else lines.push(`${f.key}:`);
+  });
+  if (entityKey === "deal") {
+    const idx = lines.findIndex((l) => l.startsWith("stage:"));
+    if (idx >= 0) lines[idx] = "stage: [Lead]";
+  }
+  lines.push("---", "", `# ${name}`, "", "");
+  return lines.join("\n");
+}
+function projectTemplate(name) {
+  const today = ymd(/* @__PURE__ */ new Date());
+  return [
+    "---",
+    "type: project",
+    `name: ${name}`,
+    "status: [active]",
+    "priority: [medium]",
+    "owner: []",
+    `started: ${today}`,
+    "due:",
+    "tags: []",
+    "related_deals: []",
+    "related_partners: []",
+    "---",
+    "",
+    `# ${name}`,
+    "",
+    "## Brief",
+    "_The outcome we want, why now._",
+    "",
+    "",
+    "## Scope",
+    "**In scope:**",
+    "- ",
+    "",
+    "**Out of scope:**",
+    "- ",
+    "",
+    "## Milestones",
+    `- [ ] ${today} \u2014 First milestone`,
+    "",
+    "## Tasks",
+    "- [ ] ",
+    "",
+    "## Risks",
+    "- ",
+    "",
+    "## Stakeholders",
+    "- ",
+    "",
+    "## Notes",
+    "",
+    ""
+  ].join("\n");
+}
+
+// src/utils/entities.ts
+function getDealStages() {
+  return getEnumOptions("deal", "stage", DEAL_STAGES);
+}
+function entityKeyFromFile(app, file) {
+  if (!file) return null;
+  const cache = app.metadataCache.getFileCache(file);
+  const t = cache && cache.frontmatter && cache.frontmatter.type;
+  if (t && ENTITIES[t]) return t;
+  for (const [key, def] of Object.entries(ENTITIES)) {
+    if (file.path.startsWith(def.folder + "/")) return key;
+  }
+  return null;
+}
+function listEntityFiles(app, entityKey) {
+  const def = ENTITIES[entityKey];
+  if (!def) return [];
+  const root = app.vault.getAbstractFileByPath(def.folder);
+  if (!root || !root.children) return [];
+  const out = [];
+  const walk = (node) => {
+    for (const child of node.children) {
+      if (child.children) walk(child);
+      else if (typeof child.path === "string" && child.path.toLowerCase().endsWith(".md")) {
+        out.push(child);
+      }
+    }
+  };
+  walk(root);
+  return out;
+}
+function getEnumOptions(entityKey, fieldKey, fallback) {
+  const def = ENTITIES[entityKey];
+  if (!def || !def.fields) return fallback;
+  const f = def.fields.find((field) => field.key === fieldKey);
+  return f && f.options && f.options.length > 0 ? f.options : fallback;
+}
+function getFieldSuggestionSource(f) {
+  if (!f) return "none";
+  if (f.suggestionSource) return f.suggestionSource;
+  const k = f.key;
+  if (f.type === "tags" || k === "tags") return "tags";
+  if (["owner", "assigned", "contact", "contacts", "with"].includes(k)) return "contact";
+  if (k === "company") return "company";
+  if (k === "partner") return "partner";
+  if (k === "related") return "project";
+  if (["domain", "industry", "role"].includes(k)) return "history";
+  if (f.type === "multitext") return "history";
+  return "none";
+}
+async function migrateFrontmatterType(app, entityKey, fieldKey, oldType, newType) {
+  if (oldType === newType) return;
+  const files = listEntityFiles(app, entityKey);
+  if (!files || files.length === 0) return;
+  let count = 0;
+  for (const file of files) {
+    await app.fileManager.processFrontMatter(file, (fm) => {
+      if (fm[fieldKey] === void 0) return;
+      const val = fm[fieldKey];
+      let newVal = val;
+      const isNewList = ["multitext", "tags"].includes(newType);
+      const isOldList = ["multitext", "tags"].includes(oldType) || Array.isArray(val);
+      if (isNewList && !isOldList) {
+        if (typeof val === "string") {
+          const parts = val.split(",").map((s) => s.trim()).filter(Boolean);
+          newVal = parts.map((part) => {
+            if (newType === "tags") {
+              return part.replace(/^#|^\[\[|\]\]$/g, "").trim();
+            }
+            const isRelationKey = ["owner", "company", "contact", "with", "related", "partner"].includes(fieldKey);
+            if (isRelationKey) {
+              if (!part.startsWith("[[") && !part.endsWith("]]")) {
+                return `[[${part}]]`;
+              }
+            }
+            return part;
+          });
+        } else if (val != null) {
+          newVal = [String(val)];
+        }
+      } else if (!isNewList && isOldList) {
+        if (Array.isArray(val)) {
+          newVal = val.map((v) => String(v).replace(/^\[\[|\]\]$/g, "").trim()).filter(Boolean).join(", ");
+        } else if (val != null) {
+          newVal = String(val).replace(/^\[\[|\]\]$/g, "").trim();
+        }
+      } else {
+        if (newType === "number" || newType === "currency") {
+          let cleanStr = String(val);
+          if (Array.isArray(val)) cleanStr = String(val[0]);
+          cleanStr = cleanStr.replace(/[^0-9.-]/g, "");
+          const n = Number(cleanStr);
+          newVal = isNaN(n) ? null : n;
+        } else if (newType === "date") {
+          let cleanStr = String(val);
+          if (Array.isArray(val)) cleanStr = String(val[0]);
+          cleanStr = cleanStr.replace(/^\[\[|\]\]$/g, "").trim();
+          const match = cleanStr.match(/\d{4}-\d{2}-\d{2}/);
+          newVal = match ? match[0] : null;
+        } else {
+          if (Array.isArray(val)) {
+            newVal = val.map((v) => String(v).replace(/^\[\[|\]\]$/g, "").trim()).join(", ");
+          } else {
+            newVal = String(val);
+          }
+        }
+      }
+      fm[fieldKey] = newVal;
+      count++;
+    });
+  }
+  new import_obsidian2.Notice(`Migrated ${count} files for field "${fieldKey}" to type "${newType}".`);
+}
+async function migrateFrontmatterKey(app, entityKey, oldKey, newKey) {
+  if (oldKey === newKey) return;
+  const files = listEntityFiles(app, entityKey);
+  if (!files || files.length === 0) return;
+  let count = 0;
+  for (const file of files) {
+    await app.fileManager.processFrontMatter(file, (fm) => {
+      if (fm[oldKey] !== void 0) {
+        fm[newKey] = fm[oldKey];
+        delete fm[oldKey];
+        count++;
+      }
+    });
+  }
+  new import_obsidian2.Notice(`Renamed frontmatter key "${oldKey}" to "${newKey}" in ${count} files.`);
+}
+function readEntity(app, file) {
+  const cache = app.metadataCache.getFileCache(file) || {};
+  const fm = cache.frontmatter || {};
+  return { file, frontmatter: fm, basename: file.basename };
+}
+function listEntities(app, entityKey) {
+  return listEntityFiles(app, entityKey).map((f) => readEntity(app, f));
+}
+function entityValue(entity, key, def) {
+  const fm = entity.frontmatter || {};
+  let val = fm[key];
+  if (val != null && val !== "") {
+    if (key === "stage" && Array.isArray(val)) {
+      return val[0] || "";
+    }
+    return val;
+  }
+  if (key === "type" && def && def.plural !== "Activities") {
+    for (const [k, d] of Object.entries(ENTITIES)) {
+      if (d === def) return k;
+    }
+  }
+  if (def && def.fields[0] && def.fields[0].key === key) return entity.basename;
+  return "";
+}
+async function readProjectMeta(app, file) {
+  const content = await app.vault.read(file);
+  const sections = parseH2Sections(content);
+  let milestoneText = "";
+  for (const [key, val] of Object.entries(sections)) {
+    const { cleanLabel, tag } = parseHeaderKey(key);
+    if (tag === "#milestones" || cleanLabel.toLowerCase() === "milestones") {
+      milestoneText = val;
+      break;
+    }
+  }
+  const milestones = parseMilestones(milestoneText);
+  const total = milestones.length;
+  const done = milestones.filter((m) => m.done).length;
+  const percent = total === 0 ? 0 : Math.round(done / total * 100);
+  const today = startOfDay(/* @__PURE__ */ new Date());
+  const upcoming = milestones.filter((m) => !m.done && m.date).sort((a, b) => a.date - b.date);
+  const next = upcoming[0] || null;
+  return { content, sections, milestones, total, done, percent, next, today };
+}
+async function createEntity(app, entityKeyOrFolder, rawName) {
+  let folder = entityKeyOrFolder;
+  let label = "Note";
+  let isEntity = false;
+  if (ENTITIES[entityKeyOrFolder]) {
+    const def = ENTITIES[entityKeyOrFolder];
+    folder = def.folder;
+    label = def.label;
+    isEntity = true;
+  } else if (entityKeyOrFolder && entityKeyOrFolder.startsWith("folder:")) {
+    folder = entityKeyOrFolder.slice("folder:".length);
+  }
+  if (!isEntity && folder) {
+    const normalizedPath = folder.replace(/\/+$/, "").toLowerCase();
+    for (const [ek, def] of Object.entries(ENTITIES)) {
+      if (def && def.folder && def.folder.replace(/\/+$/, "").toLowerCase() === normalizedPath) {
+        entityKeyOrFolder = ek;
+        folder = def.folder;
+        label = def.label;
+        isEntity = true;
+        break;
+      }
+    }
+  }
+  await ensureFolderSync(app, folder);
+  const safeName = (rawName || `Untitled ${label}`).replace(/[\\/:*?"<>|]/g, "-").trim() || "Untitled";
+  let path = `${folder}/${safeName}.md`;
+  let n = 2;
+  while (app.vault.getAbstractFileByPath(path)) {
+    path = `${folder}/${safeName} ${n}.md`;
+    n++;
+  }
+  let template = "";
+  let customTemplateContent = null;
+  if (isEntity) {
+    const templatesFolder = "Cadence/Templates";
+    await ensureFolderSync(app, templatesFolder);
+    const def = ENTITIES[entityKeyOrFolder];
+    const pathsToTry = [
+      `${templatesFolder}/${entityKeyOrFolder}.md`,
+      `${templatesFolder}/${def.label}.md`,
+      `${templatesFolder}/${def.plural}.md`,
+      `${templatesFolder}/${entityKeyOrFolder.toLowerCase()}.md`,
+      `${templatesFolder}/${def.label.toLowerCase()}.md`,
+      `${templatesFolder}/${def.plural.toLowerCase()}.md`
+    ];
+    for (const p of pathsToTry) {
+      const tFile = app.vault.getAbstractFileByPath(p);
+      if (tFile && tFile instanceof import_obsidian2.TFile) {
+        customTemplateContent = await app.vault.read(tFile);
+        break;
+      }
+    }
+  }
+  if (customTemplateContent !== null) {
+    const now = /* @__PURE__ */ new Date();
+    const timeStr = now.toLocaleTimeString(void 0, { hour: "2-digit", minute: "2-digit" });
+    template = customTemplateContent.replace(/\{\{name\}\}/gi, safeName).replace(/\{\{title\}\}/gi, safeName).replace(/\{\{date\}\}/gi, ymd(now)).replace(/\{\{time\}\}/gi, timeStr);
+  } else {
+    template = isEntity ? entityTemplate(entityKeyOrFolder, safeName) : `---
+name: ${safeName}
+---
+
+# ${safeName}
+
+`;
+  }
+  return await app.vault.create(path, template);
+}
+function projectNameFromPath(app, path) {
+  if (!path) return null;
+  const file = app.vault.getAbstractFileByPath(path);
+  if (!file) return path.split("/").pop().replace(/\.md$/, "");
+  const cache = app.metadataCache.getFileCache(file);
+  const fmName = cache && cache.frontmatter && cache.frontmatter.name;
+  return fmName || file.basename;
+}
+
+// src/utils/format.ts
+function pctBand(pct) {
+  if (pct < 25) return "rose";
+  if (pct < 50) return "warn";
+  if (pct < 75) return "mint";
+  return "emerald";
+}
+var CURRENT_CURRENCY = "USD";
+function setCurrentCurrency(code) {
+  CURRENT_CURRENCY = code;
+}
+function fmtValue(val, type) {
+  if (val == null || val === "") return "";
+  if (type === "tags" && Array.isArray(val)) return val.map((t) => `#${t}`).join(" ");
+  if (type === "date") {
+    const d = new Date(val);
+    if (!isNaN(d.getTime())) return d.toLocaleDateString(void 0, { year: "numeric", month: "short", day: "numeric" });
+    return String(val);
+  }
+  if (type === "currency") {
+    const n = Number(val);
+    if (!isNaN(n)) {
+      try {
+        return n.toLocaleString(void 0, { style: "currency", currency: CURRENT_CURRENCY, maximumFractionDigits: 0 });
+      } catch (_) {
+        return n.toLocaleString(void 0, { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+      }
+    }
+    return String(val);
+  }
+  if (type === "number") return String(val);
+  if (Array.isArray(val)) return val.join(", ");
+  return String(val);
+}
+
+// src/utils/tasknotes.ts
+function listTaskNotesTasks(app) {
+  const folderPath = "TaskNotes/Tasks";
+  const folder = app.vault.getAbstractFileByPath(folderPath);
+  if (!folder || !folder.children) return [];
+  const tasks = [];
+  const walk = (node) => {
+    for (const child of node.children) {
+      if (child.children) walk(child);
+      else if (typeof child.path === "string" && child.path.toLowerCase().endsWith(".md")) {
+        const cache = app.metadataCache.getFileCache(child);
+        const fm = cache && cache.frontmatter || {};
+        tasks.push({
+          file: child,
+          title: fm.title || child.basename,
+          status: fm.status || "open",
+          scheduled: fm.scheduled || "",
+          due: fm.due || "",
+          priority: fm.priority || "normal",
+          projects: fm.projects || "",
+          done: fm.status === "done"
+        });
+      }
+    }
+  };
+  walk(folder);
+  return tasks;
+}
+function listTaskNotesTasksForFile(app, file) {
+  const allTasks = listTaskNotesTasks(app);
+  const name = file.basename;
+  return allTasks.filter((t) => {
+    if (!t.projects) return false;
+    const links = parseLinkValues(t.projects);
+    return links.some((l) => l.target === name);
+  });
+}
+async function toggleTaskNotesTask(app, taskFile, checked) {
+  await app.fileManager.processFrontMatter(taskFile, (fm) => {
+    fm.status = checked ? "done" : "open";
+  });
+}
+async function appendTaskNotesTask(app, text, date = /* @__PURE__ */ new Date()) {
+  const ymdStr = ymd(date);
+  const folderPath = "TaskNotes/Tasks";
+  await ensureFolderSync(app, folderPath);
+  const cleanTitle = text.replace(/[\\/:*?"<>|]/g, "").trim();
+  let filename = `${folderPath}/${cleanTitle}.md`;
+  let file = app.vault.getAbstractFileByPath(filename);
+  let counter = 1;
+  while (file) {
+    filename = `${folderPath}/${cleanTitle} (${counter}).md`;
+    file = app.vault.getAbstractFileByPath(filename);
+    counter++;
+  }
+  const content = `---
+title: ${text}
+status: open
+scheduled: ${ymdStr}
+priority: normal
+---
+`;
+  await app.vault.create(filename, content);
+}
+
+// src/legacy/cadence.js
 var DEFAULT_SETTINGS = {
   dailyNoteFolder: "daily",
   dailyNoteFormat: "YYYY-MM-DD",
@@ -696,7 +1193,6 @@ var DEFAULT_SETTINGS = {
     ]
   }
 };
-var CURRENT_CURRENCY = "USD";
 var CURRENCY_OPTIONS = [
   { code: "USD", label: "USD \u2014 US Dollar" },
   { code: "EUR", label: "EUR \u2014 Euro" },
@@ -710,481 +1206,6 @@ var CURRENCY_OPTIONS = [
   { code: "BRL", label: "BRL \u2014 Brazilian Real" },
   { code: "AED", label: "AED \u2014 UAE Dirham" }
 ];
-function listTaskNotesTasks(app) {
-  const folderPath = "TaskNotes/Tasks";
-  const folder = app.vault.getAbstractFileByPath(folderPath);
-  if (!folder || !folder.children) return [];
-  const tasks = [];
-  const walk = (node) => {
-    for (const child of node.children) {
-      if (child.children) walk(child);
-      else if (typeof child.path === "string" && child.path.toLowerCase().endsWith(".md")) {
-        const cache = app.metadataCache.getFileCache(child);
-        const fm = cache && cache.frontmatter || {};
-        tasks.push({
-          file: child,
-          title: fm.title || child.basename,
-          status: fm.status || "open",
-          scheduled: fm.scheduled || "",
-          due: fm.due || "",
-          priority: fm.priority || "normal",
-          projects: fm.projects || "",
-          done: fm.status === "done"
-        });
-      }
-    }
-  };
-  walk(folder);
-  return tasks;
-}
-function listTaskNotesTasksForFile(app, file) {
-  const allTasks = listTaskNotesTasks(app);
-  const name = file.basename;
-  return allTasks.filter((t) => {
-    if (!t.projects) return false;
-    const links = parseLinkValues(t.projects);
-    return links.some((l) => l.target === name);
-  });
-}
-async function toggleTaskNotesTask(app, taskFile, checked) {
-  await app.fileManager.processFrontMatter(taskFile, (fm) => {
-    fm.status = checked ? "done" : "open";
-  });
-}
-async function appendTaskNotesTask(app, text, date = /* @__PURE__ */ new Date()) {
-  const ymdStr = ymd(date);
-  const folderPath = "TaskNotes/Tasks";
-  await ensureFolderSync(app, folderPath);
-  const cleanTitle = text.replace(/[\\/:*?"<>|]/g, "").trim();
-  let filename = `${folderPath}/${cleanTitle}.md`;
-  let file = app.vault.getAbstractFileByPath(filename);
-  let counter = 1;
-  while (file) {
-    filename = `${folderPath}/${cleanTitle} (${counter}).md`;
-    file = app.vault.getAbstractFileByPath(filename);
-    counter++;
-  }
-  const content = `---
-title: ${text}
-status: open
-scheduled: ${ymdStr}
-priority: normal
----
-`;
-  await app.vault.create(filename, content);
-}
-async function ensureFolderSync(app, path) {
-  const parts = path.split("/").filter(Boolean);
-  let cur = "";
-  for (const p of parts) {
-    cur = cur ? `${cur}/${p}` : p;
-    if (!app.vault.getAbstractFileByPath(cur)) {
-      await app.vault.createFolder(cur).catch(() => {
-      });
-    }
-  }
-}
-async function ensureDefaultTemplates(app) {
-  const templatesFolder = "Cadence/Templates";
-  await ensureFolderSync(app, templatesFolder);
-  for (const [entityKey, def] of Object.entries(ENTITIES)) {
-    const targetPath = `${templatesFolder}/${entityKey}.md`;
-    let tFile = app.vault.getAbstractFileByPath(targetPath);
-    if (!tFile) {
-      let templateContent = entityTemplate(entityKey, "{{name}}");
-      if (entityKey === "project") {
-        templateContent = projectTemplate("{{name}}");
-      } else if (entityKey === "company") {
-        templateContent += "\n## Description #notes\n_Company description and profile..._\n\n## Contacts #cross-contact-company-table\n\n## Deals #cross-deal-company-kanban\n";
-      } else if (entityKey === "contact") {
-        templateContent += "\n## Bio #notes\n_Background, interests, and how we met..._\n\n## Tasks #tasks\n- [ ] Follow up in 2 weeks\n";
-      } else {
-        templateContent += "\n## Notes #notes\n_Context and general notes..._\n";
-      }
-      await app.vault.create(targetPath, templateContent);
-    }
-  }
-  const dailyTargetPath = `${templatesFolder}/daily.md`;
-  let dailyTFile = app.vault.getAbstractFileByPath(dailyTargetPath);
-  if (!dailyTFile) {
-    const dailyTemplateContent = [
-      "# {{date}}",
-      "",
-      "## Today",
-      "- [ ] ",
-      "",
-      "## Journal",
-      "",
-      ""
-    ].join("\n");
-    await app.vault.create(dailyTargetPath, dailyTemplateContent);
-  }
-}
-function listEntityFiles(app, entityKey) {
-  const def = ENTITIES[entityKey];
-  if (!def) return [];
-  const root = app.vault.getAbstractFileByPath(def.folder);
-  if (!root || !root.children) return [];
-  const out = [];
-  const walk = (node) => {
-    for (const child of node.children) {
-      if (child.children) walk(child);
-      else if (typeof child.path === "string" && child.path.toLowerCase().endsWith(".md")) {
-        out.push(child);
-      }
-    }
-  };
-  walk(root);
-  return out;
-}
-function getEnumOptions(entityKey, fieldKey, fallback) {
-  const def = ENTITIES[entityKey];
-  if (!def || !def.fields) return fallback;
-  const f = def.fields.find((field) => field.key === fieldKey);
-  return f && f.options && f.options.length > 0 ? f.options : fallback;
-}
-function getFieldSuggestionSource(f) {
-  if (!f) return "none";
-  if (f.suggestionSource) return f.suggestionSource;
-  const k = f.key;
-  if (f.type === "tags" || k === "tags") return "tags";
-  if (["owner", "assigned", "contact", "contacts", "with"].includes(k)) return "contact";
-  if (k === "company") return "company";
-  if (k === "partner") return "partner";
-  if (k === "related") return "project";
-  if (["domain", "industry", "role"].includes(k)) return "history";
-  if (f.type === "multitext") return "history";
-  return "none";
-}
-async function migrateFrontmatterType(app, entityKey, fieldKey, oldType, newType) {
-  if (oldType === newType) return;
-  const files = listEntityFiles(app, entityKey);
-  if (!files || files.length === 0) return;
-  let count = 0;
-  for (const file of files) {
-    await app.fileManager.processFrontMatter(file, (fm) => {
-      if (fm[fieldKey] === void 0) return;
-      const val = fm[fieldKey];
-      let newVal = val;
-      const isNewList = ["multitext", "tags"].includes(newType);
-      const isOldList = ["multitext", "tags"].includes(oldType) || Array.isArray(val);
-      if (isNewList && !isOldList) {
-        if (typeof val === "string") {
-          const parts = val.split(",").map((s) => s.trim()).filter(Boolean);
-          newVal = parts.map((part) => {
-            if (newType === "tags") {
-              return part.replace(/^#|^\[\[|\]\]$/g, "").trim();
-            }
-            const isRelationKey = ["owner", "company", "contact", "with", "related", "partner"].includes(fieldKey);
-            if (isRelationKey) {
-              if (!part.startsWith("[[") && !part.endsWith("]]")) {
-                return `[[${part}]]`;
-              }
-            }
-            return part;
-          });
-        } else if (val != null) {
-          newVal = [String(val)];
-        }
-      } else if (!isNewList && isOldList) {
-        if (Array.isArray(val)) {
-          newVal = val.map((v) => String(v).replace(/^\[\[|\]\]$/g, "").trim()).filter(Boolean).join(", ");
-        } else if (val != null) {
-          newVal = String(val).replace(/^\[\[|\]\]$/g, "").trim();
-        }
-      } else {
-        if (newType === "number" || newType === "currency") {
-          let cleanStr = String(val);
-          if (Array.isArray(val)) cleanStr = String(val[0]);
-          cleanStr = cleanStr.replace(/[^0-9.-]/g, "");
-          const n = Number(cleanStr);
-          newVal = isNaN(n) ? null : n;
-        } else if (newType === "date") {
-          let cleanStr = String(val);
-          if (Array.isArray(val)) cleanStr = String(val[0]);
-          cleanStr = cleanStr.replace(/^\[\[|\]\]$/g, "").trim();
-          const match = cleanStr.match(/\d{4}-\d{2}-\d{2}/);
-          newVal = match ? match[0] : null;
-        } else {
-          if (Array.isArray(val)) {
-            newVal = val.map((v) => String(v).replace(/^\[\[|\]\]$/g, "").trim()).join(", ");
-          } else {
-            newVal = String(val);
-          }
-        }
-      }
-      fm[fieldKey] = newVal;
-      count++;
-    });
-  }
-  new obsidian.Notice(`Migrated ${count} files for field "${fieldKey}" to type "${newType}".`);
-}
-async function migrateFrontmatterKey(app, entityKey, oldKey, newKey) {
-  if (oldKey === newKey) return;
-  const files = listEntityFiles(app, entityKey);
-  if (!files || files.length === 0) return;
-  let count = 0;
-  for (const file of files) {
-    await app.fileManager.processFrontMatter(file, (fm) => {
-      if (fm[oldKey] !== void 0) {
-        fm[newKey] = fm[oldKey];
-        delete fm[oldKey];
-        count++;
-      }
-    });
-  }
-  new obsidian.Notice(`Renamed frontmatter key "${oldKey}" to "${newKey}" in ${count} files.`);
-}
-function readEntity(app, file) {
-  const cache = app.metadataCache.getFileCache(file) || {};
-  const fm = cache.frontmatter || {};
-  return { file, frontmatter: fm, basename: file.basename };
-}
-function listEntities(app, entityKey) {
-  return listEntityFiles(app, entityKey).map((f) => readEntity(app, f));
-}
-function entityValue(entity, key, def) {
-  const fm = entity.frontmatter || {};
-  let val = fm[key];
-  if (val != null && val !== "") {
-    if (key === "stage" && Array.isArray(val)) {
-      return val[0] || "";
-    }
-    return val;
-  }
-  if (key === "type" && def && def.plural !== "Activities") {
-    for (const [k, d] of Object.entries(ENTITIES)) {
-      if (d === def) return k;
-    }
-  }
-  if (def && def.fields[0] && def.fields[0].key === key) return entity.basename;
-  return "";
-}
-function fmtValue(val, type) {
-  if (val == null || val === "") return "";
-  if (type === "tags" && Array.isArray(val)) return val.map((t) => `#${t}`).join(" ");
-  if (type === "date") {
-    const d = new Date(val);
-    if (!isNaN(d.getTime())) return d.toLocaleDateString(void 0, { year: "numeric", month: "short", day: "numeric" });
-    return String(val);
-  }
-  if (type === "currency") {
-    const n = Number(val);
-    if (!isNaN(n)) {
-      try {
-        return n.toLocaleString(void 0, { style: "currency", currency: CURRENT_CURRENCY, maximumFractionDigits: 0 });
-      } catch (_) {
-        return n.toLocaleString(void 0, { style: "currency", currency: "USD", maximumFractionDigits: 0 });
-      }
-    }
-    return String(val);
-  }
-  if (type === "number") return String(val);
-  if (Array.isArray(val)) return val.join(", ");
-  return String(val);
-}
-function entityTemplate(entityKey, name) {
-  if (entityKey === "project") return projectTemplate(name);
-  const def = ENTITIES[entityKey];
-  const lines = ["---"];
-  const hasTypeField = def.fields.some((f) => f.key === "type");
-  if (!hasTypeField) lines.push(`type: ${entityKey}`);
-  def.fields.forEach((f) => {
-    if (f.key === "type") {
-      if (entityKey === "activity") {
-        lines.push("type:");
-      } else {
-        lines.push(`type: ${entityKey}`);
-      }
-    } else if (f.key === def.fields[0].key) lines.push(`${f.key}: ${name}`);
-    else if (f.type === "tags" || f.isList) lines.push(`${f.key}: []`);
-    else if (f.type === "number" || f.type === "currency") lines.push(`${f.key}: 0`);
-    else lines.push(`${f.key}:`);
-  });
-  if (entityKey === "deal") {
-    const idx = lines.findIndex((l) => l.startsWith("stage:"));
-    if (idx >= 0) lines[idx] = "stage: [Lead]";
-  }
-  lines.push("---", "", `# ${name}`, "", "");
-  return lines.join("\n");
-}
-function projectTemplate(name) {
-  const today = ymd(/* @__PURE__ */ new Date());
-  return [
-    "---",
-    "type: project",
-    `name: ${name}`,
-    "status: [active]",
-    "priority: [medium]",
-    "owner: []",
-    `started: ${today}`,
-    "due:",
-    "tags: []",
-    "related_deals: []",
-    "related_partners: []",
-    "---",
-    "",
-    `# ${name}`,
-    "",
-    "## Brief",
-    "_The outcome we want, why now._",
-    "",
-    "",
-    "## Scope",
-    "**In scope:**",
-    "- ",
-    "",
-    "**Out of scope:**",
-    "- ",
-    "",
-    "## Milestones",
-    `- [ ] ${today} \u2014 First milestone`,
-    "",
-    "## Tasks",
-    "- [ ] ",
-    "",
-    "## Risks",
-    "- ",
-    "",
-    "## Stakeholders",
-    "- ",
-    "",
-    "## Notes",
-    "",
-    ""
-  ].join("\n");
-}
-async function readProjectMeta(app, file) {
-  const content = await app.vault.read(file);
-  const sections = parseH2Sections(content);
-  let milestoneText = "";
-  for (const [key, val] of Object.entries(sections)) {
-    const { cleanLabel, tag } = parseHeaderKey(key);
-    if (tag === "#milestones" || cleanLabel.toLowerCase() === "milestones") {
-      milestoneText = val;
-      break;
-    }
-  }
-  const milestones = parseMilestones(milestoneText);
-  const total = milestones.length;
-  const done = milestones.filter((m) => m.done).length;
-  const percent = total === 0 ? 0 : Math.round(done / total * 100);
-  const today = startOfDay(/* @__PURE__ */ new Date());
-  const upcoming = milestones.filter((m) => !m.done && m.date).sort((a, b) => a.date - b.date);
-  const next = upcoming[0] || null;
-  return { content, sections, milestones, total, done, percent, next, today };
-}
-async function createEntity(app, entityKeyOrFolder, rawName) {
-  let folder = entityKeyOrFolder;
-  let label = "Note";
-  let isEntity = false;
-  if (ENTITIES[entityKeyOrFolder]) {
-    const def = ENTITIES[entityKeyOrFolder];
-    folder = def.folder;
-    label = def.label;
-    isEntity = true;
-  } else if (entityKeyOrFolder && entityKeyOrFolder.startsWith("folder:")) {
-    folder = entityKeyOrFolder.slice("folder:".length);
-  }
-  if (!isEntity && folder) {
-    const normalizedPath = folder.replace(/\/+$/, "").toLowerCase();
-    for (const [ek, def] of Object.entries(ENTITIES)) {
-      if (def && def.folder && def.folder.replace(/\/+$/, "").toLowerCase() === normalizedPath) {
-        entityKeyOrFolder = ek;
-        folder = def.folder;
-        label = def.label;
-        isEntity = true;
-        break;
-      }
-    }
-  }
-  await ensureFolderSync(app, folder);
-  const safeName = (rawName || `Untitled ${label}`).replace(/[\\/:*?"<>|]/g, "-").trim() || "Untitled";
-  let path = `${folder}/${safeName}.md`;
-  let n = 2;
-  while (app.vault.getAbstractFileByPath(path)) {
-    path = `${folder}/${safeName} ${n}.md`;
-    n++;
-  }
-  let template = "";
-  let customTemplateContent = null;
-  if (isEntity) {
-    const templatesFolder = "Cadence/Templates";
-    await ensureFolderSync(app, templatesFolder);
-    const def = ENTITIES[entityKeyOrFolder];
-    const pathsToTry = [
-      `${templatesFolder}/${entityKeyOrFolder}.md`,
-      `${templatesFolder}/${def.label}.md`,
-      `${templatesFolder}/${def.plural}.md`,
-      `${templatesFolder}/${entityKeyOrFolder.toLowerCase()}.md`,
-      `${templatesFolder}/${def.label.toLowerCase()}.md`,
-      `${templatesFolder}/${def.plural.toLowerCase()}.md`
-    ];
-    for (const p of pathsToTry) {
-      const tFile = app.vault.getAbstractFileByPath(p);
-      if (tFile && tFile instanceof obsidian.TFile) {
-        customTemplateContent = await app.vault.read(tFile);
-        break;
-      }
-    }
-  }
-  if (customTemplateContent !== null) {
-    const now = /* @__PURE__ */ new Date();
-    const timeStr = now.toLocaleTimeString(void 0, { hour: "2-digit", minute: "2-digit" });
-    template = customTemplateContent.replace(/\{\{name\}\}/gi, safeName).replace(/\{\{title\}\}/gi, safeName).replace(/\{\{date\}\}/gi, ymd(now)).replace(/\{\{time\}\}/gi, timeStr);
-  } else {
-    template = isEntity ? entityTemplate(entityKeyOrFolder, safeName) : `---
-name: ${safeName}
----
-
-# ${safeName}
-
-`;
-  }
-  return await app.vault.create(path, template);
-}
-async function ensureDailyNote(app, settings, date = /* @__PURE__ */ new Date()) {
-  const path = dailyNotePath(settings, date);
-  let file = app.vault.getAbstractFileByPath(path);
-  if (file) return file;
-  const folder = (settings.dailyNoteFolder || "").replace(/\/$/, "");
-  if (folder && !app.vault.getAbstractFileByPath(folder)) {
-    try {
-      await app.vault.createFolder(folder);
-    } catch (_) {
-    }
-  }
-  let template = "";
-  const dailyTemplatePath = "Cadence/Templates/daily.md";
-  const dailyTemplateFile = app.vault.getAbstractFileByPath(dailyTemplatePath);
-  if (dailyTemplateFile && dailyTemplateFile instanceof obsidian.TFile) {
-    const rawTemplate = await app.vault.read(dailyTemplateFile);
-    const now = /* @__PURE__ */ new Date();
-    const timeStr = now.toLocaleTimeString(void 0, { hour: "2-digit", minute: "2-digit" });
-    template = rawTemplate.replace(/\{\{name\}\}/gi, ymd(date)).replace(/\{\{title\}\}/gi, ymd(date)).replace(/\{\{date\}\}/gi, ymd(date)).replace(/\{\{time\}\}/gi, timeStr);
-  } else {
-    template = [
-      `# ${ymd(date)}`,
-      "",
-      settings.tasksHeading,
-      "- [ ] ",
-      "",
-      settings.journalHeading,
-      "",
-      ""
-    ].join("\n");
-  }
-  file = await app.vault.create(path, template);
-  return file;
-}
-function projectNameFromPath(app, path) {
-  if (!path) return null;
-  const file = app.vault.getAbstractFileByPath(path);
-  if (!file) return path.split("/").pop().replace(/\.md$/, "");
-  const cache = app.metadataCache.getFileCache(file);
-  const fmName = cache && cache.frontmatter && cache.frontmatter.name;
-  return fmName || file.basename;
-}
 var CadenceCaptureModal = class extends obsidian.Modal {
   constructor(app, opts) {
     super(app);
@@ -10395,7 +10416,7 @@ var CadencePlugin = class extends obsidian.Plugin {
         this.settings.customEntities[entityKey] = JSON.parse(JSON.stringify(defaultFields));
       }
     }
-    CURRENT_CURRENCY = this.settings.currency || "USD";
+    setCurrentCurrency(this.settings.currency || "USD");
     if (!this.settings.projectDashboardWidgets || this.settings.projectDashboardWidgets.length === 0) {
       this.settings.projectDashboardWidgets = [
         { id: "w1", title: "Projects by Status", groupBy: "status", style: "donut" },
@@ -10854,7 +10875,7 @@ var CadencePlugin = class extends obsidian.Plugin {
   }
   async saveSettings() {
     await this.saveData(this.settings);
-    CURRENT_CURRENCY = this.settings.currency || "USD";
+    setCurrentCurrency(this.settings.currency || "USD");
   }
 };
 

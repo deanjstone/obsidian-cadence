@@ -3,7 +3,12 @@
   "compilerOptions": {
     "types": [
       "node"
-    ]
+    ],
+    "paths": {
+      "obsidian": [
+        "./mocks/obsidian.ts"
+      ]
+    }
   },
   "include": [
     "../src/**/*.ts",

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ALL_SURFACES, BUILT_SURFACES, NAV_GROUPS, SURFACE_BY_ID, VIEW_TYPE_CADENCE_APP } from "../../src/legacy/cadence.js";
+import { ALL_SURFACES, BUILT_SURFACES, NAV_GROUPS, SURFACE_BY_ID, VIEW_TYPE_CADENCE_APP } from "../../src/constants/nav";
 
 /* Characterization tests for the nav structure the view renders. */
 

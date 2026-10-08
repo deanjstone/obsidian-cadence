@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { __setCurrentCurrencyForTests as setCurrentCurrency, fmtValue } from "../../src/legacy/cadence.js";
+import { setCurrentCurrency, fmtValue } from "../../src/utils/format";
 
 /* Characterization tests for fmtValue (en-US, TZ=UTC). */
 

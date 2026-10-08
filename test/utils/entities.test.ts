@@ -12,9 +12,8 @@ import {
   projectTagged,
   projectWebsite,
 } from "../fixtures/vault";
+import { DEAL_STAGES, ENTITIES } from "../../src/constants/entities";
 import {
-  DEAL_STAGES,
-  ENTITIES,
   createEntity,
   entityKeyFromFile,
   entityValue,
@@ -28,7 +27,7 @@ import {
   projectNameFromPath,
   readEntity,
   readProjectMeta,
-} from "../../src/legacy/cadence.js";
+} from "../../src/utils/entities";
 
 /* Characterization tests for entity logic against a mocked vault. */
 
@@ -216,7 +215,7 @@ describe("readProjectMeta", () => {
     expect(meta.total).toBe(4);
     expect(meta.done).toBe(1);
     expect(meta.percent).toBe(25);
-    expect(meta.next.title).toBe("Content freeze");
+    expect(meta.next?.title).toBe("Content freeze");
     expect(meta.today).toEqual(new Date("2026-10-08T00:00:00Z"));
     expect(Object.keys(meta.sections)).toEqual(["Brief", "Milestones", "Tasks"]);
     expect(meta.content).toContain("# Website relaunch");

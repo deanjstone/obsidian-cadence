@@ -6,7 +6,7 @@ import {
   listTaskNotesTasks,
   listTaskNotesTasksForFile,
   toggleTaskNotesTask,
-} from "../../src/legacy/cadence.js";
+} from "../../src/utils/tasknotes";
 
 /* Characterization tests for the TaskNotes integration helpers. */
 

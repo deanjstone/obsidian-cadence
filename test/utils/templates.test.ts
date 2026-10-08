@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createMockApp, TFile } from "../mocks/obsidian";
-import { ENTITIES, ensureDefaultTemplates, entityTemplate, projectTemplate } from "../../src/legacy/cadence.js";
+import { ENTITIES } from "../../src/constants/entities";
+import { ensureDefaultTemplates, entityTemplate, projectTemplate } from "../../src/utils/templates";
 
 /* Characterization tests for note templates. Clock pinned for the dates
    projectTemplate writes. */

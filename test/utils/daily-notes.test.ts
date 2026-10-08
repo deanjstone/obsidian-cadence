@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createMockApp, TFile } from "../mocks/obsidian";
-import { ensureDailyNote, ensureFolderSync } from "../../src/legacy/cadence.js";
+import { ensureDailyNote } from "../../src/utils/daily-notes";
+import { ensureFolderSync } from "../../src/utils/vault";
 
 /* Characterization tests for folder creation and daily-note bootstrap. */
 
