@@ -11875,5 +11875,13 @@ export { CadencePlugin };
 
 /* Characterization seam: helpers exposed so tests can pin their current
    behaviour before each one is extracted into src/utils. */
+function __setCurrentCurrencyForTests(code) { CURRENT_CURRENCY = code; }
 export {
+  __setCurrentCurrencyForTests,
+  VIEW_TYPE_CADENCE_APP, NAV_GROUPS, ALL_SURFACES, SURFACE_BY_ID, BUILT_SURFACES,
+  ENTITIES, DEAL_STAGES, DEFAULT_SETTINGS, CURRENCY_OPTIONS,
+  getDealStages, entityKeyFromFile, ensureFolderSync, listEntityFiles, getEnumOptions, getFieldSuggestionSource,
+  migrateFrontmatterType, migrateFrontmatterKey, readEntity, listEntities, entityValue, fmtValue,
+  entityTemplate, projectTemplate, ensureDefaultTemplates, readProjectMeta, createEntity, ensureDailyNote,
+  projectNameFromPath, listTaskNotesTasks, listTaskNotesTasksForFile, toggleTaskNotesTask, appendTaskNotesTask,
 };
