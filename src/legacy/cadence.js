@@ -12119,3 +12119,13 @@ class CadencePlugin extends obsidian.Plugin {
 }
 
 export { CadencePlugin };
+
+/* Characterization seam: helpers exposed so tests can pin their current
+   behaviour before each one is extracted into src/utils. */
+export {
+  pad, ymd, dailyNotePath, greeting, dateInfo, startOfDay, addDays, startOfWeek, weekDates, sameDay,
+  pctBand,
+  parseH2Sections, parseHeaderKey, parseMilestones, stringifyMilestones, parseTasksList, stringifyTasks,
+  parseSections, replaceSection, parseLinkValues,
+  reminderId, nextRepeat, reminderBucket, reminderTimeStr, findProjectTaskReminder,
+};
