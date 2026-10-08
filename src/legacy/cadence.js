@@ -11123,3 +11123,7 @@ class CadencePlugin extends obsidian.Plugin {
 }
 
 export { CadencePlugin };
+
+/* Characterization seam: exposed so tests can pin current behaviour before
+   extraction into src/. */
+export { parseCSV, toLocalDatetimeValue, fromLocalDatetimeValue, CadenceImportModal };
