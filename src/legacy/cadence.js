@@ -6,6 +6,13 @@
    src/ modules (see issue #1). Bundled by esbuild into the root main.js.
    ============================================================ */
 import * as obsidian from 'obsidian';
+import { addDays, dailyNotePath, dateInfo, greeting, pad, sameDay, startOfDay, startOfWeek, weekDates, ymd } from '../utils/dates';
+import { pctBand } from '../utils/format';
+import {
+  parseH2Sections, parseHeaderKey, parseLinkValues, parseMilestones, parseSections, parseTasksList,
+  replaceSection, stringifyMilestones, stringifyTasks,
+} from '../utils/parsing';
+import { findProjectTaskReminder, nextRepeat, reminderBucket, reminderId, reminderTimeStr } from '../utils/reminders';
 
 const VIEW_TYPE_CADENCE_APP = 'cadence-app';
 
@@ -407,54 +414,7 @@ const CURRENCY_OPTIONS = [
   { code: 'AED', label: 'AED — UAE Dirham' },
 ];
 
-/* ─────────── Helpers ─────────── */
-function pad(n) { return String(n).padStart(2, '0'); }
-function ymd(d = new Date()) {
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
-function dailyNotePath(settings, date = new Date()) {
-  const folder = (settings.dailyNoteFolder || '').replace(/\/$/, '');
-  const name = ymd(date);
-  return folder ? `${folder}/${name}.md` : `${name}.md`;
-}
-function greeting() {
-  const h = new Date().getHours();
-  if (h < 12) return 'Good morning';
-  if (h < 18) return 'Good afternoon';
-  return 'Good evening';
-}
-function dateInfo(d = new Date()) {
-  return {
-    weekday: d.toLocaleDateString(undefined, { weekday: 'long' }),
-    day: d.getDate(),
-    month: d.toLocaleDateString(undefined, { month: 'long' }),
-    year: d.getFullYear(),
-  };
-}
-function startOfDay(d) { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
-function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); return x; }
-function startOfWeek(d, weekStartsOn = 1) {
-  const x = startOfDay(d);
-  const diff = (x.getDay() - weekStartsOn + 7) % 7;
-  return addDays(x, -diff);
-}
-function weekDates(anchor, weekStartsOn = 1) {
-  const start = startOfWeek(anchor, weekStartsOn);
-  return Array.from({ length: 7 }, (_, i) => addDays(start, i));
-}
-function sameDay(a, b) {
-  return a.getFullYear() === b.getFullYear()
-    && a.getMonth() === b.getMonth()
-    && a.getDate() === b.getDate();
-}
 
-/* Map a 0-100 % to a colour band — drives progress bar tint. */
-function pctBand(pct) {
-  if (pct < 25) return 'rose';
-  if (pct < 50) return 'warn';
-  if (pct < 75) return 'mint';
-  return 'emerald';
-}
 
 
 /* ─────────── TaskNotes Integration Helpers ─────────── */
@@ -711,39 +671,6 @@ function readEntity(app, file) {
   return { file, frontmatter: fm, basename: file.basename };
 }
 
-function parseLinkValues(val) {
-  if (val == null || val === '') return [];
-  let rawItems = [];
-  if (Array.isArray(val)) {
-    rawItems = val.map(v => String(v).trim());
-  } else {
-    const str = String(val).trim();
-    if (str.includes('[[')) {
-      const regex = /\[\[(.*?)\]\]/g;
-      let match;
-      while ((match = regex.exec(str)) !== null) {
-        if (match[1].trim()) {
-          rawItems.push(match[1].trim());
-        }
-      }
-      if (rawItems.length === 0 && str) {
-        rawItems = str.split(',').map(s => s.trim()).filter(Boolean);
-      }
-    } else {
-      rawItems = str.split(',').map(s => s.trim()).filter(Boolean);
-    }
-  }
-  return rawItems.map(item => {
-    let clean = item.replace(/^\[\[|\]\]$/g, '').trim();
-    let display = clean;
-    if (clean.includes('|')) {
-      const parts = clean.split('|');
-      clean = parts[0].trim();
-      display = parts[1].trim();
-    }
-    return { target: clean, display: display };
-  }).filter(item => item.target);
-}
 
 function listEntities(app, entityKey) {
   return listEntityFiles(app, entityKey).map((f) => readEntity(app, f));
@@ -870,107 +797,10 @@ function projectTemplate(name) {
   ].join('\n');
 }
 
-/* Parse the H2 sections of a markdown file into a map. */
-function parseH2Sections(content) {
-  const lines = content.split('\n');
-  const sections = {};
-  let cur = null, buf = [];
-  for (const line of lines) {
-    if (/^##\s/.test(line)) {
-      if (cur) sections[cur] = buf.join('\n');
-      cur = line.replace(/^##\s+/, '').trim();
-      buf = [];
-    } else if (cur) {
-      buf.push(line);
-    }
-  }
-  if (cur) sections[cur] = buf.join('\n');
-  return sections;
-}
 
-function parseHeaderKey(key) {
-  const match = key.match(/(.*?)(#[\w\-]+)$/);
-  if (match) {
-    return {
-      cleanLabel: match[1].trim(),
-      tag: match[2].trim()
-    };
-  }
-  return {
-    cleanLabel: key.trim(),
-    tag: ''
-  };
-}
 
-/* Parse milestone lines: `- [x] 2026-05-15 — Title`
-   Indented (1-tab or 1-4 spaces) non-empty lines that follow a milestone are
-   treated as that milestone's free-form notes.
-   Returns array of { done, date (Date|null), title, notes }. */
-function parseMilestones(text) {
-  if (!text) return [];
-  const lines = text.split('\n');
-  const items = [];
-  let current = null;
-  for (const line of lines) {
-    if (/^\s*-\s\[(x|X| )\]\s/.test(line)) {
-      if (current) items.push(current);
-      const done = / \[(x|X)\] /.test(line);
-      const rest = line.replace(/^\s*-\s\[(x|X| )\]\s/, '');
-      const m = rest.match(/^(\d{4}-\d{2}-\d{2})\s*(?:[—–-]\s*)?(.+)?$/);
-      const date = m && m[1] ? new Date(m[1]) : null;
-      const title = m ? (m[2] || '').trim() : rest.trim();
-      current = {
-        done,
-        date: (date && !isNaN(date.getTime())) ? date : null,
-        title,
-        notes: '',
-      };
-    } else if (current && line.trim() && /^[ \t]/.test(line)) {
-      // Indented non-empty line → child note for the current milestone.
-      // Strip up to 4 leading spaces or one tab; preserve any deeper indent.
-      const stripped = line.replace(/^( {1,4}|\t)/, '');
-      current.notes = current.notes ? current.notes + '\n' + stripped : stripped;
-    }
-    // Empty / non-indented non-milestone lines are ignored — they shouldn't
-    // appear inside the Milestones section but we won't choke on them.
-  }
-  if (current) items.push(current);
-  return items;
-}
 
-/* Format a milestone array back into markdown lines.
-   Notes are emitted as 4-space-indented child lines under the milestone. */
-function stringifyMilestones(items) {
-  if (!items || !items.length) return '';
-  return items.map((m) => {
-    const box = m.done ? '- [x] ' : '- [ ] ';
-    const date = m.date instanceof Date && !isNaN(m.date.getTime())
-      ? `${m.date.getFullYear()}-${String(m.date.getMonth() + 1).padStart(2, '0')}-${String(m.date.getDate()).padStart(2, '0')} `
-      : '';
-    const sep = (date && m.title) ? '— ' : '';
-    let line = `${box}${date}${sep}${m.title || ''}`.trimEnd();
-    if (m.notes && m.notes.trim()) {
-      const noteLines = m.notes.split('\n').map((l) => '    ' + l).join('\n');
-      line += '\n' + noteLines;
-    }
-    return line;
-  }).join('\n');
-}
 
-/* Plain task lines (no date prefix) — for the Tasks H2 section. */
-function parseTasksList(text) {
-  if (!text) return [];
-  return text.split('\n')
-    .filter((l) => /^\s*-\s\[(x|X| )\]\s/.test(l))
-    .map((l) => ({
-      done: / \[(x|X)\] /.test(l),
-      title: l.replace(/^\s*-\s\[(x|X| )\]\s/, ''),
-    }));
-}
-function stringifyTasks(items) {
-  if (!items || !items.length) return '';
-  return items.map((t) => `${t.done ? '- [x] ' : '- [ ] '}${t.title || ''}`).join('\n');
-}
 
 async function readProjectMeta(app, file) {
   const content = await app.vault.read(file);
@@ -1110,67 +940,10 @@ async function ensureDailyNote(app, settings, date = new Date()) {
   return file;
 }
 
-function parseSections(content, settings) {
-  const lines = content.split('\n');
-  const tasks = [];
-  let journal = '';
-  let mode = null;
-  for (const line of lines) {
-    if (/^##\s/.test(line)) {
-      const stripped = line.trim();
-      if (stripped === settings.tasksHeading) { mode = 'tasks'; continue; }
-      if (stripped === settings.journalHeading) { mode = 'journal'; continue; }
-      mode = null;
-      continue;
-    }
-    if (mode === 'tasks') {
-      if (/^\s*-\s\[(x|X| )\]\s/.test(line)) tasks.push(line);
-    } else if (mode === 'journal') {
-      journal += (journal ? '\n' : '') + line;
-    }
-  }
-  return { tasks, journal: journal.replace(/\s+$/, ''), raw: content };
-}
 
-function replaceSection(content, heading, newBody) {
-  const lines = content.split('\n');
-  const headIdx = lines.findIndex((l) => l.trim() === heading);
-  if (headIdx === -1) {
-    return content.replace(/\s*$/, '') + `\n\n${heading}\n${newBody}\n`;
-  }
-  let endIdx = lines.length;
-  for (let i = headIdx + 1; i < lines.length; i++) {
-    if (/^##\s/.test(lines[i])) { endIdx = i; break; }
-  }
-  const before = lines.slice(0, headIdx + 1);
-  const after = lines.slice(endIdx);
-  const bodyLines = newBody.split('\n');
-  return [...before, ...bodyLines, '', ...after].join('\n').replace(/\n{3,}/g, '\n\n');
-}
 
-/* ─────────── Reminders ─────────── */
-function reminderId() { return 'rem_' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4); }
 
-function nextRepeat(when, repeat) {
-  if (!when) return null;
-  const d = when instanceof Date ? when : new Date(when);
-  if (repeat === 'daily') return new Date(d.getTime() + 86400000);
-  if (repeat === 'weekly') return new Date(d.getTime() + 7 * 86400000);
-  return null;
-}
 
-function reminderBucket(when) {
-  if (!when) return 'later';
-  const now = Date.now();
-  const w = new Date(when).getTime();
-  if (w <= now + 60 * 60 * 1000) return 'now';            // due now or within next hour
-  const today = startOfDay(new Date()).getTime();
-  const tomorrow = today + 86400000;
-  if (w < tomorrow) return 'today';
-  const weekEnd = today + 7 * 86400000;
-  if (w < weekEnd) return 'week';
-  return 'later';
-}
 
 /* Resolve a project's display name from its file path. */
 function projectNameFromPath(app, path) {
@@ -1182,27 +955,7 @@ function projectNameFromPath(app, path) {
   return fmName || file.basename;
 }
 
-/* Find an existing reminder linked to a specific (project, task-text) pair. */
-function findProjectTaskReminder(plugin, projectPath, taskText) {
-  if (!projectPath || !taskText) return null;
-  const all = plugin.settings.reminders || [];
-  return all.find((r) => !r.done && r.project === projectPath && r.text === taskText) || null;
-}
 
-function reminderTimeStr(when) {
-  if (!when) return '';
-  const d = new Date(when);
-  if (isNaN(d.getTime())) return '';
-  const today = startOfDay(new Date()).getTime();
-  const dDay = startOfDay(d).getTime();
-  const time = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
-  if (dDay === today) return time;
-  if (dDay === today + 86400000) return `Tomorrow ${time}`;
-  if (dDay - today < 7 * 86400000 && dDay > today) {
-    return d.toLocaleDateString(undefined, { weekday: 'short' }) + ' ' + time;
-  }
-  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ' ' + time;
-}
 
 /* ─────────── Quick-capture modal ─────────── */
 class CadenceCaptureModal extends obsidian.Modal {
@@ -12123,9 +11876,4 @@ export { CadencePlugin };
 /* Characterization seam: helpers exposed so tests can pin their current
    behaviour before each one is extracted into src/utils. */
 export {
-  pad, ymd, dailyNotePath, greeting, dateInfo, startOfDay, addDays, startOfWeek, weekDates, sameDay,
-  pctBand,
-  parseH2Sections, parseHeaderKey, parseMilestones, stringifyMilestones, parseTasksList, stringifyTasks,
-  parseSections, replaceSection, parseLinkValues,
-  reminderId, nextRepeat, reminderBucket, reminderTimeStr, findProjectTaskReminder,
 };

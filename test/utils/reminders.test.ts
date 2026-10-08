@@ -1,11 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { Reminder } from "../../src/types/reminders";
 import {
   findProjectTaskReminder,
   nextRepeat,
   reminderBucket,
   reminderId,
   reminderTimeStr,
-} from "../../src/legacy/cadence.js";
+} from "../../src/utils/reminders";
 
 /* Characterization tests for reminder helpers. Clock pinned to
    Thursday 2026-10-08 10:00 UTC (TZ=UTC in vitest config). */
@@ -51,7 +52,7 @@ describe("nextRepeat", () => {
     expect(nextRepeat("2026-10-08T09:00:00.000Z", undefined)).toBeNull();
   });
   it("propagates an invalid date as Invalid Date", () => {
-    expect(Number.isNaN(nextRepeat("garbage", "daily").getTime())).toBe(true);
+    expect(Number.isNaN(nextRepeat("garbage", "daily")?.getTime())).toBe(true);
   });
 });
 
@@ -104,13 +105,20 @@ describe("reminderTimeStr", () => {
 });
 
 describe("findProjectTaskReminder", () => {
+  const reminder = (id: string, project: string, done: boolean): Reminder => ({
+    id,
+    project,
+    text: "Call",
+    done,
+    when: null,
+    repeat: "none",
+    notes: "",
+    notified: false,
+    createdAt: "2026-10-01T00:00:00.000Z",
+  });
   const plugin = {
     settings: {
-      reminders: [
-        { id: "a", project: "P/x.md", text: "Call", done: true },
-        { id: "b", project: "P/x.md", text: "Call", done: false },
-        { id: "c", project: "P/y.md", text: "Call", done: false },
-      ],
+      reminders: [reminder("a", "P/x.md", true), reminder("b", "P/x.md", false), reminder("c", "P/y.md", false)],
     },
   };
   it("finds the first open reminder for the project + task text", () => {

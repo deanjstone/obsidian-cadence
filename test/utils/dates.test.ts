@@ -10,7 +10,7 @@ import {
   startOfWeek,
   weekDates,
   ymd,
-} from "../../src/legacy/cadence.js";
+} from "../../src/utils/dates";
 
 /* Characterization tests: they pin what the helpers do today (TZ=UTC,
    en-US), quirks included. */
@@ -59,7 +59,8 @@ describe("dailyNotePath", () => {
     expect(dailyNotePath({}, date)).toBe("2026-05-15.md");
   });
   it("ignores dailyNoteFormat", () => {
-    expect(dailyNotePath({ dailyNoteFolder: "d", dailyNoteFormat: "DD-MM-YYYY" }, date)).toBe("d/2026-05-15.md");
+    const settings = { dailyNoteFolder: "d", dailyNoteFormat: "DD-MM-YYYY" };
+    expect(dailyNotePath(settings, date)).toBe("d/2026-05-15.md");
   });
   it("defaults to today", () => {
     vi.useFakeTimers({ toFake: ["Date"], now: new Date("2026-02-01T12:00:00Z") });

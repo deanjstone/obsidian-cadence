@@ -25,6 +25,273 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 
 // src/legacy/cadence.js
 var obsidian = __toESM(require("obsidian"));
+
+// src/utils/dates.ts
+function pad(n) {
+  return String(n).padStart(2, "0");
+}
+function ymd(d = /* @__PURE__ */ new Date()) {
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+function dailyNotePath(settings, date = /* @__PURE__ */ new Date()) {
+  const folder = (settings.dailyNoteFolder || "").replace(/\/$/, "");
+  const name = ymd(date);
+  return folder ? `${folder}/${name}.md` : `${name}.md`;
+}
+function greeting() {
+  const h = (/* @__PURE__ */ new Date()).getHours();
+  if (h < 12) return "Good morning";
+  if (h < 18) return "Good afternoon";
+  return "Good evening";
+}
+function dateInfo(d = /* @__PURE__ */ new Date()) {
+  return {
+    weekday: d.toLocaleDateString(void 0, { weekday: "long" }),
+    day: d.getDate(),
+    month: d.toLocaleDateString(void 0, { month: "long" }),
+    year: d.getFullYear()
+  };
+}
+function startOfDay(d) {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
+}
+function addDays(d, n) {
+  const x = new Date(d);
+  x.setDate(x.getDate() + n);
+  return x;
+}
+function startOfWeek(d, weekStartsOn = 1) {
+  const x = startOfDay(d);
+  const diff = (x.getDay() - weekStartsOn + 7) % 7;
+  return addDays(x, -diff);
+}
+function weekDates(anchor, weekStartsOn = 1) {
+  const start = startOfWeek(anchor, weekStartsOn);
+  return Array.from({ length: 7 }, (_, i) => addDays(start, i));
+}
+function sameDay(a, b) {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
+// src/utils/format.ts
+function pctBand(pct) {
+  if (pct < 25) return "rose";
+  if (pct < 50) return "warn";
+  if (pct < 75) return "mint";
+  return "emerald";
+}
+
+// src/utils/parsing.ts
+function parseLinkValues(val) {
+  if (val == null || val === "") return [];
+  let rawItems = [];
+  if (Array.isArray(val)) {
+    rawItems = val.map((v) => String(v).trim());
+  } else {
+    const str = String(val).trim();
+    if (str.includes("[[")) {
+      const regex = /\[\[(.*?)\]\]/g;
+      let match;
+      while ((match = regex.exec(str)) !== null) {
+        if (match[1].trim()) {
+          rawItems.push(match[1].trim());
+        }
+      }
+      if (rawItems.length === 0 && str) {
+        rawItems = str.split(",").map((s) => s.trim()).filter(Boolean);
+      }
+    } else {
+      rawItems = str.split(",").map((s) => s.trim()).filter(Boolean);
+    }
+  }
+  return rawItems.map((item) => {
+    let clean = item.replace(/^\[\[|\]\]$/g, "").trim();
+    let display = clean;
+    if (clean.includes("|")) {
+      const parts = clean.split("|");
+      clean = parts[0].trim();
+      display = parts[1].trim();
+    }
+    return { target: clean, display };
+  }).filter((item) => item.target);
+}
+function parseH2Sections(content) {
+  const lines = content.split("\n");
+  const sections = {};
+  let cur = null, buf = [];
+  for (const line of lines) {
+    if (/^##\s/.test(line)) {
+      if (cur) sections[cur] = buf.join("\n");
+      cur = line.replace(/^##\s+/, "").trim();
+      buf = [];
+    } else if (cur) {
+      buf.push(line);
+    }
+  }
+  if (cur) sections[cur] = buf.join("\n");
+  return sections;
+}
+function parseHeaderKey(key) {
+  const match = key.match(/(.*?)(#[\w\-]+)$/);
+  if (match) {
+    return {
+      cleanLabel: match[1].trim(),
+      tag: match[2].trim()
+    };
+  }
+  return {
+    cleanLabel: key.trim(),
+    tag: ""
+  };
+}
+function parseMilestones(text) {
+  if (!text) return [];
+  const lines = text.split("\n");
+  const items = [];
+  let current = null;
+  for (const line of lines) {
+    if (/^\s*-\s\[(x|X| )\]\s/.test(line)) {
+      if (current) items.push(current);
+      const done = / \[(x|X)\] /.test(line);
+      const rest = line.replace(/^\s*-\s\[(x|X| )\]\s/, "");
+      const m = rest.match(/^(\d{4}-\d{2}-\d{2})\s*(?:[—–-]\s*)?(.+)?$/);
+      const date = m && m[1] ? new Date(m[1]) : null;
+      const title = m ? (m[2] || "").trim() : rest.trim();
+      current = {
+        done,
+        date: date && !isNaN(date.getTime()) ? date : null,
+        title,
+        notes: ""
+      };
+    } else if (current && line.trim() && /^[ \t]/.test(line)) {
+      const stripped = line.replace(/^( {1,4}|\t)/, "");
+      current.notes = current.notes ? current.notes + "\n" + stripped : stripped;
+    }
+  }
+  if (current) items.push(current);
+  return items;
+}
+function stringifyMilestones(items) {
+  if (!items || !items.length) return "";
+  return items.map((m) => {
+    const box = m.done ? "- [x] " : "- [ ] ";
+    const date = m.date instanceof Date && !isNaN(m.date.getTime()) ? `${m.date.getFullYear()}-${String(m.date.getMonth() + 1).padStart(2, "0")}-${String(m.date.getDate()).padStart(2, "0")} ` : "";
+    const sep = date && m.title ? "\u2014 " : "";
+    let line = `${box}${date}${sep}${m.title || ""}`.trimEnd();
+    if (m.notes && m.notes.trim()) {
+      const noteLines = m.notes.split("\n").map((l) => "    " + l).join("\n");
+      line += "\n" + noteLines;
+    }
+    return line;
+  }).join("\n");
+}
+function parseTasksList(text) {
+  if (!text) return [];
+  return text.split("\n").filter((l) => /^\s*-\s\[(x|X| )\]\s/.test(l)).map((l) => ({
+    done: / \[(x|X)\] /.test(l),
+    title: l.replace(/^\s*-\s\[(x|X| )\]\s/, "")
+  }));
+}
+function stringifyTasks(items) {
+  if (!items || !items.length) return "";
+  return items.map((t) => `${t.done ? "- [x] " : "- [ ] "}${t.title || ""}`).join("\n");
+}
+function parseSections(content, settings) {
+  const lines = content.split("\n");
+  const tasks = [];
+  let journal = "";
+  let mode = null;
+  for (const line of lines) {
+    if (/^##\s/.test(line)) {
+      const stripped = line.trim();
+      if (stripped === settings.tasksHeading) {
+        mode = "tasks";
+        continue;
+      }
+      if (stripped === settings.journalHeading) {
+        mode = "journal";
+        continue;
+      }
+      mode = null;
+      continue;
+    }
+    if (mode === "tasks") {
+      if (/^\s*-\s\[(x|X| )\]\s/.test(line)) tasks.push(line);
+    } else if (mode === "journal") {
+      journal += (journal ? "\n" : "") + line;
+    }
+  }
+  return { tasks, journal: journal.replace(/\s+$/, ""), raw: content };
+}
+function replaceSection(content, heading, newBody) {
+  const lines = content.split("\n");
+  const headIdx = lines.findIndex((l) => l.trim() === heading);
+  if (headIdx === -1) {
+    return content.replace(/\s*$/, "") + `
+
+${heading}
+${newBody}
+`;
+  }
+  let endIdx = lines.length;
+  for (let i = headIdx + 1; i < lines.length; i++) {
+    if (/^##\s/.test(lines[i])) {
+      endIdx = i;
+      break;
+    }
+  }
+  const before = lines.slice(0, headIdx + 1);
+  const after = lines.slice(endIdx);
+  const bodyLines = newBody.split("\n");
+  return [...before, ...bodyLines, "", ...after].join("\n").replace(/\n{3,}/g, "\n\n");
+}
+
+// src/utils/reminders.ts
+function reminderId() {
+  return "rem_" + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+}
+function nextRepeat(when, repeat) {
+  if (!when) return null;
+  const d = when instanceof Date ? when : new Date(when);
+  if (repeat === "daily") return new Date(d.getTime() + 864e5);
+  if (repeat === "weekly") return new Date(d.getTime() + 7 * 864e5);
+  return null;
+}
+function reminderBucket(when) {
+  if (!when) return "later";
+  const now = Date.now();
+  const w = new Date(when).getTime();
+  if (w <= now + 60 * 60 * 1e3) return "now";
+  const today = startOfDay(/* @__PURE__ */ new Date()).getTime();
+  const tomorrow = today + 864e5;
+  if (w < tomorrow) return "today";
+  const weekEnd = today + 7 * 864e5;
+  if (w < weekEnd) return "week";
+  return "later";
+}
+function findProjectTaskReminder(plugin, projectPath, taskText) {
+  if (!projectPath || !taskText) return null;
+  const all = plugin.settings.reminders || [];
+  return all.find((r) => !r.done && r.project === projectPath && r.text === taskText) || null;
+}
+function reminderTimeStr(when) {
+  if (!when) return "";
+  const d = new Date(when);
+  if (isNaN(d.getTime())) return "";
+  const today = startOfDay(/* @__PURE__ */ new Date()).getTime();
+  const dDay = startOfDay(d).getTime();
+  const time = d.toLocaleTimeString(void 0, { hour: "2-digit", minute: "2-digit" });
+  if (dDay === today) return time;
+  if (dDay === today + 864e5) return `Tomorrow ${time}`;
+  if (dDay - today < 7 * 864e5 && dDay > today) {
+    return d.toLocaleDateString(void 0, { weekday: "short" }) + " " + time;
+  }
+  return d.toLocaleDateString(void 0, { month: "short", day: "numeric" }) + " " + time;
+}
+
+// src/legacy/cadence.js
 var VIEW_TYPE_CADENCE_APP = "cadence-app";
 var NAV_GROUPS = [
   {
@@ -443,59 +710,6 @@ var CURRENCY_OPTIONS = [
   { code: "BRL", label: "BRL \u2014 Brazilian Real" },
   { code: "AED", label: "AED \u2014 UAE Dirham" }
 ];
-function pad(n) {
-  return String(n).padStart(2, "0");
-}
-function ymd(d = /* @__PURE__ */ new Date()) {
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
-function dailyNotePath(settings, date = /* @__PURE__ */ new Date()) {
-  const folder = (settings.dailyNoteFolder || "").replace(/\/$/, "");
-  const name = ymd(date);
-  return folder ? `${folder}/${name}.md` : `${name}.md`;
-}
-function greeting() {
-  const h = (/* @__PURE__ */ new Date()).getHours();
-  if (h < 12) return "Good morning";
-  if (h < 18) return "Good afternoon";
-  return "Good evening";
-}
-function dateInfo(d = /* @__PURE__ */ new Date()) {
-  return {
-    weekday: d.toLocaleDateString(void 0, { weekday: "long" }),
-    day: d.getDate(),
-    month: d.toLocaleDateString(void 0, { month: "long" }),
-    year: d.getFullYear()
-  };
-}
-function startOfDay(d) {
-  const x = new Date(d);
-  x.setHours(0, 0, 0, 0);
-  return x;
-}
-function addDays(d, n) {
-  const x = new Date(d);
-  x.setDate(x.getDate() + n);
-  return x;
-}
-function startOfWeek(d, weekStartsOn = 1) {
-  const x = startOfDay(d);
-  const diff = (x.getDay() - weekStartsOn + 7) % 7;
-  return addDays(x, -diff);
-}
-function weekDates(anchor, weekStartsOn = 1) {
-  const start = startOfWeek(anchor, weekStartsOn);
-  return Array.from({ length: 7 }, (_, i) => addDays(start, i));
-}
-function sameDay(a, b) {
-  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
-}
-function pctBand(pct) {
-  if (pct < 25) return "rose";
-  if (pct < 50) return "warn";
-  if (pct < 75) return "mint";
-  return "emerald";
-}
 function listTaskNotesTasks(app) {
   const folderPath = "TaskNotes/Tasks";
   const folder = app.vault.getAbstractFileByPath(folderPath);
@@ -726,39 +940,6 @@ function readEntity(app, file) {
   const fm = cache.frontmatter || {};
   return { file, frontmatter: fm, basename: file.basename };
 }
-function parseLinkValues(val) {
-  if (val == null || val === "") return [];
-  let rawItems = [];
-  if (Array.isArray(val)) {
-    rawItems = val.map((v) => String(v).trim());
-  } else {
-    const str = String(val).trim();
-    if (str.includes("[[")) {
-      const regex = /\[\[(.*?)\]\]/g;
-      let match;
-      while ((match = regex.exec(str)) !== null) {
-        if (match[1].trim()) {
-          rawItems.push(match[1].trim());
-        }
-      }
-      if (rawItems.length === 0 && str) {
-        rawItems = str.split(",").map((s) => s.trim()).filter(Boolean);
-      }
-    } else {
-      rawItems = str.split(",").map((s) => s.trim()).filter(Boolean);
-    }
-  }
-  return rawItems.map((item) => {
-    let clean = item.replace(/^\[\[|\]\]$/g, "").trim();
-    let display = clean;
-    if (clean.includes("|")) {
-      const parts = clean.split("|");
-      clean = parts[0].trim();
-      display = parts[1].trim();
-    }
-    return { target: clean, display };
-  }).filter((item) => item.target);
-}
 function listEntities(app, entityKey) {
   return listEntityFiles(app, entityKey).map((f) => readEntity(app, f));
 }
@@ -872,87 +1053,6 @@ function projectTemplate(name) {
     "",
     ""
   ].join("\n");
-}
-function parseH2Sections(content) {
-  const lines = content.split("\n");
-  const sections = {};
-  let cur = null, buf = [];
-  for (const line of lines) {
-    if (/^##\s/.test(line)) {
-      if (cur) sections[cur] = buf.join("\n");
-      cur = line.replace(/^##\s+/, "").trim();
-      buf = [];
-    } else if (cur) {
-      buf.push(line);
-    }
-  }
-  if (cur) sections[cur] = buf.join("\n");
-  return sections;
-}
-function parseHeaderKey(key) {
-  const match = key.match(/(.*?)(#[\w\-]+)$/);
-  if (match) {
-    return {
-      cleanLabel: match[1].trim(),
-      tag: match[2].trim()
-    };
-  }
-  return {
-    cleanLabel: key.trim(),
-    tag: ""
-  };
-}
-function parseMilestones(text) {
-  if (!text) return [];
-  const lines = text.split("\n");
-  const items = [];
-  let current = null;
-  for (const line of lines) {
-    if (/^\s*-\s\[(x|X| )\]\s/.test(line)) {
-      if (current) items.push(current);
-      const done = / \[(x|X)\] /.test(line);
-      const rest = line.replace(/^\s*-\s\[(x|X| )\]\s/, "");
-      const m = rest.match(/^(\d{4}-\d{2}-\d{2})\s*(?:[—–-]\s*)?(.+)?$/);
-      const date = m && m[1] ? new Date(m[1]) : null;
-      const title = m ? (m[2] || "").trim() : rest.trim();
-      current = {
-        done,
-        date: date && !isNaN(date.getTime()) ? date : null,
-        title,
-        notes: ""
-      };
-    } else if (current && line.trim() && /^[ \t]/.test(line)) {
-      const stripped = line.replace(/^( {1,4}|\t)/, "");
-      current.notes = current.notes ? current.notes + "\n" + stripped : stripped;
-    }
-  }
-  if (current) items.push(current);
-  return items;
-}
-function stringifyMilestones(items) {
-  if (!items || !items.length) return "";
-  return items.map((m) => {
-    const box = m.done ? "- [x] " : "- [ ] ";
-    const date = m.date instanceof Date && !isNaN(m.date.getTime()) ? `${m.date.getFullYear()}-${String(m.date.getMonth() + 1).padStart(2, "0")}-${String(m.date.getDate()).padStart(2, "0")} ` : "";
-    const sep = date && m.title ? "\u2014 " : "";
-    let line = `${box}${date}${sep}${m.title || ""}`.trimEnd();
-    if (m.notes && m.notes.trim()) {
-      const noteLines = m.notes.split("\n").map((l) => "    " + l).join("\n");
-      line += "\n" + noteLines;
-    }
-    return line;
-  }).join("\n");
-}
-function parseTasksList(text) {
-  if (!text) return [];
-  return text.split("\n").filter((l) => /^\s*-\s\[(x|X| )\]\s/.test(l)).map((l) => ({
-    done: / \[(x|X)\] /.test(l),
-    title: l.replace(/^\s*-\s\[(x|X| )\]\s/, "")
-  }));
-}
-function stringifyTasks(items) {
-  if (!items || !items.length) return "";
-  return items.map((t) => `${t.done ? "- [x] " : "- [ ] "}${t.title || ""}`).join("\n");
 }
 async function readProjectMeta(app, file) {
   const content = await app.vault.read(file);
@@ -1077,77 +1177,6 @@ async function ensureDailyNote(app, settings, date = /* @__PURE__ */ new Date())
   file = await app.vault.create(path, template);
   return file;
 }
-function parseSections(content, settings) {
-  const lines = content.split("\n");
-  const tasks = [];
-  let journal = "";
-  let mode = null;
-  for (const line of lines) {
-    if (/^##\s/.test(line)) {
-      const stripped = line.trim();
-      if (stripped === settings.tasksHeading) {
-        mode = "tasks";
-        continue;
-      }
-      if (stripped === settings.journalHeading) {
-        mode = "journal";
-        continue;
-      }
-      mode = null;
-      continue;
-    }
-    if (mode === "tasks") {
-      if (/^\s*-\s\[(x|X| )\]\s/.test(line)) tasks.push(line);
-    } else if (mode === "journal") {
-      journal += (journal ? "\n" : "") + line;
-    }
-  }
-  return { tasks, journal: journal.replace(/\s+$/, ""), raw: content };
-}
-function replaceSection(content, heading, newBody) {
-  const lines = content.split("\n");
-  const headIdx = lines.findIndex((l) => l.trim() === heading);
-  if (headIdx === -1) {
-    return content.replace(/\s*$/, "") + `
-
-${heading}
-${newBody}
-`;
-  }
-  let endIdx = lines.length;
-  for (let i = headIdx + 1; i < lines.length; i++) {
-    if (/^##\s/.test(lines[i])) {
-      endIdx = i;
-      break;
-    }
-  }
-  const before = lines.slice(0, headIdx + 1);
-  const after = lines.slice(endIdx);
-  const bodyLines = newBody.split("\n");
-  return [...before, ...bodyLines, "", ...after].join("\n").replace(/\n{3,}/g, "\n\n");
-}
-function reminderId() {
-  return "rem_" + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
-}
-function nextRepeat(when, repeat) {
-  if (!when) return null;
-  const d = when instanceof Date ? when : new Date(when);
-  if (repeat === "daily") return new Date(d.getTime() + 864e5);
-  if (repeat === "weekly") return new Date(d.getTime() + 7 * 864e5);
-  return null;
-}
-function reminderBucket(when) {
-  if (!when) return "later";
-  const now = Date.now();
-  const w = new Date(when).getTime();
-  if (w <= now + 60 * 60 * 1e3) return "now";
-  const today = startOfDay(/* @__PURE__ */ new Date()).getTime();
-  const tomorrow = today + 864e5;
-  if (w < tomorrow) return "today";
-  const weekEnd = today + 7 * 864e5;
-  if (w < weekEnd) return "week";
-  return "later";
-}
 function projectNameFromPath(app, path) {
   if (!path) return null;
   const file = app.vault.getAbstractFileByPath(path);
@@ -1155,25 +1184,6 @@ function projectNameFromPath(app, path) {
   const cache = app.metadataCache.getFileCache(file);
   const fmName = cache && cache.frontmatter && cache.frontmatter.name;
   return fmName || file.basename;
-}
-function findProjectTaskReminder(plugin, projectPath, taskText) {
-  if (!projectPath || !taskText) return null;
-  const all = plugin.settings.reminders || [];
-  return all.find((r) => !r.done && r.project === projectPath && r.text === taskText) || null;
-}
-function reminderTimeStr(when) {
-  if (!when) return "";
-  const d = new Date(when);
-  if (isNaN(d.getTime())) return "";
-  const today = startOfDay(/* @__PURE__ */ new Date()).getTime();
-  const dDay = startOfDay(d).getTime();
-  const time = d.toLocaleTimeString(void 0, { hour: "2-digit", minute: "2-digit" });
-  if (dDay === today) return time;
-  if (dDay === today + 864e5) return `Tomorrow ${time}`;
-  if (dDay - today < 7 * 864e5 && dDay > today) {
-    return d.toLocaleDateString(void 0, { weekday: "short" }) + " " + time;
-  }
-  return d.toLocaleDateString(void 0, { month: "short", day: "numeric" }) + " " + time;
 }
 var CadenceCaptureModal = class extends obsidian.Modal {
   constructor(app, opts) {

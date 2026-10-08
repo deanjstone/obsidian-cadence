@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { pctBand } from "../../src/legacy/cadence.js";
+import { pctBand } from "../../src/utils/format";
 
 describe("pctBand", () => {
   it("maps percentage ranges to colour bands", () => {
@@ -16,6 +16,6 @@ describe("pctBand", () => {
   });
   it("falls through to emerald for NaN and undefined", () => {
     expect(pctBand(Number.NaN)).toBe("emerald");
-    expect(pctBand(undefined)).toBe("emerald");
+    expect(pctBand(undefined as unknown as number)).toBe("emerald");
   });
 });

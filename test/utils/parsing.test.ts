@@ -9,7 +9,7 @@ import {
   replaceSection,
   stringifyMilestones,
   stringifyTasks,
-} from "../../src/legacy/cadence.js";
+} from "../../src/utils/parsing";
 
 /* Characterization tests for the markdown/string helpers. */
 
