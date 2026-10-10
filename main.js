@@ -3610,8 +3610,8 @@ function renderCloudSyncSettings(tab, containerEl) {
 
 // src/plugin/reminders-engine.ts
 var import_obsidian15 = require("obsidian");
-async function addReminder(plugin, partial) {
-  const r = {
+function newReminder(partial, now) {
+  return {
     id: reminderId(),
     text: partial.text,
     when: partial.when || null,
@@ -3621,8 +3621,41 @@ async function addReminder(plugin, partial) {
     // file path of linked project, if any
     notified: false,
     done: false,
-    createdAt: (/* @__PURE__ */ new Date()).toISOString()
+    createdAt: now.toISOString()
   };
+}
+function isDue(r, now) {
+  if (r.done || r.notified) return false;
+  if (!r.when) return false;
+  const w = new Date(r.when).getTime();
+  return !(isNaN(w) || w > now);
+}
+function dueReminders(reminders, now) {
+  return reminders.filter((r) => isDue(r, now));
+}
+function advanceReminder(r, now) {
+  const next = nextRepeat(new Date(r.when), r.repeat);
+  if (!next) return null;
+  return {
+    id: reminderId(),
+    text: r.text,
+    when: next.toISOString(),
+    repeat: r.repeat,
+    notified: false,
+    done: false,
+    createdAt: now.toISOString()
+  };
+}
+function snoozePatch(ms, now) {
+  const target = new Date(now + ms);
+  return {
+    when: target.toISOString(),
+    notified: false
+  };
+}
+var COMPLETE_PATCH = { done: true, notified: true };
+async function addReminder(plugin, partial) {
+  const r = newReminder(partial, /* @__PURE__ */ new Date());
   if (!Array.isArray(plugin.settings.reminders)) plugin.settings.reminders = [];
   plugin.settings.reminders.push(r);
   await plugin.saveSettings();
@@ -3643,43 +3676,23 @@ async function deleteReminder(plugin, id) {
   plugin.refreshOpenViews();
 }
 async function snoozeReminder(plugin, id, ms) {
-  const target = new Date(Date.now() + ms);
-  return plugin.updateReminder(id, {
-    when: target.toISOString(),
-    notified: false
-  });
+  return plugin.updateReminder(id, snoozePatch(ms, Date.now()));
 }
 async function completeReminder(plugin, id) {
-  return plugin.updateReminder(id, { done: true, notified: true });
+  return plugin.updateReminder(id, { ...COMPLETE_PATCH });
 }
 function tickReminders(plugin) {
   if (!Array.isArray(plugin.settings.reminders)) return;
-  const now = Date.now();
-  let dirty = false;
+  const due = dueReminders(plugin.settings.reminders, Date.now());
   const additions = [];
-  for (const r of plugin.settings.reminders) {
-    if (r.done || r.notified) continue;
-    if (!r.when) continue;
-    const w = new Date(r.when).getTime();
-    if (isNaN(w) || w > now) continue;
+  for (const r of due) {
     plugin._fireReminder(r);
     r.notified = true;
-    dirty = true;
-    const next = nextRepeat(new Date(r.when), r.repeat);
-    if (next) {
-      additions.push({
-        id: reminderId(),
-        text: r.text,
-        when: next.toISOString(),
-        repeat: r.repeat,
-        notified: false,
-        done: false,
-        createdAt: (/* @__PURE__ */ new Date()).toISOString()
-      });
-    }
+    const next = advanceReminder(r, /* @__PURE__ */ new Date());
+    if (next) additions.push(next);
   }
   if (additions.length) plugin.settings.reminders.push(...additions);
-  if (dirty) {
+  if (due.length) {
     plugin.saveSettings().then(() => plugin.refreshOpenViews());
   }
 }
@@ -3696,68 +3709,72 @@ function fireReminder(plugin, r) {
 }
 
 // src/plugin/settings.ts
-async function loadSettings(plugin) {
-  const loadedData = await plugin.loadData() || {};
-  plugin.settings = Object.assign({}, DEFAULT_SETTINGS, loadedData);
-  if (!plugin.settings.customEntities) {
-    plugin.settings.customEntities = {};
+var CORE_ENTITY_KEYS2 = ["contact", "company", "partner", "registration", "commission", "lead", "certification", "activity", "sequence", "project", "deal"];
+var PROPERTY_TYPE_ENTITIES = ["project", "deal", "contact", "company", "activity"];
+function fillSettingDefaults(settings, defaults) {
+  if (!settings.customEntities) {
+    settings.customEntities = {};
   }
-  for (const [entityKey, defaultFields] of Object.entries(DEFAULT_SETTINGS.customEntities)) {
-    if (!plugin.settings.customEntities[entityKey] || plugin.settings.customEntities[entityKey].length === 0) {
-      plugin.settings.customEntities[entityKey] = JSON.parse(JSON.stringify(defaultFields));
+  for (const [entityKey, defaultFields] of Object.entries(defaults.customEntities)) {
+    if (!settings.customEntities[entityKey] || settings.customEntities[entityKey].length === 0) {
+      settings.customEntities[entityKey] = JSON.parse(JSON.stringify(defaultFields));
     }
   }
-  setCurrentCurrency(plugin.settings.currency || "USD");
-  if (!plugin.settings.projectDashboardWidgets || plugin.settings.projectDashboardWidgets.length === 0) {
-    plugin.settings.projectDashboardWidgets = [
+  if (!settings.projectDashboardWidgets || settings.projectDashboardWidgets.length === 0) {
+    settings.projectDashboardWidgets = [
       { id: "w1", title: "Projects by Status", groupBy: "status", style: "donut" },
       { id: "w2", title: "Projects by Priority", groupBy: "priority", style: "bar" }
     ];
   }
-  if (!plugin.settings.crmDashboardWidgets || plugin.settings.crmDashboardWidgets.length === 0) {
-    plugin.settings.crmDashboardWidgets = [
+  if (!settings.crmDashboardWidgets || settings.crmDashboardWidgets.length === 0) {
+    settings.crmDashboardWidgets = [
       { id: "c1", title: "Deals by Stage", groupBy: "stage", style: "donut" },
       { id: "c2", title: "Deals by Owner", groupBy: "owner", style: "bar" }
     ];
   }
-  if (!plugin.settings.prmDashboardWidgets || plugin.settings.prmDashboardWidgets.length === 0) {
-    plugin.settings.prmDashboardWidgets = [
+  if (!settings.prmDashboardWidgets || settings.prmDashboardWidgets.length === 0) {
+    settings.prmDashboardWidgets = [
       { id: "p1", title: "Partners by Tier", groupBy: "tier", style: "donut" },
       { id: "p2", title: "Partners by Status", groupBy: "status", style: "bar" }
     ];
   }
-  const coreEntityKeys = ["contact", "company", "partner", "registration", "commission", "lead", "certification", "activity", "sequence", "project", "deal"];
-  const activeCustomEntityKeys = (plugin.settings.customPages || []).map((p) => p.entityKey);
-  for (const entityKey of Object.keys(plugin.settings.customEntities)) {
-    if (!coreEntityKeys.includes(entityKey) && !activeCustomEntityKeys.includes(entityKey)) {
-      delete plugin.settings.customEntities[entityKey];
-      if (ENTITIES[entityKey]) {
-        delete ENTITIES[entityKey];
+}
+function customEntityNames(entityKey, customPage) {
+  let label, plural;
+  if (customPage) {
+    plural = customPage.label;
+    if (plural.endsWith("s") && plural.length > 1) {
+      label = plural.substring(0, plural.length - 1);
+    } else if (plural.endsWith("S") && plural.length > 1) {
+      label = plural.substring(0, plural.length - 1);
+    } else {
+      label = plural;
+    }
+  } else {
+    label = entityKey === entityKey.toUpperCase() ? entityKey : entityKey.charAt(0).toUpperCase() + entityKey.slice(1);
+    plural = label + "s";
+  }
+  return { label, plural };
+}
+function reconstructEntities(settings, entities) {
+  const activeCustomEntityKeys = (settings.customPages || []).map((p) => p.entityKey);
+  for (const entityKey of Object.keys(settings.customEntities)) {
+    if (!CORE_ENTITY_KEYS2.includes(entityKey) && !activeCustomEntityKeys.includes(entityKey)) {
+      delete settings.customEntities[entityKey];
+      if (entities[entityKey]) {
+        delete entities[entityKey];
       }
     }
   }
-  if (plugin.settings.customEntities) {
-    for (const [entityKey, customFields] of Object.entries(plugin.settings.customEntities)) {
-      if (ENTITIES[entityKey]) {
-        ENTITIES[entityKey].fields = customFields;
+  if (settings.customEntities) {
+    for (const [entityKey, customFields] of Object.entries(settings.customEntities)) {
+      if (entities[entityKey]) {
+        entities[entityKey].fields = customFields;
       } else {
-        const customPages = plugin.settings.customPages || [];
+        const customPages = settings.customPages || [];
         const customPage = customPages.find((p) => p.entityKey === entityKey);
-        let label, plural;
-        if (customPage) {
-          plural = customPage.label;
-          if (plural.endsWith("s") && plural.length > 1) {
-            label = plural.substring(0, plural.length - 1);
-          } else if (plural.endsWith("S") && plural.length > 1) {
-            label = plural.substring(0, plural.length - 1);
-          } else {
-            label = plural;
-          }
-        } else {
-          label = entityKey === entityKey.toUpperCase() ? entityKey : entityKey.charAt(0).toUpperCase() + entityKey.slice(1);
-          plural = label + "s";
-        }
-        ENTITIES[entityKey] = {
+        const { label, plural } = customEntityNames(entityKey, customPage);
+        entities[entityKey] = {
           folder: `Cadence/${plural}`,
           label,
           plural,
@@ -3767,7 +3784,7 @@ async function loadSettings(plugin) {
       }
     }
   }
-  for (const [entityKey, def] of Object.entries(ENTITIES)) {
+  for (const [entityKey, def] of Object.entries(entities)) {
     if (entityKey === "activity") continue;
     const hasType = def.fields.some((f) => f.key === "type");
     if (!hasType) {
@@ -3777,10 +3794,10 @@ async function loadSettings(plugin) {
         type: "text"
       });
     }
-    if (plugin.settings.customEntities[entityKey]) {
-      const hasSetType = plugin.settings.customEntities[entityKey].some((f) => f.key === "type");
+    if (settings.customEntities[entityKey]) {
+      const hasSetType = settings.customEntities[entityKey].some((f) => f.key === "type");
       if (!hasSetType) {
-        plugin.settings.customEntities[entityKey].push({
+        settings.customEntities[entityKey].push({
           key: "type",
           label: "Type",
           type: "text"
@@ -3789,31 +3806,38 @@ async function loadSettings(plugin) {
     }
   }
 }
+function propertyTypeFor(f) {
+  if (f.primary) return "text";
+  const ftype = f.type || "text";
+  let obsType = "text";
+  if (ftype === "date") obsType = "date";
+  else if (ftype === "number" || ftype === "currency") obsType = "number";
+  else if (ftype === "tags") obsType = "tags";
+  else if (ftype === "multitext") obsType = "multitext";
+  else if (f.isList) obsType = "multitext";
+  return obsType;
+}
+async function loadSettings(plugin) {
+  const loadedData = await plugin.loadData() || {};
+  plugin.settings = Object.assign({}, DEFAULT_SETTINGS, loadedData);
+  fillSettingDefaults(plugin.settings, DEFAULT_SETTINGS);
+  setCurrentCurrency(plugin.settings.currency || "USD");
+  reconstructEntities(plugin.settings, ENTITIES);
+}
 async function saveSettings(plugin) {
   await plugin.saveData(plugin.settings);
   setCurrentCurrency(plugin.settings.currency || "USD");
 }
 function registerCustomPropertyTypes(plugin) {
   try {
-    if (plugin.app.metadataTypeManager && typeof plugin.app.metadataTypeManager.setType === "function") {
-      plugin.app.metadataTypeManager.setType("type", "multitext");
-      const customKeys = ["project", "deal", "contact", "company", "activity"];
-      for (const key of customKeys) {
+    const manager = plugin.app.metadataTypeManager;
+    if (manager && typeof manager.setType === "function") {
+      manager.setType("type", "multitext");
+      for (const key of PROPERTY_TYPE_ENTITIES) {
         const def = ENTITIES[key];
         if (!def || !def.fields) continue;
         for (const f of def.fields) {
-          if (f.primary) {
-            plugin.app.metadataTypeManager.setType(f.key, "text");
-            continue;
-          }
-          const ftype = f.type || "text";
-          let obsType = "text";
-          if (ftype === "date") obsType = "date";
-          else if (ftype === "number" || ftype === "currency") obsType = "number";
-          else if (ftype === "tags") obsType = "tags";
-          else if (ftype === "multitext") obsType = "multitext";
-          else if (f.isList) obsType = "multitext";
-          plugin.app.metadataTypeManager.setType(f.key, obsType);
+          manager.setType(f.key, propertyTypeFor(f));
         }
       }
     }
@@ -3824,6 +3848,133 @@ function registerCustomPropertyTypes(plugin) {
 
 // src/plugin/contact-project-sync.ts
 var import_obsidian16 = require("obsidian");
+function extractEntitiesFromValue(value) {
+  if (value == null) return [];
+  const results = [];
+  const processStr = (str) => {
+    str = String(str).trim();
+    if (!str) return;
+    if (str.includes("[[")) {
+      const regex = /\[\[(.*?)\]\]/g;
+      let match;
+      while ((match = regex.exec(str)) !== null) {
+        let target = match[1].trim();
+        if (target.includes("|")) {
+          target = target.split("|")[0].trim();
+        }
+        if (target) results.push(target);
+      }
+    } else if (str.includes(",")) {
+      str.split(",").forEach((s) => {
+        const item = s.trim();
+        if (item) results.push(item);
+      });
+    } else {
+      results.push(str);
+    }
+  };
+  if (Array.isArray(value)) {
+    value.forEach((val) => processStr(val));
+  } else {
+    processStr(value);
+  }
+  return results;
+}
+function isContactField(key, entityKey, entities) {
+  if (["owner", "contact", "contacts", "with", "assigned"].includes(key.toLowerCase())) return true;
+  if (entityKey && entities[entityKey]) {
+    const fdef = entities[entityKey].fields.find((field) => field.key === key);
+    if (fdef) {
+      const sug = fdef.suggestionSource || getFieldSuggestionSource(fdef);
+      if (sug === "contact" || sug === "folder:Cadence/Contacts") return true;
+    }
+  }
+  return false;
+}
+function isProjectField(key, entityKey, entities) {
+  if (["project", "projects", "related"].includes(key.toLowerCase())) return true;
+  if (entityKey && entities[entityKey]) {
+    const fdef = entities[entityKey].fields.find((field) => field.key === key);
+    if (fdef) {
+      const sug = fdef.suggestionSource || getFieldSuggestionSource(fdef);
+      if (sug === "project" || sug === "folder:Cadence/Projects") return true;
+    }
+  }
+  return false;
+}
+function noteLinks(note, contactNames, projectNames, entities) {
+  const foundContacts = /* @__PURE__ */ new Set();
+  const foundProjects = /* @__PURE__ */ new Set();
+  if (note.entityKey === "contact") {
+    foundContacts.add(note.basename.toLowerCase());
+  } else if (note.entityKey === "project") {
+    foundProjects.add(note.basename.toLowerCase());
+  }
+  for (const [key, val] of Object.entries(note.frontmatter)) {
+    if (key === "type") continue;
+    const extracted = extractEntitiesFromValue(val);
+    for (const name of extracted) {
+      if (!name) continue;
+      const nameLower = name.toLowerCase();
+      if (isContactField(key, note.entityKey, entities) || contactNames.has(nameLower)) {
+        foundContacts.add(nameLower);
+      }
+      if (isProjectField(key, note.entityKey, entities) || projectNames.has(nameLower)) {
+        foundProjects.add(nameLower);
+      }
+    }
+  }
+  return { contacts: foundContacts, projects: foundProjects };
+}
+function collectValidLinks(notes, contactNames, projectNames, entities) {
+  const validLinks = /* @__PURE__ */ new Set();
+  for (const note of notes) {
+    if (note.entityKey === "contact") continue;
+    const { contacts, projects } = noteLinks(note, contactNames, projectNames, entities);
+    if (contacts.size > 0 && projects.size > 0) {
+      for (const c of contacts) {
+        for (const p of projects) {
+          validLinks.add(`${c}|${p}`);
+        }
+      }
+    }
+  }
+  return validLinks;
+}
+function autoCreateName(nameLower, basenames) {
+  return basenames.find((b) => b.toLowerCase() === nameLower) || nameLower.charAt(0).toUpperCase() + nameLower.slice(1);
+}
+function projectLinkValue(names) {
+  if (names.length === 0) return null;
+  if (names.length === 1) return `[[${names[0]}]]`;
+  return names.map((p) => `[[${p}]]`);
+}
+function writeProjectLinks(fm, names) {
+  const value = projectLinkValue(names);
+  if (value === null) {
+    delete fm.project;
+  } else {
+    fm.project = value;
+  }
+}
+function addProjectLink(current, projectName) {
+  if (current.some((p) => p.toLowerCase() === projectName.toLowerCase())) return current;
+  return [...current, projectName];
+}
+function removeProjectLink(current, projectName) {
+  return current.filter((p) => p.toLowerCase() !== projectName.toLowerCase());
+}
+function contactProjectsPlan(existing, target) {
+  const existingLower = existing.map((p) => p.toLowerCase());
+  const targetLower = target.map((p) => p.toLowerCase());
+  const needsUpdate = existingLower.some((p) => !targetLower.includes(p)) || targetLower.some((p) => !existingLower.includes(p));
+  if (!needsUpdate) return null;
+  return {
+    names: target,
+    added: target.filter((p) => !existing.some((ep) => ep.toLowerCase() === p.toLowerCase())),
+    removed: existing.filter((ep) => !target.some((p) => p.toLowerCase() === ep.toLowerCase()))
+  };
+}
 async function syncContactProjectRelationships(plugin, changedFile) {
   if (plugin._syncInProgress) return;
   if (!changedFile || !changedFile.path.toLowerCase().endsWith(".md")) return;
@@ -3840,124 +3991,52 @@ async function syncContactProjectRelationships(plugin, changedFile) {
     for (const f of projectFiles) {
       projectMap.set(f.basename.toLowerCase(), f);
     }
-    const extractEntitiesFromValue = (value) => {
-      if (value == null) return [];
-      const results = [];
-      const processStr = (str) => {
-        str = String(str).trim();
-        if (!str) return;
-        if (str.includes("[[")) {
-          const regex = /\[\[(.*?)\]\]/g;
-          let match;
-          while ((match = regex.exec(str)) !== null) {
-            let target = match[1].trim();
-            if (target.includes("|")) {
-              target = target.split("|")[0].trim();
-            }
-            if (target) results.push(target);
-          }
-        } else if (str.includes(",")) {
-          str.split(",").forEach((s) => {
-            const item = s.trim();
-            if (item) results.push(item);
-          });
-        } else {
-          results.push(str);
-        }
-      };
-      if (Array.isArray(value)) {
-        value.forEach((val) => processStr(val));
-      } else {
-        processStr(value);
+    const frontmatterOf = (f) => (plugin.app.metadataCache.getFileCache(f) || {}).frontmatter || {};
+    const autoCreate = async (entityKey, nameLower, allFiles, map) => {
+      try {
+        const originalName = autoCreateName(nameLower, allFiles.map((f) => f.basename));
+        const file = await createEntity(plugin.app, entityKey, originalName);
+        map.set(nameLower, file);
+        new import_obsidian16.Notice(`Fiche ${entityKey === "contact" ? "contact" : "projet"} cr\xE9\xE9e automatiquement pour "${originalName}".`);
+      } catch (e) {
+        console.error(`Cadence: Failed to auto-create ${entityKey} ${nameLower}`, e);
       }
-      return results;
-    };
-    const isContactField = (key, ek) => {
-      if (["owner", "contact", "contacts", "with", "assigned"].includes(key.toLowerCase())) return true;
-      if (ek && ENTITIES[ek]) {
-        const fdef = ENTITIES[ek].fields.find((field) => field.key === key);
-        if (fdef) {
-          const sug = fdef.suggestionSource || getFieldSuggestionSource(fdef);
-          if (sug === "contact" || sug === "folder:Cadence/Contacts") return true;
-        }
-      }
-      return false;
-    };
-    const isProjectField = (key, ek) => {
-      if (["project", "projects", "related"].includes(key.toLowerCase())) return true;
-      if (ek && ENTITIES[ek]) {
-        const fdef = ENTITIES[ek].fields.find((field) => field.key === key);
-        if (fdef) {
-          const sug = fdef.suggestionSource || getFieldSuggestionSource(fdef);
-          if (sug === "project" || sug === "folder:Cadence/Projects") return true;
-        }
-      }
-      return false;
     };
     const changedEntityKey = entityKeyFromFile(plugin.app, changedFile);
     if (changedEntityKey === "contact") {
-      const contactLower = changedFile.basename.toLowerCase();
-      const contactCache = plugin.app.metadataCache.getFileCache(changedFile) || {};
-      const contactFm = contactCache.frontmatter || {};
-      const existingProjectsVal = contactFm.project;
       const currentProjectsOfContact = new Set(
-        extractEntitiesFromValue(existingProjectsVal).map((p) => p.toLowerCase())
+        extractEntitiesFromValue(frontmatterOf(changedFile).project).map((p) => p.toLowerCase())
       );
       for (const p of currentProjectsOfContact) {
         if (!projectMap.has(p)) {
-          try {
-            const allFiles = plugin.app.vault.getMarkdownFiles();
-            const originalName = allFiles.find((f) => f.basename.toLowerCase() === p)?.basename || p.charAt(0).toUpperCase() + p.slice(1);
-            const projectFile = await createEntity(plugin.app, "project", originalName);
-            projectMap.set(p, projectFile);
-            new import_obsidian16.Notice(`Fiche projet cr\xE9\xE9e automatiquement pour "${originalName}".`);
-          } catch (e) {
-            console.error(`Cadence: Failed to auto-create project ${p}`, e);
-          }
+          await autoCreate("project", p, plugin.app.vault.getMarkdownFiles(), projectMap);
         }
       }
     } else if (changedEntityKey === "project") {
       const projectLower = changedFile.basename.toLowerCase();
-      const projectCache = plugin.app.metadataCache.getFileCache(changedFile) || {};
-      const projectFm = projectCache.frontmatter || {};
+      const projectFm = frontmatterOf(changedFile);
       const projectContacts = [];
       for (const [key, val] of Object.entries(projectFm)) {
         if (key === "type") continue;
-        if (isContactField(key, "project")) {
+        if (isContactField(key, "project", ENTITIES)) {
           projectContacts.push(...extractEntitiesFromValue(val));
         }
       }
       const currentContactsOfProject = new Set(projectContacts.map((c) => c.toLowerCase()));
       for (const c of currentContactsOfProject) {
         if (!contactMap.has(c)) {
-          try {
-            const allFiles = plugin.app.vault.getMarkdownFiles();
-            const originalName = allFiles.find((f) => f.basename.toLowerCase() === c)?.basename || c.charAt(0).toUpperCase() + c.slice(1);
-            const contactFile = await createEntity(plugin.app, "contact", originalName);
-            contactMap.set(c, contactFile);
-            new import_obsidian16.Notice(`Fiche contact cr\xE9\xE9e automatiquement pour "${originalName}".`);
-          } catch (e) {
-            console.error(`Cadence: Failed to auto-create contact ${c}`, e);
-          }
+          await autoCreate("contact", c, plugin.app.vault.getMarkdownFiles(), contactMap);
         }
       }
       for (const [contactLower, contactFile] of contactMap.entries()) {
-        const contactCache = plugin.app.metadataCache.getFileCache(contactFile) || {};
-        const contactFm = contactCache.frontmatter || {};
-        const existingProjectsVal = contactFm.project;
-        const contactProjects = extractEntitiesFromValue(existingProjectsVal);
+        const contactProjects = extractEntitiesFromValue(frontmatterOf(contactFile).project);
         const listsProject = contactProjects.some((p) => p.toLowerCase() === projectLower);
         const projectListsContact = currentContactsOfProject.has(contactLower);
         if (projectListsContact && !listsProject) {
           await plugin.app.fileManager.processFrontMatter(contactFile, (cfm) => {
             const currentProjects = extractEntitiesFromValue(cfm.project);
             if (!currentProjects.some((p) => p.toLowerCase() === projectLower)) {
-              currentProjects.push(changedFile.basename);
-              if (currentProjects.length === 1) {
-                cfm.project = `[[${currentProjects[0]}]]`;
-              } else {
-                cfm.project = currentProjects.map((p) => `[[${p}]]`);
-              }
+              writeProjectLinks(cfm, addProjectLink(currentProjects, changedFile.basename));
             }
           });
           new import_obsidian16.Notice(`Lien automatique : Projet "${changedFile.basename}" associ\xE9 au contact "${contactFile.basename}".`);
@@ -3968,116 +4047,39 @@ async function syncContactProjectRelationships(plugin, changedFile) {
             if (f.path === changedFile.path || f.path === contactFile.path) continue;
             const cache = plugin.app.metadataCache.getFileCache(f);
             if (!cache || !cache.frontmatter) continue;
-            const fm = cache.frontmatter;
-            const fEntityKey = entityKeyFromFile(plugin.app, f);
-            const foundContacts = /* @__PURE__ */ new Set();
-            const foundProjects = /* @__PURE__ */ new Set();
-            if (fEntityKey === "contact") {
-              foundContacts.add(f.basename.toLowerCase());
-            } else if (fEntityKey === "project") {
-              foundProjects.add(f.basename.toLowerCase());
-            }
-            for (const [key, val] of Object.entries(fm)) {
-              if (key === "type") continue;
-              const extracted = extractEntitiesFromValue(val);
-              for (const name of extracted) {
-                if (!name) continue;
-                const nameLower = name.toLowerCase();
-                if (isContactField(key, fEntityKey) || contactMap.has(nameLower)) {
-                  foundContacts.add(nameLower);
-                }
-                if (isProjectField(key, fEntityKey) || projectMap.has(nameLower)) {
-                  foundProjects.add(nameLower);
-                }
-              }
-            }
-            if (foundContacts.has(contactLower) && foundProjects.has(projectLower)) {
+            const note = { entityKey: entityKeyFromFile(plugin.app, f), basename: f.basename, frontmatter: cache.frontmatter };
+            const { contacts, projects } = noteLinks(note, contactMap, projectMap, ENTITIES);
+            if (contacts.has(contactLower) && projects.has(projectLower)) {
               hasOtherSource = true;
               break;
             }
           }
           if (!hasOtherSource) {
             await plugin.app.fileManager.processFrontMatter(contactFile, (cfm) => {
-              const currentProjects = extractEntitiesFromValue(cfm.project);
-              const newProjects = currentProjects.filter((p) => p.toLowerCase() !== projectLower);
-              if (newProjects.length === 0) {
-                delete cfm.project;
-              } else if (newProjects.length === 1) {
-                cfm.project = `[[${newProjects[0]}]]`;
-              } else {
-                cfm.project = newProjects.map((p) => `[[${p}]]`);
-              }
+              writeProjectLinks(cfm, removeProjectLink(extractEntitiesFromValue(cfm.project), projectLower));
             });
             new import_obsidian16.Notice(`Lien automatique : Projet "${changedFile.basename}" dissoci\xE9 du contact "${contactFile.basename}".`);
           }
         }
       }
     } else {
-      const validLinks = /* @__PURE__ */ new Set();
       const allFiles = plugin.app.vault.getMarkdownFiles();
+      const notes = [];
       for (const f of allFiles) {
-        const fEntityKey = entityKeyFromFile(plugin.app, f);
-        if (fEntityKey === "contact") continue;
+        const entityKey = entityKeyFromFile(plugin.app, f);
+        if (entityKey === "contact") continue;
         const cache = plugin.app.metadataCache.getFileCache(f);
         if (!cache || !cache.frontmatter) continue;
-        const fm = cache.frontmatter;
-        const foundContacts = /* @__PURE__ */ new Set();
-        const foundProjects = /* @__PURE__ */ new Set();
-        if (fEntityKey === "project") {
-          foundProjects.add(f.basename.toLowerCase());
-        }
-        for (const [key, val] of Object.entries(fm)) {
-          if (key === "type") continue;
-          const extracted = extractEntitiesFromValue(val);
-          for (const name of extracted) {
-            if (!name) continue;
-            const nameLower = name.toLowerCase();
-            if (isContactField(key, fEntityKey) || contactMap.has(nameLower)) {
-              foundContacts.add(nameLower);
-            }
-            if (isProjectField(key, fEntityKey) || projectMap.has(nameLower)) {
-              foundProjects.add(nameLower);
-            }
-          }
-        }
-        if (foundContacts.size > 0 && foundProjects.size > 0) {
-          for (const c of foundContacts) {
-            for (const p of foundProjects) {
-              validLinks.add(`${c}|${p}`);
-            }
-          }
-        }
+        notes.push({ entityKey, basename: f.basename, frontmatter: cache.frontmatter });
       }
+      const validLinks = collectValidLinks(notes, contactMap, projectMap, ENTITIES);
       for (const link of validLinks) {
         const [c, p] = link.split("|");
-        let contactFile = contactMap.get(c);
-        if (!contactFile) {
-          try {
-            const originalName = allFiles.find((f) => f.basename.toLowerCase() === c)?.basename || c.charAt(0).toUpperCase() + c.slice(1);
-            contactFile = await createEntity(plugin.app, "contact", originalName);
-            contactMap.set(c, contactFile);
-            new import_obsidian16.Notice(`Fiche contact cr\xE9\xE9e automatiquement pour "${originalName}".`);
-          } catch (e) {
-            console.error(`Cadence: Failed to auto-create contact ${c}`, e);
-          }
-        }
-        let projectFile = projectMap.get(p);
-        if (!projectFile) {
-          try {
-            const originalName = allFiles.find((f) => f.basename.toLowerCase() === p)?.basename || p.charAt(0).toUpperCase() + p.slice(1);
-            projectFile = await createEntity(plugin.app, "project", originalName);
-            projectMap.set(p, projectFile);
-            new import_obsidian16.Notice(`Fiche projet cr\xE9\xE9e automatiquement pour "${originalName}".`);
-          } catch (e) {
-            console.error(`Cadence: Failed to auto-create project ${p}`, e);
-          }
-        }
+        if (!contactMap.get(c)) await autoCreate("contact", c, allFiles, contactMap);
+        if (!projectMap.get(p)) await autoCreate("project", p, allFiles, projectMap);
       }
       for (const [contactLower, contactFile] of contactMap.entries()) {
-        const contactCache = plugin.app.metadataCache.getFileCache(contactFile) || {};
-        const contactFm = contactCache.frontmatter || {};
-        const existingProjectsVal = contactFm.project;
-        const existingProjects = extractEntitiesFromValue(existingProjectsVal);
+        const existingProjects = extractEntitiesFromValue(frontmatterOf(contactFile).project);
         const projectNamesToLink = /* @__PURE__ */ new Set();
         for (const link of validLinks) {
           const [c, p] = link.split("|");
@@ -4088,38 +4090,16 @@ async function syncContactProjectRelationships(plugin, changedFile) {
             }
           }
         }
-        const existingLower = existingProjects.map((p) => p.toLowerCase());
-        const targetLower = Array.from(projectNamesToLink).map((p) => p.toLowerCase());
-        let needsUpdate = false;
-        for (const p of existingLower) {
-          if (!targetLower.includes(p)) {
-            needsUpdate = true;
-            break;
-          }
-        }
-        for (const p of targetLower) {
-          if (!existingLower.includes(p)) {
-            needsUpdate = true;
-            break;
-          }
-        }
-        if (needsUpdate) {
-          const sortedProjects = Array.from(projectNamesToLink);
-          const formattedVal = sortedProjects.length === 0 ? null : sortedProjects.length === 1 ? `[[${sortedProjects[0]}]]` : sortedProjects.map((p) => `[[${p}]]`);
+        const plan = contactProjectsPlan(existingProjects, Array.from(projectNamesToLink));
+        if (plan) {
           await plugin.app.fileManager.processFrontMatter(contactFile, (cfm) => {
-            if (formattedVal === null) {
-              delete cfm.project;
-            } else {
-              cfm.project = formattedVal;
-            }
+            writeProjectLinks(cfm, plan.names);
           });
-          const added = sortedProjects.filter((p) => !existingProjects.some((ep) => ep.toLowerCase() === p.toLowerCase()));
-          const removed = existingProjects.filter((ep) => !sortedProjects.some((p) => p.toLowerCase() === ep.toLowerCase()));
-          if (added.length > 0) {
-            new import_obsidian16.Notice(`Lien automatique : Projet "${added.join(", ")}" associ\xE9 \xE0 "${contactFile.basename}".`);
+          if (plan.added.length > 0) {
+            new import_obsidian16.Notice(`Lien automatique : Projet "${plan.added.join(", ")}" associ\xE9 \xE0 "${contactFile.basename}".`);
           }
-          if (removed.length > 0) {
-            new import_obsidian16.Notice(`Lien automatique : Projet "${removed.join(", ")}" dissoci\xE9 de "${contactFile.basename}".`);
+          if (plan.removed.length > 0) {
+            new import_obsidian16.Notice(`Lien automatique : Projet "${plan.removed.join(", ")}" dissoci\xE9 de "${contactFile.basename}".`);
           }
         }
       }
@@ -4140,38 +4120,6 @@ async function handleProjectDeletion(plugin, file) {
   try {
     plugin._syncInProgress = true;
     const contactFiles = listEntityFiles(plugin.app, "contact");
-    const extractEntitiesFromValue = (value) => {
-      if (value == null) return [];
-      const results = [];
-      const processStr = (str) => {
-        str = String(str).trim();
-        if (!str) return;
-        if (str.includes("[[")) {
-          const regex = /\[\[(.*?)\]\]/g;
-          let match;
-          while ((match = regex.exec(str)) !== null) {
-            let target = match[1].trim();
-            if (target.includes("|")) {
-              target = target.split("|")[0].trim();
-            }
-            if (target) results.push(target);
-          }
-        } else if (str.includes(",")) {
-          str.split(",").forEach((s) => {
-            const item = s.trim();
-            if (item) results.push(item);
-          });
-        } else {
-          results.push(str);
-        }
-      };
-      if (Array.isArray(value)) {
-        value.forEach((val) => processStr(val));
-      } else {
-        processStr(value);
-      }
-      return results;
-    };
     for (const contactFile of contactFiles) {
       const contactCache = plugin.app.metadataCache.getFileCache(contactFile) || {};
       const contactFm = contactCache.frontmatter || {};
@@ -4180,15 +4128,9 @@ async function handleProjectDeletion(plugin, file) {
       const existingProjectNames = extractEntitiesFromValue(existingProjectsVal);
       const hasProject = existingProjectNames.some((p) => p.toLowerCase() === projectName.toLowerCase());
       if (hasProject) {
-        const remainingProjects = existingProjectNames.filter((p) => p.toLowerCase() !== projectName.toLowerCase());
+        const remainingProjects = removeProjectLink(existingProjectNames, projectName);
         await plugin.app.fileManager.processFrontMatter(contactFile, (cfm) => {
-          if (remainingProjects.length === 0) {
-            delete cfm.project;
-          } else if (remainingProjects.length === 1) {
-            cfm.project = `[[${remainingProjects[0]}]]`;
-          } else {
-            cfm.project = remainingProjects.map((p) => `[[${p}]]`);
-          }
+          writeProjectLinks(cfm, remainingProjects);
         });
         new import_obsidian16.Notice(`Lien automatique : Projet "${projectName}" supprim\xE9 du contact "${contactFile.basename}".`);
       }

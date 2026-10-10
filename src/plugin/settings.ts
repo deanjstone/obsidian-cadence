@@ -1,7 +1,7 @@
 import { DEFAULT_SETTINGS } from '../constants/settings';
 import { ENTITIES } from '../constants/entities';
-import type { EntityField } from '../types/entities';
-import type { PluginSettings } from '../types/settings';
+import type { EntityDef, EntityField } from '../types/entities';
+import type { CustomPage, PluginSettings } from '../types/settings';
 import { setCurrentCurrency } from '../utils/format';
 import type { AppWithMetadataTypes, PluginHost } from './host';
 
@@ -9,80 +9,98 @@ import type { AppWithMetadataTypes, PluginHost } from './host';
    CadencePlugin keeps a one-line delegate for each. loadSettings also
    rebuilds ENTITIES from settings.customEntities. */
 
-export async function loadSettings(plugin: PluginHost): Promise<void> {
-  const loadedData = await plugin.loadData() || {};
-  plugin.settings = Object.assign({}, DEFAULT_SETTINGS, loadedData);
+/* The entity keys loadSettings never prunes. */
+export const CORE_ENTITY_KEYS = ['contact', 'company', 'partner', 'registration', 'commission', 'lead', 'certification', 'activity', 'sequence', 'project', 'deal'];
 
+/* The entities whose fields become Obsidian property types. */
+export const PROPERTY_TYPE_ENTITIES = ['project', 'deal', 'contact', 'company', 'activity'];
+
+/* Fills what the shallow merge left missing or empty, in place: each
+   default entity schema (a deep copy) and the two default widgets of each
+   dashboard. QUIRK (#22): the merge is shallow, so with no saved data the
+   nested objects are DEFAULT_SETTINGS' own and nothing here copies them. */
+export function fillSettingDefaults(settings: PluginSettings, defaults: PluginSettings): void {
   // Deep default customEntities if missing or empty
-  if (!plugin.settings.customEntities) {
-    plugin.settings.customEntities = {};
+  if (!settings.customEntities) {
+    settings.customEntities = {};
   }
-  for (const [entityKey, defaultFields] of Object.entries(DEFAULT_SETTINGS.customEntities)) {
-    if (!plugin.settings.customEntities[entityKey] || plugin.settings.customEntities[entityKey].length === 0) {
-      plugin.settings.customEntities[entityKey] = JSON.parse(JSON.stringify(defaultFields));
+  for (const [entityKey, defaultFields] of Object.entries(defaults.customEntities)) {
+    if (!settings.customEntities[entityKey] || settings.customEntities[entityKey].length === 0) {
+      settings.customEntities[entityKey] = JSON.parse(JSON.stringify(defaultFields));
     }
   }
 
-  setCurrentCurrency(plugin.settings.currency || 'USD');
-
   // Initialize default project dashboard widgets if empty/missing
-  if (!plugin.settings.projectDashboardWidgets || plugin.settings.projectDashboardWidgets.length === 0) {
-    plugin.settings.projectDashboardWidgets = [
+  if (!settings.projectDashboardWidgets || settings.projectDashboardWidgets.length === 0) {
+    settings.projectDashboardWidgets = [
       { id: 'w1', title: 'Projects by Status', groupBy: 'status', style: 'donut' },
       { id: 'w2', title: 'Projects by Priority', groupBy: 'priority', style: 'bar' }
     ];
   }
-  if (!plugin.settings.crmDashboardWidgets || plugin.settings.crmDashboardWidgets.length === 0) {
-    plugin.settings.crmDashboardWidgets = [
+  if (!settings.crmDashboardWidgets || settings.crmDashboardWidgets.length === 0) {
+    settings.crmDashboardWidgets = [
       { id: 'c1', title: 'Deals by Stage', groupBy: 'stage', style: 'donut' },
       { id: 'c2', title: 'Deals by Owner', groupBy: 'owner', style: 'bar' }
     ];
   }
-  if (!plugin.settings.prmDashboardWidgets || plugin.settings.prmDashboardWidgets.length === 0) {
-    plugin.settings.prmDashboardWidgets = [
+  if (!settings.prmDashboardWidgets || settings.prmDashboardWidgets.length === 0) {
+    settings.prmDashboardWidgets = [
       { id: 'p1', title: 'Partners by Tier', groupBy: 'tier', style: 'donut' },
       { id: 'p2', title: 'Partners by Status', groupBy: 'status', style: 'bar' }
     ];
   }
+}
 
+/* A rebuilt entity's label and plural: from its custom page's label, or
+   else from its key. QUIRK (#22): any trailing s or S counts as a plural
+   (Bus → Bu). Only a core key missing from ENTITIES reaches the key branch,
+   so its all-caps case is unreachable. */
+export function customEntityNames(entityKey: string, customPage: CustomPage | undefined): { label: string; plural: string } {
+  let label, plural;
+  if (customPage) {
+    plural = customPage.label;
+    if (plural.endsWith('s') && plural.length > 1) {
+      label = plural.substring(0, plural.length - 1);
+    } else if (plural.endsWith('S') && plural.length > 1) {
+      label = plural.substring(0, plural.length - 1);
+    } else {
+      label = plural;
+    }
+  } else {
+    label = (entityKey === entityKey.toUpperCase()) ? entityKey : (entityKey.charAt(0).toUpperCase() + entityKey.slice(1));
+    plural = label + 's';
+  }
+  return { label, plural };
+}
+
+/* Rebuilds the entity registry from settings.customEntities, editing both
+   in place: drops custom schemas with no custom page, points each entity's
+   fields at its settings list (rebuilding an entity ENTITIES lacks), and
+   adds a text `type` field to every entity but activity. */
+export function reconstructEntities(settings: PluginSettings, entities: Record<string, EntityDef>): void {
   // Clean up any orphan custom entities that have no matching custom page
-  const coreEntityKeys = ['contact', 'company', 'partner', 'registration', 'commission', 'lead', 'certification', 'activity', 'sequence', 'project', 'deal'];
-  const activeCustomEntityKeys = (plugin.settings.customPages || []).map(p => p.entityKey);
-  for (const entityKey of Object.keys(plugin.settings.customEntities)) {
-    if (!coreEntityKeys.includes(entityKey) && !activeCustomEntityKeys.includes(entityKey)) {
-      delete plugin.settings.customEntities[entityKey];
-      if (ENTITIES[entityKey]) {
-        delete ENTITIES[entityKey];
+  const activeCustomEntityKeys = (settings.customPages || []).map(p => p.entityKey);
+  for (const entityKey of Object.keys(settings.customEntities)) {
+    if (!CORE_ENTITY_KEYS.includes(entityKey) && !activeCustomEntityKeys.includes(entityKey)) {
+      delete settings.customEntities[entityKey];
+      if (entities[entityKey]) {
+        delete entities[entityKey];
       }
     }
   }
 
   // Reconstruct custom entities from settings
-  if (plugin.settings.customEntities) {
-    for (const [entityKey, customFields] of Object.entries(plugin.settings.customEntities)) {
-      if (ENTITIES[entityKey]) {
-        ENTITIES[entityKey].fields = customFields;
+  if (settings.customEntities) {
+    for (const [entityKey, customFields] of Object.entries(settings.customEntities)) {
+      if (entities[entityKey]) {
+        entities[entityKey].fields = customFields;
       } else {
         // Reconstruct dynamic custom entity type
-        const customPages = plugin.settings.customPages || [];
+        const customPages = settings.customPages || [];
         const customPage = customPages.find(p => p.entityKey === entityKey);
+        const { label, plural } = customEntityNames(entityKey, customPage);
 
-        let label, plural;
-        if (customPage) {
-          plural = customPage.label;
-          if (plural.endsWith('s') && plural.length > 1) {
-            label = plural.substring(0, plural.length - 1);
-          } else if (plural.endsWith('S') && plural.length > 1) {
-            label = plural.substring(0, plural.length - 1);
-          } else {
-            label = plural;
-          }
-        } else {
-          label = (entityKey === entityKey.toUpperCase()) ? entityKey : (entityKey.charAt(0).toUpperCase() + entityKey.slice(1));
-          plural = label + 's';
-        }
-
-        ENTITIES[entityKey] = {
+        entities[entityKey] = {
           folder: `Cadence/${plural}`,
           label: label,
           plural: plural,
@@ -94,7 +112,7 @@ export async function loadSettings(plugin: PluginHost): Promise<void> {
   }
 
   // Ensure 'type' field is in customEntities and ENTITIES fields (except activity)
-  for (const [entityKey, def] of Object.entries(ENTITIES)) {
+  for (const [entityKey, def] of Object.entries(entities)) {
     if (entityKey === 'activity') continue;
 
     const hasType = def.fields.some(f => f.key === 'type');
@@ -107,10 +125,10 @@ export async function loadSettings(plugin: PluginHost): Promise<void> {
     }
 
     // Also ensure it is in the settings' customEntities fields
-    if (plugin.settings.customEntities[entityKey]) {
-      const hasSetType = plugin.settings.customEntities[entityKey].some(f => f.key === 'type');
+    if (settings.customEntities[entityKey]) {
+      const hasSetType = settings.customEntities[entityKey].some(f => f.key === 'type');
       if (!hasSetType) {
-        plugin.settings.customEntities[entityKey].push({
+        settings.customEntities[entityKey].push({
           key: 'type',
           label: 'Type',
           type: 'text'
@@ -120,33 +138,45 @@ export async function loadSettings(plugin: PluginHost): Promise<void> {
   }
 }
 
+/* The Obsidian property type for an entity field: text for the primary
+   field, then by field type, then multitext for any list. An enum is text. */
+export function propertyTypeFor(f: EntityField): string {
+  if (f.primary) return 'text';
+  const ftype = f.type || 'text';
+  let obsType = 'text';
+  if (ftype === 'date') obsType = 'date';
+  else if (ftype === 'number' || ftype === 'currency') obsType = 'number';
+  else if (ftype === 'tags') obsType = 'tags';
+  else if (ftype === 'multitext') obsType = 'multitext';
+  else if (f.isList) obsType = 'multitext';
+  return obsType;
+}
+
+export async function loadSettings(plugin: PluginHost): Promise<void> {
+  const loadedData = await plugin.loadData() || {};
+  plugin.settings = Object.assign({}, DEFAULT_SETTINGS, loadedData);
+  fillSettingDefaults(plugin.settings, DEFAULT_SETTINGS);
+  setCurrentCurrency(plugin.settings.currency || 'USD');
+  reconstructEntities(plugin.settings, ENTITIES);
+}
+
 export async function saveSettings(plugin: PluginHost): Promise<void> {
   await plugin.saveData(plugin.settings);
   setCurrentCurrency(plugin.settings.currency || 'USD');
 }
 
+/* QUIRK (#22): `type` is registered as multitext first, then every entity
+   but activity has a text `type` field, so it ends up text. */
 export function registerCustomPropertyTypes(plugin: PluginHost): void {
   try {
-    if ((plugin.app as unknown as AppWithMetadataTypes).metadataTypeManager && typeof (plugin.app as unknown as AppWithMetadataTypes).metadataTypeManager!.setType === 'function') {
-      (plugin.app as unknown as AppWithMetadataTypes).metadataTypeManager!.setType('type', 'multitext');
-      const customKeys = ['project', 'deal', 'contact', 'company', 'activity'];
-      for (const key of customKeys) {
+    const manager = (plugin.app as unknown as AppWithMetadataTypes).metadataTypeManager;
+    if (manager && typeof manager.setType === 'function') {
+      manager.setType('type', 'multitext');
+      for (const key of PROPERTY_TYPE_ENTITIES) {
         const def = ENTITIES[key];
         if (!def || !def.fields) continue;
         for (const f of def.fields) {
-          if (f.primary) {
-            (plugin.app as unknown as AppWithMetadataTypes).metadataTypeManager!.setType(f.key, 'text');
-            continue;
-          }
-          const ftype = f.type || 'text';
-          let obsType = 'text';
-          if (ftype === 'date') obsType = 'date';
-          else if (ftype === 'number' || ftype === 'currency') obsType = 'number';
-          else if (ftype === 'tags') obsType = 'tags';
-          else if (ftype === 'multitext') obsType = 'multitext';
-          else if (f.isList) obsType = 'multitext';
-
-          (plugin.app as unknown as AppWithMetadataTypes).metadataTypeManager!.setType(f.key, obsType);
+          manager.setType(f.key, propertyTypeFor(f));
         }
       }
     }
