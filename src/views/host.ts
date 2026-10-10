@@ -208,9 +208,12 @@ export interface AppViewHost {
   renderReportActivity(root: HTMLElement): Promise<void>;
   renderProductivity(root: HTMLElement): Promise<void>;
 
-  /* ── Called by the shell, owned by later view tickets ── */
-  renderPRMAnalytics(root: HTMLElement): Promise<void>;
+  /* ── Relationship graph (src/views/report-graph.ts) ── */
   renderReportGraph(root: HTMLElement): Promise<void>;
+
+  /* ── PRM analytics and Team (src/views/prm.ts) ── */
+  renderPRMAnalytics(root: HTMLElement): Promise<void>;
+  /** The contact list through renderEntityList, filtered to team roles. */
   renderTeam(root: HTMLElement): Promise<void>;
 }
 

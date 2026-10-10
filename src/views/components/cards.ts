@@ -17,8 +17,9 @@ export interface DashCardRow {
   /** Used only when metaParts is absent. */
   meta?: string;
   metaParts?: DashMetaPart[];
-  /** When set, clicking the row opens the file's detail form. */
-  file?: TFile;
+  /** When set, clicking the row opens the file's detail form. PRM's top
+      partners pass null for a partner value that names no partner. */
+  file?: TFile | null;
 }
 
 /** A stat card: label, value, optional sub line and accent. */

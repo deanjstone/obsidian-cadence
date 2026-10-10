@@ -48,4 +48,6 @@ export interface AppViewSettings extends DailyNoteSettings {
   projectDashboardWidgets?: WidgetConfig[];
   /** The CRM dashboard's custom chart widgets. */
   crmDashboardWidgets?: WidgetConfig[];
+  /** PRM analytics' custom chart widgets. */
+  prmDashboardWidgets?: WidgetConfig[];
 }
