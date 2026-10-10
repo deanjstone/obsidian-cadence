@@ -1,6 +1,12 @@
 import type { App, EventRef, TFile, WorkspaceLeaf } from 'obsidian';
 import type { NavGroup, NavSurface } from '../constants/nav';
+import type { Entity, EntityKey } from '../types/entities';
+import type { ChartStyle } from '../types/modals';
 import type { AppViewSettings } from '../types/settings';
+import type { Milestone, TaskItem } from '../utils/parsing';
+import type { DashCardRow } from './components/cards';
+import type { ChartDatum } from './components/charts';
+import type { FlashSaved, ProjectTextSectionDef } from './components/sections';
 
 /* The plugin as the app view sees it. */
 export interface AppViewPlugin {
@@ -65,6 +71,37 @@ export interface AppViewHost {
   _prompt(opts: PromptOptions): Promise<string | null>;
   _createEntityFromPrompt(entityKey: string, defaults?: Record<string, unknown>): Promise<void>;
 
+  /* ── Shared view components (src/views/components/) ── */
+  _drawChart(parent: HTMLElement, style: ChartStyle | string, data: ChartDatum[]): void;
+  _drawChartEmpty(parent: HTMLElement): void;
+  _drawDonutChart(parent: HTMLElement, data: ChartDatum[]): void;
+  _drawBarChart(parent: HTMLElement, data: ChartDatum[]): void;
+  _drawKpiGrid(parent: HTMLElement, data: ChartDatum[]): void;
+  _drawSimpleList(parent: HTMLElement, data: ChartDatum[]): void;
+  _dashCardSection(parent: HTMLElement, title: string, rows: DashCardRow[] | null | undefined, emptyMsg?: string): void;
+  _renderEntityLinks(parent: HTMLElement, val: unknown, targetEntityKey: string, prefix?: string): void;
+  _renderOwnerLinks(parent: HTMLElement, ownerVal: unknown, showPrefix?: boolean): void;
+  _renderEntityTable(parent: HTMLElement, entityKey: EntityKey, filteredList: Entity[], columns: string[]): void;
+  _getEntityFiles(entityKey: EntityKey | 'daily'): TFile[];
+  _renderMarkdownTextCard(
+    parent: HTMLElement, file: TFile, sectionKey: string, label: string, initialValue: string | undefined,
+    placeholder?: string, flashSaved?: FlashSaved,
+  ): void;
+  _renderProjectTextSection(
+    parent: HTMLElement, file: TFile, sections: Record<string, string>, def: ProjectTextSectionDef, flashSaved?: FlashSaved,
+  ): void;
+  _renderGenericTextSection(
+    parent: HTMLElement, file: TFile, sections: Record<string, string>, key: string, flashSaved?: FlashSaved,
+  ): void;
+  _renderSingleCrossSection(
+    parent: HTMLElement, targetEntity: EntityKey, linkField: string, viewType: string, parentName: string,
+    preFilteredList?: Entity[] | null,
+  ): void;
+  _renderCrossSections(parent: HTMLElement, parentEntity: EntityKey, parentName: string): void;
+  _renderDynamicH2Section(
+    parent: HTMLElement, file: TFile, sections: Record<string, string>, rawKey: string, flashSaved?: FlashSaved,
+  ): void;
+
   /* ── Called by the shell, owned by later view tickets ── */
   _inboxOverdueCount(): number;
   renderHome(root: HTMLElement): Promise<void>;
@@ -85,6 +122,12 @@ export interface AppViewHost {
   renderProductivity(root: HTMLElement): Promise<void>;
   renderTeam(root: HTMLElement): Promise<void>;
   renderTemplatesDashboard(root: HTMLElement): Promise<void>;
+
+  /* ── Called by the shared components, owned by later view tickets ── */
+  _renderTaskSection(parent: HTMLElement, file: TFile, tasks: TaskItem[], flashSaved?: FlashSaved, rawKey?: string): void;
+  _renderMilestoneSection(
+    parent: HTMLElement, file: TFile, milestones: Milestone[], flashSaved?: FlashSaved, rawKey?: string,
+  ): void;
 }
 
 /* What _prompt() accepts; every field falls back to a default. */
