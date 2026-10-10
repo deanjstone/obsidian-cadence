@@ -402,6 +402,8 @@ export class FakeElement {
   disabled = false;
   required = false;
   rows = 0;
+  /** Fixed at 0: the stub does no layout. */
+  scrollHeight = 0;
   readonly dataset: Record<string, string> = {};
   /** The DOM's classList, backed by `classes`. */
   readonly classList = {
@@ -545,6 +547,11 @@ export class FakeElement {
 
   setText(text: string) {
     this.text = String(text);
+  }
+
+  /* Obsidian's appendText adds a text node; the stub appends to `text`. */
+  appendText(text: string) {
+    this.text += String(text);
   }
 
   focus() {
