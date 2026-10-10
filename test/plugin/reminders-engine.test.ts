@@ -162,13 +162,13 @@ describe("snoozeReminder and completeReminder", () => {
     expect(r).toMatchObject({ when: iso(10 * MIN), notified: false, done: false });
   });
 
-  it("QUIRK: snoozing a done reminder leaves it done, so it never fires", async () => {
-    const { plugin } = await makeLoadedPlugin({ data: { reminders: [reminder({ done: true })] } });
+  it("snoozing a done reminder reopens it, so it fires", async () => {
+    const { plugin } = await makeLoadedPlugin({ data: { reminders: [reminder({ done: true, notified: true })] } });
     await plugin.snoozeReminder("rem_a", MIN);
-    expect(plugin.settings.reminders[0]).toMatchObject({ done: true, notified: false });
+    expect(plugin.settings.reminders[0]).toMatchObject({ done: false, notified: false });
     vi.setSystemTime(NOW.getTime() + 2 * MIN);
     plugin.tickReminders();
-    expect(Notice.messages).toEqual([]);
+    expect(Notice.messages).toEqual(["⏰  Call Jane"]);
   });
 
   it("snoozing an unknown id returns null", async () => {

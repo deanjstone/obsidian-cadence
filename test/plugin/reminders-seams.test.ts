@@ -110,8 +110,8 @@ describe("advanceReminder", () => {
 });
 
 describe("snoozePatch and COMPLETE_PATCH", () => {
-  it("snoozes to now + ms and clears notified only", () => {
-    expect(snoozePatch(10 * MIN, T)).toEqual({ when: new Date(T + 10 * MIN).toISOString(), notified: false });
+  it("snoozes to now + ms and reopens: clears notified and done", () => {
+    expect(snoozePatch(10 * MIN, T)).toEqual({ when: new Date(T + 10 * MIN).toISOString(), notified: false, done: false });
   });
 
   it("completes by setting done and notified", () => {

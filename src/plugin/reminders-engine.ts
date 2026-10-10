@@ -68,13 +68,14 @@ export function advanceReminder(r: Reminder, now: Date): Reminder | null {
   };
 }
 
-/* Snooze moves `when` to now + ms and clears `notified`. QUIRK (#22): it
-   leaves `done` alone, so a done reminder stays silent. */
+/* Snooze moves `when` to now + ms and reopens the reminder: it clears
+   `notified` and `done`, so a done reminder fires again (#44). */
 export function snoozePatch(ms: number, now: number): Partial<Reminder> {
   const target = new Date(now + ms);
   return {
     when: target.toISOString(),
     notified: false,
+    done: false,
   };
 }
 
