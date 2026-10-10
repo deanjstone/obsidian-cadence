@@ -248,6 +248,8 @@ export class App {
   vault = new Vault(this.metadataCache);
   fileManager = new FileManager(this.metadataCache);
   workspace = new Workspace();
+  /** Obsidian's community-plugin registry (not in the public obsidian.d.ts). */
+  plugins = { enabledPlugins: new Set<string>() };
   /** Obsidian's settings window (not in the public obsidian.d.ts). Records calls. */
   setting = {
     calls: [] as string[],
@@ -404,6 +406,7 @@ export class FakeElement {
   type = '';
   placeholder = '';
   title = '';
+  id = '';
   /** Last icon set on this element through setIcon(). */
   icon = '';
   checked = false;
@@ -515,6 +518,11 @@ export class FakeElement {
   /* Like createEl: SvgElementInfo carries only cls and attr. */
   createSvg(tag: string, o?: SvgElementInfo | string, callback?: (el: FakeElement) => void): FakeElement {
     return this.createEl(tag, o, callback);
+  }
+
+  /* Stored with createEl's `attr` values, so getAttribute reads either. */
+  setAttribute(name: string, value: string) {
+    this.attrs[name] = String(value);
   }
 
   getAttribute(name: string): string | null {
@@ -740,15 +748,165 @@ export class ItemView extends Component {
 export class PluginSettingTab {
   app: App;
   plugin: unknown;
-  containerEl: unknown = {};
+  containerEl: HTMLElement = fakeElement();
   constructor(app: App, plugin: unknown) {
     this.app = app;
     this.plugin = plugin;
   }
 }
 
+/* ─────────── Setting and its components ───────────
+   Each Setting appends a `div.setting-item` (holding name, description and
+   control elements) to its container, records its components in order, and
+   hangs itself on the element as `setting`, so a test can find a row by
+   name and drive its controls. A component's handler is fired with
+   `await component.change(value)` or `await button.click()`. */
+
+type ChangeHandler<T> = (value: T) => unknown;
+
+export class ToggleComponent {
+  readonly kind = 'toggle';
+  value = false;
+  changeHandler: ChangeHandler<boolean> | null = null;
+  setValue(value: boolean) {
+    this.value = value;
+    return this;
+  }
+  getValue() {
+    return this.value;
+  }
+  onChange(handler: ChangeHandler<boolean>) {
+    this.changeHandler = handler;
+    return this;
+  }
+  /** Set the value as a click would, and await the handler. */
+  async change(value: boolean) {
+    this.value = value;
+    await this.changeHandler?.(value);
+  }
+}
+
+export class DropdownComponent {
+  readonly kind = 'dropdown';
+  readonly selectEl = new FakeElement('select');
+  changeHandler: ChangeHandler<string> | null = null;
+  addOption(value: string, display: string) {
+    this.selectEl.createEl('option', { value, text: display });
+    return this;
+  }
+  setValue(value: string) {
+    this.selectEl.value = value;
+    return this;
+  }
+  getValue() {
+    return this.selectEl.value;
+  }
+  onChange(handler: ChangeHandler<string>) {
+    this.changeHandler = handler;
+    return this;
+  }
+  /** [value, label] of every option, in order. */
+  get optionPairs(): Array<[string, string]> {
+    return this.selectEl.options.map((o) => [o.value, o.text]);
+  }
+  async change(value: string) {
+    this.selectEl.value = value;
+    await this.changeHandler?.(value);
+  }
+}
+
+export class TextComponent {
+  readonly kind = 'text';
+  readonly inputEl = new FakeElement('input');
+  changeHandler: ChangeHandler<string> | null = null;
+  setPlaceholder(placeholder: string) {
+    this.inputEl.placeholder = placeholder;
+    return this;
+  }
+  setValue(value: string) {
+    this.inputEl.value = value;
+    return this;
+  }
+  getValue() {
+    return this.inputEl.value;
+  }
+  onChange(handler: ChangeHandler<string>) {
+    this.changeHandler = handler;
+    return this;
+  }
+  async change(value: string) {
+    this.inputEl.value = value;
+    await this.changeHandler?.(value);
+  }
+}
+
+export class ButtonComponent {
+  readonly kind = 'button';
+  readonly buttonEl = new FakeElement('button');
+  clickHandler: (() => unknown) | null = null;
+  setButtonText(text: string) {
+    this.buttonEl.text = text;
+    return this;
+  }
+  onClick(handler: () => unknown) {
+    this.clickHandler = handler;
+    return this;
+  }
+  async click() {
+    await this.clickHandler?.();
+  }
+}
+
+export type SettingComponent = ToggleComponent | DropdownComponent | TextComponent | ButtonComponent;
+
 export class Setting {
-  constructor(_containerEl: unknown) {}
+  readonly settingEl: FakeElement;
+  readonly nameEl: FakeElement;
+  readonly descEl: FakeElement;
+  readonly controlEl: FakeElement;
+  readonly components: SettingComponent[] = [];
+  name = '';
+  desc = '';
+  constructor(containerEl: unknown) {
+    this.settingEl = (containerEl as FakeElement).createDiv({ cls: 'setting-item' });
+    (this.settingEl as unknown as { setting: Setting }).setting = this;
+    const info = this.settingEl.createDiv({ cls: 'setting-item-info' });
+    this.nameEl = info.createDiv({ cls: 'setting-item-name' });
+    this.descEl = info.createDiv({ cls: 'setting-item-description' });
+    this.controlEl = this.settingEl.createDiv({ cls: 'setting-item-control' });
+  }
+  setName(name: string) {
+    this.name = name;
+    this.nameEl.setText(name);
+    return this;
+  }
+  setDesc(desc: string) {
+    this.desc = desc;
+    this.descEl.setText(desc);
+    return this;
+  }
+  private add<C extends SettingComponent>(component: C, el: FakeElement, cb: (component: C) => unknown) {
+    this.controlEl.children.push(el);
+    el.parent = this.controlEl;
+    this.components.push(component);
+    cb(component);
+    return this;
+  }
+  addToggle(cb: (component: ToggleComponent) => unknown) {
+    return this.add(new ToggleComponent(), new FakeElement('div'), cb);
+  }
+  addDropdown(cb: (component: DropdownComponent) => unknown) {
+    const component = new DropdownComponent();
+    return this.add(component, component.selectEl, cb);
+  }
+  addText(cb: (component: TextComponent) => unknown) {
+    const component = new TextComponent();
+    return this.add(component, component.inputEl, cb);
+  }
+  addButton(cb: (component: ButtonComponent) => unknown) {
+    const component = new ButtonComponent();
+    return this.add(component, component.buttonEl, cb);
+  }
 }
 
 export const Platform = { isMobile: false, isDesktop: true, isMobileApp: false, isDesktopApp: true };
