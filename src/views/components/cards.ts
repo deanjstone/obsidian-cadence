@@ -13,12 +13,20 @@ export interface DashMetaPart {
 export interface DashCardRow {
   title?: string;
   /** When set, the title is rendered as links to this entity. */
-  titleEntityKey?: string;
+  titleEntityKey?: string | null;
   /** Used only when metaParts is absent. */
   meta?: string;
   metaParts?: DashMetaPart[];
   /** When set, clicking the row opens the file's detail form. */
   file?: TFile;
+}
+
+/** A stat card: label, value, optional sub line and accent. */
+export interface StatCard {
+  label: string;
+  value: string | number;
+  sub: string;
+  accent: string;
 }
 
 export function dashCardSection(view: AppViewHost, parent: HTMLElement, title: string, rows: DashCardRow[] | null | undefined, emptyMsg?: string): void {
