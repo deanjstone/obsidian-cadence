@@ -465,6 +465,17 @@ describe("_renderTaskSection (TaskNotes)", () => {
   });
 });
 
+describe("_renderTaskSection (TaskNotes): numbering", () => {
+  it("numbers the first clash (1)", async () => {
+    const { parent, tasks, app, view } = setup([APOLLO, { path: "TaskNotes/Tasks/Ship.md" }], { taskManagementSystem: "tasknotes" });
+    vi.spyOn(view, "_prompt").mockResolvedValue("Ship");
+    tasks();
+    addButton(parent).trigger("click");
+    await flush();
+    expect(app.vault.created).toEqual(["TaskNotes/Tasks/Ship (1).md"]);
+  });
+});
+
 describe("_commitTasks", () => {
   it("replaces the named section, flashes, and re-renders unless skipRender", async () => {
     const { view, file, section, flashSaved, rendered } = setup();

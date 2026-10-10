@@ -178,6 +178,7 @@ describe("task seams", () => {
   it("taskNotePath strips unsafe characters and numbers a taken path", () => {
     const taken = new Set(["F/Ship.md", "F/Ship (1).md"]);
     expect(taskNotePath("F", ' Ship ', (p) => taken.has(p))).toBe("F/Ship (2).md");
+    expect(taskNotePath("F", "Ship", (p) => p === "F/Ship.md")).toBe("F/Ship (1).md");
     expect(taskNotePath("F", 'a\\b/c:d*e?f"g<h>i|j', () => false)).toBe("F/abcdefghij.md");
     expect(taskNotePath(TASKNOTES_FOLDER, "New", () => false)).toBe("TaskNotes/Tasks/New.md");
   });
