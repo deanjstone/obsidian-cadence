@@ -277,16 +277,179 @@ export class Plugin extends Component {
   }
 }
 
+/* ─────────── Minimal DOM stub ───────────
+   Just enough of Obsidian's element helpers (createEl, createDiv, empty,
+   addClass, setText) and of the DOM (value, options, style, listeners) to
+   drive a modal's onOpen() and read back what it built. Like Obsidian's
+   createEl, it ignores DomElementInfo keys it does not know. */
+
+/* The Obsidian augmentations src/ relies on. Under test/tsconfig.json the
+   real obsidian.d.ts is not loaded, so src/ is typechecked against these. */
+declare global {
+  interface DomElementInfo {
+    cls?: string | string[];
+    text?: string | DocumentFragment;
+    attr?: { [key: string]: string | number | boolean | null };
+    title?: string;
+    parent?: Node;
+    value?: string;
+    type?: string;
+    prepend?: boolean;
+    placeholder?: string;
+    href?: string;
+  }
+  interface Node {
+    empty(): void;
+    createEl<K extends keyof HTMLElementTagNameMap>(tag: K, o?: DomElementInfo | string, callback?: (el: HTMLElementTagNameMap[K]) => void): HTMLElementTagNameMap[K];
+    createDiv(o?: DomElementInfo | string, callback?: (el: HTMLDivElement) => void): HTMLDivElement;
+  }
+  interface Element extends Node {
+    setText(val: string | DocumentFragment): void;
+    addClass(...classes: string[]): void;
+  }
+}
+
+export interface FakeEvent {
+  type: string;
+  key?: string;
+  defaultPrevented: boolean;
+  preventDefault(): void;
+}
+
+export class FakeElement {
+  readonly tagName: string;
+  parent: FakeElement | null = null;
+  readonly children: FakeElement[] = [];
+  readonly classes: string[] = [];
+  readonly attrs: Record<string, string | number | boolean | null> = {};
+  readonly style: Record<string, string> = {};
+  text = '';
+  type = '';
+  placeholder = '';
+  title = '';
+  focusCount = 0;
+  selectCount = 0;
+  private ownValue = '';
+  /* <select> only: undefined = browser default (first option), null = none. */
+  private selected: FakeElement | null | undefined = undefined;
+  private readonly listeners = new Map<string, Array<(event: FakeEvent) => void>>();
+
+  constructor(tagName: string) {
+    this.tagName = tagName;
+  }
+
+  get options(): FakeElement[] {
+    return this.children.filter((c) => c.tagName === 'option');
+  }
+
+  get value(): string {
+    if (this.tagName !== 'select') return this.ownValue;
+    const options = this.options;
+    if (this.selected === null) return '';
+    if (this.selected === undefined || !options.includes(this.selected)) return options[0]?.value ?? '';
+    return this.selected.value;
+  }
+
+  set value(value: string) {
+    if (this.tagName !== 'select') {
+      this.ownValue = String(value);
+      return;
+    }
+    this.selected = this.options.find((o) => o.value === String(value)) ?? null;
+  }
+
+  createEl(tag: string, o?: DomElementInfo | string, callback?: (el: FakeElement) => void): FakeElement {
+    const el = new FakeElement(tag);
+    const info: DomElementInfo = typeof o === 'string' ? { cls: o } : o ?? {};
+    if (info.cls) el.addClass(...(Array.isArray(info.cls) ? info.cls : info.cls.split(' ')));
+    if (info.text !== undefined) el.text = String(info.text);
+    if (info.attr) Object.assign(el.attrs, info.attr);
+    if (info.title !== undefined) el.title = info.title;
+    if (info.value !== undefined) el.ownValue = info.value;
+    if (info.type !== undefined) el.type = info.type;
+    if (info.placeholder !== undefined) el.placeholder = info.placeholder;
+    el.parent = this;
+    if (info.prepend) this.children.unshift(el);
+    else this.children.push(el);
+    callback?.(el);
+    return el;
+  }
+
+  createDiv(o?: DomElementInfo | string, callback?: (el: FakeElement) => void): FakeElement {
+    return this.createEl('div', o, callback);
+  }
+
+  empty() {
+    for (const child of this.children) child.parent = null;
+    this.children.length = 0;
+    this.text = '';
+    this.selected = undefined;
+  }
+
+  addClass(...classes: string[]) {
+    for (const c of classes) if (c && !this.classes.includes(c)) this.classes.push(c);
+  }
+
+  setText(text: string) {
+    this.text = String(text);
+  }
+
+  focus() {
+    this.focusCount++;
+  }
+
+  select() {
+    this.selectCount++;
+  }
+
+  addEventListener(type: string, listener: (event: FakeEvent) => void) {
+    const list = this.listeners.get(type) ?? [];
+    list.push(listener);
+    this.listeners.set(type, list);
+  }
+
+  /** Fire `type` at this element's listeners; returns the event. */
+  trigger(type: string, init: { key?: string } = {}): FakeEvent {
+    const event: FakeEvent = {
+      type,
+      ...init,
+      defaultPrevented: false,
+      preventDefault() {
+        this.defaultPrevented = true;
+      },
+    };
+    for (const listener of this.listeners.get(type) ?? []) listener(event);
+    return event;
+  }
+
+  /** Descendants (depth-first, document order) matching `tag`. */
+  findAll(tag: string): FakeElement[] {
+    return this.children.flatMap((c) => [...(c.tagName === tag ? [c] : []), ...c.findAll(tag)]);
+  }
+}
+
+/* Cast for places typed as HTMLElement (Modal.contentEl). */
+export function fakeElement(tag = 'div'): HTMLElement {
+  return new FakeElement(tag) as unknown as HTMLElement;
+}
+
 export class Modal {
   app: App;
-  contentEl: unknown = {};
+  contentEl: HTMLElement = fakeElement();
   titleEl: unknown = {};
   modalEl: unknown = {};
   constructor(app: App) {
     this.app = app;
   }
-  open() {}
-  close() {}
+  /* Obsidian calls onOpen() from open() and onClose() from close(). */
+  open() {
+    void this.onOpen();
+  }
+  close() {
+    this.onClose();
+  }
+  onOpen(): Promise<void> | void {}
+  onClose() {}
 }
 
 export class SuggestModal<T> extends Modal {
