@@ -1,5 +1,6 @@
 import type { App, EventRef, TFile, WorkspaceLeaf } from 'obsidian';
 import type { NavGroup, NavSurface } from '../constants/nav';
+import type { ReminderStore } from '../modals/reminder-edit';
 import type { Entity, EntityKey } from '../types/entities';
 import type { ChartStyle } from '../types/modals';
 import type { AppViewSettings } from '../types/settings';
@@ -7,12 +8,14 @@ import type { Milestone, TaskItem } from '../utils/parsing';
 import type { DashCardRow } from './components/cards';
 import type { ChartDatum } from './components/charts';
 import type { FlashSaved, ProjectTextSectionDef } from './components/sections';
+import type { BriefingItem } from './home';
 
 /* The plugin as the app view sees it. */
-export interface AppViewPlugin {
+export interface AppViewPlugin extends ReminderStore {
   settings: AppViewSettings;
   manifest: { id: string };
   saveSettings(): Promise<void>;
+  openQuickCapture(): void;
 }
 
 /* The CadenceAppView instance a surface function receives as `view`.
@@ -102,9 +105,23 @@ export interface AppViewHost {
     parent: HTMLElement, file: TFile, sections: Record<string, string>, rawKey: string, flashSaved?: FlashSaved,
   ): void;
 
+  /* ── Home (src/views/home.ts) ── */
+  renderHome(root: HTMLElement): Promise<void>;
+  _homeCard(parent: HTMLElement, title: string, action?: (head: HTMLElement) => void, tone?: string): HTMLElement;
+  _renderBriefing(root: HTMLElement): Promise<void>;
+  _briefingHeadline(items: BriefingItem[]): string;
+  _computeBriefing(): Promise<BriefingItem[]>;
+  _homeInboxCard(parent: HTMLElement): Promise<void>;
+  _homeTodayCard(parent: HTMLElement): Promise<void>;
+  _homeWeekCard(parent: HTMLElement): Promise<void>;
+  _homeUpcomingCard(parent: HTMLElement): Promise<void>;
+  _homePartnersCard(parent: HTMLElement): Promise<void>;
+  _homeProjectsCard(parent: HTMLElement): Promise<void>;
+  _homePipelineCard(parent: HTMLElement): Promise<void>;
+  _homeActivitiesCard(parent: HTMLElement): Promise<void>;
+
   /* ── Called by the shell, owned by later view tickets ── */
   _inboxOverdueCount(): number;
-  renderHome(root: HTMLElement): Promise<void>;
   renderInbox(root: HTMLElement): Promise<void>;
   renderTodayPane(root: HTMLElement): Promise<void>;
   renderPlannerPane(root: HTMLElement): Promise<void>;
@@ -123,11 +140,27 @@ export interface AppViewHost {
   renderTeam(root: HTMLElement): Promise<void>;
   renderTemplatesDashboard(root: HTMLElement): Promise<void>;
 
+  /* ── Called by Home, owned by later view tickets ── */
+  _quickAddTodayTask(): Promise<void>;
+  /** Mirror a ticked task to its linked project or reminder (Planner). */
+  _propagateTaskComplete(text: string, done: boolean, source: TaskCompleteSource): Promise<void>;
+  /** The project path linked to a daily-note task, or null. */
+  _getTaskProjectLink(dailyPath: string, text: string): string | null;
+  _openTaskProjectPicker(dailyPath: string, text: string, currentLink: string | null): void;
+
   /* ── Called by the shared components, owned by later view tickets ── */
   _renderTaskSection(parent: HTMLElement, file: TFile, tasks: TaskItem[], flashSaved?: FlashSaved, rawKey?: string): void;
   _renderMilestoneSection(
     parent: HTMLElement, file: TFile, milestones: Milestone[], flashSaved?: FlashSaved, rawKey?: string,
   ): void;
+}
+
+/* Where a ticked task came from, for _propagateTaskComplete.
+   TODO: confirm shape — the Planner ticket owns the other kinds. */
+export interface TaskCompleteSource {
+  kind: 'daily' | 'project' | (string & {});
+  file: TFile;
+  date?: Date;
 }
 
 /* What _prompt() accepts; every field falls back to a default. */

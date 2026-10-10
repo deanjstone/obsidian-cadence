@@ -46,6 +46,7 @@ Members that are Obsidian's `View` contract and have no logic stay on the class:
 | `components/cards.ts` | `dashCardSection` |
 | `components/entity-table.ts` | `renderEntityLinks`, `renderOwnerLinks`, `renderEntityTable` and `getEntityFiles` |
 | `components/sections.ts` | `renderMarkdownTextCard`, `renderProjectTextSection`, `renderGenericTextSection`, `renderSingleCrossSection`, `renderCrossSections`, `renderDynamicH2Section`, plus the pure `linksTo`, `crossSectionRows` and `dynamicH2Kind` |
+| `home.ts` | `renderHome`, `homeCard`, `renderBriefing`, `loadBriefing` and the eight `home*Card` functions, plus the pure `computeBriefing`, `briefingHeadline`, `visibleBriefing` and one selector per card (`selectInboxCard`, `inboxRowMeta`, `taskNotesToday`, `selectTodayCard`, `toggleTaskLine`, `countTaskLines`, `countWeekTaskNotes`, `weekProgress`, `selectUpcomingItems`, `selectPartnerRows`, `isHomeActiveProject`, `selectPipelineCard`, `selectRecentActivities`) |
 
 Use one file per major surface (`home.ts`, `today.ts`, `planner.ts`, `inbox.ts`, `entity-list.ts`, …), as in the map's module layout. Named exports only.
 
@@ -68,5 +69,7 @@ Components that several surfaces share live in `components/` ([#11](https://gith
 - **Verbatim check.** Pass each legacy method body (with `this` → `view`) and each moved function through esbuild's `transformSync`, which strips the types and normalises the formatting, then compare the function bodies. #10's script is in its PR description, and #11's handles default parameters.
   - If you rewrite `this` → `view` mechanically, skip string literals. #11's rewrite turned "Open this note" into "Open view note", and only a characterization test caught it.
 - **Mutation check.** Make a handful of one-line mutations to the extracted module, and confirm that each one breaks at least one test. If one survives, add the missing characterization test and say so in the PR.
+- **A seam that builds click handlers** returns a target as data instead (`{ kind: 'mode', mode }`, `{ kind: 'file', file }`), and the surface function maps targets to `view.x()` calls. `computeBriefing` and `loadBriefing` ([#12](https://github.com/deanjstone/obsidian-cadence/issues/12)) are the example. That keeps the seam free of `view` and lets a test compare the whole result with `toEqual`.
+- **When a moved method's name is taken by its pure seam**, name the moved function after what it does with the view. `_computeBriefing` became `loadBriefing`, because the pure `computeBriefing` is the briefing maths.
 - **A seam whose callers belong to a later ticket** can land unwired, as long as it is tested and its doc comment names the callers that will adopt it. `chartData` is an example: it is the dashboards' counting loop, and the dashboard tickets swap it in.
 - Run `pnpm typecheck && pnpm test && pnpm build`, and check that `git diff --exit-code -- main.js` is clean after the build. The registration-parity smoke test must be green with its snapshot unedited.

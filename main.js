@@ -2917,6 +2917,698 @@ function planEntityLinks(def, defaults, values) {
   return { extras, links };
 }
 
+// src/views/home.ts
+var import_obsidian13 = require("obsidian");
+async function renderHome(view, root) {
+  root.addClass("cadence-home");
+  const settings = view.plugin.settings;
+  const today = /* @__PURE__ */ new Date();
+  const dateStr = today.toLocaleDateString(void 0, { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+  view._renderPageHeader(root, `${greeting()}.`, dateStr, (right2) => {
+    const mk = (label, fn) => {
+      const b = right2.createEl("button", { cls: "cad-btn", text: label });
+      b.addEventListener("click", fn);
+      return b;
+    };
+    mk("+ Task", () => view._quickAddTodayTask());
+    mk("+ Deal", () => view._createEntityFromPrompt("deal"));
+    mk("+ Contact", () => view._createEntityFromPrompt("contact"));
+    mk("+ Project", () => view._createEntityFromPrompt("project"));
+    const newInbox = mk("+ Inbox", () => view.plugin.openQuickCapture());
+    newInbox.classList.add("primary");
+  });
+  await view._renderBriefing(root);
+  const cols = root.createDiv({ cls: "cad-home-cols" });
+  const left = cols.createDiv({ cls: "cad-home-col" });
+  const right = cols.createDiv({ cls: "cad-home-col" });
+  await view._homeInboxCard(left);
+  await view._homeTodayCard(left);
+  await view._homeWeekCard(left);
+  await view._homeUpcomingCard(left);
+  await view._homePartnersCard(left);
+  await view._homeProjectsCard(right);
+  await view._homePipelineCard(right);
+  await view._homeActivitiesCard(right);
+}
+function homeCard(view, parent, title, action, tone) {
+  const card = parent.createDiv({ cls: "cad-home-card" });
+  if (tone) card.dataset.tone = tone;
+  const head = card.createDiv({ cls: "cad-home-card-head" });
+  head.createDiv({ cls: "cad-home-card-title", text: title });
+  if (typeof action === "function") action(head);
+  return card.createDiv({ cls: "cad-home-card-body" });
+}
+async function renderBriefing(view, root) {
+  const items = await view._computeBriefing();
+  const card = root.createDiv({ cls: "cad-briefing" });
+  const head = card.createDiv({ cls: "cad-briefing-head" });
+  head.createDiv({ cls: "cad-briefing-eyebrow", text: "TOP OF THE DAY" });
+  head.createDiv({ cls: "cad-briefing-headline", text: view._briefingHeadline(items) });
+  if (!items.length) {
+    card.createDiv({ cls: "cad-briefing-empty", text: "Nothing flagged. Make today count." });
+    return;
+  }
+  const { shown, hiddenCount } = visibleBriefing(items, !!(import_obsidian13.Platform && import_obsidian13.Platform.isMobile));
+  const list = card.createDiv({ cls: "cad-briefing-list" });
+  shown.forEach((it) => {
+    const row = list.createDiv({ cls: `cad-briefing-row cad-tone-${it.tone || "emerald"}` });
+    row.createSpan({ cls: "cad-briefing-icon", text: it.icon });
+    row.createSpan({ cls: "cad-briefing-text", text: it.text });
+    if (it.action) {
+      row.classList.add("clickable");
+      row.addEventListener("click", it.action);
+    }
+  });
+  if (hiddenCount > 0) {
+    const more = card.createDiv({ cls: "cad-briefing-more" });
+    more.setText(`+${hiddenCount} more \xB7 scroll down for the full picture`);
+  }
+}
+function visibleBriefing(items, isMobile) {
+  const hiddenCount = isMobile && items.length > 3 ? items.length - 3 : 0;
+  return { shown: isMobile && items.length > 3 ? items.slice(0, 3) : items, hiddenCount };
+}
+function briefingHeadline(items) {
+  const hasOverdue = items.some((i) => i.tone === "rose");
+  if (hasOverdue) return "A couple of things need attention this morning.";
+  if (items.length >= 4) return "Here's what's worth your attention today.";
+  if (items.length === 0) return "Inbox zero. Clear runway.";
+  return "Here's what's on your radar.";
+}
+function computeBriefing(data, now) {
+  const items = [];
+  const dealDef = ENTITIES.deal;
+  const contactDef = ENTITIES.contact;
+  const today = startOfDay(now);
+  const todayMs = today.getTime();
+  const nowMs = now.getTime();
+  const openTasks = data.openTasks ?? 0;
+  if (openTasks > 0) {
+    items.push({
+      icon: "\u{1F3AF}",
+      tone: "emerald",
+      text: data.taskManagementSystem === "tasknotes" ? `${openTasks} open ${openTasks === 1 ? "task" : "tasks"} scheduled for today` : `${openTasks} open ${openTasks === 1 ? "task" : "tasks"} on today's note`,
+      target: { kind: "mode", mode: "planner.today" }
+    });
+  }
+  const reminders = (data.reminders || []).filter((r) => !r.done);
+  const overdue = reminders.filter((r) => r.when && new Date(r.when).getTime() <= nowMs);
+  if (overdue.length) {
+    const ex = overdue[0];
+    const exTxt = ex.text.length > 50 ? ex.text.slice(0, 47) + "\u2026" : ex.text;
+    items.push({
+      icon: "\u26A0",
+      tone: "rose",
+      text: overdue.length === 1 ? `Overdue reminder \u2014 "${exTxt}"` : `${overdue.length} overdue reminders \u2014 "${exTxt}" + ${overdue.length - 1} more`,
+      target: { kind: "mode", mode: "planner.inbox" }
+    });
+  }
+  const dueToday = reminders.filter((r) => {
+    if (!r.when) return false;
+    const w = new Date(r.when).getTime();
+    return w > nowMs && w < todayMs + 864e5;
+  });
+  if (dueToday.length) {
+    items.push({
+      icon: "\u23F0",
+      tone: "mint",
+      text: `${dueToday.length} ${dueToday.length === 1 ? "reminder" : "reminders"} due later today`,
+      target: { kind: "mode", mode: "planner.inbox" }
+    });
+  }
+  const deals = data.deals;
+  const weekEnd = todayMs + 7 * 864e5;
+  const closingThisWeek = deals.filter((e) => {
+    const stage = String(entityValue(e, "stage", dealDef));
+    if (["Won", "Lost"].includes(stage)) return false;
+    const closeBy = entityValue(e, "closeBy", dealDef);
+    if (!closeBy) return false;
+    const d = new Date(closeBy);
+    return !isNaN(d.getTime()) && d.getTime() >= todayMs && d.getTime() <= weekEnd;
+  });
+  if (closingThisWeek.length) {
+    const value = closingThisWeek.reduce((s, e) => s + (Number(entityValue(e, "value", dealDef)) || 0), 0);
+    items.push({
+      icon: "\u{1F4BC}",
+      tone: "sky",
+      text: `${closingThisWeek.length} ${closingThisWeek.length === 1 ? "deal closes" : "deals close"} this week \xB7 ${fmtValue(value, "currency")}`,
+      target: { kind: "mode", mode: "crm.pipeline" }
+    });
+  }
+  const contacts = data.contacts;
+  const openDeals = deals.filter((e) => !["Won", "Lost"].includes(String(entityValue(e, "stage", dealDef))));
+  const dealContactNames = new Set(
+    openDeals.map((d) => String(entityValue(d, "contact", dealDef) || "").trim()).filter(Boolean)
+  );
+  const staleCutoffMs = todayMs - 30 * 864e5;
+  let staleSample = null;
+  let staleCount = 0;
+  contacts.forEach((c) => {
+    const name = String(entityValue(c, "name", contactDef) || "").trim();
+    if (!name || !dealContactNames.has(name)) return;
+    const lc = entityValue(c, "lastContact", contactDef);
+    const lcMs = lc ? new Date(lc).getTime() : null;
+    if (lcMs != null && !isNaN(lcMs) && lcMs >= staleCutoffMs) return;
+    staleCount++;
+    if (!staleSample) staleSample = { contact: c, name, lcMs };
+  });
+  if (staleSample) {
+    const days = staleSample.lcMs ? Math.floor((todayMs - staleSample.lcMs) / 864e5) : null;
+    const linkedDeal = openDeals.find((d) => String(entityValue(d, "contact", dealDef) || "").trim() === staleSample.name);
+    const dealName = linkedDeal ? entityValue(linkedDeal, "title", dealDef) || "" : "";
+    const ago = days === null ? "never contacted" : `${days} ${days === 1 ? "day" : "days"} quiet`;
+    const more = staleCount > 1 ? ` (+${staleCount - 1} more)` : "";
+    items.push({
+      icon: "\u{1F464}",
+      tone: "warn",
+      text: `${staleSample.name} \u2014 ${ago}${dealName ? ` \xB7 ${dealName}` : ""}${more}`,
+      target: { kind: "file", file: staleSample.contact.file }
+    });
+  }
+  const upcoming = [];
+  for (const p of data.projects) {
+    if (p.next && p.next.date) {
+      const ms = p.next.date.getTime();
+      if (ms >= todayMs && ms <= todayMs + 14 * 864e5) {
+        upcoming.push({ file: p.file, milestone: p.next, name: p.name });
+      }
+    }
+  }
+  upcoming.sort((a, b) => a.milestone.date - b.milestone.date);
+  if (upcoming.length) {
+    const m = upcoming[0];
+    const days = Math.max(0, Math.ceil((m.milestone.date.getTime() - todayMs) / 864e5));
+    const dayStr = days === 0 ? "today" : days === 1 ? "tomorrow" : `in ${days} days`;
+    const title = m.milestone.title || "milestone";
+    items.push({
+      icon: "\u{1F4C5}",
+      tone: "mint",
+      text: `${m.name} \xB7 "${title}" \u2014 due ${dayStr}`,
+      target: { kind: "project", file: m.file }
+    });
+  }
+  const winCutoff = nowMs - 7 * 864e5;
+  const recentWins = deals.filter((e) => {
+    if (String(entityValue(e, "stage", dealDef)) !== "Won") return false;
+    return e.file && e.file.stat && e.file.stat.mtime >= winCutoff;
+  });
+  if (recentWins.length) {
+    const value = recentWins.reduce((s, e) => s + (Number(entityValue(e, "value", dealDef)) || 0), 0);
+    items.push({
+      icon: "\u{1F389}",
+      tone: "emerald",
+      text: `${recentWins.length} ${recentWins.length === 1 ? "deal won" : "deals won"} this week \xB7 ${fmtValue(value, "currency")}`,
+      target: { kind: "mode", mode: "reports.sales" }
+    });
+  }
+  return items;
+}
+async function loadBriefing(view) {
+  const settings = view.plugin.settings;
+  let openTasks = null;
+  try {
+    if (settings.taskManagementSystem === "tasknotes") {
+      const todayYmd = ymd(/* @__PURE__ */ new Date());
+      const allTaskNotes = listTaskNotesTasks(view.app);
+      openTasks = allTaskNotes.filter((t) => t.scheduled === todayYmd && !t.done).length;
+    } else {
+      const file = await ensureDailyNote(view.app, settings);
+      const content = await view.app.vault.read(file);
+      const parsed = parseSections(content, settings);
+      openTasks = parsed.tasks.filter((l) => / \[ \] /.test(l)).length;
+    }
+  } catch (_) {
+  }
+  const deals = listEntities(view.app, "deal");
+  const contacts = listEntities(view.app, "contact");
+  const projects = [];
+  for (const f of listEntityFiles(view.app, "project")) {
+    try {
+      const meta = await readProjectMeta(view.app, f);
+      projects.push({ file: f, name: projectNameFromPath(view.app, f.path), next: meta.next });
+    } catch (_) {
+    }
+  }
+  const entries = computeBriefing({
+    taskManagementSystem: settings.taskManagementSystem,
+    openTasks,
+    reminders: settings.reminders,
+    deals,
+    contacts,
+    projects
+  }, /* @__PURE__ */ new Date());
+  return entries.map(({ icon, tone, text, target }) => ({ icon, tone, text, action: briefingAction(view, target) }));
+}
+function briefingAction(view, target) {
+  if (target.kind === "file") return () => view.openEntityDetailFromFile(target.file);
+  if (target.kind === "project") return () => view.openEntityDetail("project", target.file);
+  return () => view.setMode(target.mode);
+}
+function selectInboxCard(allReminders, now) {
+  const nowMs = now.getTime();
+  const reminders = (allReminders || []).filter((r) => !r.done);
+  const isOverdue = (r) => !!r.when && new Date(r.when).getTime() <= nowMs;
+  const overdueCount = reminders.filter(isOverdue).length;
+  const tone = overdueCount > 0 ? "rose" : "sky";
+  const title = `INBOX \u2014 ${reminders.length} item${reminders.length === 1 ? "" : "s"}${overdueCount > 0 ? ` \xB7 ${overdueCount} overdue` : ""}`;
+  const sorted = [...reminders].sort((a, b) => {
+    const wa = a.when ? new Date(a.when).getTime() : Infinity;
+    const wb = b.when ? new Date(b.when).getTime() : Infinity;
+    return wa - wb;
+  });
+  const rows = sorted.slice(0, 5).map((reminder) => ({ reminder, overdue: isOverdue(reminder) }));
+  return { reminders, overdueCount, tone, title, rows };
+}
+function inboxRowMeta(r, projectName) {
+  const metaBits = [];
+  if (r.project) metaBits.push(`\u{1F4C1} ${projectName(r.project) || "project"}`);
+  if (r.repeat && r.repeat !== "none") metaBits.push(r.repeat === "daily" ? "\u21BB daily" : "\u21BB weekly");
+  if (r.notes) {
+    const firstLine = String(r.notes).split("\n").find((l) => l.trim()) || "";
+    if (firstLine) metaBits.push(`\u{1F4DD} ${firstLine.length > 60 ? firstLine.slice(0, 57) + "\u2026" : firstLine}`);
+  }
+  return metaBits;
+}
+async function homeInboxCard(view, parent) {
+  const { reminders, tone, title: headTitle, rows } = selectInboxCard(view.plugin.settings.reminders, /* @__PURE__ */ new Date());
+  const body = view._homeCard(parent, headTitle, (head) => {
+    const cap = head.createEl("a", { cls: "cad-home-card-link", text: "+ Capture" });
+    cap.style.marginRight = "12px";
+    cap.addEventListener("click", (e) => {
+      e.preventDefault();
+      view.plugin.openQuickCapture();
+    });
+    const link = head.createEl("a", { cls: "cad-home-card-link", text: "Open Inbox \u2192" });
+    link.addEventListener("click", (e) => {
+      e.preventDefault();
+      view.setMode("planner.inbox");
+    });
+  }, tone);
+  if (!reminders.length) {
+    body.createDiv({ cls: "cad-empty", text: "Inbox zero \u2014 capture anything with + Inbox above (or Cmd+Shift+I)." });
+    return;
+  }
+  rows.forEach(({ reminder: r, overdue }) => {
+    const row = body.createDiv({ cls: "cad-home-row" });
+    if (overdue) row.classList.add("overdue");
+    row.createDiv({ cls: "cad-home-row-date", text: r.when ? reminderTimeStr(r.when) : "unscheduled" });
+    const main = row.createDiv({ cls: "cad-home-row-main" });
+    main.createDiv({ cls: "cad-home-row-title", text: r.text });
+    const metaBits = inboxRowMeta(r, (path) => projectNameFromPath(view.app, path));
+    if (metaBits.length) main.createDiv({ cls: "cad-home-row-meta", text: metaBits.join("  \xB7  ") });
+    row.addEventListener("click", () => new CadenceReminderEditModal(view.app, view.plugin, r).open());
+  });
+}
+var TASK_PREFIX = /^\s*-\s\[(x|X| )\]\s/;
+function taskNotesToday(allTaskNotes, todayYmd) {
+  const tasks = allTaskNotes.filter((t) => t.scheduled === todayYmd);
+  return { tasks, lines: tasks.map((t) => `- [${t.done ? "x" : " "}] ${t.title}`) };
+}
+function selectTodayCard(tasksList) {
+  const open = tasksList.filter((l) => / \[ \] /.test(l));
+  const done = tasksList.filter((l) => / \[(x|X)\] /.test(l));
+  const rows = tasksList.map((rawLine) => ({
+    checked: / \[(x|X)\] /.test(rawLine),
+    text: rawLine.replace(TASK_PREFIX, "")
+  }));
+  return { open: open.length, done: done.length, title: `TODAY \u2014 ${open.length} open \xB7 ${done.length} done`, rows };
+}
+function toggleTaskLine(tasks, idx, checked) {
+  const taskLine = tasks[idx] || "";
+  const taskText = taskLine.replace(TASK_PREFIX, "").trim();
+  const newTasks = tasks.map((line, i) => {
+    if (i !== idx) return line;
+    return checked ? line.replace(/^\s*-\s\[\s\]\s/, "- [x] ") : line.replace(/^\s*-\s\[(x|X)\]\s/, "- [ ] ");
+  });
+  return { tasks: newTasks, taskText };
+}
+async function homeTodayCard(view, parent) {
+  const settings = view.plugin.settings;
+  let tasksList = [];
+  let todayTaskNotes = [];
+  let file = null;
+  if (settings.taskManagementSystem === "tasknotes") {
+    const todayYmd = ymd(/* @__PURE__ */ new Date());
+    const today = taskNotesToday(listTaskNotesTasks(view.app), todayYmd);
+    todayTaskNotes = today.tasks;
+    tasksList = today.lines;
+  } else {
+    file = await ensureDailyNote(view.app, settings);
+    const content = await view.app.vault.read(file);
+    const parsed = parseSections(content, settings);
+    tasksList = parsed.tasks;
+  }
+  const { title, rows } = selectTodayCard(tasksList);
+  const body = view._homeCard(parent, title, (head) => {
+    const link = head.createEl("a", { cls: "cad-home-card-link", text: "Open Today \u2192" });
+    link.addEventListener("click", (e) => {
+      e.preventDefault();
+      view.setMode("planner.today");
+    });
+  }, "emerald");
+  if (!tasksList.length) {
+    body.createDiv({ cls: "cad-empty", text: "No tasks yet \u2014 add one with + Task above." });
+    return;
+  }
+  rows.forEach(({ checked, text }, idx) => {
+    const row = body.createDiv({ cls: "cad-home-task" + (checked ? " done" : "") });
+    const cb = row.createEl("input", { type: "checkbox" });
+    cb.checked = checked;
+    cb.addEventListener("change", async () => {
+      if (settings.taskManagementSystem === "tasknotes") {
+        const taskObj = todayTaskNotes[idx];
+        await toggleTaskNotesTask(view.app, taskObj.file, cb.checked);
+      } else {
+        const cur = await view.app.vault.read(file);
+        const cp = parseSections(cur, settings);
+        const { tasks: newTasks, taskText } = toggleTaskLine(cp.tasks, idx, cb.checked);
+        const next = replaceSection(cur, settings.tasksHeading, newTasks.join("\n"));
+        await view.app.vault.modify(file, next);
+        if (taskText) {
+          await view._propagateTaskComplete(taskText, cb.checked, { kind: "daily", file, date: /* @__PURE__ */ new Date() });
+        }
+      }
+      view.render();
+    });
+    if (settings.taskManagementSystem === "tasknotes") {
+      const taskObj = todayTaskNotes[idx];
+      const taskLink = row.createEl("a", { cls: "cad-task-text", text });
+      taskLink.style.cursor = "pointer";
+      taskLink.addEventListener("click", (e) => {
+        e.preventDefault();
+        view.app.workspace.openLinkText(taskObj.file.path, "", false);
+      });
+    } else {
+      row.createSpan({ cls: "cad-task-text", text });
+    }
+    let linkedProject = null;
+    if (settings.taskManagementSystem === "tasknotes") {
+      const taskObj = todayTaskNotes[idx];
+      if (taskObj.projects) {
+        const parsed = parseLinkValues(taskObj.projects);
+        if (parsed.length > 0) {
+          const projFile = view.app.vault.getMarkdownFiles().find((f) => f.basename === parsed[0].target);
+          if (projFile) {
+            linkedProject = projFile.path;
+          }
+        }
+      }
+    } else {
+      linkedProject = view._getTaskProjectLink(file.path, text);
+    }
+    if (linkedProject) {
+      const chip = row.createEl("a", { cls: "cad-task-proj-chip", text: "\u{1F4C1} " + (projectNameFromPath(view.app, linkedProject) || "Project") });
+      chip.title = "Open linked project";
+      chip.addEventListener("click", (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        const f = view.app.vault.getAbstractFileByPath(linkedProject);
+        if (f && f instanceof import_obsidian13.TFile) view.openEntityDetail("project", f);
+      });
+    }
+    if (settings.taskManagementSystem !== "tasknotes") {
+      const linkBtn = row.createEl("button", { cls: "cad-task-link-btn" + (linkedProject ? " linked" : ""), text: linkedProject ? "\u270E" : "\u{1F4C1}" });
+      linkBtn.title = linkedProject ? "Change linked project" : "Link to a project";
+      linkBtn.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        view._openTaskProjectPicker(file.path, text, linkedProject);
+      });
+    }
+  });
+}
+function countTaskLines(lines) {
+  let open = 0, done = 0;
+  lines.forEach((l) => {
+    if (/ \[(x|X)\] /.test(l)) done++;
+    else if (/ \[ \] /.test(l)) open++;
+  });
+  return { open, done };
+}
+function countWeekTaskNotes(allTasks, weekYmds) {
+  let open = 0, done = 0;
+  allTasks.forEach((t) => {
+    if (weekYmds.includes(t.scheduled)) {
+      if (t.done) done++;
+      else open++;
+    }
+  });
+  return { open, done };
+}
+function weekProgress(open, done) {
+  const total = open + done;
+  const pct = total === 0 ? 0 : Math.round(done / total * 100);
+  return {
+    total,
+    pct,
+    band: pctBand(pct),
+    title: `THIS WEEK \u2014 ${done}/${total} done`,
+    label: total ? `${done} of ${total} tasks completed` : "No tasks logged this week yet"
+  };
+}
+async function homeWeekCard(view, parent) {
+  const settings = view.plugin.settings;
+  const weekStart = startOfWeek(/* @__PURE__ */ new Date(), settings.weekStartsOn);
+  let open = 0, done = 0;
+  if (settings.taskManagementSystem === "tasknotes") {
+    const allTasks = listTaskNotesTasks(view.app);
+    const weekDatesList = Array.from({ length: 7 }, (_, i) => ymd(addDays(weekStart, i)));
+    ({ open, done } = countWeekTaskNotes(allTasks, weekDatesList));
+  } else {
+    for (let i = 0; i < 7; i++) {
+      const d = addDays(weekStart, i);
+      const f = view.app.vault.getAbstractFileByPath(dailyNotePath(settings, d));
+      if (f && f instanceof import_obsidian13.TFile) {
+        const c = await view.app.vault.read(f);
+        const p = parseSections(c, settings);
+        const counts = countTaskLines(p.tasks);
+        open += counts.open;
+        done += counts.done;
+      }
+    }
+  }
+  const { pct, band, title, label } = weekProgress(open, done);
+  const body = view._homeCard(parent, title, (head) => {
+    const link = head.createEl("a", { cls: "cad-home-card-link", text: "Open Calendar \u2192" });
+    link.addEventListener("click", (e) => {
+      e.preventDefault();
+      view.setMode("planner.calendar");
+    });
+  }, "mint");
+  const wrap = body.createDiv({ cls: "cad-proj-progress-wrap" });
+  wrap.dataset.pctBand = band;
+  const lbl = wrap.createDiv({ cls: "cad-proj-progress-label" });
+  lbl.createSpan({ text: label });
+  lbl.createSpan({ cls: "cad-proj-progress-pct", text: `${pct}%` });
+  const bar = wrap.createDiv({ cls: "cad-proj-progress-bar" });
+  const fill = bar.createDiv({ cls: "cad-proj-progress-fill" });
+  fill.style.width = `${pct}%`;
+}
+function selectUpcomingItems(data, now) {
+  const today = startOfDay(now);
+  const horizon = addDays(today, 7);
+  const items = [];
+  data.projects.forEach((e) => {
+    const due = entityValue(e, "due", ENTITIES.project);
+    if (!due) return;
+    const d = new Date(due);
+    if (isNaN(d.getTime())) return;
+    if (d >= today && d <= horizon) {
+      items.push({ date: d, title: entityValue(e, "name", ENTITIES.project) || e.basename, type: "Project due", file: e.file });
+    }
+  });
+  for (const { entity: e, next } of data.projectNext) {
+    if (next && next.date && next.date >= today && next.date <= horizon) {
+      items.push({ date: next.date, title: `${entityValue(e, "name", ENTITIES.project) || e.basename} \u2014 ${next.title || "milestone"}`, type: "Milestone", file: e.file });
+    }
+  }
+  data.registrations.forEach((e) => {
+    const exp = entityValue(e, "expires", ENTITIES.registration);
+    if (!exp) return;
+    const d = new Date(exp);
+    if (isNaN(d.getTime())) return;
+    if (d >= today && d <= horizon) {
+      items.push({ date: d, title: entityValue(e, "title", ENTITIES.registration) || e.basename, type: "Registration expires", file: e.file });
+    }
+  });
+  data.certifications.forEach((e) => {
+    const exp = entityValue(e, "expires", ENTITIES.certification);
+    if (!exp) return;
+    const d = new Date(exp);
+    if (isNaN(d.getTime())) return;
+    if (d >= today && d <= horizon) {
+      items.push({ date: d, title: entityValue(e, "name", ENTITIES.certification) || e.basename, type: "Cert expires", file: e.file });
+    }
+  });
+  items.sort((a, b) => a.date - b.date);
+  return items;
+}
+async function homeUpcomingCard(view, parent) {
+  const projects = listEntities(view.app, "project");
+  const projectNext = [];
+  for (const e of projects) {
+    try {
+      const meta = await readProjectMeta(view.app, e.file);
+      projectNext.push({ entity: e, next: meta.next });
+    } catch (_) {
+    }
+  }
+  const items = selectUpcomingItems({
+    projects,
+    projectNext,
+    registrations: listEntities(view.app, "registration"),
+    certifications: listEntities(view.app, "certification")
+  }, /* @__PURE__ */ new Date());
+  const body = view._homeCard(parent, `UPCOMING \xB7 NEXT 7 DAYS \u2014 ${items.length}`, void 0, "warn");
+  if (!items.length) {
+    body.createDiv({ cls: "cad-empty", text: "Nothing on the radar." });
+    return;
+  }
+  items.slice(0, 6).forEach((it) => {
+    const row = body.createDiv({ cls: "cad-home-row" });
+    row.createDiv({ cls: "cad-home-row-date", text: fmtValue(it.date, "date") });
+    const main = row.createDiv({ cls: "cad-home-row-main" });
+    main.createDiv({ cls: "cad-home-row-title", text: it.title });
+    main.createDiv({ cls: "cad-home-row-meta", text: it.type });
+    row.addEventListener("click", () => view.openEntityDetailFromFile(it.file));
+  });
+}
+function selectPartnerRows(partners) {
+  return partners.slice(0, 5).map((e) => {
+    const tier = entityValue(e, "tier", ENTITIES.partner) || "";
+    const status = entityValue(e, "status", ENTITIES.partner) || "";
+    return {
+      entity: e,
+      name: entityValue(e, "name", ENTITIES.partner) || e.basename,
+      meta: [tier, status].filter(Boolean).join(" \xB7 ")
+    };
+  });
+}
+async function homePartnersCard(view, parent) {
+  const partners = listEntities(view.app, "partner");
+  const body = view._homeCard(parent, `PARTNERS \u2014 ${partners.length}`, (head) => {
+    const link = head.createEl("a", { cls: "cad-home-card-link", text: "Open Partners \u2192" });
+    link.addEventListener("click", (e) => {
+      e.preventDefault();
+      view.setMode("prm.partners");
+    });
+  }, "sky");
+  if (!partners.length) {
+    body.createDiv({ cls: "cad-empty", text: "No partners on the books yet." });
+    return;
+  }
+  selectPartnerRows(partners).forEach(({ entity: e, name, meta }) => {
+    const row = body.createDiv({ cls: "cad-home-row" });
+    const main = row.createDiv({ cls: "cad-home-row-main" });
+    main.createDiv({ cls: "cad-home-row-title", text: name });
+    main.createDiv({ cls: "cad-home-row-meta", text: meta });
+    row.addEventListener("click", () => view.openEntityDetailFromFile(e.file));
+  });
+}
+function isHomeActiveProject(e) {
+  const status = String(entityValue(e, "status", ENTITIES.project) || "active").toLowerCase();
+  return ["active", "on_hold", "in_progress"].includes(status.replace(/\s+/g, "_"));
+}
+async function homeProjectsCard(view, parent) {
+  const def = ENTITIES.project;
+  const files = listEntityFiles(view.app, "project");
+  const body = view._homeCard(parent, `ACTIVE PROJECTS \u2014 ${files.length}`, (head) => {
+    const link = head.createEl("a", { cls: "cad-home-card-link", text: "Open Projects \u2192" });
+    link.addEventListener("click", (e) => {
+      e.preventDefault();
+      view.setMode("projects.projects");
+    });
+  }, "emerald");
+  if (!files.length) {
+    body.createDiv({ cls: "cad-empty", text: "No projects yet \u2014 hit + Project above." });
+    return;
+  }
+  const projects = await Promise.all(files.map(async (f) => {
+    const e = readEntity(view.app, f);
+    if (!isHomeActiveProject(e)) return null;
+    const meta = await readProjectMeta(view.app, f);
+    return { entity: e, meta };
+  }));
+  const active = projects.filter(Boolean).slice(0, 3);
+  if (!active.length) {
+    body.createDiv({ cls: "cad-empty", text: "No active projects right now." });
+    return;
+  }
+  active.forEach((p) => {
+    const row = body.createDiv({ cls: "cad-home-proj" });
+    row.dataset.pctBand = pctBand(p.meta.percent);
+    const head = row.createDiv({ cls: "cad-home-proj-head" });
+    head.createSpan({ cls: "cad-home-proj-title", text: entityValue(p.entity, "name", def) || p.entity.basename });
+    head.createSpan({ cls: "cad-home-proj-pct", text: `${p.meta.percent}%` });
+    const bar = row.createDiv({ cls: "cad-proj-progress-bar" });
+    const fill = bar.createDiv({ cls: "cad-proj-progress-fill" });
+    fill.style.width = `${p.meta.percent}%`;
+    if (p.meta.next) {
+      row.createDiv({ cls: "cad-home-row-meta", text: `NEXT \xB7 ${fmtValue(p.meta.next.date, "date")}${p.meta.next.title ? " \u2014 " + p.meta.next.title : ""}` });
+    }
+    row.addEventListener("click", () => view.openEntityDetail("project", p.entity.file));
+  });
+}
+function selectPipelineCard(deals) {
+  const def = ENTITIES.deal;
+  const open = deals.filter((e) => !["Won", "Lost"].includes(String(entityValue(e, "stage", def))));
+  const value = open.reduce((s, e) => s + (Number(entityValue(e, "value", def)) || 0), 0);
+  const top = [...open].sort((a, b) => (Number(entityValue(b, "value", def)) || 0) - (Number(entityValue(a, "value", def)) || 0)).slice(0, 4);
+  return { open, value, top };
+}
+async function homePipelineCard(view, parent) {
+  const def = ENTITIES.deal;
+  const { open, value, top } = selectPipelineCard(listEntities(view.app, "deal"));
+  const body = view._homeCard(parent, `PIPELINE \u2014 ${open.length} open \xB7 ${fmtValue(value, "currency")}`, (head) => {
+    const link = head.createEl("a", { cls: "cad-home-card-link", text: "Open Pipeline \u2192" });
+    link.addEventListener("click", (e) => {
+      e.preventDefault();
+      view.setMode("crm.pipeline");
+    });
+  }, "sky");
+  if (!open.length) {
+    body.createDiv({ cls: "cad-empty", text: "No open deals \u2014 hit + Deal above." });
+    return;
+  }
+  top.forEach((e) => {
+    const row = body.createDiv({ cls: "cad-home-row" });
+    const main = row.createDiv({ cls: "cad-home-row-main" });
+    main.createDiv({ cls: "cad-home-row-title", text: entityValue(e, "title", def) || e.basename });
+    const stage = entityValue(e, "stage", def);
+    main.createDiv({ cls: "cad-home-row-meta", text: `${stage || "\u2014"} \xB7 ${fmtValue(entityValue(e, "value", def), "currency")}` });
+    row.addEventListener("click", () => view.openEntityDetailFromFile(e.file));
+  });
+}
+function selectRecentActivities(acts) {
+  const def = ENTITIES.activity;
+  return [...acts].sort((a, b) => {
+    const da = new Date(entityValue(a, "when", def) || 0).getTime();
+    const db = new Date(entityValue(b, "when", def) || 0).getTime();
+    return db - da;
+  }).slice(0, 5);
+}
+async function homeActivitiesCard(view, parent) {
+  const def = ENTITIES.activity;
+  const acts = listEntities(view.app, "activity");
+  const body = view._homeCard(parent, `RECENT ACTIVITY \u2014 ${acts.length}`, (head) => {
+    const link = head.createEl("a", { cls: "cad-home-card-link", text: "Open Activities \u2192" });
+    link.addEventListener("click", (e) => {
+      e.preventDefault();
+      view.setMode("crm.activities");
+    });
+  }, "rose");
+  if (!acts.length) {
+    body.createDiv({ cls: "cad-empty", text: "No activities logged yet." });
+    return;
+  }
+  selectRecentActivities(acts).forEach((e) => {
+    const row = body.createDiv({ cls: "cad-home-row" });
+    const main = row.createDiv({ cls: "cad-home-row-main" });
+    main.createDiv({ cls: "cad-home-row-title", text: entityValue(e, "subject", def) || e.basename });
+    main.createDiv({ cls: "cad-home-row-meta", text: `${entityValue(e, "type", def) || "\u2014"} \xB7 ${fmtValue(entityValue(e, "when", def), "date")}` });
+    row.addEventListener("click", () => view.openEntityDetailFromFile(e.file));
+  });
+}
+
 // src/views/components/cards.ts
 function dashCardSection(view, parent, title, rows, emptyMsg) {
   const card = parent.createDiv({ cls: "cad-dash-card" });
@@ -3228,7 +3920,7 @@ function getEntityFiles(view, entityKey) {
 }
 
 // src/views/components/sections.ts
-var import_obsidian13 = require("obsidian");
+var import_obsidian14 = require("obsidian");
 function linksTo(val, name) {
   if (val == null) return false;
   const cleanName = name.trim().toLowerCase();
@@ -3276,7 +3968,7 @@ function renderMarkdownTextCard(view, parent, file, sectionKey, label, initialVa
   const openBtn = head.createEl("button", { cls: "cad-btn cad-btn-sm", attr: { style: "margin-left: auto; padding: 4px 6px; display: inline-flex; align-items: center; justify-content: center; border-radius: 4px; border: 1px solid var(--border-color); background: transparent; cursor: pointer;" } });
   openBtn.title = "Open this note natively to edit with full Live Preview & Autocomplete";
   try {
-    (0, import_obsidian13.setIcon)(openBtn, "file-text");
+    (0, import_obsidian14.setIcon)(openBtn, "file-text");
   } catch (_) {
   }
   openBtn.addEventListener("click", (ev) => {
@@ -3289,7 +3981,7 @@ function renderMarkdownTextCard(view, parent, file, sectionKey, label, initialVa
     previewDiv.empty();
     const rawText = initialValue || "";
     try {
-      import_obsidian13.MarkdownRenderer.renderMarkdown(rawText, previewDiv, file.path, view);
+      import_obsidian14.MarkdownRenderer.renderMarkdown(rawText, previewDiv, file.path, view);
       previewDiv.querySelectorAll("a.internal-link").forEach((a) => {
         const href = a.getAttribute("data-href") || a.getAttribute("href");
         if (href) {
@@ -3433,7 +4125,7 @@ function renderSingleCrossSection(view, parent, targetEntity, linkField, viewTyp
     const board = secWrap.createDiv({ cls: "cad-kanban-board" });
     const groupField = def.fields.find((f) => f.key === "stage" || f.key === "status" || f.key === "type" || f.type === "enum") || def.fields[1];
     const columns = groupField.options || ["To Do", "In Progress", "Done"];
-    const isMobile = !!(import_obsidian13.Platform && import_obsidian13.Platform.isMobile);
+    const isMobile = !!(import_obsidian14.Platform && import_obsidian14.Platform.isMobile);
     columns.forEach((colName) => {
       const items = filteredList.filter((e) => {
         const val = entityValue(e, groupField.key, def);
@@ -3469,7 +4161,7 @@ function renderSingleCrossSection(view, parent, targetEntity, linkField, viewTyp
         const fromStage = ev.dataTransfer.getData("text/cadence-stage");
         if (!path || fromStage === colName) return;
         const file = view.app.vault.getAbstractFileByPath(path);
-        if (!file || !(file instanceof import_obsidian13.TFile)) return;
+        if (!file || !(file instanceof import_obsidian14.TFile)) return;
         try {
           await view.app.fileManager.processFrontMatter(file, (fm) => {
             const isList = groupField.type === "multitext" || groupField.type === "tags" || groupField.isList === true;
@@ -3480,10 +4172,10 @@ function renderSingleCrossSection(view, parent, targetEntity, linkField, viewTyp
               fm[groupField.key] = isLink ? `[[${colName}]]` : colName;
             }
           });
-          new import_obsidian13.Notice(`Moved to ${colName}`);
+          new import_obsidian14.Notice(`Moved to ${colName}`);
           view.render();
         } catch (e) {
-          new import_obsidian13.Notice(`Failed to move: ${e.message}`);
+          new import_obsidian14.Notice(`Failed to move: ${e.message}`);
         }
       });
       if (!items.length) {
@@ -3644,7 +4336,7 @@ function renderDynamicH2Section(view, parent, file, sections, rawKey, flashSaved
         const vBtn = viewSwitch.createEl("button", { attr: { style: `padding: 4px 6px; display: inline-flex; align-items: center; justify-content: center; border-radius: 4px; cursor: pointer; border: 1px solid var(--border-color); background: ${v === viewType ? "var(--interactive-accent)" : "transparent"}; color: ${v === viewType ? "var(--text-on-accent)" : "var(--text-muted)"};` } });
         vBtn.title = title;
         try {
-          (0, import_obsidian13.setIcon)(vBtn, icon);
+          (0, import_obsidian14.setIcon)(vBtn, icon);
         } catch (_) {
         }
         if (v !== viewType) {
@@ -6177,592 +6869,45 @@ priority: normal
     });
   }
   /* ── Home / Command Centre ───────────────── */
-  async renderHome(root) {
-    root.addClass("cadence-home");
-    const settings = this.plugin.settings;
-    const today = /* @__PURE__ */ new Date();
-    const dateStr = today.toLocaleDateString(void 0, { weekday: "long", month: "long", day: "numeric", year: "numeric" });
-    this._renderPageHeader(root, `${greeting()}.`, dateStr, (right2) => {
-      const mk = (label, fn) => {
-        const b = right2.createEl("button", { cls: "cad-btn", text: label });
-        b.addEventListener("click", fn);
-        return b;
-      };
-      mk("+ Task", () => this._quickAddTodayTask());
-      mk("+ Deal", () => this._createEntityFromPrompt("deal"));
-      mk("+ Contact", () => this._createEntityFromPrompt("contact"));
-      mk("+ Project", () => this._createEntityFromPrompt("project"));
-      const newInbox = mk("+ Inbox", () => this.plugin.openQuickCapture());
-      newInbox.classList.add("primary");
-    });
-    await this._renderBriefing(root);
-    const cols = root.createDiv({ cls: "cad-home-cols" });
-    const left = cols.createDiv({ cls: "cad-home-col" });
-    const right = cols.createDiv({ cls: "cad-home-col" });
-    await this._homeInboxCard(left);
-    await this._homeTodayCard(left);
-    await this._homeWeekCard(left);
-    await this._homeUpcomingCard(left);
-    await this._homePartnersCard(left);
-    await this._homeProjectsCard(right);
-    await this._homePipelineCard(right);
-    await this._homeActivitiesCard(right);
+  renderHome(root) {
+    return renderHome(this, root);
   }
   _homeCard(parent, title, action, tone) {
-    const card = parent.createDiv({ cls: "cad-home-card" });
-    if (tone) card.dataset.tone = tone;
-    const head = card.createDiv({ cls: "cad-home-card-head" });
-    head.createDiv({ cls: "cad-home-card-title", text: title });
-    if (typeof action === "function") action(head);
-    return card.createDiv({ cls: "cad-home-card-body" });
+    return homeCard(this, parent, title, action, tone);
   }
   /* ── Top of the day — assistant-style daily briefing ── */
-  async _renderBriefing(root) {
-    let items = await this._computeBriefing();
-    const card = root.createDiv({ cls: "cad-briefing" });
-    const head = card.createDiv({ cls: "cad-briefing-head" });
-    head.createDiv({ cls: "cad-briefing-eyebrow", text: "TOP OF THE DAY" });
-    head.createDiv({ cls: "cad-briefing-headline", text: this._briefingHeadline(items) });
-    if (!items.length) {
-      card.createDiv({ cls: "cad-briefing-empty", text: "Nothing flagged. Make today count." });
-      return;
-    }
-    const isMobile = !!(obsidian.Platform && obsidian.Platform.isMobile);
-    const hiddenCount = isMobile && items.length > 3 ? items.length - 3 : 0;
-    if (isMobile && items.length > 3) items = items.slice(0, 3);
-    const list = card.createDiv({ cls: "cad-briefing-list" });
-    items.forEach((it) => {
-      const row = list.createDiv({ cls: `cad-briefing-row cad-tone-${it.tone || "emerald"}` });
-      row.createSpan({ cls: "cad-briefing-icon", text: it.icon });
-      row.createSpan({ cls: "cad-briefing-text", text: it.text });
-      if (it.action) {
-        row.classList.add("clickable");
-        row.addEventListener("click", it.action);
-      }
-    });
-    if (hiddenCount > 0) {
-      const more = card.createDiv({ cls: "cad-briefing-more" });
-      more.setText(`+${hiddenCount} more \xB7 scroll down for the full picture`);
-    }
+  _renderBriefing(root) {
+    return renderBriefing(this, root);
   }
   _briefingHeadline(items) {
-    const hasOverdue = items.some((i) => i.tone === "rose");
-    if (hasOverdue) return "A couple of things need attention this morning.";
-    if (items.length >= 4) return "Here's what's worth your attention today.";
-    if (items.length === 0) return "Inbox zero. Clear runway.";
-    return "Here's what's on your radar.";
+    return briefingHeadline(items);
   }
-  async _computeBriefing() {
-    const items = [];
-    const settings = this.plugin.settings;
-    const dealDef = ENTITIES.deal;
-    const contactDef = ENTITIES.contact;
-    const today = startOfDay(/* @__PURE__ */ new Date());
-    const todayMs = today.getTime();
-    const nowMs = Date.now();
-    try {
-      let openTasks = 0;
-      if (settings.taskManagementSystem === "tasknotes") {
-        const todayYmd = ymd(/* @__PURE__ */ new Date());
-        const allTaskNotes = listTaskNotesTasks(this.app);
-        openTasks = allTaskNotes.filter((t) => t.scheduled === todayYmd && !t.done).length;
-      } else {
-        const file = await ensureDailyNote(this.app, settings);
-        const content = await this.app.vault.read(file);
-        const parsed = parseSections(content, settings);
-        openTasks = parsed.tasks.filter((l) => / \[ \] /.test(l)).length;
-      }
-      if (openTasks > 0) {
-        items.push({
-          icon: "\u{1F3AF}",
-          tone: "emerald",
-          text: settings.taskManagementSystem === "tasknotes" ? `${openTasks} open ${openTasks === 1 ? "task" : "tasks"} scheduled for today` : `${openTasks} open ${openTasks === 1 ? "task" : "tasks"} on today's note`,
-          action: () => this.setMode("planner.today")
-        });
-      }
-    } catch (_) {
-    }
-    const reminders = (settings.reminders || []).filter((r) => !r.done);
-    const overdue = reminders.filter((r) => r.when && new Date(r.when).getTime() <= nowMs);
-    if (overdue.length) {
-      const ex = overdue[0];
-      const exTxt = ex.text.length > 50 ? ex.text.slice(0, 47) + "\u2026" : ex.text;
-      items.push({
-        icon: "\u26A0",
-        tone: "rose",
-        text: overdue.length === 1 ? `Overdue reminder \u2014 "${exTxt}"` : `${overdue.length} overdue reminders \u2014 "${exTxt}" + ${overdue.length - 1} more`,
-        action: () => this.setMode("planner.inbox")
-      });
-    }
-    const dueToday = reminders.filter((r) => {
-      if (!r.when) return false;
-      const w = new Date(r.when).getTime();
-      return w > nowMs && w < todayMs + 864e5;
-    });
-    if (dueToday.length) {
-      items.push({
-        icon: "\u23F0",
-        tone: "mint",
-        text: `${dueToday.length} ${dueToday.length === 1 ? "reminder" : "reminders"} due later today`,
-        action: () => this.setMode("planner.inbox")
-      });
-    }
-    const deals = listEntities(this.app, "deal");
-    const weekEnd = todayMs + 7 * 864e5;
-    const closingThisWeek = deals.filter((e) => {
-      const stage = String(entityValue(e, "stage", dealDef));
-      if (["Won", "Lost"].includes(stage)) return false;
-      const closeBy = entityValue(e, "closeBy", dealDef);
-      if (!closeBy) return false;
-      const d = new Date(closeBy);
-      return !isNaN(d.getTime()) && d.getTime() >= todayMs && d.getTime() <= weekEnd;
-    });
-    if (closingThisWeek.length) {
-      const value = closingThisWeek.reduce((s, e) => s + (Number(entityValue(e, "value", dealDef)) || 0), 0);
-      items.push({
-        icon: "\u{1F4BC}",
-        tone: "sky",
-        text: `${closingThisWeek.length} ${closingThisWeek.length === 1 ? "deal closes" : "deals close"} this week \xB7 ${fmtValue(value, "currency")}`,
-        action: () => this.setMode("crm.pipeline")
-      });
-    }
-    const contacts = listEntities(this.app, "contact");
-    const openDeals = deals.filter((e) => !["Won", "Lost"].includes(String(entityValue(e, "stage", dealDef))));
-    const dealContactNames = new Set(
-      openDeals.map((d) => String(entityValue(d, "contact", dealDef) || "").trim()).filter(Boolean)
-    );
-    const staleCutoffMs = todayMs - 30 * 864e5;
-    let staleSample = null;
-    let staleCount = 0;
-    contacts.forEach((c) => {
-      const name = String(entityValue(c, "name", contactDef) || "").trim();
-      if (!name || !dealContactNames.has(name)) return;
-      const lc = entityValue(c, "lastContact", contactDef);
-      const lcMs = lc ? new Date(lc).getTime() : null;
-      if (lcMs != null && !isNaN(lcMs) && lcMs >= staleCutoffMs) return;
-      staleCount++;
-      if (!staleSample) staleSample = { contact: c, name, lcMs };
-    });
-    if (staleSample) {
-      const days = staleSample.lcMs ? Math.floor((todayMs - staleSample.lcMs) / 864e5) : null;
-      const linkedDeal = openDeals.find((d) => String(entityValue(d, "contact", dealDef) || "").trim() === staleSample.name);
-      const dealName = linkedDeal ? entityValue(linkedDeal, "title", dealDef) || "" : "";
-      const ago = days === null ? "never contacted" : `${days} ${days === 1 ? "day" : "days"} quiet`;
-      const more = staleCount > 1 ? ` (+${staleCount - 1} more)` : "";
-      items.push({
-        icon: "\u{1F464}",
-        tone: "warn",
-        text: `${staleSample.name} \u2014 ${ago}${dealName ? ` \xB7 ${dealName}` : ""}${more}`,
-        action: () => this.openEntityDetailFromFile(staleSample.contact.file)
-      });
-    }
-    const projectFiles = listEntityFiles(this.app, "project");
-    const upcoming = [];
-    for (const f of projectFiles) {
-      try {
-        const meta = await readProjectMeta(this.app, f);
-        if (meta.next && meta.next.date) {
-          const ms = meta.next.date.getTime();
-          if (ms >= todayMs && ms <= todayMs + 14 * 864e5) {
-            upcoming.push({ file: f, milestone: meta.next, name: projectNameFromPath(this.app, f.path) });
-          }
-        }
-      } catch (_) {
-      }
-    }
-    upcoming.sort((a, b) => a.milestone.date - b.milestone.date);
-    if (upcoming.length) {
-      const m = upcoming[0];
-      const days = Math.max(0, Math.ceil((m.milestone.date.getTime() - todayMs) / 864e5));
-      const dayStr = days === 0 ? "today" : days === 1 ? "tomorrow" : `in ${days} days`;
-      const title = m.milestone.title || "milestone";
-      items.push({
-        icon: "\u{1F4C5}",
-        tone: "mint",
-        text: `${m.name} \xB7 "${title}" \u2014 due ${dayStr}`,
-        action: () => this.openEntityDetail("project", m.file)
-      });
-    }
-    const winCutoff = nowMs - 7 * 864e5;
-    const recentWins = deals.filter((e) => {
-      if (String(entityValue(e, "stage", dealDef)) !== "Won") return false;
-      return e.file && e.file.stat && e.file.stat.mtime >= winCutoff;
-    });
-    if (recentWins.length) {
-      const value = recentWins.reduce((s, e) => s + (Number(entityValue(e, "value", dealDef)) || 0), 0);
-      items.push({
-        icon: "\u{1F389}",
-        tone: "emerald",
-        text: `${recentWins.length} ${recentWins.length === 1 ? "deal won" : "deals won"} this week \xB7 ${fmtValue(value, "currency")}`,
-        action: () => this.setMode("reports.sales")
-      });
-    }
-    return items;
+  _computeBriefing() {
+    return loadBriefing(this);
   }
-  async _homeInboxCard(parent) {
-    const reminders = (this.plugin.settings.reminders || []).filter((r) => !r.done);
-    const overdueCount = reminders.filter((r) => r.when && new Date(r.when).getTime() <= Date.now()).length;
-    const tone = overdueCount > 0 ? "rose" : "sky";
-    const headTitle = `INBOX \u2014 ${reminders.length} item${reminders.length === 1 ? "" : "s"}${overdueCount > 0 ? ` \xB7 ${overdueCount} overdue` : ""}`;
-    const body = this._homeCard(parent, headTitle, (head) => {
-      const cap = head.createEl("a", { cls: "cad-home-card-link", text: "+ Capture" });
-      cap.style.marginRight = "12px";
-      cap.addEventListener("click", (e) => {
-        e.preventDefault();
-        this.plugin.openQuickCapture();
-      });
-      const link = head.createEl("a", { cls: "cad-home-card-link", text: "Open Inbox \u2192" });
-      link.addEventListener("click", (e) => {
-        e.preventDefault();
-        this.setMode("planner.inbox");
-      });
-    }, tone);
-    if (!reminders.length) {
-      body.createDiv({ cls: "cad-empty", text: "Inbox zero \u2014 capture anything with + Inbox above (or Cmd+Shift+I)." });
-      return;
-    }
-    const sorted = [...reminders].sort((a, b) => {
-      const wa = a.when ? new Date(a.when).getTime() : Infinity;
-      const wb = b.when ? new Date(b.when).getTime() : Infinity;
-      return wa - wb;
-    });
-    sorted.slice(0, 5).forEach((r) => {
-      const row = body.createDiv({ cls: "cad-home-row" });
-      const isOverdue = r.when && new Date(r.when).getTime() <= Date.now();
-      if (isOverdue) row.classList.add("overdue");
-      row.createDiv({ cls: "cad-home-row-date", text: r.when ? reminderTimeStr(r.when) : "unscheduled" });
-      const main = row.createDiv({ cls: "cad-home-row-main" });
-      main.createDiv({ cls: "cad-home-row-title", text: r.text });
-      const metaBits = [];
-      if (r.project) metaBits.push(`\u{1F4C1} ${projectNameFromPath(this.app, r.project) || "project"}`);
-      if (r.repeat && r.repeat !== "none") metaBits.push(r.repeat === "daily" ? "\u21BB daily" : "\u21BB weekly");
-      if (r.notes) {
-        const firstLine = String(r.notes).split("\n").find((l) => l.trim()) || "";
-        if (firstLine) metaBits.push(`\u{1F4DD} ${firstLine.length > 60 ? firstLine.slice(0, 57) + "\u2026" : firstLine}`);
-      }
-      if (metaBits.length) main.createDiv({ cls: "cad-home-row-meta", text: metaBits.join("  \xB7  ") });
-      row.addEventListener("click", () => new CadenceReminderEditModal(this.app, this.plugin, r).open());
-    });
+  _homeInboxCard(parent) {
+    return homeInboxCard(this, parent);
   }
-  async _homeTodayCard(parent) {
-    const settings = this.plugin.settings;
-    let tasksList = [];
-    let todayTaskNotes = [];
-    let file = null;
-    if (settings.taskManagementSystem === "tasknotes") {
-      const todayYmd = ymd(/* @__PURE__ */ new Date());
-      const allTaskNotes = listTaskNotesTasks(this.app);
-      todayTaskNotes = allTaskNotes.filter((t) => t.scheduled === todayYmd);
-      tasksList = todayTaskNotes.map((t) => `- [${t.done ? "x" : " "}] ${t.title}`);
-    } else {
-      file = await ensureDailyNote(this.app, settings);
-      const content = await this.app.vault.read(file);
-      const parsed = parseSections(content, settings);
-      tasksList = parsed.tasks;
-    }
-    const open = tasksList.filter((l) => / \[ \] /.test(l));
-    const done = tasksList.filter((l) => / \[(x|X)\] /.test(l));
-    const body = this._homeCard(parent, `TODAY \u2014 ${open.length} open \xB7 ${done.length} done`, (head) => {
-      const link = head.createEl("a", { cls: "cad-home-card-link", text: "Open Today \u2192" });
-      link.addEventListener("click", (e) => {
-        e.preventDefault();
-        this.setMode("planner.today");
-      });
-    }, "emerald");
-    if (!tasksList.length) {
-      body.createDiv({ cls: "cad-empty", text: "No tasks yet \u2014 add one with + Task above." });
-      return;
-    }
-    tasksList.forEach((rawLine, idx) => {
-      const checked = / \[(x|X)\] /.test(rawLine);
-      const text = rawLine.replace(/^\s*-\s\[(x|X| )\]\s/, "");
-      const row = body.createDiv({ cls: "cad-home-task" + (checked ? " done" : "") });
-      const cb = row.createEl("input", { type: "checkbox" });
-      cb.checked = checked;
-      cb.addEventListener("change", async () => {
-        if (settings.taskManagementSystem === "tasknotes") {
-          const taskObj = todayTaskNotes[idx];
-          await toggleTaskNotesTask(this.app, taskObj.file, cb.checked);
-        } else {
-          const cur = await this.app.vault.read(file);
-          const cp = parseSections(cur, settings);
-          const taskLine = cp.tasks[idx] || "";
-          const taskText = taskLine.replace(/^\s*-\s\[(x|X| )\]\s/, "").trim();
-          const newTasks = cp.tasks.map((line, i) => {
-            if (i !== idx) return line;
-            return cb.checked ? line.replace(/^\s*-\s\[\s\]\s/, "- [x] ") : line.replace(/^\s*-\s\[(x|X)\]\s/, "- [ ] ");
-          });
-          const next = replaceSection(cur, settings.tasksHeading, newTasks.join("\n"));
-          await this.app.vault.modify(file, next);
-          if (taskText) {
-            await this._propagateTaskComplete(taskText, cb.checked, { kind: "daily", file, date: /* @__PURE__ */ new Date() });
-          }
-        }
-        this.render();
-      });
-      if (settings.taskManagementSystem === "tasknotes") {
-        const taskObj = todayTaskNotes[idx];
-        const taskLink = row.createEl("a", { cls: "cad-task-text", text });
-        taskLink.style.cursor = "pointer";
-        taskLink.addEventListener("click", (e) => {
-          e.preventDefault();
-          this.app.workspace.openLinkText(taskObj.file.path, "", false);
-        });
-      } else {
-        row.createSpan({ cls: "cad-task-text", text });
-      }
-      let linkedProject = null;
-      if (settings.taskManagementSystem === "tasknotes") {
-        const taskObj = todayTaskNotes[idx];
-        if (taskObj.projects) {
-          const parsed = parseLinkValues(taskObj.projects);
-          if (parsed.length > 0) {
-            const projFile = this.app.vault.getMarkdownFiles().find((f) => f.basename === parsed[0].target);
-            if (projFile) {
-              linkedProject = projFile.path;
-            }
-          }
-        }
-      } else {
-        linkedProject = this._getTaskProjectLink(file.path, text);
-      }
-      if (linkedProject) {
-        const chip = row.createEl("a", { cls: "cad-task-proj-chip", text: "\u{1F4C1} " + (projectNameFromPath(this.app, linkedProject) || "Project") });
-        chip.title = "Open linked project";
-        chip.addEventListener("click", (ev) => {
-          ev.preventDefault();
-          ev.stopPropagation();
-          const f = this.app.vault.getAbstractFileByPath(linkedProject);
-          if (f && f instanceof obsidian.TFile) this.openEntityDetail("project", f);
-        });
-      }
-      if (settings.taskManagementSystem !== "tasknotes") {
-        const linkBtn = row.createEl("button", { cls: "cad-task-link-btn" + (linkedProject ? " linked" : ""), text: linkedProject ? "\u270E" : "\u{1F4C1}" });
-        linkBtn.title = linkedProject ? "Change linked project" : "Link to a project";
-        linkBtn.addEventListener("click", (ev) => {
-          ev.stopPropagation();
-          this._openTaskProjectPicker(file.path, text, linkedProject);
-        });
-      }
-    });
+  _homeTodayCard(parent) {
+    return homeTodayCard(this, parent);
   }
-  async _homeWeekCard(parent) {
-    const settings = this.plugin.settings;
-    const weekStart = startOfWeek(/* @__PURE__ */ new Date(), settings.weekStartsOn);
-    let open = 0, done = 0;
-    if (settings.taskManagementSystem === "tasknotes") {
-      const allTasks = listTaskNotesTasks(this.app);
-      const weekDatesList = Array.from({ length: 7 }, (_, i) => ymd(addDays(weekStart, i)));
-      allTasks.forEach((t) => {
-        if (weekDatesList.includes(t.scheduled)) {
-          if (t.done) done++;
-          else open++;
-        }
-      });
-    } else {
-      for (let i = 0; i < 7; i++) {
-        const d = addDays(weekStart, i);
-        const f = this.app.vault.getAbstractFileByPath(dailyNotePath(settings, d));
-        if (f && f instanceof obsidian.TFile) {
-          const c = await this.app.vault.read(f);
-          const p = parseSections(c, settings);
-          p.tasks.forEach((l) => {
-            if (/ \[(x|X)\] /.test(l)) done++;
-            else if (/ \[ \] /.test(l)) open++;
-          });
-        }
-      }
-    }
-    const total = open + done;
-    const pct = total === 0 ? 0 : Math.round(done / total * 100);
-    const body = this._homeCard(parent, `THIS WEEK \u2014 ${done}/${total} done`, (head) => {
-      const link = head.createEl("a", { cls: "cad-home-card-link", text: "Open Calendar \u2192" });
-      link.addEventListener("click", (e) => {
-        e.preventDefault();
-        this.setMode("planner.calendar");
-      });
-    }, "mint");
-    const wrap = body.createDiv({ cls: "cad-proj-progress-wrap" });
-    wrap.dataset.pctBand = pctBand(pct);
-    const lbl = wrap.createDiv({ cls: "cad-proj-progress-label" });
-    lbl.createSpan({ text: total ? `${done} of ${total} tasks completed` : "No tasks logged this week yet" });
-    lbl.createSpan({ cls: "cad-proj-progress-pct", text: `${pct}%` });
-    const bar = wrap.createDiv({ cls: "cad-proj-progress-bar" });
-    const fill = bar.createDiv({ cls: "cad-proj-progress-fill" });
-    fill.style.width = `${pct}%`;
+  _homeWeekCard(parent) {
+    return homeWeekCard(this, parent);
   }
-  async _homeUpcomingCard(parent) {
-    const today = startOfDay(/* @__PURE__ */ new Date());
-    const horizon = addDays(today, 7);
-    const items = [];
-    const projects = listEntities(this.app, "project");
-    projects.forEach((e) => {
-      const due = entityValue(e, "due", ENTITIES.project);
-      if (!due) return;
-      const d = new Date(due);
-      if (isNaN(d.getTime())) return;
-      if (d >= today && d <= horizon) {
-        items.push({ date: d, title: entityValue(e, "name", ENTITIES.project) || e.basename, type: "Project due", file: e.file });
-      }
-    });
-    for (const e of projects) {
-      try {
-        const meta = await readProjectMeta(this.app, e.file);
-        if (meta.next && meta.next.date && meta.next.date >= today && meta.next.date <= horizon) {
-          items.push({ date: meta.next.date, title: `${entityValue(e, "name", ENTITIES.project) || e.basename} \u2014 ${meta.next.title || "milestone"}`, type: "Milestone", file: e.file });
-        }
-      } catch (_) {
-      }
-    }
-    listEntities(this.app, "registration").forEach((e) => {
-      const exp = entityValue(e, "expires", ENTITIES.registration);
-      if (!exp) return;
-      const d = new Date(exp);
-      if (isNaN(d.getTime())) return;
-      if (d >= today && d <= horizon) {
-        items.push({ date: d, title: entityValue(e, "title", ENTITIES.registration) || e.basename, type: "Registration expires", file: e.file });
-      }
-    });
-    listEntities(this.app, "certification").forEach((e) => {
-      const exp = entityValue(e, "expires", ENTITIES.certification);
-      if (!exp) return;
-      const d = new Date(exp);
-      if (isNaN(d.getTime())) return;
-      if (d >= today && d <= horizon) {
-        items.push({ date: d, title: entityValue(e, "name", ENTITIES.certification) || e.basename, type: "Cert expires", file: e.file });
-      }
-    });
-    items.sort((a, b) => a.date - b.date);
-    const body = this._homeCard(parent, `UPCOMING \xB7 NEXT 7 DAYS \u2014 ${items.length}`, void 0, "warn");
-    if (!items.length) {
-      body.createDiv({ cls: "cad-empty", text: "Nothing on the radar." });
-      return;
-    }
-    items.slice(0, 6).forEach((it) => {
-      const row = body.createDiv({ cls: "cad-home-row" });
-      row.createDiv({ cls: "cad-home-row-date", text: fmtValue(it.date, "date") });
-      const main = row.createDiv({ cls: "cad-home-row-main" });
-      main.createDiv({ cls: "cad-home-row-title", text: it.title });
-      main.createDiv({ cls: "cad-home-row-meta", text: it.type });
-      row.addEventListener("click", () => this.openEntityDetailFromFile(it.file));
-    });
+  _homeUpcomingCard(parent) {
+    return homeUpcomingCard(this, parent);
   }
-  async _homePartnersCard(parent) {
-    const partners = listEntities(this.app, "partner");
-    const body = this._homeCard(parent, `PARTNERS \u2014 ${partners.length}`, (head) => {
-      const link = head.createEl("a", { cls: "cad-home-card-link", text: "Open Partners \u2192" });
-      link.addEventListener("click", (e) => {
-        e.preventDefault();
-        this.setMode("prm.partners");
-      });
-    }, "sky");
-    if (!partners.length) {
-      body.createDiv({ cls: "cad-empty", text: "No partners on the books yet." });
-      return;
-    }
-    partners.slice(0, 5).forEach((e) => {
-      const row = body.createDiv({ cls: "cad-home-row" });
-      const main = row.createDiv({ cls: "cad-home-row-main" });
-      main.createDiv({ cls: "cad-home-row-title", text: entityValue(e, "name", ENTITIES.partner) || e.basename });
-      const tier = entityValue(e, "tier", ENTITIES.partner) || "";
-      const status = entityValue(e, "status", ENTITIES.partner) || "";
-      main.createDiv({ cls: "cad-home-row-meta", text: [tier, status].filter(Boolean).join(" \xB7 ") });
-      row.addEventListener("click", () => this.openEntityDetailFromFile(e.file));
-    });
+  _homePartnersCard(parent) {
+    return homePartnersCard(this, parent);
   }
-  async _homeProjectsCard(parent) {
-    const def = ENTITIES.project;
-    const files = listEntityFiles(this.app, "project");
-    const body = this._homeCard(parent, `ACTIVE PROJECTS \u2014 ${files.length}`, (head) => {
-      const link = head.createEl("a", { cls: "cad-home-card-link", text: "Open Projects \u2192" });
-      link.addEventListener("click", (e) => {
-        e.preventDefault();
-        this.setMode("projects.projects");
-      });
-    }, "emerald");
-    if (!files.length) {
-      body.createDiv({ cls: "cad-empty", text: "No projects yet \u2014 hit + Project above." });
-      return;
-    }
-    const projects = await Promise.all(files.map(async (f) => {
-      const e = readEntity(this.app, f);
-      const status = String(entityValue(e, "status", def) || "active").toLowerCase();
-      if (!["active", "on_hold", "in_progress"].includes(status.replace(/\s+/g, "_"))) return null;
-      const meta = await readProjectMeta(this.app, f);
-      return { entity: e, meta };
-    }));
-    const active = projects.filter(Boolean).slice(0, 3);
-    if (!active.length) {
-      body.createDiv({ cls: "cad-empty", text: "No active projects right now." });
-      return;
-    }
-    active.forEach((p) => {
-      const row = body.createDiv({ cls: "cad-home-proj" });
-      row.dataset.pctBand = pctBand(p.meta.percent);
-      const head = row.createDiv({ cls: "cad-home-proj-head" });
-      head.createSpan({ cls: "cad-home-proj-title", text: entityValue(p.entity, "name", def) || p.entity.basename });
-      head.createSpan({ cls: "cad-home-proj-pct", text: `${p.meta.percent}%` });
-      const bar = row.createDiv({ cls: "cad-proj-progress-bar" });
-      const fill = bar.createDiv({ cls: "cad-proj-progress-fill" });
-      fill.style.width = `${p.meta.percent}%`;
-      if (p.meta.next) {
-        row.createDiv({ cls: "cad-home-row-meta", text: `NEXT \xB7 ${fmtValue(p.meta.next.date, "date")}${p.meta.next.title ? " \u2014 " + p.meta.next.title : ""}` });
-      }
-      row.addEventListener("click", () => this.openEntityDetail("project", p.entity.file));
-    });
+  _homeProjectsCard(parent) {
+    return homeProjectsCard(this, parent);
   }
-  async _homePipelineCard(parent) {
-    const def = ENTITIES.deal;
-    const deals = listEntities(this.app, "deal");
-    const open = deals.filter((e) => !["Won", "Lost"].includes(String(entityValue(e, "stage", def))));
-    const value = open.reduce((s, e) => s + (Number(entityValue(e, "value", def)) || 0), 0);
-    const body = this._homeCard(parent, `PIPELINE \u2014 ${open.length} open \xB7 ${fmtValue(value, "currency")}`, (head) => {
-      const link = head.createEl("a", { cls: "cad-home-card-link", text: "Open Pipeline \u2192" });
-      link.addEventListener("click", (e) => {
-        e.preventDefault();
-        this.setMode("crm.pipeline");
-      });
-    }, "sky");
-    if (!open.length) {
-      body.createDiv({ cls: "cad-empty", text: "No open deals \u2014 hit + Deal above." });
-      return;
-    }
-    const top = [...open].sort((a, b) => (Number(entityValue(b, "value", def)) || 0) - (Number(entityValue(a, "value", def)) || 0)).slice(0, 4);
-    top.forEach((e) => {
-      const row = body.createDiv({ cls: "cad-home-row" });
-      const main = row.createDiv({ cls: "cad-home-row-main" });
-      main.createDiv({ cls: "cad-home-row-title", text: entityValue(e, "title", def) || e.basename });
-      const stage = entityValue(e, "stage", def);
-      main.createDiv({ cls: "cad-home-row-meta", text: `${stage || "\u2014"} \xB7 ${fmtValue(entityValue(e, "value", def), "currency")}` });
-      row.addEventListener("click", () => this.openEntityDetailFromFile(e.file));
-    });
+  _homePipelineCard(parent) {
+    return homePipelineCard(this, parent);
   }
-  async _homeActivitiesCard(parent) {
-    const def = ENTITIES.activity;
-    const acts = listEntities(this.app, "activity");
-    const body = this._homeCard(parent, `RECENT ACTIVITY \u2014 ${acts.length}`, (head) => {
-      const link = head.createEl("a", { cls: "cad-home-card-link", text: "Open Activities \u2192" });
-      link.addEventListener("click", (e) => {
-        e.preventDefault();
-        this.setMode("crm.activities");
-      });
-    }, "rose");
-    if (!acts.length) {
-      body.createDiv({ cls: "cad-empty", text: "No activities logged yet." });
-      return;
-    }
-    const sorted = [...acts].sort((a, b) => {
-      const da = new Date(entityValue(a, "when", def) || 0).getTime();
-      const db = new Date(entityValue(b, "when", def) || 0).getTime();
-      return db - da;
-    }).slice(0, 5);
-    sorted.forEach((e) => {
-      const row = body.createDiv({ cls: "cad-home-row" });
-      const main = row.createDiv({ cls: "cad-home-row-main" });
-      main.createDiv({ cls: "cad-home-row-title", text: entityValue(e, "subject", def) || e.basename });
-      main.createDiv({ cls: "cad-home-row-meta", text: `${entityValue(e, "type", def) || "\u2014"} \xB7 ${fmtValue(entityValue(e, "when", def), "date")}` });
-      row.addEventListener("click", () => this.openEntityDetailFromFile(e.file));
-    });
+  _homeActivitiesCard(parent) {
+    return homeActivitiesCard(this, parent);
   }
   async renderTemplatesDashboard(root) {
     root.addClass("cadence-dashboard");
