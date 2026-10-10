@@ -1,6 +1,6 @@
 import { Notice } from 'obsidian';
 import type { Reminder } from '../types/reminders';
-import { nextRepeat, reminderId } from '../utils/reminders';
+import { isRepeating, nextRepeat, reminderId } from '../utils/reminders';
 import type { PluginHost } from './host';
 
 /* The reminders engine: CRUD over settings.reminders, the 30-second ticker
@@ -46,36 +46,50 @@ export function dueReminders(reminders: Reminder[], now: number): Reminder[] {
   return reminders.filter((r) => isDue(r, now));
 }
 
-/* The next occurrence of a repeating reminder that just fired, one repeat
-   after its own `when` (not after `now`), or null for a one-off.
-   QUIRK (#22): it drops the reminder's notes and project link, and a
-   series missed for several periods catches up one occurrence per tick. */
+/* The next occurrence of a repeating reminder: the first one in its series
+   after `now`, stepping from its own `when` so the time of day holds. A
+   series missed for several periods skips the missed ones (#44). Null for
+   a one-off, an unscheduled or an unparseable reminder. It keeps the
+   reminder's notes and project link. */
 export function advanceReminder(r: Reminder, now: Date): Reminder | null {
-  const next = nextRepeat(new Date(r.when as string), r.repeat);
-  if (!next) return null;
+  let next = nextRepeat(r.when, r.repeat);
+  if (!next || isNaN(next.getTime())) return null;
+  while (next.getTime() <= now.getTime()) next = nextRepeat(next, r.repeat) as Date;
   return {
     id: reminderId(),
     text: r.text,
     when: next.toISOString(),
     repeat: r.repeat,
+    notes: r.notes || '',
+    project: r.project || null,
     notified: false,
     done: false,
     createdAt: now.toISOString(),
-  } as Reminder;
+  };
 }
 
-/* Snooze moves `when` to now + ms and clears `notified`. QUIRK (#22): it
-   leaves `done` alone, so a done reminder stays silent. */
+/* The occurrence that continues a repeating reminder's series, or null for
+   a one-off. Each occurrence hands its series on once, the first time it
+   fires, is completed or is snoozed (#44): one that is notified, done or
+   already `advanced` has handed it on. */
+export function continueSeries(r: Reminder, now: Date): Reminder | null {
+  if (r.advanced || r.notified || r.done) return null;
+  return advanceReminder(r, now);
+}
+
+/* Snooze moves `when` to now + ms and reopens the reminder: it clears
+   `notified` and `done`, so a done reminder fires again (#44). */
 export function snoozePatch(ms: number, now: number): Partial<Reminder> {
   const target = new Date(now + ms);
   return {
     when: target.toISOString(),
     notified: false,
+    done: false,
   };
 }
 
-/* QUIRK (#22): completing a repeating reminder ends the series, because
-   only the ticker schedules the next occurrence. */
+/* Completing marks the reminder done; completeReminder also continues a
+   repeating series (#44). */
 export const COMPLETE_PATCH: Readonly<Partial<Reminder>> = { done: true, notified: true };
 
 export async function addReminder(plugin: PluginHost, partial: ReminderInput): Promise<Reminder> {
@@ -102,12 +116,24 @@ export async function deleteReminder(plugin: PluginHost, id: string): Promise<vo
   plugin.refreshOpenViews();
 }
 
+/* Before a snooze or a completion, a repeating occurrence hands its series
+   on (appending the next occurrence unless it already has) and the patch
+   marks it `advanced`. updateReminder then saves both at once. */
+function withSeriesHandedOn(plugin: PluginHost, id: string, patch: Partial<Reminder>): Partial<Reminder> {
+  const r = (plugin.settings.reminders || []).find((x) => x.id === id);
+  if (!r || !isRepeating(r.repeat)) return patch;
+  const next = continueSeries(r, new Date());
+  if (next) plugin.settings.reminders.push(next);
+  return { ...patch, advanced: true };
+}
+
+/* Snoozing moves only this occurrence; the series keeps its own time (#44). */
 export async function snoozeReminder(plugin: PluginHost, id: string, ms: number): Promise<Reminder | null> {
-  return plugin.updateReminder(id, snoozePatch(ms, Date.now()));
+  return plugin.updateReminder(id, withSeriesHandedOn(plugin, id, snoozePatch(ms, Date.now())));
 }
 
 export async function completeReminder(plugin: PluginHost, id: string): Promise<Reminder | null> {
-  return plugin.updateReminder(id, { ...COMPLETE_PATCH });
+  return plugin.updateReminder(id, withSeriesHandedOn(plugin, id, { ...COMPLETE_PATCH }));
 }
 
 /* ── Reminder ticker ── */
@@ -117,9 +143,10 @@ export function tickReminders(plugin: PluginHost): void {
   const additions: Reminder[] = [];
   for (const r of due) {
     plugin._fireReminder(r);
-    r.notified = true;
-    const next = advanceReminder(r, new Date());
+    const next = continueSeries(r, new Date());
     if (next) additions.push(next);
+    r.notified = true;
+    if (isRepeating(r.repeat)) r.advanced = true;
   }
   if (additions.length) plugin.settings.reminders.push(...additions);
   if (due.length) {

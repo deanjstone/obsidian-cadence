@@ -162,13 +162,13 @@ describe("snoozeReminder and completeReminder", () => {
     expect(r).toMatchObject({ when: iso(10 * MIN), notified: false, done: false });
   });
 
-  it("QUIRK: snoozing a done reminder leaves it done, so it never fires", async () => {
-    const { plugin } = await makeLoadedPlugin({ data: { reminders: [reminder({ done: true })] } });
+  it("snoozing a done reminder reopens it, so it fires", async () => {
+    const { plugin } = await makeLoadedPlugin({ data: { reminders: [reminder({ done: true, notified: true })] } });
     await plugin.snoozeReminder("rem_a", MIN);
-    expect(plugin.settings.reminders[0]).toMatchObject({ done: true, notified: false });
+    expect(plugin.settings.reminders[0]).toMatchObject({ done: false, notified: false });
     vi.setSystemTime(NOW.getTime() + 2 * MIN);
     plugin.tickReminders();
-    expect(Notice.messages).toEqual([]);
+    expect(Notice.messages).toEqual(["⏰  Call Jane"]);
   });
 
   it("snoozing an unknown id returns null", async () => {
@@ -183,21 +183,79 @@ describe("snoozeReminder and completeReminder", () => {
     expect(calls).toEqual(["save", "refresh"]);
   });
 
-  it("QUIRK: completing a repeating reminder ends the series (no next occurrence)", async () => {
-    const { plugin } = await makeLoadedPlugin({ data: { reminders: [reminder({ repeat: "daily", when: iso(MIN) })] } });
+  it("completing a repeating reminder schedules the next occurrence, so the series goes on", async () => {
+    const { plugin, calls } = await makeLoadedPlugin({
+      data: { reminders: [reminder({ repeat: "daily", when: iso(MIN), notes: "agenda", project: "Cadence/Projects/Apollo.md" })] },
+    });
     await plugin.completeReminder("rem_a");
+    expect(calls).toEqual(["save", "refresh"]);
+    expect(plugin.settings.reminders[0]).toMatchObject({ done: true, notified: true });
+    expect(plugin.settings.reminders[1]).toMatchObject({
+      text: "Call Jane", when: iso(MIN + DAY), repeat: "daily", notes: "agenda", project: "Cadence/Projects/Apollo.md",
+      notified: false, done: false,
+    });
     vi.setSystemTime(NOW.getTime() + 2 * DAY);
     plugin.tickReminders();
-    expect(plugin.settings.reminders).toHaveLength(1);
-    expect(Notice.messages).toEqual([]);
+    expect(plugin.settings.reminders).toHaveLength(3);
+    expect(Notice.messages).toEqual(["⏰  Call Jane"]);
   });
 
-  it("QUIRK: snoozing a repeating reminder moves the rest of the series with it", async () => {
+  it("completing a repeating reminder that already fired adds no second occurrence", async () => {
     const { plugin } = await makeLoadedPlugin({ data: { reminders: [reminder({ repeat: "daily" })] } });
+    plugin.tickReminders();
+    expect(plugin.settings.reminders).toHaveLength(2);
+    await plugin.completeReminder("rem_a");
+    expect(plugin.settings.reminders.map((r: Any) => [r.when, r.done])).toEqual([[iso(-MIN), true], [iso(-MIN + DAY), false]]);
+  });
+
+  it("completing an overdue repeating reminder skips to the next future occurrence", async () => {
+    const { plugin } = await makeLoadedPlugin({ data: { reminders: [reminder({ repeat: "weekly", when: iso(-10 * DAY) })] } });
+    await plugin.completeReminder("rem_a");
+    expect(plugin.settings.reminders.map((r: Any) => r.when)).toEqual([iso(-10 * DAY), iso(4 * DAY)]);
+  });
+
+  it("snoozing a repeating reminder moves only that occurrence; the series keeps its own time", async () => {
+    const { plugin } = await makeLoadedPlugin({ data: { reminders: [reminder({ repeat: "daily", notes: "agenda" })] } });
     await plugin.snoozeReminder("rem_a", 30 * MIN);
     vi.setSystemTime(NOW.getTime() + 30 * MIN);
     plugin.tickReminders();
-    expect(plugin.settings.reminders[1].when).toBe(iso(30 * MIN + DAY));
+    expect(Notice.messages).toEqual(["⏰  Call Jane"]);
+    expect(plugin.settings.reminders.map((r: Any) => r.when)).toEqual([iso(30 * MIN), iso(-MIN + DAY)]);
+    expect(plugin.settings.reminders[1]).toMatchObject({ notes: "agenda", notified: false, done: false });
+  });
+
+  it("snoozing a repeating reminder that already fired doesn't fork the series", async () => {
+    const { plugin } = await makeLoadedPlugin({ data: { reminders: [reminder({ repeat: "daily" })] } });
+    plugin.tickReminders();
+    await plugin.snoozeReminder("rem_a", 30 * MIN);
+    vi.setSystemTime(NOW.getTime() + 30 * MIN);
+    plugin.tickReminders();
+    expect(Notice.messages).toHaveLength(2);
+    expect(plugin.settings.reminders.map((r: Any) => r.when)).toEqual([iso(30 * MIN), iso(-MIN + DAY)]);
+  });
+
+  it("snoozing a fired repeating reminder saved before #44 (no advanced flag) doesn't fork the series either", async () => {
+    const { plugin } = await makeLoadedPlugin({
+      data: { reminders: [reminder({ repeat: "daily", notified: true }), reminder({ id: "rem_b", repeat: "daily", when: iso(-MIN + DAY) })] },
+    });
+    await plugin.snoozeReminder("rem_a", 30 * MIN);
+    vi.setSystemTime(NOW.getTime() + 30 * MIN);
+    plugin.tickReminders();
+    expect(plugin.settings.reminders.map((r: Any) => r.when)).toEqual([iso(30 * MIN), iso(-MIN + DAY)]);
+  });
+
+  it("completing a snoozed repeating occurrence adds no second next occurrence", async () => {
+    const { plugin } = await makeLoadedPlugin({ data: { reminders: [reminder({ repeat: "daily" })] } });
+    await plugin.snoozeReminder("rem_a", 30 * MIN);
+    await plugin.completeReminder("rem_a");
+    expect(plugin.settings.reminders.map((r: Any) => [r.when, r.done])).toEqual([[iso(30 * MIN), true], [iso(-MIN + DAY), false]]);
+  });
+
+  it("snoozing a one-off adds nothing and marks nothing advanced", async () => {
+    const { plugin } = await makeLoadedPlugin({ data: { reminders: [reminder()] } });
+    await plugin.snoozeReminder("rem_a", 30 * MIN);
+    expect(plugin.settings.reminders).toHaveLength(1);
+    expect(plugin.settings.reminders[0]).not.toHaveProperty("advanced");
   });
 });
 
@@ -262,6 +320,8 @@ describe("tickReminders", () => {
       text: "Call Jane",
       when: iso(-3 * MIN + DAY),
       repeat: "daily",
+      notes: "",
+      project: null,
       notified: false,
       done: false,
       createdAt: NOW.toISOString(),
@@ -283,26 +343,33 @@ describe("tickReminders", () => {
     expect(plugin.settings.reminders).toHaveLength(2);
   });
 
-  it("QUIRK: the next occurrence drops the reminder's notes and project link", async () => {
+  it("the next occurrence keeps the reminder's notes and project link", async () => {
     const { plugin } = await makeLoadedPlugin({
       data: { reminders: [reminder({ repeat: "daily", notes: "agenda", project: "Cadence/Projects/Apollo.md" })] },
     });
     plugin.tickReminders();
-    expect(plugin.settings.reminders[1]).not.toHaveProperty("notes");
-    expect(plugin.settings.reminders[1]).not.toHaveProperty("project");
+    expect(plugin.settings.reminders[1]).toMatchObject({ notes: "agenda", project: "Cadence/Projects/Apollo.md" });
   });
 
-  it("QUIRK: a series missed for days catches up one occurrence per tick", async () => {
+  it("a series missed for days fires once, then skips to the next future occurrence", async () => {
     const { plugin } = await makeLoadedPlugin({ data: { reminders: [reminder({ repeat: "daily", when: iso(-3 * DAY) })] } });
     plugin.tickReminders();
     expect(Notice.messages).toHaveLength(1);
     plugin.tickReminders();
     plugin.tickReminders();
     plugin.tickReminders();
-    expect(Notice.messages).toHaveLength(4);
-    expect(plugin.settings.reminders.map((r: Any) => r.when)).toEqual([
-      iso(-3 * DAY), iso(-2 * DAY), iso(-DAY), iso(0), iso(DAY),
-    ]);
+    expect(Notice.messages).toHaveLength(1);
+    expect(plugin.settings.reminders.map((r: Any) => r.when)).toEqual([iso(-3 * DAY), iso(DAY)]);
+  });
+
+  it("a weekly series missed for weeks keeps its time of day and weekday when it skips ahead", async () => {
+    const { plugin } = await makeLoadedPlugin({ data: { reminders: [reminder({ repeat: "weekly", when: iso(-15 * DAY - 5 * MIN) })] } });
+    plugin.tickReminders();
+    expect(plugin.settings.reminders[1].when).toBe(iso(6 * DAY - 5 * MIN));
+    vi.setSystemTime(NOW.getTime() + 6 * DAY - 5 * MIN);
+    plugin.tickReminders();
+    expect(Notice.messages).toHaveLength(2);
+    expect(plugin.settings.reminders[2].when).toBe(iso(13 * DAY - 5 * MIN));
   });
 
   it("runs every 30 seconds once the plugin has loaded", async () => {

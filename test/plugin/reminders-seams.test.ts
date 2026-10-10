@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  advanceReminder, COMPLETE_PATCH, dueReminders, isDue, newReminder, snoozePatch,
+  advanceReminder, COMPLETE_PATCH, continueSeries, dueReminders, isDue, newReminder, snoozePatch,
 } from "../../src/plugin/reminders-engine";
 import type { Reminder } from "../../src/types/reminders";
 
@@ -74,7 +74,7 @@ describe("advanceReminder", () => {
     const next = advanceReminder(reminder({ repeat: "daily" }), new Date(T + 5 * MIN));
     expect(next).toEqual({
       id: expect.stringMatching(/^rem_/), text: "Call Jane", when: new Date(T - MIN + DAY).toISOString(), repeat: "daily",
-      notified: false, done: false, createdAt: new Date(T + 5 * MIN).toISOString(),
+      notes: "", project: null, notified: false, done: false, createdAt: new Date(T + 5 * MIN).toISOString(),
     });
   });
 
@@ -87,21 +87,44 @@ describe("advanceReminder", () => {
     expect(advanceReminder(reminder({ repeat: "monthly" }), NOW)).toBeNull();
   });
 
-  it("QUIRK: drops notes and project", () => {
+  it("keeps notes and project", () => {
     const next = advanceReminder(reminder({ repeat: "daily", notes: "n", project: "P.md" }), NOW);
-    expect(next).not.toHaveProperty("notes");
-    expect(next).not.toHaveProperty("project");
+    expect(next).toMatchObject({ notes: "n", project: "P.md" });
   });
 
-  it("QUIRK: an overdue occurrence can still be in the past", () => {
+  it("an overdue occurrence skips to the first occurrence after now", () => {
     const next = advanceReminder(reminder({ repeat: "daily", when: new Date(T - 3 * DAY).toISOString() }), NOW)!;
-    expect(isDue(next, T)).toBe(true);
+    expect(isDue(next, T)).toBe(false);
+    expect(next.when).toBe(new Date(T + DAY).toISOString());
+  });
+
+  it("an occurrence landing exactly on now is skipped too, so it never fires twice in a row", () => {
+    expect(advanceReminder(reminder({ repeat: "daily", when: new Date(T - DAY).toISOString() }), NOW)?.when)
+      .toBe(new Date(T + DAY).toISOString());
+  });
+
+  it("returns null for an unscheduled or unparseable reminder", () => {
+    expect(advanceReminder(reminder({ repeat: "daily", when: null }), NOW)).toBeNull();
+    expect(advanceReminder(reminder({ repeat: "daily", when: "soon" }), NOW)).toBeNull();
+  });
+});
+
+describe("continueSeries", () => {
+  it("is the next occurrence of an open repeating reminder that hasn't handed its series on", () => {
+    expect(continueSeries(reminder({ repeat: "daily" }), NOW)?.when).toBe(new Date(T - MIN + DAY).toISOString());
+  });
+
+  it("is null once the occurrence has fired, been completed or been snoozed, or for a one-off", () => {
+    expect(continueSeries(reminder({ repeat: "daily", notified: true }), NOW)).toBeNull();
+    expect(continueSeries(reminder({ repeat: "daily", done: true }), NOW)).toBeNull();
+    expect(continueSeries(reminder({ repeat: "daily", advanced: true }), NOW)).toBeNull();
+    expect(continueSeries(reminder({ repeat: "none" }), NOW)).toBeNull();
   });
 });
 
 describe("snoozePatch and COMPLETE_PATCH", () => {
-  it("snoozes to now + ms and clears notified only", () => {
-    expect(snoozePatch(10 * MIN, T)).toEqual({ when: new Date(T + 10 * MIN).toISOString(), notified: false });
+  it("snoozes to now + ms and reopens: clears notified and done", () => {
+    expect(snoozePatch(10 * MIN, T)).toEqual({ when: new Date(T + 10 * MIN).toISOString(), notified: false, done: false });
   });
 
   it("completes by setting done and notified", () => {

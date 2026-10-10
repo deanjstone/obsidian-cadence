@@ -15,6 +15,11 @@ export interface Reminder {
   notified: boolean;
   done: boolean;
   createdAt: string;
+  /** Set once a repeating occurrence has scheduled the next one in its
+      series (when it fired, was completed or was snoozed), so it never
+      schedules a second. Absent on one-offs and on reminders saved before
+      #44. */
+  advanced?: boolean;
 }
 
 export type ReminderBucket = 'now' | 'today' | 'week' | 'later';
