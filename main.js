@@ -5789,8 +5789,623 @@ async function renderCompanyDetail(view, root, file) {
   view._renderCrossSections(crossSectionContainer, "company", titleVal);
 }
 
-// src/views/project-detail.ts
+// src/views/projects-dashboard.ts
 var import_obsidian21 = require("obsidian");
+async function renderProjectsDashboard(view, root) {
+  root.addClass("cadence-dashboard");
+  root.addClass("cadence-list");
+  const def = ENTITIES.project;
+  if (!def) {
+    view.renderComingSoon(root, view._resolveSurface(view.mode));
+    return;
+  }
+  const allProjects = listEntities(view.app, "project");
+  view._renderPageHeader(root, "Projects Dashboard", "Status \xB7 priority \xB7 custom analytics", (right) => {
+    const newProj = right.createEl("button", { cls: "cad-btn primary", text: "+ New Project" });
+    newProj.addEventListener("click", () => view._createEntityFromPrompt("project"));
+  });
+  const statusField = def.fields.find((f) => f.key === "status") || { options: ["active", "on_hold", "backlog", "done", "cancelled"] };
+  const statuses = statusField.options || ["active", "on_hold", "backlog", "done", "cancelled"];
+  const grid = root.createDiv({ cls: "cad-stat-grid", attr: { style: "padding-bottom: 24px;" } });
+  const totalCard = grid.createDiv({ cls: "cad-stat-card", attr: { style: "padding: 20px; display: flex; flex-direction: column; justify-content: center; min-height: 280px; margin: 0; position: relative;" } });
+  totalCard.dataset.accent = "sky";
+  totalCard.createDiv({ cls: "cad-stat-label", text: "TOTAL PROJECTS", attr: { style: "font-weight: 700; letter-spacing: 0.12em;" } });
+  totalCard.createDiv({ cls: "cad-stat-value", text: String(allProjects.length), attr: { style: "font-size: 3rem; font-weight: 800; margin-top: 12px; line-height: 1;" } });
+  totalCard.createDiv({ cls: "cad-stat-sub", text: "Across all active and custom statuses", attr: { style: "margin-top: 12px; font-size: 0.85em; color: var(--text-muted);" } });
+  const statusAccents = {
+    active: "emerald",
+    done: "mint",
+    cancelled: "rose",
+    backlog: "purple",
+    on_hold: "warn",
+    "on-hold": "warn"
+  };
+  const fallbackAccents = ["sky", "emerald", "rose", "purple", "warn", "mint"];
+  statuses.forEach((status, index) => {
+    const items = allProjects.filter((p) => String(entityValue(p, "status", def)).toLowerCase() === status.toLowerCase());
+    const accent = statusAccents[status.toLowerCase().replace("-", "_")] || fallbackAccents[index % fallbackAccents.length];
+    const colCard = grid.createDiv({ cls: "cad-stat-card", attr: { style: "padding: 20px; display: flex; flex-direction: column; min-height: 280px; margin: 0; position: relative;" } });
+    colCard.dataset.accent = accent;
+    colCard.dataset.stage = status;
+    colCard.createDiv({
+      cls: "cad-stat-label",
+      text: `${status.replace(/_/g, " ").toUpperCase()} PROJECTS`,
+      attr: { style: "font-weight: 700; letter-spacing: 0.12em;" }
+    });
+    colCard.createDiv({
+      cls: "cad-stat-value",
+      text: String(items.length),
+      attr: { style: "font-size: 2.25rem; font-weight: 800; margin-top: 4px;" }
+    });
+    const list = colCard.createDiv({ attr: { style: "margin-top: 16px; flex: 1; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; padding-right: 4px; min-height: 120px;" } });
+    colCard.addEventListener("dragover", (ev) => {
+      ev.preventDefault();
+      try {
+        ev.dataTransfer.dropEffect = "move";
+      } catch (_) {
+      }
+      colCard.style.boxShadow = "0 0 0 2px var(--interactive-accent)";
+    });
+    colCard.addEventListener("dragleave", (ev) => {
+      if (!colCard.contains(ev.relatedTarget)) {
+        colCard.style.boxShadow = "";
+      }
+    });
+    colCard.addEventListener("drop", async (ev) => {
+      ev.preventDefault();
+      colCard.style.boxShadow = "";
+      const path = ev.dataTransfer.getData("text/cadence-entity");
+      const fromStage = ev.dataTransfer.getData("text/cadence-stage-status");
+      if (!path || fromStage === status) return;
+      const file = view.app.vault.getAbstractFileByPath(path);
+      if (!file || !(file instanceof import_obsidian21.TFile)) return;
+      try {
+        await view.app.fileManager.processFrontMatter(file, (fm) => {
+          fm["status"] = status;
+        });
+        new import_obsidian21.Notice(`Project status set to ${status}`);
+        view.render();
+      } catch (e) {
+        new import_obsidian21.Notice(`Failed to change status: ${e.message}`);
+      }
+    });
+    if (!items.length) {
+      list.createDiv({ cls: "cad-empty", text: "No projects", attr: { style: "text-align: center; color: var(--text-faint); margin-top: 32px;" } });
+    } else {
+      const isMobile = !!(import_obsidian21.Platform && import_obsidian21.Platform.isMobile);
+      items.forEach((e) => {
+        const row = list.createDiv({ cls: "cad-dash-row", attr: { style: "display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; background: var(--background-secondary); border-radius: 6px; cursor: pointer; border: 1px solid var(--border-color);" } });
+        const nameEl = row.createDiv({ attr: { style: "font-weight: 500; font-size: 0.9em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px;" } });
+        nameEl.setText(entityValue(e, "name", def) || e.basename);
+        const priorityVal = entityValue(e, "priority", def);
+        if (priorityVal) {
+          const pill = row.createDiv({
+            cls: `cad-pill cad-pill-${String(priorityVal).toLowerCase().replace(/\s+/g, "_")}`,
+            text: String(priorityVal).replace(/_/g, " ")
+          });
+          pill.style.fontSize = "0.7em";
+          pill.style.padding = "1px 6px";
+        }
+        row.addEventListener("click", (ev) => {
+          ev.stopPropagation();
+          view.openEntityDetail("project", e.file);
+        });
+        if (!isMobile) {
+          row.draggable = true;
+          row.addEventListener("dragstart", (ev) => {
+            row.style.opacity = "0.4";
+            try {
+              ev.dataTransfer.effectAllowed = "move";
+              ev.dataTransfer.setData("text/cadence-entity", e.file.path);
+              ev.dataTransfer.setData("text/cadence-stage-status", status);
+              ev.dataTransfer.setData("text/plain", `[[${e.file.basename}]]`);
+            } catch (_) {
+            }
+          });
+          row.addEventListener("dragend", () => {
+            row.style.opacity = "";
+          });
+        }
+      });
+    }
+  });
+  root.createDiv({ cls: "cad-section-label-lg", text: "PROJECTS BY PRIORITY" });
+  const boardWrap = root.createDiv({ cls: "cad-stat-grid", attr: { style: "padding-top: 0; padding-bottom: 24px;" } });
+  const renderBoard = () => {
+    boardWrap.empty();
+    const priorityField = def.fields.find((field) => field.key === "priority") || { options: ["low", "medium", "high"] };
+    const priorities = priorityField.options || ["low", "medium", "high"];
+    const priorityAccents = {
+      low: "sky",
+      medium: "warn",
+      high: "rose"
+    };
+    priorities.forEach((prio) => {
+      const items = allProjects.filter((p) => String(entityValue(p, "priority", def)).toLowerCase() === prio.toLowerCase());
+      const accent = priorityAccents[prio.toLowerCase()] || "sky";
+      const colCard = boardWrap.createDiv({ cls: "cad-stat-card", attr: { style: "padding: 20px; display: flex; flex-direction: column; min-height: 280px; margin: 0; position: relative;" } });
+      colCard.dataset.accent = accent;
+      colCard.dataset.stage = prio;
+      colCard.createDiv({
+        cls: "cad-stat-label",
+        text: `${prio.toUpperCase()} PRIORITY`,
+        attr: { style: "font-weight: 700; letter-spacing: 0.12em;" }
+      });
+      colCard.createDiv({
+        cls: "cad-stat-value",
+        text: String(items.length),
+        attr: { style: "font-size: 2.25rem; font-weight: 800; margin-top: 4px;" }
+      });
+      const list = colCard.createDiv({ attr: { style: "margin-top: 16px; flex: 1; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; padding-right: 4px; min-height: 120px;" } });
+      colCard.addEventListener("dragover", (ev) => {
+        ev.preventDefault();
+        try {
+          ev.dataTransfer.dropEffect = "move";
+        } catch (_) {
+        }
+        colCard.style.boxShadow = "0 0 0 2px var(--interactive-accent)";
+      });
+      colCard.addEventListener("dragleave", (ev) => {
+        if (!colCard.contains(ev.relatedTarget)) {
+          colCard.style.boxShadow = "";
+        }
+      });
+      colCard.addEventListener("drop", async (ev) => {
+        ev.preventDefault();
+        colCard.style.boxShadow = "";
+        const path = ev.dataTransfer.getData("text/cadence-entity");
+        const fromStage = ev.dataTransfer.getData("text/cadence-stage");
+        if (!path || fromStage === prio) return;
+        const file = view.app.vault.getAbstractFileByPath(path);
+        if (!file || !(file instanceof import_obsidian21.TFile)) return;
+        try {
+          await view.app.fileManager.processFrontMatter(file, (fm) => {
+            fm["priority"] = prio;
+          });
+          new import_obsidian21.Notice(`Project priority set to ${prio}`);
+          view.render();
+        } catch (e) {
+          new import_obsidian21.Notice(`Failed to change priority: ${e.message}`);
+        }
+      });
+      if (!items.length) {
+        list.createDiv({ cls: "cad-empty", text: "No projects", attr: { style: "text-align: center; color: var(--text-faint); margin-top: 32px;" } });
+      } else {
+        const isMobile = !!(import_obsidian21.Platform && import_obsidian21.Platform.isMobile);
+        items.forEach((e) => {
+          const row = list.createDiv({ cls: "cad-dash-row", attr: { style: "display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; background: var(--background-secondary); border-radius: 6px; cursor: pointer; border: 1px solid var(--border-color);" } });
+          const nameEl = row.createDiv({ attr: { style: "font-weight: 500; font-size: 0.9em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px;" } });
+          nameEl.setText(entityValue(e, "name", def) || e.basename);
+          const statusVal = entityValue(e, "status", def);
+          if (statusVal) {
+            const pill = row.createDiv({
+              cls: `cad-pill cad-pill-${String(statusVal).toLowerCase().replace(/\s+/g, "_")}`,
+              text: String(statusVal).replace(/_/g, " ")
+            });
+            pill.style.fontSize = "0.7em";
+            pill.style.padding = "1px 6px";
+          }
+          row.addEventListener("click", (ev) => {
+            ev.stopPropagation();
+            view.openEntityDetail("project", e.file);
+          });
+          if (!isMobile) {
+            row.draggable = true;
+            row.addEventListener("dragstart", (ev) => {
+              row.style.opacity = "0.4";
+              try {
+                ev.dataTransfer.effectAllowed = "move";
+                ev.dataTransfer.setData("text/cadence-entity", e.file.path);
+                ev.dataTransfer.setData("text/cadence-stage", prio);
+                ev.dataTransfer.setData("text/plain", `[[${e.file.basename}]]`);
+              } catch (_) {
+              }
+            });
+            row.addEventListener("dragend", () => {
+              row.style.opacity = "";
+            });
+          }
+        });
+      }
+    });
+  };
+  renderBoard();
+  const analyticsHeader = root.createDiv({ attr: { style: "display: flex; justify-content: space-between; align-items: center; padding: 24px 32px 8px 32px; margin-bottom: 16px;" } });
+  const labelEl = analyticsHeader.createEl("span", {
+    cls: "cad-section-label-lg",
+    text: "ANALYTICS & CHARTS",
+    attr: { style: "padding: 0; margin: 0; display: inline-block;" }
+  });
+  const addWidgetBtn = analyticsHeader.createEl("button", { cls: "cad-btn primary", text: "+ Add Custom Chart" });
+  const widgetsGrid = root.createDiv({ cls: "cad-dash-cols", attr: { style: "display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 16px; margin-bottom: 24px; padding: 0 32px;" } });
+  const renderWidgets = () => {
+    widgetsGrid.empty();
+    const widgets = view.plugin.settings.projectDashboardWidgets || [];
+    if (widgets.length === 0) {
+      const emptyWrap = widgetsGrid.createDiv({ attr: { style: "grid-column: 1 / -1; text-align: center; padding: 32px; background: var(--background-secondary); border-radius: 8px; border: 1px dashed var(--border-color);" } });
+      emptyWrap.createDiv({ text: 'No custom charts added yet. Click "+ Add Custom Chart" to create one!', attr: { style: "color: var(--text-muted); font-size: 0.95em;" } });
+      return;
+    }
+    widgets.forEach((w) => {
+      const card = widgetsGrid.createDiv({ cls: "cad-dash-card", attr: { style: "margin: 0; display: flex; flex-direction: column;" } });
+      const head = card.createDiv({ cls: "cad-dash-card-head", attr: { style: "display: flex; justify-content: space-between; align-items: center; padding: 10px 14px;" } });
+      const fieldKey = w.groupBy;
+      head.createDiv({ cls: "cad-dash-card-title", text: w.title.toUpperCase(), attr: { style: "font-weight: 700; font-size: 0.75rem; letter-spacing: 0.12em;" } });
+      const actionsWrap = head.createDiv({ attr: { style: "display: flex; gap: 8px; align-items: center;" } });
+      const styleSelect = actionsWrap.createEl("select", { cls: "cad-prop-input" });
+      styleSelect.style.padding = "2px 4px";
+      styleSelect.style.fontSize = "0.8em";
+      styleSelect.style.height = "auto";
+      styleSelect.style.width = "auto";
+      styleSelect.style.background = "var(--background-primary)";
+      styleSelect.style.color = "var(--text-normal)";
+      styleSelect.style.border = "1px solid var(--border-color)";
+      styleSelect.style.borderRadius = "4px";
+      [
+        { value: "donut", label: "\u{1F369} Donut" },
+        { value: "bar", label: "\u{1F4CA} Bar" },
+        { value: "kpi", label: "\u{1F5C3}\uFE0F KPI Cards" },
+        { value: "list", label: "\u{1F4CB} List" }
+      ].forEach((opt) => {
+        const o = styleSelect.createEl("option", { value: opt.value, text: opt.label });
+        if (w.style === opt.value) o.selected = true;
+      });
+      styleSelect.addEventListener("change", async () => {
+        w.style = styleSelect.value;
+        await view.plugin.saveSettings();
+        view.render();
+      });
+      const delBtn = actionsWrap.createEl("button", {
+        cls: "cad-btn",
+        text: "\xD7",
+        attr: { style: "color: var(--text-error); padding: 2px 8px; font-weight: bold; border-color: var(--text-error); font-size: 1.1em; height: auto; border-radius: 4px; background: transparent;" }
+      });
+      delBtn.addEventListener("click", async () => {
+        if (!confirm(`Delete chart "${w.title}"?`)) return;
+        view.plugin.settings.projectDashboardWidgets = (view.plugin.settings.projectDashboardWidgets || []).filter((item) => item.id !== w.id);
+        await view.plugin.saveSettings();
+        view.render();
+      });
+      const body = card.createDiv({ cls: "cad-dash-card-body", attr: { style: "flex: 1; min-height: 180px; display: flex; flex-direction: column; justify-content: center; padding: 14px;" } });
+      const counts = {};
+      allProjects.forEach((p) => {
+        let val = entityValue(p, fieldKey, def);
+        if (Array.isArray(val)) {
+          val.forEach((v) => {
+            const clean = String(v).replace(/^\[\[|\]\]$/g, "").trim();
+            if (clean) counts[clean] = (counts[clean] || 0) + 1;
+          });
+        } else {
+          const clean = String(val || "").replace(/^\[\[|\]\]$/g, "").trim();
+          const label = clean || "Unspecified";
+          counts[label] = (counts[label] || 0) + 1;
+        }
+      });
+      const chartData = Object.entries(counts).map(([label, count]) => ({ label, count })).sort((a, b) => b.count - a.count);
+      view._drawChart(body.createDiv(), w.style, chartData);
+    });
+  };
+  addWidgetBtn.addEventListener("click", () => {
+    new CadenceWidgetCreateModal(view.app, async (newWidget) => {
+      if (!view.plugin.settings.projectDashboardWidgets) {
+        view.plugin.settings.projectDashboardWidgets = [];
+      }
+      view.plugin.settings.projectDashboardWidgets.push(newWidget);
+      await view.plugin.saveSettings();
+      view.render();
+    }).open();
+  });
+  renderWidgets();
+}
+async function renderProjectsView(view, root) {
+  root.addClass("cadence-projects");
+  const def = ENTITIES.project;
+  const files = listEntityFiles(view.app, "project");
+  view._renderPageHeader(root, "Projects", `${files.length} ${files.length === 1 ? "project" : "projects"} in ${def.folder}`, (right) => {
+    const importBtn = right.createEl("button", { cls: "cad-btn", text: "Import CSV" });
+    importBtn.addEventListener("click", () => new CadenceImportModal(view.app, { entityKey: "project" }).open());
+    const btn = right.createEl("button", { cls: "cad-btn primary", text: "+ New Project" });
+    btn.addEventListener("click", () => view._createEntityFromPrompt("project"));
+  });
+  if (!files.length) {
+    const empty = root.createDiv({ cls: "cad-empty-state" });
+    empty.createDiv({ cls: "cad-empty-state-title", text: "No projects yet" });
+    empty.createDiv({ cls: "cad-empty-state-desc", text: `Hit "+ New Project" \u2014 you'll get a templated note with Brief, Scope, Milestones, Tasks, Risks and Stakeholders sections ready to fill in.` });
+    return;
+  }
+  const projects = await Promise.all(files.map(async (f) => {
+    const e = readEntity(view.app, f);
+    const meta = await readProjectMeta(view.app, f);
+    return { entity: e, meta };
+  }));
+  const statusOptions = getEnumOptions("project", "status", ["active", "on_hold", "backlog", "done", "cancelled"]);
+  const groups = {};
+  statusOptions.forEach((opt) => {
+    groups[opt.toLowerCase().replace(/\s+/g, "_")] = [];
+  });
+  projects.forEach((p) => {
+    const status = String(entityValue(p.entity, "status", def) || (statusOptions[0] || "active")).toLowerCase().replace(/\s+/g, "_");
+    const key = groups[status] ? status : Object.keys(groups)[0];
+    if (key) groups[key].push(p);
+  });
+  const grid = root.createDiv({ cls: "cad-proj-grid" });
+  const renderCard = (p) => {
+    const card = grid.createDiv({ cls: "cad-proj-card" });
+    const head = card.createDiv({ cls: "cad-proj-card-head" });
+    const title = head.createEl("a", { cls: "cad-proj-title", text: entityValue(p.entity, "name", def) || p.entity.basename });
+    title.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      view.openEntityDetail("project", p.entity.file);
+    });
+    const status = String(entityValue(p.entity, "status", def) || "active");
+    const priority = String(entityValue(p.entity, "priority", def) || "");
+    const pillRow = head.createDiv({ cls: "cad-proj-pills" });
+    pillRow.createSpan({ cls: `cad-pill cad-pill-${status.toLowerCase().replace(/\s+/g, "-")}`, text: status });
+    if (priority) pillRow.createSpan({ cls: `cad-pill cad-pill-prio-${priority.toLowerCase()}`, text: priority });
+    const metaRow = card.createDiv({ cls: "cad-proj-meta" });
+    const owner = entityValue(p.entity, "owner", def);
+    const due = entityValue(p.entity, "due", def);
+    if (owner) view._renderOwnerLinks(metaRow, owner);
+    if (due) metaRow.createSpan({ text: `Due: ${fmtValue(due, "date")}` });
+    const progWrap = card.createDiv({ cls: "cad-proj-progress-wrap" });
+    progWrap.dataset.pctBand = pctBand(p.meta.percent);
+    const progLabel = progWrap.createDiv({ cls: "cad-proj-progress-label" });
+    progLabel.createSpan({ text: `${p.meta.done}/${p.meta.total} milestones` });
+    progLabel.createSpan({ cls: "cad-proj-progress-pct", text: `${p.meta.percent}%` });
+    const bar = progWrap.createDiv({ cls: "cad-proj-progress-bar" });
+    const fill = bar.createDiv({ cls: "cad-proj-progress-fill" });
+    fill.style.width = `${p.meta.percent}%`;
+    if (p.meta.next) {
+      const nextRow = card.createDiv({ cls: "cad-proj-next" });
+      nextRow.createSpan({ cls: "cad-proj-next-label", text: "NEXT \xB7 " });
+      nextRow.createSpan({ cls: "cad-proj-next-date", text: fmtValue(p.meta.next.date, "date") });
+      if (p.meta.next.title) nextRow.createSpan({ text: ` \u2014 ${p.meta.next.title}` });
+    }
+  };
+  const renderSection = (label, list) => {
+    if (!list.length) return;
+    root.createDiv({ cls: "cad-section-label-lg", text: label });
+    list.forEach(renderCard);
+  };
+  grid.remove();
+  const order = statusOptions.map((opt) => opt.toLowerCase().replace(/\s+/g, "_"));
+  order.forEach((key) => {
+    const list = groups[key];
+    if (!list || !list.length) return;
+    const origOpt = statusOptions.find((opt) => opt.toLowerCase().replace(/\s+/g, "_") === key) || key;
+    root.createDiv({ cls: "cad-section-label-lg", text: origOpt.toUpperCase() });
+    const section = root.createDiv({ cls: "cad-proj-grid" });
+    list.forEach((p) => {
+      const card = section.createDiv({ cls: "cad-proj-card" });
+      const head = card.createDiv({ cls: "cad-proj-card-head" });
+      const title = head.createEl("a", { cls: "cad-proj-title", text: entityValue(p.entity, "name", def) || p.entity.basename });
+      title.addEventListener("click", (ev) => {
+        ev.preventDefault();
+        view.openEntityDetail("project", p.entity.file);
+      });
+      const status = String(entityValue(p.entity, "status", def) || "active");
+      const priority = String(entityValue(p.entity, "priority", def) || "");
+      const pillRow = head.createDiv({ cls: "cad-proj-pills" });
+      pillRow.createSpan({ cls: `cad-pill cad-pill-${status.toLowerCase().replace(/\s+/g, "-")}`, text: status });
+      if (priority) pillRow.createSpan({ cls: `cad-pill cad-pill-prio-${priority.toLowerCase()}`, text: priority });
+      const metaRow = card.createDiv({ cls: "cad-proj-meta" });
+      const owner = entityValue(p.entity, "owner", def);
+      const due = entityValue(p.entity, "due", def);
+      if (owner) view._renderOwnerLinks(metaRow, owner);
+      if (due) metaRow.createSpan({ text: `Due: ${fmtValue(due, "date")}` });
+      const progWrap = card.createDiv({ cls: "cad-proj-progress-wrap" });
+      const progLabel = progWrap.createDiv({ cls: "cad-proj-progress-label" });
+      progLabel.createSpan({ text: `${p.meta.done}/${p.meta.total} milestones` });
+      progLabel.createSpan({ cls: "cad-proj-progress-pct", text: `${p.meta.percent}%` });
+      const bar = progWrap.createDiv({ cls: "cad-proj-progress-bar" });
+      const fill = bar.createDiv({ cls: "cad-proj-progress-fill" });
+      fill.style.width = `${p.meta.percent}%`;
+      if (p.meta.next) {
+        const nextRow = card.createDiv({ cls: "cad-proj-next" });
+        nextRow.createSpan({ cls: "cad-proj-next-label", text: "NEXT \xB7 " });
+        nextRow.createSpan({ cls: "cad-proj-next-date", text: fmtValue(p.meta.next.date, "date") });
+        if (p.meta.next.title) nextRow.createSpan({ text: ` \u2014 ${p.meta.next.title}` });
+      }
+    });
+  });
+}
+
+// src/views/crm-dashboard.ts
+async function renderCrmDashboard(view, root) {
+  root.addClass("cadence-dashboard");
+  const dealDef = ENTITIES.deal;
+  const allDeals = listEntities(view.app, "deal");
+  const open = allDeals.filter((e) => !["Won", "Lost"].includes(String(entityValue(e, "stage", dealDef))));
+  const won = allDeals.filter((e) => String(entityValue(e, "stage", dealDef)) === "Won");
+  const lost = allDeals.filter((e) => String(entityValue(e, "stage", dealDef)) === "Lost");
+  const dealValue = (e) => Number(entityValue(e, "value", dealDef)) || 0;
+  const sumVal = (arr) => arr.reduce((s, e) => s + dealValue(e), 0);
+  const winRate = won.length + lost.length === 0 ? 0 : Math.round(won.length / (won.length + lost.length) * 100);
+  const avgDeal = won.length === 0 ? 0 : sumVal(won) / won.length;
+  const contacts = listEntityFiles(view.app, "contact");
+  const companies = listEntityFiles(view.app, "company");
+  const partners = listEntityFiles(view.app, "partner");
+  const activities = listEntities(view.app, "activity");
+  view._renderPageHeader(root, "CRM Dashboard", "Pipeline \xB7 momentum \xB7 recent activity", (right2) => {
+    const newDeal = right2.createEl("button", { cls: "cad-btn primary", text: "+ New Deal" });
+    newDeal.addEventListener("click", () => view._createEntityFromPrompt("deal"));
+  });
+  const grid = root.createDiv({ cls: "cad-stat-grid" });
+  const stat = (label, value, sub, accent) => {
+    const c = grid.createDiv({ cls: "cad-stat-card" });
+    if (accent) c.dataset.accent = accent;
+    c.createDiv({ cls: "cad-stat-label", text: label });
+    c.createDiv({ cls: "cad-stat-value", text: String(value) });
+    if (sub) c.createDiv({ cls: "cad-stat-sub", text: sub });
+  };
+  stat("OPEN PIPELINE", open.length, fmtValue(sumVal(open), "currency"), "sky");
+  stat("WON", won.length, fmtValue(sumVal(won), "currency"), "emerald");
+  stat("LOST", lost.length, fmtValue(sumVal(lost), "currency"), "rose");
+  stat("WIN RATE", `${winRate}%`, `${won.length}/${won.length + lost.length} closed`, "mint");
+  stat("AVG DEAL", fmtValue(avgDeal, "currency"), `${won.length} won deals`, "warn");
+  root.createDiv({ cls: "cad-section-label-lg", text: "PIPELINE BY STAGE" });
+  const stageData = getDealStages().map((stage) => {
+    const items = allDeals.filter((e) => String(entityValue(e, "stage", dealDef)) === stage);
+    return { stage, items, value: sumVal(items) };
+  });
+  const maxStageVal = Math.max(1, ...stageData.map((s) => s.value));
+  const stageWrap = root.createDiv({ cls: "cad-stage-bars" });
+  stageData.forEach(({ stage, items, value }) => {
+    const row = stageWrap.createDiv({ cls: "cad-stage-bar-row" });
+    row.dataset.stage = stage;
+    row.createDiv({ cls: "cad-stage-bar-name", text: stage });
+    row.createDiv({ cls: "cad-stage-bar-count", text: `${items.length}` });
+    const barWrap = row.createDiv({ cls: "cad-stage-bar" });
+    const fill = barWrap.createDiv({ cls: "cad-stage-bar-fill" });
+    fill.style.width = `${value / maxStageVal * 100}%`;
+    row.createDiv({ cls: "cad-stage-bar-value", text: fmtValue(value, "currency") });
+    row.addEventListener("click", () => view.setMode("crm.pipeline"));
+  });
+  const cols = root.createDiv({ cls: "cad-dash-cols" });
+  const left = cols.createDiv({ cls: "cad-dash-col" });
+  const right = cols.createDiv({ cls: "cad-dash-col" });
+  const topHot = [...open].sort((a, b) => dealValue(b) - dealValue(a)).slice(0, 5).map((e) => ({
+    title: entityValue(e, "title", dealDef) || e.basename,
+    meta: `${entityValue(e, "stage", dealDef) || "\u2014"} \xB7 ${fmtValue(dealValue(e), "currency")}`,
+    file: e.file
+  }));
+  view._dashCardSection(left, "HOT DEALS \xB7 top 5 by value", topHot, "No open deals yet \u2014 hit + New Deal above.");
+  const staleCutoff = Date.now() - 14 * 864e5;
+  const stale = open.filter((e) => e.file && e.file.stat && e.file.stat.mtime < staleCutoff).sort((a, b) => (a.file.stat.mtime || 0) - (b.file.stat.mtime || 0)).slice(0, 5).map((e) => {
+    const days = Math.round((Date.now() - e.file.stat.mtime) / 864e5);
+    return {
+      title: entityValue(e, "title", dealDef) || e.basename,
+      meta: `${entityValue(e, "stage", dealDef) || "\u2014"} \xB7 ${days}d quiet \xB7 ${fmtValue(dealValue(e), "currency")}`,
+      file: e.file
+    };
+  });
+  view._dashCardSection(left, "STALE DEALS \xB7 14+ days no edits", stale, "No stale deals \u2014 momentum is good.");
+  const recentAct = [...activities].sort((a, b) => {
+    const da = new Date(entityValue(a, "when", ENTITIES.activity) || 0).getTime();
+    const db = new Date(entityValue(b, "when", ENTITIES.activity) || 0).getTime();
+    return db - da;
+  }).slice(0, 6).map((e) => {
+    const typeVal = entityValue(e, "type", ENTITIES.activity) || "\u2014";
+    const withVal = entityValue(e, "with", ENTITIES.activity) || "\u2014";
+    const dateVal = fmtValue(entityValue(e, "when", ENTITIES.activity), "date");
+    return {
+      title: entityValue(e, "subject", ENTITIES.activity) || e.basename,
+      metaParts: [
+        { text: typeVal },
+        { text: " \xB7 " },
+        { text: withVal, entityKey: "contact" },
+        { text: ` \xB7 ${dateVal}` }
+      ],
+      file: e.file
+    };
+  });
+  view._dashCardSection(right, `RECENT ACTIVITY \xB7 ${activities.length} total`, recentAct, "No activity logged yet. Capture a call or meeting under CRM > Activities.");
+  const baseCard = right.createDiv({ cls: "cad-dash-card" });
+  baseCard.createDiv({ cls: "cad-dash-card-head" }).createDiv({ cls: "cad-dash-card-title", text: `CUSTOMER BASE \xB7 ${contacts.length + companies.length + partners.length} records` });
+  const baseBody = baseCard.createDiv({ cls: "cad-dash-card-body cad-mini-stat-row" });
+  const mkMini = (label, val, accent, mode) => {
+    const c = baseBody.createDiv({ cls: "cad-mini-stat" });
+    if (accent) c.dataset.accent = accent;
+    c.createDiv({ cls: "cad-mini-stat-value", text: String(val) });
+    c.createDiv({ cls: "cad-mini-stat-label", text: label });
+    if (mode) {
+      c.style.cursor = "pointer";
+      c.addEventListener("click", () => view.setMode(mode));
+    }
+  };
+  mkMini("CONTACTS", contacts.length, "warn", "crm.contacts");
+  mkMini("COMPANIES", companies.length, "sky", "crm.companies");
+  mkMini("PARTNERS", partners.length, "rose", "prm.partners");
+  const analyticsHeader = root.createDiv({ attr: { style: "display: flex; justify-content: space-between; align-items: center; padding: 24px 32px 8px 32px; margin-bottom: 16px;" } });
+  const labelEl = analyticsHeader.createEl("span", {
+    cls: "cad-section-label-lg",
+    text: "ANALYTICS & CHARTS",
+    attr: { style: "padding: 0; margin: 0; display: inline-block;" }
+  });
+  const addWidgetBtn = analyticsHeader.createEl("button", { cls: "cad-btn primary", text: "+ Add Custom Chart" });
+  const widgetsGrid = root.createDiv({ cls: "cad-dash-cols", attr: { style: "display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 16px; margin-bottom: 24px; padding: 0 32px;" } });
+  const renderWidgets = () => {
+    widgetsGrid.empty();
+    const widgets = view.plugin.settings.crmDashboardWidgets || [];
+    if (widgets.length === 0) {
+      const emptyWrap = widgetsGrid.createDiv({ attr: { style: "grid-column: 1 / -1; text-align: center; padding: 32px; background: var(--background-secondary); border-radius: 8px; border: 1px dashed var(--border-color);" } });
+      emptyWrap.createDiv({ text: 'No custom charts added yet. Click "+ Add Custom Chart" to create one!', attr: { style: "color: var(--text-muted); font-size: 0.95em;" } });
+      return;
+    }
+    widgets.forEach((w) => {
+      const card = widgetsGrid.createDiv({ cls: "cad-dash-card", attr: { style: "margin: 0; display: flex; flex-direction: column;" } });
+      const head = card.createDiv({ cls: "cad-dash-card-head", attr: { style: "display: flex; justify-content: space-between; align-items: center; padding: 10px 14px;" } });
+      const fieldKey = w.groupBy;
+      head.createDiv({ cls: "cad-dash-card-title", text: w.title.toUpperCase(), attr: { style: "font-weight: 700; font-size: 0.75rem; letter-spacing: 0.12em;" } });
+      const actionsWrap = head.createDiv({ attr: { style: "display: flex; gap: 8px; align-items: center;" } });
+      const styleSelect = actionsWrap.createEl("select", { cls: "cad-prop-input" });
+      styleSelect.style.padding = "2px 4px";
+      styleSelect.style.fontSize = "0.8em";
+      styleSelect.style.height = "auto";
+      styleSelect.style.width = "auto";
+      styleSelect.style.background = "var(--background-primary)";
+      styleSelect.style.color = "var(--text-normal)";
+      styleSelect.style.border = "1px solid var(--border-color)";
+      styleSelect.style.borderRadius = "4px";
+      [
+        { value: "donut", label: "\u{1F369} Donut" },
+        { value: "bar", label: "\u{1F4CA} Bar" },
+        { value: "kpi", label: "\u{1F5C3}\uFE0F KPI Cards" },
+        { value: "list", label: "\u{1F4CB} List" }
+      ].forEach((opt) => {
+        const o = styleSelect.createEl("option", { value: opt.value, text: opt.label });
+        if (w.style === opt.value) o.selected = true;
+      });
+      styleSelect.addEventListener("change", async () => {
+        w.style = styleSelect.value;
+        await view.plugin.saveSettings();
+        view.render();
+      });
+      const delBtn = actionsWrap.createEl("button", {
+        cls: "cad-btn",
+        text: "\xD7",
+        attr: { style: "color: var(--text-error); padding: 2px 8px; font-weight: bold; border-color: var(--text-error); font-size: 1.1em; height: auto; border-radius: 4px; background: transparent;" }
+      });
+      delBtn.addEventListener("click", async () => {
+        if (!confirm(`Delete chart "${w.title}"?`)) return;
+        view.plugin.settings.crmDashboardWidgets = (view.plugin.settings.crmDashboardWidgets || []).filter((item) => item.id !== w.id);
+        await view.plugin.saveSettings();
+        view.render();
+      });
+      const body = card.createDiv({ cls: "cad-dash-card-body", attr: { style: "flex: 1; min-height: 180px; display: flex; flex-direction: column; justify-content: center; padding: 14px;" } });
+      const counts = {};
+      allDeals.forEach((p) => {
+        let val = entityValue(p, fieldKey, dealDef);
+        if (Array.isArray(val)) {
+          val.forEach((v) => {
+            const clean = String(v).replace(/^\[\[|\]\]$/g, "").trim();
+            if (clean) counts[clean] = (counts[clean] || 0) + 1;
+          });
+        } else {
+          const clean = String(val || "").replace(/^\[\[|\]\]$/g, "").trim();
+          const label = clean || "Unspecified";
+          counts[label] = (counts[label] || 0) + 1;
+        }
+      });
+      const chartData = Object.entries(counts).map(([label, count]) => ({ label, count })).sort((a, b) => b.count - a.count);
+      view._drawChart(body.createDiv(), w.style, chartData);
+    });
+  };
+  addWidgetBtn.addEventListener("click", () => {
+    new CadenceWidgetCreateModal(view.app, "deal", async (newWidget) => {
+      if (!view.plugin.settings.crmDashboardWidgets) {
+        view.plugin.settings.crmDashboardWidgets = [];
+      }
+      view.plugin.settings.crmDashboardWidgets.push(newWidget);
+      await view.plugin.saveSettings();
+      view.render();
+    }).open();
+  });
+  renderWidgets();
+}
+
+// src/views/project-detail.ts
+var import_obsidian22 = require("obsidian");
 function projectDetailTitle(fm, basename) {
   return fm.name || basename;
 }
@@ -5950,10 +6565,10 @@ async function renderProjectDetail(view, root, file) {
         setTimeout(async () => {
           try {
             await view.app.vault.trash(file, true);
-            new import_obsidian21.Notice(`Deleted project: ${file.basename}`);
+            new import_obsidian22.Notice(`Deleted project: ${file.basename}`);
             view.closeEntityDetail();
           } catch (e) {
-            new import_obsidian21.Notice(`Delete failed: ${e.message}`);
+            new import_obsidian22.Notice(`Delete failed: ${e.message}`);
           }
         }, 50);
       }
@@ -6131,7 +6746,7 @@ async function renderProjectDetail(view, root, file) {
             try {
               const creation = chipCreation(suggestionSource, targetEntityKey, ENTITIES);
               await createEntity(view.app, creation.source, name);
-              new import_obsidian21.Notice(`Created new ${creation.label}: ${name}`);
+              new import_obsidian22.Notice(`Created new ${creation.label}: ${name}`);
             } catch (e) {
               console.warn(`Failed to auto-create ${targetEntityKey || suggestionSource}`, e);
             }
@@ -6402,7 +7017,7 @@ function renderTaskSection(view, parent, file, tasks, flashSaved, rawKey = "Task
           await view._commitTasks(file, items, flashSaved, true, rawKey);
           const taskText = titleInp.value.trim();
           if (!taskText) {
-            new import_obsidian21.Notice("Add a task title first.");
+            new import_obsidian22.Notice("Add a task title first.");
             titleInp.focus();
             return;
           }
@@ -6457,12 +7072,12 @@ async function saveProjectFrontmatter(view, file, patch, flashSaved) {
     await view.app.fileManager.processFrontMatter(file, (fm) => writeProjectFrontmatter(fm, patch));
     if (typeof flashSaved === "function") flashSaved();
   } catch (e) {
-    new import_obsidian21.Notice(`Save failed: ${e.message}`);
+    new import_obsidian22.Notice(`Save failed: ${e.message}`);
   }
 }
 
 // src/views/task-links.ts
-var import_obsidian22 = require("obsidian");
+var import_obsidian23 = require("obsidian");
 function taskLinkKey(dailyPath, text) {
   return `${dailyPath}::${(text || "").trim()}`;
 }
@@ -6484,14 +7099,14 @@ async function setTaskProjectLink(view, dailyPath, text, projectPath) {
 function openTaskProjectPicker(view, dailyPath, text, currentLink) {
   const projectFiles = listEntityFiles(view.app, "project");
   if (!projectFiles.length) {
-    new import_obsidian22.Notice("No projects yet. Create one in Planner \u2192 Projects first.");
+    new import_obsidian23.Notice("No projects yet. Create one in Planner \u2192 Projects first.");
     return;
   }
   const projects = projectFiles.map((f) => ({
     file: f,
     name: projectNameFromPath(view.app, f.path)
   }));
-  const picker = new class extends import_obsidian22.SuggestModal {
+  const picker = new class extends import_obsidian23.SuggestModal {
     constructor(app, projs, hasLink) {
       super(app);
       this.projs = projs;
@@ -6568,12 +7183,12 @@ async function propagateTaskComplete(view, text, done, source) {
   }
   for (const path of targets.projectPaths) {
     const file = view.app.vault.getAbstractFileByPath(path);
-    if (!file || !(file instanceof import_obsidian22.TFile)) continue;
+    if (!file || !(file instanceof import_obsidian23.TFile)) continue;
     await view._tickProjectTaskByText(file, targets.text, !!done);
   }
   for (const path of targets.dailyPaths) {
     const file = view.app.vault.getAbstractFileByPath(path);
-    if (!file || !(file instanceof import_obsidian22.TFile)) continue;
+    if (!file || !(file instanceof import_obsidian23.TFile)) continue;
     await view._tickDailyNoteTaskByText(file, targets.text, !!done);
   }
 }
@@ -6911,7 +7526,7 @@ function getEntityFiles(view, entityKey) {
 }
 
 // src/views/components/sections.ts
-var import_obsidian23 = require("obsidian");
+var import_obsidian24 = require("obsidian");
 function linksTo(val, name) {
   if (val == null) return false;
   const cleanName = name.trim().toLowerCase();
@@ -6959,7 +7574,7 @@ function renderMarkdownTextCard(view, parent, file, sectionKey, label, initialVa
   const openBtn = head.createEl("button", { cls: "cad-btn cad-btn-sm", attr: { style: "margin-left: auto; padding: 4px 6px; display: inline-flex; align-items: center; justify-content: center; border-radius: 4px; border: 1px solid var(--border-color); background: transparent; cursor: pointer;" } });
   openBtn.title = "Open this note natively to edit with full Live Preview & Autocomplete";
   try {
-    (0, import_obsidian23.setIcon)(openBtn, "file-text");
+    (0, import_obsidian24.setIcon)(openBtn, "file-text");
   } catch (_) {
   }
   openBtn.addEventListener("click", (ev) => {
@@ -6972,7 +7587,7 @@ function renderMarkdownTextCard(view, parent, file, sectionKey, label, initialVa
     previewDiv.empty();
     const rawText = initialValue || "";
     try {
-      import_obsidian23.MarkdownRenderer.renderMarkdown(rawText, previewDiv, file.path, view);
+      import_obsidian24.MarkdownRenderer.renderMarkdown(rawText, previewDiv, file.path, view);
       previewDiv.querySelectorAll("a.internal-link").forEach((a) => {
         const href = a.getAttribute("data-href") || a.getAttribute("href");
         if (href) {
@@ -7116,7 +7731,7 @@ function renderSingleCrossSection(view, parent, targetEntity, linkField, viewTyp
     const board = secWrap.createDiv({ cls: "cad-kanban-board" });
     const groupField = def.fields.find((f) => f.key === "stage" || f.key === "status" || f.key === "type" || f.type === "enum") || def.fields[1];
     const columns = groupField.options || ["To Do", "In Progress", "Done"];
-    const isMobile = !!(import_obsidian23.Platform && import_obsidian23.Platform.isMobile);
+    const isMobile = !!(import_obsidian24.Platform && import_obsidian24.Platform.isMobile);
     columns.forEach((colName) => {
       const items = filteredList.filter((e) => {
         const val = entityValue(e, groupField.key, def);
@@ -7152,7 +7767,7 @@ function renderSingleCrossSection(view, parent, targetEntity, linkField, viewTyp
         const fromStage = ev.dataTransfer.getData("text/cadence-stage");
         if (!path || fromStage === colName) return;
         const file = view.app.vault.getAbstractFileByPath(path);
-        if (!file || !(file instanceof import_obsidian23.TFile)) return;
+        if (!file || !(file instanceof import_obsidian24.TFile)) return;
         try {
           await view.app.fileManager.processFrontMatter(file, (fm) => {
             const isList = groupField.type === "multitext" || groupField.type === "tags" || groupField.isList === true;
@@ -7163,10 +7778,10 @@ function renderSingleCrossSection(view, parent, targetEntity, linkField, viewTyp
               fm[groupField.key] = isLink ? `[[${colName}]]` : colName;
             }
           });
-          new import_obsidian23.Notice(`Moved to ${colName}`);
+          new import_obsidian24.Notice(`Moved to ${colName}`);
           view.render();
         } catch (e) {
-          new import_obsidian23.Notice(`Failed to move: ${e.message}`);
+          new import_obsidian24.Notice(`Failed to move: ${e.message}`);
         }
       });
       if (!items.length) {
@@ -7327,7 +7942,7 @@ function renderDynamicH2Section(view, parent, file, sections, rawKey, flashSaved
         const vBtn = viewSwitch.createEl("button", { attr: { style: `padding: 4px 6px; display: inline-flex; align-items: center; justify-content: center; border-radius: 4px; cursor: pointer; border: 1px solid var(--border-color); background: ${v === viewType ? "var(--interactive-accent)" : "transparent"}; color: ${v === viewType ? "var(--text-on-accent)" : "var(--text-muted)"};` } });
         vBtn.title = title;
         try {
-          (0, import_obsidian23.setIcon)(vBtn, icon);
+          (0, import_obsidian24.setIcon)(vBtn, icon);
         } catch (_) {
         }
         if (v !== viewType) {
@@ -7665,117 +8280,8 @@ var CadenceAppView = class extends obsidian.ItemView {
     return renderOwnerLinks(this, parent, ownerVal, showPrefix);
   }
   /* ── Projects: rich card grid with milestone progress ─ */
-  async renderProjectsView(root) {
-    root.addClass("cadence-projects");
-    const def = ENTITIES.project;
-    const files = listEntityFiles(this.app, "project");
-    this._renderPageHeader(root, "Projects", `${files.length} ${files.length === 1 ? "project" : "projects"} in ${def.folder}`, (right) => {
-      const importBtn = right.createEl("button", { cls: "cad-btn", text: "Import CSV" });
-      importBtn.addEventListener("click", () => new CadenceImportModal(this.app, { entityKey: "project" }).open());
-      const btn = right.createEl("button", { cls: "cad-btn primary", text: "+ New Project" });
-      btn.addEventListener("click", () => this._createEntityFromPrompt("project"));
-    });
-    if (!files.length) {
-      const empty = root.createDiv({ cls: "cad-empty-state" });
-      empty.createDiv({ cls: "cad-empty-state-title", text: "No projects yet" });
-      empty.createDiv({ cls: "cad-empty-state-desc", text: `Hit "+ New Project" \u2014 you'll get a templated note with Brief, Scope, Milestones, Tasks, Risks and Stakeholders sections ready to fill in.` });
-      return;
-    }
-    const projects = await Promise.all(files.map(async (f) => {
-      const e = readEntity(this.app, f);
-      const meta = await readProjectMeta(this.app, f);
-      return { entity: e, meta };
-    }));
-    const statusOptions = getEnumOptions("project", "status", ["active", "on_hold", "backlog", "done", "cancelled"]);
-    const groups = {};
-    statusOptions.forEach((opt) => {
-      groups[opt.toLowerCase().replace(/\s+/g, "_")] = [];
-    });
-    projects.forEach((p) => {
-      const status = String(entityValue(p.entity, "status", def) || (statusOptions[0] || "active")).toLowerCase().replace(/\s+/g, "_");
-      const key = groups[status] ? status : Object.keys(groups)[0];
-      if (key) groups[key].push(p);
-    });
-    const grid = root.createDiv({ cls: "cad-proj-grid" });
-    const renderCard = (p) => {
-      const card = grid.createDiv({ cls: "cad-proj-card" });
-      const head = card.createDiv({ cls: "cad-proj-card-head" });
-      const title = head.createEl("a", { cls: "cad-proj-title", text: entityValue(p.entity, "name", def) || p.entity.basename });
-      title.addEventListener("click", (ev) => {
-        ev.preventDefault();
-        this.openEntityDetail("project", p.entity.file);
-      });
-      const status = String(entityValue(p.entity, "status", def) || "active");
-      const priority = String(entityValue(p.entity, "priority", def) || "");
-      const pillRow = head.createDiv({ cls: "cad-proj-pills" });
-      pillRow.createSpan({ cls: `cad-pill cad-pill-${status.toLowerCase().replace(/\s+/g, "-")}`, text: status });
-      if (priority) pillRow.createSpan({ cls: `cad-pill cad-pill-prio-${priority.toLowerCase()}`, text: priority });
-      const metaRow = card.createDiv({ cls: "cad-proj-meta" });
-      const owner = entityValue(p.entity, "owner", def);
-      const due = entityValue(p.entity, "due", def);
-      if (owner) this._renderOwnerLinks(metaRow, owner);
-      if (due) metaRow.createSpan({ text: `Due: ${fmtValue(due, "date")}` });
-      const progWrap = card.createDiv({ cls: "cad-proj-progress-wrap" });
-      progWrap.dataset.pctBand = pctBand(p.meta.percent);
-      const progLabel = progWrap.createDiv({ cls: "cad-proj-progress-label" });
-      progLabel.createSpan({ text: `${p.meta.done}/${p.meta.total} milestones` });
-      progLabel.createSpan({ cls: "cad-proj-progress-pct", text: `${p.meta.percent}%` });
-      const bar = progWrap.createDiv({ cls: "cad-proj-progress-bar" });
-      const fill = bar.createDiv({ cls: "cad-proj-progress-fill" });
-      fill.style.width = `${p.meta.percent}%`;
-      if (p.meta.next) {
-        const nextRow = card.createDiv({ cls: "cad-proj-next" });
-        nextRow.createSpan({ cls: "cad-proj-next-label", text: "NEXT \xB7 " });
-        nextRow.createSpan({ cls: "cad-proj-next-date", text: fmtValue(p.meta.next.date, "date") });
-        if (p.meta.next.title) nextRow.createSpan({ text: ` \u2014 ${p.meta.next.title}` });
-      }
-    };
-    const renderSection = (label, list) => {
-      if (!list.length) return;
-      root.createDiv({ cls: "cad-section-label-lg", text: label });
-      list.forEach(renderCard);
-    };
-    grid.remove();
-    const order = statusOptions.map((opt) => opt.toLowerCase().replace(/\s+/g, "_"));
-    order.forEach((key) => {
-      const list = groups[key];
-      if (!list || !list.length) return;
-      const origOpt = statusOptions.find((opt) => opt.toLowerCase().replace(/\s+/g, "_") === key) || key;
-      root.createDiv({ cls: "cad-section-label-lg", text: origOpt.toUpperCase() });
-      const section = root.createDiv({ cls: "cad-proj-grid" });
-      list.forEach((p) => {
-        const card = section.createDiv({ cls: "cad-proj-card" });
-        const head = card.createDiv({ cls: "cad-proj-card-head" });
-        const title = head.createEl("a", { cls: "cad-proj-title", text: entityValue(p.entity, "name", def) || p.entity.basename });
-        title.addEventListener("click", (ev) => {
-          ev.preventDefault();
-          this.openEntityDetail("project", p.entity.file);
-        });
-        const status = String(entityValue(p.entity, "status", def) || "active");
-        const priority = String(entityValue(p.entity, "priority", def) || "");
-        const pillRow = head.createDiv({ cls: "cad-proj-pills" });
-        pillRow.createSpan({ cls: `cad-pill cad-pill-${status.toLowerCase().replace(/\s+/g, "-")}`, text: status });
-        if (priority) pillRow.createSpan({ cls: `cad-pill cad-pill-prio-${priority.toLowerCase()}`, text: priority });
-        const metaRow = card.createDiv({ cls: "cad-proj-meta" });
-        const owner = entityValue(p.entity, "owner", def);
-        const due = entityValue(p.entity, "due", def);
-        if (owner) this._renderOwnerLinks(metaRow, owner);
-        if (due) metaRow.createSpan({ text: `Due: ${fmtValue(due, "date")}` });
-        const progWrap = card.createDiv({ cls: "cad-proj-progress-wrap" });
-        const progLabel = progWrap.createDiv({ cls: "cad-proj-progress-label" });
-        progLabel.createSpan({ text: `${p.meta.done}/${p.meta.total} milestones` });
-        progLabel.createSpan({ cls: "cad-proj-progress-pct", text: `${p.meta.percent}%` });
-        const bar = progWrap.createDiv({ cls: "cad-proj-progress-bar" });
-        const fill = bar.createDiv({ cls: "cad-proj-progress-fill" });
-        fill.style.width = `${p.meta.percent}%`;
-        if (p.meta.next) {
-          const nextRow = card.createDiv({ cls: "cad-proj-next" });
-          nextRow.createSpan({ cls: "cad-proj-next-label", text: "NEXT \xB7 " });
-          nextRow.createSpan({ cls: "cad-proj-next-date", text: fmtValue(p.meta.next.date, "date") });
-          if (p.meta.next.title) nextRow.createSpan({ text: ` \u2014 ${p.meta.next.title}` });
-        }
-      });
-    });
+  renderProjectsView(root) {
+    return renderProjectsView(this, root);
   }
   /* ── Home / Command Centre ───────────────── */
   renderHome(root) {
@@ -8354,504 +8860,12 @@ ${defaultBody}
     return drawSimpleList(this, parent, data);
   }
   /* ── Projects Dashboard ─────────────────── */
-  async renderProjectsDashboard(root) {
-    root.addClass("cadence-dashboard");
-    root.addClass("cadence-list");
-    const def = ENTITIES.project;
-    if (!def) {
-      this.renderComingSoon(root, this._resolveSurface(this.mode));
-      return;
-    }
-    const allProjects = listEntities(this.app, "project");
-    this._renderPageHeader(root, "Projects Dashboard", "Status \xB7 priority \xB7 custom analytics", (right) => {
-      const newProj = right.createEl("button", { cls: "cad-btn primary", text: "+ New Project" });
-      newProj.addEventListener("click", () => this._createEntityFromPrompt("project"));
-    });
-    const statusField = def.fields.find((f) => f.key === "status") || { options: ["active", "on_hold", "backlog", "done", "cancelled"] };
-    const statuses = statusField.options || ["active", "on_hold", "backlog", "done", "cancelled"];
-    const grid = root.createDiv({ cls: "cad-stat-grid", attr: { style: "padding-bottom: 24px;" } });
-    const totalCard = grid.createDiv({ cls: "cad-stat-card", attr: { style: "padding: 20px; display: flex; flex-direction: column; justify-content: center; min-height: 280px; margin: 0; position: relative;" } });
-    totalCard.dataset.accent = "sky";
-    totalCard.createDiv({ cls: "cad-stat-label", text: "TOTAL PROJECTS", attr: { style: "font-weight: 700; letter-spacing: 0.12em;" } });
-    totalCard.createDiv({ cls: "cad-stat-value", text: String(allProjects.length), attr: { style: "font-size: 3rem; font-weight: 800; margin-top: 12px; line-height: 1;" } });
-    totalCard.createDiv({ cls: "cad-stat-sub", text: "Across all active and custom statuses", attr: { style: "margin-top: 12px; font-size: 0.85em; color: var(--text-muted);" } });
-    const statusAccents = {
-      active: "emerald",
-      done: "mint",
-      cancelled: "rose",
-      backlog: "purple",
-      on_hold: "warn",
-      "on-hold": "warn"
-    };
-    const fallbackAccents = ["sky", "emerald", "rose", "purple", "warn", "mint"];
-    statuses.forEach((status, index) => {
-      const items = allProjects.filter((p) => String(entityValue(p, "status", def)).toLowerCase() === status.toLowerCase());
-      const accent = statusAccents[status.toLowerCase().replace("-", "_")] || fallbackAccents[index % fallbackAccents.length];
-      const colCard = grid.createDiv({ cls: "cad-stat-card", attr: { style: "padding: 20px; display: flex; flex-direction: column; min-height: 280px; margin: 0; position: relative;" } });
-      colCard.dataset.accent = accent;
-      colCard.dataset.stage = status;
-      colCard.createDiv({
-        cls: "cad-stat-label",
-        text: `${status.replace(/_/g, " ").toUpperCase()} PROJECTS`,
-        attr: { style: "font-weight: 700; letter-spacing: 0.12em;" }
-      });
-      colCard.createDiv({
-        cls: "cad-stat-value",
-        text: String(items.length),
-        attr: { style: "font-size: 2.25rem; font-weight: 800; margin-top: 4px;" }
-      });
-      const list = colCard.createDiv({ attr: { style: "margin-top: 16px; flex: 1; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; padding-right: 4px; min-height: 120px;" } });
-      colCard.addEventListener("dragover", (ev) => {
-        ev.preventDefault();
-        try {
-          ev.dataTransfer.dropEffect = "move";
-        } catch (_) {
-        }
-        colCard.style.boxShadow = "0 0 0 2px var(--interactive-accent)";
-      });
-      colCard.addEventListener("dragleave", (ev) => {
-        if (!colCard.contains(ev.relatedTarget)) {
-          colCard.style.boxShadow = "";
-        }
-      });
-      colCard.addEventListener("drop", async (ev) => {
-        ev.preventDefault();
-        colCard.style.boxShadow = "";
-        const path = ev.dataTransfer.getData("text/cadence-entity");
-        const fromStage = ev.dataTransfer.getData("text/cadence-stage-status");
-        if (!path || fromStage === status) return;
-        const file = this.app.vault.getAbstractFileByPath(path);
-        if (!file || !(file instanceof obsidian.TFile)) return;
-        try {
-          await this.app.fileManager.processFrontMatter(file, (fm) => {
-            fm["status"] = status;
-          });
-          new obsidian.Notice(`Project status set to ${status}`);
-          this.render();
-        } catch (e) {
-          new obsidian.Notice(`Failed to change status: ${e.message}`);
-        }
-      });
-      if (!items.length) {
-        list.createDiv({ cls: "cad-empty", text: "No projects", attr: { style: "text-align: center; color: var(--text-faint); margin-top: 32px;" } });
-      } else {
-        const isMobile = !!(obsidian.Platform && obsidian.Platform.isMobile);
-        items.forEach((e) => {
-          const row = list.createDiv({ cls: "cad-dash-row", attr: { style: "display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; background: var(--background-secondary); border-radius: 6px; cursor: pointer; border: 1px solid var(--border-color);" } });
-          const nameEl = row.createDiv({ attr: { style: "font-weight: 500; font-size: 0.9em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px;" } });
-          nameEl.setText(entityValue(e, "name", def) || e.basename);
-          const priorityVal = entityValue(e, "priority", def);
-          if (priorityVal) {
-            const pill = row.createDiv({
-              cls: `cad-pill cad-pill-${String(priorityVal).toLowerCase().replace(/\s+/g, "_")}`,
-              text: String(priorityVal).replace(/_/g, " ")
-            });
-            pill.style.fontSize = "0.7em";
-            pill.style.padding = "1px 6px";
-          }
-          row.addEventListener("click", (ev) => {
-            ev.stopPropagation();
-            this.openEntityDetail("project", e.file);
-          });
-          if (!isMobile) {
-            row.draggable = true;
-            row.addEventListener("dragstart", (ev) => {
-              row.style.opacity = "0.4";
-              try {
-                ev.dataTransfer.effectAllowed = "move";
-                ev.dataTransfer.setData("text/cadence-entity", e.file.path);
-                ev.dataTransfer.setData("text/cadence-stage-status", status);
-                ev.dataTransfer.setData("text/plain", `[[${e.file.basename}]]`);
-              } catch (_) {
-              }
-            });
-            row.addEventListener("dragend", () => {
-              row.style.opacity = "";
-            });
-          }
-        });
-      }
-    });
-    root.createDiv({ cls: "cad-section-label-lg", text: "PROJECTS BY PRIORITY" });
-    const boardWrap = root.createDiv({ cls: "cad-stat-grid", attr: { style: "padding-top: 0; padding-bottom: 24px;" } });
-    const renderBoard = () => {
-      boardWrap.empty();
-      const priorityField = def.fields.find((field) => field.key === "priority") || { options: ["low", "medium", "high"] };
-      const priorities = priorityField.options || ["low", "medium", "high"];
-      const priorityAccents = {
-        low: "sky",
-        medium: "warn",
-        high: "rose"
-      };
-      priorities.forEach((prio) => {
-        const items = allProjects.filter((p) => String(entityValue(p, "priority", def)).toLowerCase() === prio.toLowerCase());
-        const accent = priorityAccents[prio.toLowerCase()] || "sky";
-        const colCard = boardWrap.createDiv({ cls: "cad-stat-card", attr: { style: "padding: 20px; display: flex; flex-direction: column; min-height: 280px; margin: 0; position: relative;" } });
-        colCard.dataset.accent = accent;
-        colCard.dataset.stage = prio;
-        colCard.createDiv({
-          cls: "cad-stat-label",
-          text: `${prio.toUpperCase()} PRIORITY`,
-          attr: { style: "font-weight: 700; letter-spacing: 0.12em;" }
-        });
-        colCard.createDiv({
-          cls: "cad-stat-value",
-          text: String(items.length),
-          attr: { style: "font-size: 2.25rem; font-weight: 800; margin-top: 4px;" }
-        });
-        const list = colCard.createDiv({ attr: { style: "margin-top: 16px; flex: 1; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; padding-right: 4px; min-height: 120px;" } });
-        colCard.addEventListener("dragover", (ev) => {
-          ev.preventDefault();
-          try {
-            ev.dataTransfer.dropEffect = "move";
-          } catch (_) {
-          }
-          colCard.style.boxShadow = "0 0 0 2px var(--interactive-accent)";
-        });
-        colCard.addEventListener("dragleave", (ev) => {
-          if (!colCard.contains(ev.relatedTarget)) {
-            colCard.style.boxShadow = "";
-          }
-        });
-        colCard.addEventListener("drop", async (ev) => {
-          ev.preventDefault();
-          colCard.style.boxShadow = "";
-          const path = ev.dataTransfer.getData("text/cadence-entity");
-          const fromStage = ev.dataTransfer.getData("text/cadence-stage");
-          if (!path || fromStage === prio) return;
-          const file = this.app.vault.getAbstractFileByPath(path);
-          if (!file || !(file instanceof obsidian.TFile)) return;
-          try {
-            await this.app.fileManager.processFrontMatter(file, (fm) => {
-              fm["priority"] = prio;
-            });
-            new obsidian.Notice(`Project priority set to ${prio}`);
-            this.render();
-          } catch (e) {
-            new obsidian.Notice(`Failed to change priority: ${e.message}`);
-          }
-        });
-        if (!items.length) {
-          list.createDiv({ cls: "cad-empty", text: "No projects", attr: { style: "text-align: center; color: var(--text-faint); margin-top: 32px;" } });
-        } else {
-          const isMobile = !!(obsidian.Platform && obsidian.Platform.isMobile);
-          items.forEach((e) => {
-            const row = list.createDiv({ cls: "cad-dash-row", attr: { style: "display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; background: var(--background-secondary); border-radius: 6px; cursor: pointer; border: 1px solid var(--border-color);" } });
-            const nameEl = row.createDiv({ attr: { style: "font-weight: 500; font-size: 0.9em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px;" } });
-            nameEl.setText(entityValue(e, "name", def) || e.basename);
-            const statusVal = entityValue(e, "status", def);
-            if (statusVal) {
-              const pill = row.createDiv({
-                cls: `cad-pill cad-pill-${String(statusVal).toLowerCase().replace(/\s+/g, "_")}`,
-                text: String(statusVal).replace(/_/g, " ")
-              });
-              pill.style.fontSize = "0.7em";
-              pill.style.padding = "1px 6px";
-            }
-            row.addEventListener("click", (ev) => {
-              ev.stopPropagation();
-              this.openEntityDetail("project", e.file);
-            });
-            if (!isMobile) {
-              row.draggable = true;
-              row.addEventListener("dragstart", (ev) => {
-                row.style.opacity = "0.4";
-                try {
-                  ev.dataTransfer.effectAllowed = "move";
-                  ev.dataTransfer.setData("text/cadence-entity", e.file.path);
-                  ev.dataTransfer.setData("text/cadence-stage", prio);
-                  ev.dataTransfer.setData("text/plain", `[[${e.file.basename}]]`);
-                } catch (_) {
-                }
-              });
-              row.addEventListener("dragend", () => {
-                row.style.opacity = "";
-              });
-            }
-          });
-        }
-      });
-    };
-    renderBoard();
-    const analyticsHeader = root.createDiv({ attr: { style: "display: flex; justify-content: space-between; align-items: center; padding: 24px 32px 8px 32px; margin-bottom: 16px;" } });
-    const labelEl = analyticsHeader.createEl("span", {
-      cls: "cad-section-label-lg",
-      text: "ANALYTICS & CHARTS",
-      attr: { style: "padding: 0; margin: 0; display: inline-block;" }
-    });
-    const addWidgetBtn = analyticsHeader.createEl("button", { cls: "cad-btn primary", text: "+ Add Custom Chart" });
-    const widgetsGrid = root.createDiv({ cls: "cad-dash-cols", attr: { style: "display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 16px; margin-bottom: 24px; padding: 0 32px;" } });
-    const renderWidgets = () => {
-      widgetsGrid.empty();
-      const widgets = this.plugin.settings.projectDashboardWidgets || [];
-      if (widgets.length === 0) {
-        const emptyWrap = widgetsGrid.createDiv({ attr: { style: "grid-column: 1 / -1; text-align: center; padding: 32px; background: var(--background-secondary); border-radius: 8px; border: 1px dashed var(--border-color);" } });
-        emptyWrap.createDiv({ text: 'No custom charts added yet. Click "+ Add Custom Chart" to create one!', attr: { style: "color: var(--text-muted); font-size: 0.95em;" } });
-        return;
-      }
-      widgets.forEach((w) => {
-        const card = widgetsGrid.createDiv({ cls: "cad-dash-card", attr: { style: "margin: 0; display: flex; flex-direction: column;" } });
-        const head = card.createDiv({ cls: "cad-dash-card-head", attr: { style: "display: flex; justify-content: space-between; align-items: center; padding: 10px 14px;" } });
-        const fieldKey = w.groupBy;
-        head.createDiv({ cls: "cad-dash-card-title", text: w.title.toUpperCase(), attr: { style: "font-weight: 700; font-size: 0.75rem; letter-spacing: 0.12em;" } });
-        const actionsWrap = head.createDiv({ attr: { style: "display: flex; gap: 8px; align-items: center;" } });
-        const styleSelect = actionsWrap.createEl("select", { cls: "cad-prop-input" });
-        styleSelect.style.padding = "2px 4px";
-        styleSelect.style.fontSize = "0.8em";
-        styleSelect.style.height = "auto";
-        styleSelect.style.width = "auto";
-        styleSelect.style.background = "var(--background-primary)";
-        styleSelect.style.color = "var(--text-normal)";
-        styleSelect.style.border = "1px solid var(--border-color)";
-        styleSelect.style.borderRadius = "4px";
-        [
-          { value: "donut", label: "\u{1F369} Donut" },
-          { value: "bar", label: "\u{1F4CA} Bar" },
-          { value: "kpi", label: "\u{1F5C3}\uFE0F KPI Cards" },
-          { value: "list", label: "\u{1F4CB} List" }
-        ].forEach((opt) => {
-          const o = styleSelect.createEl("option", { value: opt.value, text: opt.label });
-          if (w.style === opt.value) o.selected = true;
-        });
-        styleSelect.addEventListener("change", async () => {
-          w.style = styleSelect.value;
-          await this.plugin.saveSettings();
-          this.render();
-        });
-        const delBtn = actionsWrap.createEl("button", {
-          cls: "cad-btn",
-          text: "\xD7",
-          attr: { style: "color: var(--text-error); padding: 2px 8px; font-weight: bold; border-color: var(--text-error); font-size: 1.1em; height: auto; border-radius: 4px; background: transparent;" }
-        });
-        delBtn.addEventListener("click", async () => {
-          if (!confirm(`Delete chart "${w.title}"?`)) return;
-          this.plugin.settings.projectDashboardWidgets = (this.plugin.settings.projectDashboardWidgets || []).filter((item) => item.id !== w.id);
-          await this.plugin.saveSettings();
-          this.render();
-        });
-        const body = card.createDiv({ cls: "cad-dash-card-body", attr: { style: "flex: 1; min-height: 180px; display: flex; flex-direction: column; justify-content: center; padding: 14px;" } });
-        const counts = {};
-        allProjects.forEach((p) => {
-          let val = entityValue(p, fieldKey, def);
-          if (Array.isArray(val)) {
-            val.forEach((v) => {
-              const clean = String(v).replace(/^\[\[|\]\]$/g, "").trim();
-              if (clean) counts[clean] = (counts[clean] || 0) + 1;
-            });
-          } else {
-            const clean = String(val || "").replace(/^\[\[|\]\]$/g, "").trim();
-            const label = clean || "Unspecified";
-            counts[label] = (counts[label] || 0) + 1;
-          }
-        });
-        const chartData = Object.entries(counts).map(([label, count]) => ({ label, count })).sort((a, b) => b.count - a.count);
-        this._drawChart(body.createDiv(), w.style, chartData);
-      });
-    };
-    addWidgetBtn.addEventListener("click", () => {
-      new CadenceWidgetCreateModal(this.app, async (newWidget) => {
-        if (!this.plugin.settings.projectDashboardWidgets) {
-          this.plugin.settings.projectDashboardWidgets = [];
-        }
-        this.plugin.settings.projectDashboardWidgets.push(newWidget);
-        await this.plugin.saveSettings();
-        this.render();
-      }).open();
-    });
-    renderWidgets();
+  renderProjectsDashboard(root) {
+    return renderProjectsDashboard(this, root);
   }
   /* ── CRM Dashboard ──────────────────────── */
-  async renderDashboard(root) {
-    root.addClass("cadence-dashboard");
-    const dealDef = ENTITIES.deal;
-    const allDeals = listEntities(this.app, "deal");
-    const open = allDeals.filter((e) => !["Won", "Lost"].includes(String(entityValue(e, "stage", dealDef))));
-    const won = allDeals.filter((e) => String(entityValue(e, "stage", dealDef)) === "Won");
-    const lost = allDeals.filter((e) => String(entityValue(e, "stage", dealDef)) === "Lost");
-    const dealValue = (e) => Number(entityValue(e, "value", dealDef)) || 0;
-    const sumVal = (arr) => arr.reduce((s, e) => s + dealValue(e), 0);
-    const winRate = won.length + lost.length === 0 ? 0 : Math.round(won.length / (won.length + lost.length) * 100);
-    const avgDeal = won.length === 0 ? 0 : sumVal(won) / won.length;
-    const contacts = listEntityFiles(this.app, "contact");
-    const companies = listEntityFiles(this.app, "company");
-    const partners = listEntityFiles(this.app, "partner");
-    const activities = listEntities(this.app, "activity");
-    this._renderPageHeader(root, "CRM Dashboard", "Pipeline \xB7 momentum \xB7 recent activity", (right2) => {
-      const newDeal = right2.createEl("button", { cls: "cad-btn primary", text: "+ New Deal" });
-      newDeal.addEventListener("click", () => this._createEntityFromPrompt("deal"));
-    });
-    const grid = root.createDiv({ cls: "cad-stat-grid" });
-    const stat = (label, value, sub, accent) => {
-      const c = grid.createDiv({ cls: "cad-stat-card" });
-      if (accent) c.dataset.accent = accent;
-      c.createDiv({ cls: "cad-stat-label", text: label });
-      c.createDiv({ cls: "cad-stat-value", text: String(value) });
-      if (sub) c.createDiv({ cls: "cad-stat-sub", text: sub });
-    };
-    stat("OPEN PIPELINE", open.length, fmtValue(sumVal(open), "currency"), "sky");
-    stat("WON", won.length, fmtValue(sumVal(won), "currency"), "emerald");
-    stat("LOST", lost.length, fmtValue(sumVal(lost), "currency"), "rose");
-    stat("WIN RATE", `${winRate}%`, `${won.length}/${won.length + lost.length} closed`, "mint");
-    stat("AVG DEAL", fmtValue(avgDeal, "currency"), `${won.length} won deals`, "warn");
-    root.createDiv({ cls: "cad-section-label-lg", text: "PIPELINE BY STAGE" });
-    const stageData = getDealStages().map((stage) => {
-      const items = allDeals.filter((e) => String(entityValue(e, "stage", dealDef)) === stage);
-      return { stage, items, value: sumVal(items) };
-    });
-    const maxStageVal = Math.max(1, ...stageData.map((s) => s.value));
-    const stageWrap = root.createDiv({ cls: "cad-stage-bars" });
-    stageData.forEach(({ stage, items, value }) => {
-      const row = stageWrap.createDiv({ cls: "cad-stage-bar-row" });
-      row.dataset.stage = stage;
-      row.createDiv({ cls: "cad-stage-bar-name", text: stage });
-      row.createDiv({ cls: "cad-stage-bar-count", text: `${items.length}` });
-      const barWrap = row.createDiv({ cls: "cad-stage-bar" });
-      const fill = barWrap.createDiv({ cls: "cad-stage-bar-fill" });
-      fill.style.width = `${value / maxStageVal * 100}%`;
-      row.createDiv({ cls: "cad-stage-bar-value", text: fmtValue(value, "currency") });
-      row.addEventListener("click", () => this.setMode("crm.pipeline"));
-    });
-    const cols = root.createDiv({ cls: "cad-dash-cols" });
-    const left = cols.createDiv({ cls: "cad-dash-col" });
-    const right = cols.createDiv({ cls: "cad-dash-col" });
-    const topHot = [...open].sort((a, b) => dealValue(b) - dealValue(a)).slice(0, 5).map((e) => ({
-      title: entityValue(e, "title", dealDef) || e.basename,
-      meta: `${entityValue(e, "stage", dealDef) || "\u2014"} \xB7 ${fmtValue(dealValue(e), "currency")}`,
-      file: e.file
-    }));
-    this._dashCardSection(left, "HOT DEALS \xB7 top 5 by value", topHot, "No open deals yet \u2014 hit + New Deal above.");
-    const staleCutoff = Date.now() - 14 * 864e5;
-    const stale = open.filter((e) => e.file && e.file.stat && e.file.stat.mtime < staleCutoff).sort((a, b) => (a.file.stat.mtime || 0) - (b.file.stat.mtime || 0)).slice(0, 5).map((e) => {
-      const days = Math.round((Date.now() - e.file.stat.mtime) / 864e5);
-      return {
-        title: entityValue(e, "title", dealDef) || e.basename,
-        meta: `${entityValue(e, "stage", dealDef) || "\u2014"} \xB7 ${days}d quiet \xB7 ${fmtValue(dealValue(e), "currency")}`,
-        file: e.file
-      };
-    });
-    this._dashCardSection(left, "STALE DEALS \xB7 14+ days no edits", stale, "No stale deals \u2014 momentum is good.");
-    const recentAct = [...activities].sort((a, b) => {
-      const da = new Date(entityValue(a, "when", ENTITIES.activity) || 0).getTime();
-      const db = new Date(entityValue(b, "when", ENTITIES.activity) || 0).getTime();
-      return db - da;
-    }).slice(0, 6).map((e) => {
-      const typeVal = entityValue(e, "type", ENTITIES.activity) || "\u2014";
-      const withVal = entityValue(e, "with", ENTITIES.activity) || "\u2014";
-      const dateVal = fmtValue(entityValue(e, "when", ENTITIES.activity), "date");
-      return {
-        title: entityValue(e, "subject", ENTITIES.activity) || e.basename,
-        metaParts: [
-          { text: typeVal },
-          { text: " \xB7 " },
-          { text: withVal, entityKey: "contact" },
-          { text: ` \xB7 ${dateVal}` }
-        ],
-        file: e.file
-      };
-    });
-    this._dashCardSection(right, `RECENT ACTIVITY \xB7 ${activities.length} total`, recentAct, "No activity logged yet. Capture a call or meeting under CRM > Activities.");
-    const baseCard = right.createDiv({ cls: "cad-dash-card" });
-    baseCard.createDiv({ cls: "cad-dash-card-head" }).createDiv({ cls: "cad-dash-card-title", text: `CUSTOMER BASE \xB7 ${contacts.length + companies.length + partners.length} records` });
-    const baseBody = baseCard.createDiv({ cls: "cad-dash-card-body cad-mini-stat-row" });
-    const mkMini = (label, val, accent, mode) => {
-      const c = baseBody.createDiv({ cls: "cad-mini-stat" });
-      if (accent) c.dataset.accent = accent;
-      c.createDiv({ cls: "cad-mini-stat-value", text: String(val) });
-      c.createDiv({ cls: "cad-mini-stat-label", text: label });
-      if (mode) {
-        c.style.cursor = "pointer";
-        c.addEventListener("click", () => this.setMode(mode));
-      }
-    };
-    mkMini("CONTACTS", contacts.length, "warn", "crm.contacts");
-    mkMini("COMPANIES", companies.length, "sky", "crm.companies");
-    mkMini("PARTNERS", partners.length, "rose", "prm.partners");
-    const analyticsHeader = root.createDiv({ attr: { style: "display: flex; justify-content: space-between; align-items: center; padding: 24px 32px 8px 32px; margin-bottom: 16px;" } });
-    const labelEl = analyticsHeader.createEl("span", {
-      cls: "cad-section-label-lg",
-      text: "ANALYTICS & CHARTS",
-      attr: { style: "padding: 0; margin: 0; display: inline-block;" }
-    });
-    const addWidgetBtn = analyticsHeader.createEl("button", { cls: "cad-btn primary", text: "+ Add Custom Chart" });
-    const widgetsGrid = root.createDiv({ cls: "cad-dash-cols", attr: { style: "display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 16px; margin-bottom: 24px; padding: 0 32px;" } });
-    const renderWidgets = () => {
-      widgetsGrid.empty();
-      const widgets = this.plugin.settings.crmDashboardWidgets || [];
-      if (widgets.length === 0) {
-        const emptyWrap = widgetsGrid.createDiv({ attr: { style: "grid-column: 1 / -1; text-align: center; padding: 32px; background: var(--background-secondary); border-radius: 8px; border: 1px dashed var(--border-color);" } });
-        emptyWrap.createDiv({ text: 'No custom charts added yet. Click "+ Add Custom Chart" to create one!', attr: { style: "color: var(--text-muted); font-size: 0.95em;" } });
-        return;
-      }
-      widgets.forEach((w) => {
-        const card = widgetsGrid.createDiv({ cls: "cad-dash-card", attr: { style: "margin: 0; display: flex; flex-direction: column;" } });
-        const head = card.createDiv({ cls: "cad-dash-card-head", attr: { style: "display: flex; justify-content: space-between; align-items: center; padding: 10px 14px;" } });
-        const fieldKey = w.groupBy;
-        head.createDiv({ cls: "cad-dash-card-title", text: w.title.toUpperCase(), attr: { style: "font-weight: 700; font-size: 0.75rem; letter-spacing: 0.12em;" } });
-        const actionsWrap = head.createDiv({ attr: { style: "display: flex; gap: 8px; align-items: center;" } });
-        const styleSelect = actionsWrap.createEl("select", { cls: "cad-prop-input" });
-        styleSelect.style.padding = "2px 4px";
-        styleSelect.style.fontSize = "0.8em";
-        styleSelect.style.height = "auto";
-        styleSelect.style.width = "auto";
-        styleSelect.style.background = "var(--background-primary)";
-        styleSelect.style.color = "var(--text-normal)";
-        styleSelect.style.border = "1px solid var(--border-color)";
-        styleSelect.style.borderRadius = "4px";
-        [
-          { value: "donut", label: "\u{1F369} Donut" },
-          { value: "bar", label: "\u{1F4CA} Bar" },
-          { value: "kpi", label: "\u{1F5C3}\uFE0F KPI Cards" },
-          { value: "list", label: "\u{1F4CB} List" }
-        ].forEach((opt) => {
-          const o = styleSelect.createEl("option", { value: opt.value, text: opt.label });
-          if (w.style === opt.value) o.selected = true;
-        });
-        styleSelect.addEventListener("change", async () => {
-          w.style = styleSelect.value;
-          await this.plugin.saveSettings();
-          this.render();
-        });
-        const delBtn = actionsWrap.createEl("button", {
-          cls: "cad-btn",
-          text: "\xD7",
-          attr: { style: "color: var(--text-error); padding: 2px 8px; font-weight: bold; border-color: var(--text-error); font-size: 1.1em; height: auto; border-radius: 4px; background: transparent;" }
-        });
-        delBtn.addEventListener("click", async () => {
-          if (!confirm(`Delete chart "${w.title}"?`)) return;
-          this.plugin.settings.crmDashboardWidgets = (this.plugin.settings.crmDashboardWidgets || []).filter((item) => item.id !== w.id);
-          await this.plugin.saveSettings();
-          this.render();
-        });
-        const body = card.createDiv({ cls: "cad-dash-card-body", attr: { style: "flex: 1; min-height: 180px; display: flex; flex-direction: column; justify-content: center; padding: 14px;" } });
-        const counts = {};
-        allDeals.forEach((p) => {
-          let val = entityValue(p, fieldKey, dealDef);
-          if (Array.isArray(val)) {
-            val.forEach((v) => {
-              const clean = String(v).replace(/^\[\[|\]\]$/g, "").trim();
-              if (clean) counts[clean] = (counts[clean] || 0) + 1;
-            });
-          } else {
-            const clean = String(val || "").replace(/^\[\[|\]\]$/g, "").trim();
-            const label = clean || "Unspecified";
-            counts[label] = (counts[label] || 0) + 1;
-          }
-        });
-        const chartData = Object.entries(counts).map(([label, count]) => ({ label, count })).sort((a, b) => b.count - a.count);
-        this._drawChart(body.createDiv(), w.style, chartData);
-      });
-    };
-    addWidgetBtn.addEventListener("click", () => {
-      new CadenceWidgetCreateModal(this.app, "deal", async (newWidget) => {
-        if (!this.plugin.settings.crmDashboardWidgets) {
-          this.plugin.settings.crmDashboardWidgets = [];
-        }
-        this.plugin.settings.crmDashboardWidgets.push(newWidget);
-        await this.plugin.saveSettings();
-        this.render();
-      }).open();
-    });
-    renderWidgets();
+  renderDashboard(root) {
+    return renderCrmDashboard(this, root);
   }
   /* Reusable list card on the dashboard. */
   _dashCardSection(parent, title, rows, emptyMsg) {

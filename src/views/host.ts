@@ -180,10 +180,15 @@ export interface AppViewHost {
   /** Write a frontmatter patch to a project note, then flash Saved; a failure notices. */
   _writeProjectFrontmatter(file: TFile, patch: Record<string, unknown>, flashSaved?: FlashSaved): Promise<void>;
 
-  /* ── Called by the shell, owned by later view tickets ── */
+  /* ── Projects and CRM dashboards (src/views/projects-dashboard.ts, src/views/crm-dashboard.ts) ── */
   renderProjectsDashboard(root: HTMLElement): Promise<void>;
-  renderTemplateDetail(root: HTMLElement, entityKey: string, file: TFile): Promise<void>;
+  /** Flagged: no call site (projects.projects routes to renderEntityList); characterized and kept. */
+  renderProjectsView(root: HTMLElement): Promise<void>;
+  /** The CRM dashboard; the moved function is renderCrmDashboard. */
   renderDashboard(root: HTMLElement): Promise<void>;
+
+  /* ── Called by the shell, owned by later view tickets ── */
+  renderTemplateDetail(root: HTMLElement, entityKey: string, file: TFile): Promise<void>;
   renderPRMAnalytics(root: HTMLElement): Promise<void>;
   renderReportPipeline(root: HTMLElement): Promise<void>;
   renderReportSales(root: HTMLElement): Promise<void>;
