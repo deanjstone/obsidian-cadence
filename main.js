@@ -1219,6 +1219,20 @@ priority: normal
 
 // src/modals/chart-section.ts
 var import_obsidian3 = require("obsidian");
+function buildChartSectionConfig(form) {
+  return {
+    targetEntity: form.targetEntity,
+    linkField: form.linkField,
+    groupField: form.groupField,
+    style: form.style
+  };
+}
+function chartSectionDefaults(fieldKeys, parentEntity) {
+  const parentDef = ENTITIES[parentEntity];
+  const linkField = parentDef ? fieldKeys.find((k) => k === parentEntity || k === parentDef.label.toLowerCase()) : void 0;
+  const groupField = fieldKeys.find((k) => ["stage", "status", "type", "priority"].includes(k));
+  return { linkField, groupField };
+}
 var CadenceChartSectionModal = class extends import_obsidian3.Modal {
   constructor(app, parentEntity, onSubmit) {
     super(app);
@@ -1263,14 +1277,9 @@ var CadenceChartSectionModal = class extends import_obsidian3.Modal {
           selGroup.createEl("option", { value: f.key, text: `${f.label} (${f.key})` });
         }
       });
-      const parentDef = ENTITIES[this.parentEntity];
-      if (parentDef) {
-        const parentKey = this.parentEntity;
-        const linkOpt = Array.from(selLink.options).find((o) => o.value === parentKey || o.value === parentDef.label.toLowerCase());
-        if (linkOpt) selLink.value = linkOpt.value;
-      }
-      const groupOpt = Array.from(selGroup.options).find((o) => ["stage", "status", "type", "priority"].includes(o.value));
-      if (groupOpt) selGroup.value = groupOpt.value;
+      const { linkField, groupField } = chartSectionDefaults(Array.from(selLink.options).map((o) => o.value), this.parentEntity);
+      if (linkField !== void 0) selLink.value = linkField;
+      if (groupField !== void 0) selGroup.value = groupField;
     };
     refreshFields();
     selTarget.addEventListener("change", refreshFields);
@@ -1287,12 +1296,12 @@ var CadenceChartSectionModal = class extends import_obsidian3.Modal {
     row.createEl("button", { text: "Cancel" }).addEventListener("click", () => this.close());
     const ok = row.createEl("button", { text: "Add Chart", cls: "mod-cta" });
     ok.addEventListener("click", () => {
-      this.onSubmit({
+      this.onSubmit(buildChartSectionConfig({
         targetEntity: selTarget.value,
         linkField: selLink.value,
         groupField: selGroup.value,
         style: selStyle2.value
-      });
+      }));
       this.close();
     });
   }
@@ -1349,6 +1358,15 @@ var CadenceConfirmModal = class extends import_obsidian4.Modal {
 
 // src/modals/cross-section.ts
 var import_obsidian5 = require("obsidian");
+function buildCrossSectionConfig(form) {
+  return {
+    id: "xs_" + Math.random().toString(36).slice(2, 10),
+    parentEntity: form.parentEntity,
+    targetEntity: form.targetEntity,
+    linkField: form.linkField,
+    viewType: form.viewType
+  };
+}
 var CadenceCrossSectionModal = class extends import_obsidian5.Modal {
   constructor(app, parentEntity, onSubmit) {
     super(app);
@@ -1409,16 +1427,12 @@ var CadenceCrossSectionModal = class extends import_obsidian5.Modal {
       selectView.createEl("option", { value: opt.value, text: opt.text });
     });
     const submit = () => {
-      const targetEntity = selectTarget.value;
-      const linkField = selectField.value;
-      const viewType = selectView.value;
-      this.onSubmit({
-        id: "xs_" + Math.random().toString(36).slice(2, 10),
+      this.onSubmit(buildCrossSectionConfig({
         parentEntity: this.parentEntity,
-        targetEntity,
-        linkField,
-        viewType
-      });
+        targetEntity: selectTarget.value,
+        linkField: selectField.value,
+        viewType: selectView.value
+      }));
       this.close();
     };
     const row = contentEl.createDiv();
@@ -1499,6 +1513,16 @@ var CadencePromptModal = class extends import_obsidian6.Modal {
 
 // src/modals/widget-create.ts
 var import_obsidian7 = require("obsidian");
+function buildWidgetConfig(form) {
+  const title = form.title.trim();
+  if (!title) return null;
+  return {
+    id: `widget.${Date.now()}`,
+    title,
+    groupBy: form.groupBy,
+    style: form.style
+  };
+}
 var CadenceWidgetCreateModal = class extends import_obsidian7.Modal {
   constructor(app, entityKey, onSubmit) {
     super(app);
@@ -1550,20 +1574,13 @@ var CadenceWidgetCreateModal = class extends import_obsidian7.Modal {
       selectStyle.createEl("option", { value: opt.value, text: opt.text });
     });
     const submit = () => {
-      const titleVal = inputTitle.value.trim();
-      const propVal = selectProp.value;
-      const styleVal = selectStyle.value;
-      if (!titleVal) {
+      const config = buildWidgetConfig({ title: inputTitle.value, groupBy: selectProp.value, style: selectStyle.value });
+      if (!config) {
         new import_obsidian7.Notice("Please enter a chart title.");
         inputTitle.focus();
         return;
       }
-      this.onSubmit({
-        id: `widget.${Date.now()}`,
-        title: titleVal,
-        groupBy: propVal,
-        style: styleVal
-      });
+      this.onSubmit(config);
       this.close();
     };
     const row = contentEl.createDiv();

@@ -5,6 +5,25 @@ import type { WidgetConfig } from '../types/modals';
 
 export type WidgetSubmit = (config: WidgetConfig) => void;
 
+/** Raw form values, as read from the modal's inputs. */
+export interface WidgetForm {
+  title: string;
+  groupBy: string;
+  style: string;
+}
+
+/** The onSubmit payload, or null when the trimmed title is blank. */
+export function buildWidgetConfig(form: WidgetForm): WidgetConfig | null {
+  const title = form.title.trim();
+  if (!title) return null;
+  return {
+    id: `widget.${Date.now()}`,
+    title,
+    groupBy: form.groupBy,
+    style: form.style
+  };
+}
+
 /* Dashboard chart widget: title, group-by field and chart style. Also
    accepts (app, onSubmit), in which case the entity is 'project'. */
 export class CadenceWidgetCreateModal extends Modal {
@@ -71,23 +90,16 @@ export class CadenceWidgetCreateModal extends Modal {
     });
 
     const submit = () => {
-      const titleVal = inputTitle.value.trim();
-      const propVal = selectProp.value;
-      const styleVal = selectStyle.value;
+      const config = buildWidgetConfig({ title: inputTitle.value, groupBy: selectProp.value, style: selectStyle.value });
 
-      if (!titleVal) {
+      if (!config) {
         new Notice('Please enter a chart title.');
         inputTitle.focus();
         return;
       }
 
       // Throws when constructed without onSubmit (flagged, not fixed).
-      this.onSubmit!({
-        id: `widget.${Date.now()}`,
-        title: titleVal,
-        groupBy: propVal,
-        style: styleVal
-      });
+      this.onSubmit!(config);
       this.close();
     };
 

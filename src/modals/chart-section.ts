@@ -3,6 +3,28 @@ import { ENTITIES } from '../constants/entities';
 import type { EntityKey } from '../types/entities';
 import type { ChartSectionConfig } from '../types/modals';
 
+/** The onSubmit payload, copied from the form values. */
+export function buildChartSectionConfig(form: ChartSectionConfig): ChartSectionConfig {
+  return {
+    targetEntity: form.targetEntity,
+    linkField: form.linkField,
+    groupField: form.groupField,
+    style: form.style
+  };
+}
+
+/* Sensible pre-selections among a target's field keys: link = first field
+   named after the parent entity (key or lower-cased label), group = first
+   of stage/status/type/priority, in field order. Undefined = no match. */
+export function chartSectionDefaults(fieldKeys: string[], parentEntity: EntityKey): { linkField?: string; groupField?: string } {
+  const parentDef = ENTITIES[parentEntity];
+  const linkField = parentDef
+    ? fieldKeys.find((k) => k === parentEntity || k === parentDef.label.toLowerCase())
+    : undefined;
+  const groupField = fieldKeys.find((k) => ['stage', 'status', 'type', 'priority'].includes(k));
+  return { linkField, groupField };
+}
+
 /* Modal: pick target entity + link field + group-by field + chart style for a chart block */
 export class CadenceChartSectionModal extends Modal {
   declare parentEntity: EntityKey;
@@ -62,15 +84,9 @@ export class CadenceChartSectionModal extends Modal {
           selGroup.createEl('option', { value: f.key, text: `${f.label} (${f.key})` });
         }
       });
-      // Pre-select sensible defaults: link = first field that matches parentEntity, group = status/stage/type
-      const parentDef = ENTITIES[this.parentEntity];
-      if (parentDef) {
-        const parentKey = this.parentEntity;
-        const linkOpt = Array.from(selLink.options).find(o => o.value === parentKey || o.value === parentDef.label.toLowerCase());
-        if (linkOpt) selLink.value = linkOpt.value;
-      }
-      const groupOpt = Array.from(selGroup.options).find(o => ['stage', 'status', 'type', 'priority'].includes(o.value));
-      if (groupOpt) selGroup.value = groupOpt.value;
+      const { linkField, groupField } = chartSectionDefaults(Array.from(selLink.options).map((o) => o.value), this.parentEntity);
+      if (linkField !== undefined) selLink.value = linkField;
+      if (groupField !== undefined) selGroup.value = groupField;
     };
     refreshFields();
     selTarget.addEventListener('change', refreshFields);
@@ -91,12 +107,12 @@ export class CadenceChartSectionModal extends Modal {
     row.createEl('button', { text: 'Cancel' }).addEventListener('click', () => this.close());
     const ok = row.createEl('button', { text: 'Add Chart', cls: 'mod-cta' });
     ok.addEventListener('click', () => {
-      this.onSubmit({
+      this.onSubmit(buildChartSectionConfig({
         targetEntity: selTarget.value,
         linkField: selLink.value,
         groupField: selGroup.value,
         style: selStyle2.value
-      });
+      }));
       this.close();
     });
   }

@@ -3,6 +3,20 @@ import { ENTITIES } from '../constants/entities';
 import type { EntityKey } from '../types/entities';
 import type { CrossSectionConfig } from '../types/modals';
 
+/** Raw form values, as read from the modal's selects. */
+export type CrossSectionForm = Omit<CrossSectionConfig, 'id'>;
+
+/** The onSubmit payload: the form plus an `xs_` id from Math.random(). */
+export function buildCrossSectionConfig(form: CrossSectionForm): CrossSectionConfig {
+  return {
+    id: 'xs_' + Math.random().toString(36).slice(2, 10),
+    parentEntity: form.parentEntity,
+    targetEntity: form.targetEntity,
+    linkField: form.linkField,
+    viewType: form.viewType
+  };
+}
+
 /* Cross-linked section: show another entity's notes that link back to the
    parent through one of their fields. */
 export class CadenceCrossSectionModal extends Modal {
@@ -76,17 +90,12 @@ export class CadenceCrossSectionModal extends Modal {
     });
 
     const submit = () => {
-      const targetEntity = selectTarget.value;
-      const linkField = selectField.value;
-      const viewType = selectView.value;
-
-      this.onSubmit({
-        id: 'xs_' + Math.random().toString(36).slice(2, 10),
+      this.onSubmit(buildCrossSectionConfig({
         parentEntity: this.parentEntity,
-        targetEntity,
-        linkField,
-        viewType
-      });
+        targetEntity: selectTarget.value,
+        linkField: selectField.value,
+        viewType: selectView.value
+      }));
       this.close();
     };
 
