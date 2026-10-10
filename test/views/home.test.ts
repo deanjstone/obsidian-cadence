@@ -56,12 +56,12 @@ describe("renderHome", () => {
     "_homeProjectsCard", "_homePipelineCard", "_homeActivitiesCard",
   ];
 
-  function stubParts(view: Record<string, unknown>) {
+  function stubParts(view: Record<string, (el: unknown) => Promise<void>>) {
     const order: Array<[string, unknown]> = [];
     for (const name of ["_renderBriefing", ...CARDS]) {
-      vi.spyOn(view as never, name as never).mockImplementation((async (el: unknown) => {
+      vi.spyOn(view, name).mockImplementation(async (el: unknown) => {
         order.push([name, el]);
-      }) as never);
+      });
     }
     return order;
   }

@@ -1,4 +1,5 @@
 import type { CrossSectionConfig } from './modals';
+import type { Reminder } from './reminders';
 
 /* The subset of plugin settings the extracted helpers read. The full
    settings object is still defined by DEFAULT_SETTINGS in the legacy file. */
@@ -21,17 +22,20 @@ export interface CustomPage {
   entityKey: string;
 }
 
-/* The settings the app view shell and its moved surfaces read. */
-export interface AppViewSettings {
+/* The settings the app view shell and its moved surfaces read. The daily-note
+   fields always come from DEFAULT_SETTINGS. */
+export interface AppViewSettings extends DailyNoteSettings {
   defaultTab?: string;
-  dailyNoteFolder?: string;
   weekStartsOn?: number;
   cadenceAppDark?: boolean;
   collapsedGroups?: Record<string, boolean>;
   modules?: Record<string, boolean>;
   customPages?: CustomPage[];
-  // TODO: confirm shape — only done/when are read by the shell.
-  reminders?: Array<{ done?: boolean; when?: string | null }>;
+  /** 'tasknotes' reads tasks from TaskNotes/Tasks; anything else from the daily note. */
+  taskManagementSystem?: string;
+  /** Daily-note task → project path, keyed by `${dailyPath}::${taskText}`. */
+  taskProjectLinks?: Record<string, string>;
+  reminders?: Reminder[];
   /** Settings-driven cross sections on entity detail forms. */
   crossSections?: CrossSectionConfig[];
 }

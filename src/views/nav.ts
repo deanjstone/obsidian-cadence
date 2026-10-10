@@ -7,7 +7,7 @@ import type { AppViewHost } from './host';
    and the nav toggles. The pure functions read settings or plain data only;
    the toggles act on the view. */
 
-export function migrateModeId(id: string, settings: AppViewSettings): string {
+export function migrateModeId(id: string, settings: Partial<AppViewSettings>): string {
   if (id === 'today') return 'planner.today';
   if (id === 'planner') return 'planner.calendar';
   const customPages = settings.customPages || [];
@@ -15,7 +15,7 @@ export function migrateModeId(id: string, settings: AppViewSettings): string {
   return SURFACE_BY_ID[id] ? id : 'home';
 }
 
-export function resolveSurface(id: string, settings: AppViewSettings): NavSurface {
+export function resolveSurface(id: string, settings: Partial<AppViewSettings>): NavSurface {
   const customPages = settings.customPages || [];
   const custom = customPages.find(p => p.id === id);
   if (custom) {
@@ -29,7 +29,7 @@ export function resolveSurface(id: string, settings: AppViewSettings): NavSurfac
   return SURFACE_BY_ID[id] || SURFACE_BY_ID['home'];
 }
 
-export function visibleNavGroups(settings: AppViewSettings): NavGroup[] {
+export function visibleNavGroups(settings: Partial<AppViewSettings>): NavGroup[] {
   const mods = settings.modules || { crm: true, prm: true, planner: true, projects: true };
   const groups: NavGroup[] = JSON.parse(JSON.stringify(NAV_GROUPS));
 
