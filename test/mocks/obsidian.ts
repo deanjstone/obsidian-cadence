@@ -148,7 +148,8 @@ export class Vault {
     this.modified.push(file.path);
   }
 
-  on(name: string, callback: (...args: unknown[]) => unknown) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- each event passes its own args, as in obsidian.d.ts
+  on(name: string, callback: (...args: any[]) => unknown) {
     const list = this.listeners.get(name) ?? [];
     list.push(callback);
     this.listeners.set(name, list);
@@ -170,7 +171,8 @@ export class MetadataCache {
     const fm = this.frontmatter.get(file.path);
     return fm ? { frontmatter: fm } : null;
   }
-  on(name: string, callback: (...args: unknown[]) => unknown) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- each event passes its own args, as in obsidian.d.ts
+  on(name: string, callback: (...args: any[]) => unknown) {
     return { name, callback };
   }
 }
@@ -205,7 +207,8 @@ export class Workspace {
   onLayoutReady(callback: () => unknown) {
     this.layoutReadyCallbacks.push(callback);
   }
-  on(name: string, callback: (...args: unknown[]) => unknown) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- each event passes its own args, as in obsidian.d.ts
+  on(name: string, callback: (...args: any[]) => unknown) {
     return { name, callback };
   }
   getLeavesOfType(_type: string): unknown[] {

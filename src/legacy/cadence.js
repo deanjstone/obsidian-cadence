@@ -38,6 +38,14 @@ import { CadenceReminderEditModal } from '../modals/reminder-edit';
 import { CadenceWidgetCreateModal } from '../modals/widget-create';
 import { CadenceEntityCreateModal } from '../modals/entity-create';
 import { CadenceImportModal } from '../modals/import-modal';
+import {
+  closeEntityDetail, createEntityFromPrompt, initAppViewState, onOpenAppView, openEntityDetail, openEntityDetailFromFile,
+  openPrompt, openSettingsTab, openTemplateDetail, renderAppView, renderComingSoon, renderPageHeader,
+} from '../views/app-view';
+import {
+  migrateModeId, modeUsesEntityFolder, resolveSurface, setMode, toggleCadenceDark, toggleGroup, toggleMobileNav,
+  visibleNavGroups,
+} from '../views/nav';
 
 
 
@@ -226,80 +234,22 @@ const CURRENCY_OPTIONS = [
 class CadenceAppView extends obsidian.ItemView {
   constructor(leaf, plugin) {
     super(leaf);
-    this.plugin = plugin;
-    // Migrate legacy mode IDs from older versions
-    const raw = plugin.settings.defaultTab || 'planner.today';
-    this.mode = this._migrateModeId(raw);
-    // Today state
-    this.todayFile = null;
-    this.todayParsed = null;
-    this._journalSaveTimer = null;
-    // Planner state
-    this.plannerAnchor = startOfDay(new Date());
-    // Detail-view state — when set, renders the entity form instead of the surface
-    this.detailFile = null;
-    this.detailEntityKey = null;
-    // Mobile nav drawer state (ephemeral, not persisted)
-    this.mobileNavOpen = false;
+    initAppViewState(this, plugin);
   }
 
-  _toggleMobileNav(force) {
-    const root = this.containerEl.children[1];
-    this.mobileNavOpen = (typeof force === 'boolean') ? force : !this.mobileNavOpen;
-    if (root) root.toggleClass('cad-mobile-nav-open', this.mobileNavOpen);
-  }
+  _toggleMobileNav(force) { return toggleMobileNav(this, force); }
 
-  async openEntityDetail(entityKey, file) {
-    if (!file || !entityKey) return;
-    this.detailEntityKey = entityKey;
-    this.detailFile = file;
-    await this.render();
-  }
+  openEntityDetail(entityKey, file) { return openEntityDetail(this, entityKey, file); }
 
-  async openTemplateDetail(entityKey, file) {
-    if (!file || !entityKey) return;
-    this.detailEntityKey = 'template:' + entityKey;
-    this.detailFile = file;
-    await this.render();
-  }
+  openTemplateDetail(entityKey, file) { return openTemplateDetail(this, entityKey, file); }
 
-  async openEntityDetailFromFile(file) {
-    const key = entityKeyFromFile(this.app, file);
-    if (!key) {
-      // Not a Cadence entity — fall back to opening the markdown
-      this.app.workspace.openLinkText(file.path, '', false);
-      return;
-    }
-    return this.openEntityDetail(key, file);
-  }
+  openEntityDetailFromFile(file) { return openEntityDetailFromFile(this, file); }
 
-  async closeEntityDetail() {
-    this.detailFile = null;
-    this.detailEntityKey = null;
-    await this.render();
-  }
+  closeEntityDetail() { return closeEntityDetail(this); }
 
-  _migrateModeId(id) {
-    if (id === 'today') return 'planner.today';
-    if (id === 'planner') return 'planner.calendar';
-    const customPages = this.plugin.settings.customPages || [];
-    if (customPages.some(p => p.id === id)) return id;
-    return SURFACE_BY_ID[id] ? id : 'home';
-  }
+  _migrateModeId(id) { return migrateModeId(id, this.plugin.settings); }
 
-  _resolveSurface(id) {
-    const customPages = this.plugin.settings.customPages || [];
-    const custom = customPages.find(p => p.id === id);
-    if (custom) {
-      return {
-        id: custom.id,
-        label: custom.label,
-        icon: custom.icon || 'file-text',
-        desc: `Custom page displaying ${custom.entityKey} entity.`
-      };
-    }
-    return SURFACE_BY_ID[id] || SURFACE_BY_ID['home'];
-  }
+  _resolveSurface(id) { return resolveSurface(id, this.plugin.settings); }
 
   getEntityKanbanParams(entityKey) {
     const def = ENTITIES[entityKey];
@@ -340,40 +290,9 @@ class CadenceAppView extends obsidian.ItemView {
 
   /* Toggle Cadence-app dark mode. Scoped to `.cadence-app` only —
      does not affect Obsidian's overall light/dark mode. Persisted in settings. */
-  async _toggleCadenceDark() {
-    this.plugin.settings.cadenceAppDark = !this.plugin.settings.cadenceAppDark;
-    await this.plugin.saveSettings();
-    this.render();
-  }
+  _toggleCadenceDark() { return toggleCadenceDark(this); }
 
-  _visibleNavGroups() {
-    const mods = this.plugin.settings.modules || { crm: true, prm: true, planner: true, projects: true };
-    const groups = JSON.parse(JSON.stringify(NAV_GROUPS));
-
-    // Inject custom pages
-    const customPages = this.plugin.settings.customPages || [];
-    customPages.forEach((p) => {
-      const g = groups.find((group) => group.id === p.sectionId);
-      if (g) {
-        g.items.push({
-          id: p.id,
-          label: p.label,
-          icon: p.icon || 'file-text',
-          module: p.module || p.sectionId,
-          desc: `Custom page displaying ${p.entityKey} entity.`
-        });
-      }
-    });
-
-    return groups
-      .map((g) => {
-        if (g.module && mods[g.module] === false) return null;
-        const items = g.items.filter((it) => !it.module || mods[it.module] !== false);
-        if (!items.length) return null;
-        return Object.assign({}, g, { items });
-      })
-      .filter(Boolean);
-  }
+  _visibleNavGroups() { return visibleNavGroups(this.plugin.settings); }
 
   /* Link a daily-note task to a project. Keyed by (dailyPath, taskText). */
   _taskLinkKey(dailyPath, text) { return `${dailyPath}::${(text || '').trim()}`; }
@@ -448,291 +367,20 @@ class CadenceAppView extends obsidian.ItemView {
   getDisplayText() { return 'Cadence'; }
   getIcon() { return 'sparkles'; }
 
-  async setMode(m) {
-    this.mode = this._migrateModeId(m);
-    // Switching surfaces clears any open detail form
-    this.detailFile = null;
-    this.detailEntityKey = null;
-    await this.render();
-  }
+  setMode(m) { return setMode(this, m); }
 
-  async toggleGroup(groupId) {
-    const collapsed = this.plugin.settings.collapsedGroups || {};
-    collapsed[groupId] = !collapsed[groupId];
-    this.plugin.settings.collapsedGroups = collapsed;
-    await this.plugin.saveSettings();
-    await this.render();
-  }
+  toggleGroup(groupId) { return toggleGroup(this, groupId); }
 
-  async onOpen() {
-    this.containerEl.children[1].empty();
-    await this.render();
+  onOpen() { return onOpenAppView(this); }
 
-    // Listen to live editor changes to dynamically update Cadence views as you type
-    this.registerEvent(this.app.workspace.on('editor-change', (editor, info) => {
-      const file = info.file;
-      if (!file) return;
+  _modeUsesEntityFolder(path) { return modeUsesEntityFolder(path); }
 
-      let shouldRender = false;
-      if (this.detailFile && file.path === this.detailFile.path) {
-        shouldRender = true;
-      } else if (this.mode === 'planner.today' && this.todayFile && file.path === this.todayFile.path) {
-        shouldRender = true;
-      }
+  render() { return renderAppView(this); }
 
-      if (shouldRender) {
-        if (this._liveRenderTimer) clearTimeout(this._liveRenderTimer);
-        this._liveRenderTimer = setTimeout(() => {
-          this.render();
-        }, 300);
-      }
-    }));
-
-    this.registerEvent(this.app.vault.on('modify', (file) => {
-      if (this.detailFile && file && file.path === this.detailFile.path) {
-        // Skip refresh only if active focus is inside our view leaf to prevent stealing input focus
-        if (this.app.workspace.getActiveLeaf() === this.leaf) return;
-        return this.render();
-      }
-      if (this.mode === 'planner.today' && this.todayFile && file.path === this.todayFile.path) {
-        return this.render();
-      }
-      if (this.mode === 'planner.calendar') {
-        const days = weekDates(this.plannerAnchor, this.plugin.settings.weekStartsOn);
-        const paths = days.map((d) => dailyNotePath(this.plugin.settings, d));
-        if (paths.includes(file.path)) return this.render();
-      }
-      if (this._modeUsesEntityFolder(file.path)) return this.render();
-    }));
-
-    const entityRefresh = (file) => {
-      if (this.detailFile && file && file.path === this.detailFile.path) return;
-      if (this._modeUsesEntityFolder(file && file.path)) this.render();
-    };
-    this.registerEvent(this.app.vault.on('create', entityRefresh));
-    this.registerEvent(this.app.vault.on('delete', (file) => {
-      if (this.detailFile && file && file.path === this.detailFile.path) {
-        this.closeEntityDetail();
-        return;
-      }
-      entityRefresh(file);
-    }));
-    this.registerEvent(this.app.vault.on('rename', (file, oldPath) => {
-      if (this.detailFile && file && file.path === this.detailFile.path) return;
-      if (this._modeUsesEntityFolder(file && file.path) || this._modeUsesEntityFolder(oldPath)) this.render();
-    }));
-    this.registerEvent(this.app.metadataCache.on('changed', (file) => {
-      if (this.detailFile && file && file.path === this.detailFile.path) {
-        if (this.app.workspace.getActiveLeaf() === this.leaf) return;
-        return this.render();
-      }
-      if (this._modeUsesEntityFolder(file && file.path)) this.render();
-    }));
-
-    // Auto-refresh when user clicks back onto the Cadence pane
-    this.registerEvent(this.app.workspace.on('active-leaf-change', (leaf) => {
-      if (leaf === this.leaf) {
-        this.render();
-      }
-    }));
-  }
-
-  _modeUsesEntityFolder(path) {
-    if (!path) return false;
-    // Most surfaces read entity folders; refresh whenever a touched file
-    // sits under any Cadence/* folder. Cheap enough.
-    return path.startsWith('Cadence/');
-  }
-
-  async render() {
-    if (this._isRendering) {
-      this._needsRenderAgain = true;
-      return;
-    }
-    this._isRendering = true;
-    this._needsRenderAgain = false;
-    try {
-      const root = this.containerEl.children[1];
-      root.empty();
-      root.addClass('cadence-app');
-      root.toggleClass('cad-dark', !!this.plugin.settings.cadenceAppDark);
-
-    const active = this._resolveSurface(this.mode) || SURFACE_BY_ID['planner.today'];
-
-    /* ── Top brand bar ──────────────────────── */
-    const topbar = root.createDiv({ cls: 'cad-app-topbar' });
-
-    /* Hamburger — visible only on mobile via CSS, toggles the nav drawer */
-    const burger = topbar.createEl('button', { cls: 'cad-mobile-burger' });
-    try { obsidian.setIcon(burger, 'menu'); } catch (_) { }
-    burger.title = 'Show nav';
-    burger.addEventListener('click', () => this._toggleMobileNav());
-
-    const brand = topbar.createDiv({ cls: 'cad-app-brand' });
-    brand.createSpan({ cls: 'cad-app-brand-mark', text: '◐' });
-    brand.createSpan({ cls: 'cad-app-brand-text', text: 'Cadence' });
-
-    const topRight = topbar.createDiv({ cls: 'cad-app-topbar-right' });
-
-    /* Cadence-app dark mode toggle (scoped — does NOT touch Obsidian's mode) */
-    const dark = !!this.plugin.settings.cadenceAppDark;
-    const themeBtn = topRight.createEl('button', { cls: 'cad-topbar-icon-btn' });
-    try { obsidian.setIcon(themeBtn, dark ? 'sun' : 'moon'); } catch (_) { }
-    themeBtn.title = dark ? 'Cadence: switch to light' : 'Cadence: switch to dark';
-    themeBtn.addEventListener('click', () => this._toggleCadenceDark());
-
-    const eyebrow = topRight.createDiv({ cls: 'cad-app-topbar-meta' });
-    eyebrow.setText(active.label.toUpperCase());
-
-    /* ── Body: left grouped nav + main content ──────── */
-    const body = root.createDiv({ cls: 'cad-app-body' });
-
-    /* Backdrop — only visible on mobile when drawer is open; tapping dismisses. */
-    const backdrop = body.createDiv({ cls: 'cad-mobile-backdrop' });
-    backdrop.addEventListener('click', () => this._toggleMobileNav(false));
-
-    const nav = body.createDiv({ cls: 'cad-app-nav' });
-    const collapsed = this.plugin.settings.collapsedGroups || {};
-
-    const visibleGroups = this._visibleNavGroups();
-    visibleGroups.forEach((group) => {
-      const groupEl = nav.createDiv({ cls: 'cad-nav-group' });
-      const isCollapsed = !!collapsed[group.id];
-
-      if (group.label) {
-        const head = groupEl.createDiv({ cls: 'cad-nav-group-head' });
-        const chev = head.createSpan({ cls: 'cad-nav-group-chev' });
-        try { obsidian.setIcon(chev, isCollapsed ? 'chevron-right' : 'chevron-down'); } catch (_) { }
-        head.createSpan({ cls: 'cad-nav-group-label', text: group.label.toUpperCase() });
-        head.addEventListener('click', () => this.toggleGroup(group.id));
-      }
-
-      if (!isCollapsed || !group.label) {
-        const list = groupEl.createDiv({ cls: 'cad-nav-group-items' });
-        group.items.forEach((s) => {
-          const item = list.createDiv({
-            cls: 'cad-app-nav-item' + (this.mode === s.id ? ' active' : ''),
-          });
-          const ic = item.createSpan({ cls: 'cad-app-nav-icon' });
-          try { obsidian.setIcon(ic, s.icon); } catch (_) { }
-          item.createSpan({ cls: 'cad-app-nav-label', text: s.label });
-          if (!BUILT_SURFACES.has(s.id) && !s.id.startsWith('custom.')) {
-            item.createSpan({ cls: 'cad-app-nav-badge', text: 'soon' });
-          }
-          // Inbox: badge with overdue count
-          if (s.id === 'planner.inbox') {
-            const overdue = this._inboxOverdueCount();
-            if (overdue > 0) item.createSpan({ cls: 'cad-app-nav-badge cad-nav-badge-alert', text: String(overdue) });
-          }
-          item.addEventListener('click', () => {
-            this.setMode(s.id);
-            // On mobile, picking a nav item closes the drawer.
-            if (this.mobileNavOpen) this._toggleMobileNav(false);
-          });
-        });
-      }
-    });
-
-    const content = body.createDiv({ cls: 'cad-app-content' });
-
-    // Detail view trumps the normal surface routing
-    if (this.detailFile && this.detailEntityKey) {
-      // Check if file still exists in vault to prevent crashing on deleted files
-      const exists = this.app.vault.getAbstractFileByPath(this.detailFile.path);
-      if (!exists) {
-        this.detailFile = null;
-        this.detailEntityKey = null;
-      } else {
-        try {
-          if (this.detailEntityKey.startsWith('template:')) {
-            const entityKey = this.detailEntityKey.slice('template:'.length);
-            await this.renderTemplateDetail(content, entityKey, this.detailFile);
-          } else {
-            await this.renderEntityDetail(content, this.detailEntityKey, this.detailFile);
-          }
-          return;
-        } catch (e) {
-          console.error("Cadence: Failed to render detail view", e);
-          this.detailFile = null;
-          this.detailEntityKey = null;
-        }
-      }
-    }
-
-    const route = {
-      'home': () => this.renderHome(content),
-      'planner.inbox': () => this.renderInbox(content),
-      'planner.today': () => this.renderTodayPane(content),
-      'planner.calendar': () => this.renderPlannerPane(content),
-      'projects.dashboard': () => this.renderProjectsDashboard(content),
-      'projects.projects': () => this.renderEntityList(content, 'project'),
-      'crm.dashboard': () => this.renderDashboard(content),
-      'crm.pipeline': () => this.renderEntityList(content, 'deal'),
-      'crm.contacts': () => this.renderEntityList(content, 'contact'),
-      'crm.companies': () => this.renderEntityList(content, 'company'),
-      'crm.activities': () => this.renderEntityList(content, 'activity'),
-      'prm.partners': () => this.renderEntityList(content, 'partner'),
-      'prm.registrations': () => this.renderEntityList(content, 'registration'),
-      'prm.commissions': () => this.renderEntityList(content, 'commission'),
-      'prm.leads': () => this.renderEntityList(content, 'lead'),
-      'prm.certifications': () => this.renderEntityList(content, 'certification'),
-      'prm.analytics': () => this.renderPRMAnalytics(content),
-      'workflow.sequences': () => this.renderEntityList(content, 'sequence'),
-      'reports.pipeline': () => this.renderReportPipeline(content),
-      'reports.sales': () => this.renderReportSales(content),
-      'reports.partners': () => this.renderReportPartners(content),
-      'reports.activity': () => this.renderReportActivity(content),
-      'reports.graph': () => this.renderReportGraph(content),
-      'reports.productivity': () => this.renderProductivity(content),
-      'team': () => this.renderTeam(content),
-      'templates': () => this.renderTemplatesDashboard(content),
-      'settings': () => this.openSettingsTab(content),
-    };
-    if (route[this.mode]) {
-      await route[this.mode]();
-    } else {
-      const customPages = this.plugin.settings.customPages || [];
-      const custom = customPages.find(p => p.id === this.mode);
-      if (custom) {
-        await this.renderEntityList(content, custom.entityKey);
-      } else {
-        this.renderComingSoon(content, active);
-      }
-    }
-  } finally {
-    this._isRendering = false;
-    if (this._needsRenderAgain) {
-      this._needsRenderAgain = false;
-      this.render();
-    }
-  }
-}
-
-  renderComingSoon(root, surface) {
-    root.addClass('cadence-soon');
-    const wrap = root.createDiv({ cls: 'cad-soon-wrap' });
-    wrap.createDiv({ cls: 'cad-eyebrow', text: 'COMING SOON' });
-    wrap.createDiv({ cls: 'cad-soon-title', text: surface.label });
-    wrap.createDiv({ cls: 'cad-soon-desc', text: surface.desc });
-
-    const ic = wrap.createDiv({ cls: 'cad-soon-icon' });
-    try { obsidian.setIcon(ic, surface.icon); } catch (_) { }
-
-    const meta = wrap.createDiv({ cls: 'cad-soon-meta' });
-    meta.setText('This surface is scaffolded but not yet built. Tell the team to flesh it out next.');
-  }
+  renderComingSoon(root, surface) { return renderComingSoon(this, root, surface); }
 
   /* ── Generic page header ────────────────── */
-  _renderPageHeader(root, title, subtitle, actions) {
-    const head = root.createDiv({ cls: 'cad-page-header' });
-    const left = head.createDiv({ cls: 'cad-page-header-left' });
-    left.createDiv({ cls: 'cad-eyebrow', text: 'CADENCE' });
-    left.createDiv({ cls: 'cad-page-title', text: title });
-    if (subtitle) left.createDiv({ cls: 'cad-page-subtitle', text: subtitle });
-    const right = head.createDiv({ cls: 'cad-page-header-right' });
-    if (typeof actions === 'function') actions(right);
-    return head;
-  }
+  _renderPageHeader(root, title, subtitle, actions) { return renderPageHeader(this, root, title, subtitle, actions); }
 
   /* ── Generic entity LIST view ───────────── */
   async renderEntityList(root, entityKey, opts = {}) {
@@ -7287,21 +6935,7 @@ priority: normal
   }
 
   /* ── Settings (opens Obsidian settings → Cadence) ─ */
-  async openSettingsTab(root) {
-    root.addClass('cadence-soon');
-    const wrap = root.createDiv({ cls: 'cad-soon-wrap' });
-    const ic = wrap.createDiv({ cls: 'cad-soon-icon' });
-    try { obsidian.setIcon(ic, 'settings-2'); } catch (_) { }
-    wrap.createDiv({ cls: 'cad-eyebrow', text: 'CADENCE' });
-    wrap.createDiv({ cls: 'cad-soon-title', text: 'Settings' });
-    wrap.createDiv({ cls: 'cad-soon-desc', text: 'Configure folders, headings, week start, default tab, and the (future) Cadence API connection.' });
-    const btn = wrap.createEl('button', { cls: 'cad-btn primary', text: 'Open Cadence settings' });
-    btn.style.marginTop = '12px';
-    btn.addEventListener('click', () => {
-      this.app.setting.open();
-      this.app.setting.openTabById(this.plugin.manifest.id);
-    });
-  }
+  openSettingsTab(root) { return openSettingsTab(this, root); }
 
   /* ── Task completion propagation ──
      When a task is ticked or unticked anywhere, mirror the state to:
@@ -7401,86 +7035,9 @@ priority: normal
   }
 
   /* ── Cadence-styled prompt modal ─ */
-  _prompt(opts) {
-    return new Promise((resolve) => {
-      new CadencePromptModal(this.app, {
-        title: opts.title || 'Enter a name',
-        placeholder: opts.placeholder || '',
-        defaultValue: opts.defaultValue || '',
-        cta: opts.cta || 'Create',
-        onSubmit: resolve,
-      }).open();
-    });
-  }
+  _prompt(opts) { return openPrompt(this, opts); }
 
-  async _createEntityFromPrompt(entityKey, defaults = {}) {
-    const def = ENTITIES[entityKey];
-    new CadenceEntityCreateModal(this.app, entityKey, {
-      defaults,
-      onSubmit: async (result) => {
-        if (!result) return;
-        try {
-          const file = await createEntity(this.app, entityKey, result.name);
-          // Patch frontmatter with whatever else the user filled in (skip primary key — already set by template).
-          const primaryKey = def.fields[0].key;
-          const extras = Object.assign({}, defaults, result.values);
-          delete extras[primaryKey];
-
-          for (const f of def.fields) {
-            const suggestionSource = getFieldSuggestionSource(f);
-            if (suggestionSource !== 'none' && suggestionSource !== 'tags' && suggestionSource !== 'history') {
-              const key = f.key;
-              if (extras[key]) {
-                const rawVal = extras[key];
-                const parts = Array.isArray(rawVal) ? rawVal.map(String) : String(rawVal).split(',');
-                const names = parts.map(n => n.replace(/^\[\[|\]\]$/g, '').trim()).filter(Boolean);
-                extras[key] = names.map(n => `[[${n}]]`);
-
-                const creationSource = suggestionSource === 'history' ? 'folder:Cadence/Shared' : suggestionSource;
-                let targetEntityKey = ENTITIES[suggestionSource] ? suggestionSource : null;
-                if (suggestionSource.startsWith('folder:')) {
-                  const customFolderPath = suggestionSource.slice('folder:'.length);
-                  const normalizedPath = customFolderPath.replace(/\/+$/, '').toLowerCase();
-                  for (const [ek, edef] of Object.entries(ENTITIES)) {
-                    if (edef && edef.folder && edef.folder.replace(/\/+$/, '').toLowerCase() === normalizedPath) {
-                      targetEntityKey = ek;
-                      break;
-                    }
-                  }
-                }
-
-                for (const name of names) {
-                  const targetFile = this.app.vault.getMarkdownFiles().find(tf => tf.basename.toLowerCase() === name.toLowerCase());
-                  if (!targetFile) {
-                    try {
-                      await createEntity(this.app, creationSource, name);
-                      const label = targetEntityKey ? ENTITIES[targetEntityKey].label : 'Note';
-                      new obsidian.Notice(`Created new ${label}: ${name}`);
-                    } catch (e) {
-                      console.warn(`Failed to auto-create ${creationSource}`, e);
-                    }
-                  }
-                }
-              }
-            }
-          }
-
-          if (Object.keys(extras).length) {
-            await this.app.fileManager.processFrontMatter(file, (fm) => {
-              Object.entries(extras).forEach(([k, v]) => {
-                if (v == null || v === '' || (Array.isArray(v) && v.length === 0)) return;
-                fm[k] = v;
-              });
-            });
-          }
-          new obsidian.Notice(`Created ${def.label}: ${file.basename}\nSaved to ${file.path}`, 4000);
-          await this.openEntityDetail(entityKey, file);
-        } catch (e) {
-          new obsidian.Notice(`Cadence: failed to create ${def.label} — ${e.message}`);
-        }
-      },
-    }).open();
-  }
+  _createEntityFromPrompt(entityKey, defaults) { return createEntityFromPrompt(this, entityKey, defaults); }
 
   /* ── Today pane ─────────────────────────── */
   async renderTodayPane(root) {
