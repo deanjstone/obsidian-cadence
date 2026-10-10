@@ -17,6 +17,8 @@ export class TAbstractFile {
 export class TFile extends TAbstractFile {
   basename: string;
   extension: string;
+  /** Set only when the spec gives an mtime, so code guarding on `file.stat` sees none by default. */
+  stat?: { ctime: number; mtime: number; size: number };
   constructor(path: string) {
     super(path);
     const dot = this.name.lastIndexOf('.');
@@ -33,6 +35,8 @@ export interface MockFileSpec {
   path: string;
   frontmatter?: Frontmatter;
   body?: string;
+  /** File modification time (ms); sets `file.stat`. */
+  mtime?: number;
 }
 
 /* Render frontmatter the way a note on disk would look, so content reads
@@ -96,6 +100,7 @@ export class Vault {
     const file = new TFile(spec.path);
     const parent = this.ensureParent(spec.path);
     file.parent = parent;
+    if (spec.mtime !== undefined) file.stat = { ctime: spec.mtime, mtime: spec.mtime, size: 0 };
     parent.children.push(file);
     this.files.set(spec.path, file);
     this.contents.set(spec.path, renderFrontmatter(spec.frontmatter) + (spec.body ?? ''));
@@ -398,6 +403,12 @@ export class FakeElement {
   required = false;
   rows = 0;
   readonly dataset: Record<string, string> = {};
+  /** The DOM's classList, backed by `classes`. */
+  readonly classList = {
+    add: (...classes: string[]) => this.addClass(...classes),
+    remove: (...classes: string[]) => this.removeClass(...classes),
+    contains: (cls: string) => this.hasClass(cls),
+  };
   focusCount = 0;
   selectCount = 0;
   /** Every value assigned through the setter, in order (not createEl's). */
