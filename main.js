@@ -1733,6 +1733,9 @@ var import_obsidian5 = require("obsidian");
 function reminderId() {
   return "rem_" + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
 }
+function isRepeating(repeat) {
+  return repeat === "daily" || repeat === "weekly";
+}
 function nextRepeat(when, repeat) {
   if (!when) return null;
   const d = when instanceof Date ? when : new Date(when);
@@ -1797,23 +1800,31 @@ function dueReminders(reminders, now) {
   return reminders.filter((r) => isDue(r, now));
 }
 function advanceReminder(r, now) {
-  const next = nextRepeat(new Date(r.when), r.repeat);
-  if (!next) return null;
+  let next = nextRepeat(r.when, r.repeat);
+  if (!next || isNaN(next.getTime())) return null;
+  while (next.getTime() <= now.getTime()) next = nextRepeat(next, r.repeat);
   return {
     id: reminderId(),
     text: r.text,
     when: next.toISOString(),
     repeat: r.repeat,
+    notes: r.notes || "",
+    project: r.project || null,
     notified: false,
     done: false,
     createdAt: now.toISOString()
   };
 }
+function continueSeries(r, now) {
+  if (r.advanced || r.notified || r.done) return null;
+  return advanceReminder(r, now);
+}
 function snoozePatch(ms, now) {
   const target = new Date(now + ms);
   return {
     when: target.toISOString(),
-    notified: false
+    notified: false,
+    done: false
   };
 }
 var COMPLETE_PATCH = { done: true, notified: true };
@@ -1838,11 +1849,18 @@ async function deleteReminder(plugin, id) {
   await plugin.saveSettings();
   plugin.refreshOpenViews();
 }
+function withSeriesHandedOn(plugin, id, patch) {
+  const r = (plugin.settings.reminders || []).find((x) => x.id === id);
+  if (!r || !isRepeating(r.repeat)) return patch;
+  const next = continueSeries(r, /* @__PURE__ */ new Date());
+  if (next) plugin.settings.reminders.push(next);
+  return { ...patch, advanced: true };
+}
 async function snoozeReminder(plugin, id, ms) {
-  return plugin.updateReminder(id, snoozePatch(ms, Date.now()));
+  return plugin.updateReminder(id, withSeriesHandedOn(plugin, id, snoozePatch(ms, Date.now())));
 }
 async function completeReminder(plugin, id) {
-  return plugin.updateReminder(id, { ...COMPLETE_PATCH });
+  return plugin.updateReminder(id, withSeriesHandedOn(plugin, id, { ...COMPLETE_PATCH }));
 }
 function tickReminders(plugin) {
   if (!Array.isArray(plugin.settings.reminders)) return;
@@ -1850,9 +1868,10 @@ function tickReminders(plugin) {
   const additions = [];
   for (const r of due) {
     plugin._fireReminder(r);
-    r.notified = true;
-    const next = advanceReminder(r, /* @__PURE__ */ new Date());
+    const next = continueSeries(r, /* @__PURE__ */ new Date());
     if (next) additions.push(next);
+    r.notified = true;
+    if (isRepeating(r.repeat)) r.advanced = true;
   }
   if (additions.length) plugin.settings.reminders.push(...additions);
   if (due.length) {
