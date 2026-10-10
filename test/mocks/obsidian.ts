@@ -153,6 +153,12 @@ export class Vault {
     this.modified.push(file.path);
   }
 
+  /** Records the path; the file stays in the vault. */
+  readonly trashed: string[] = [];
+  async trash(file: TAbstractFile, _system: boolean): Promise<void> {
+    this.trashed.push(file.path);
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- each event passes its own args, as in obsidian.d.ts
   on(name: string, callback: (...args: any[]) => unknown) {
     const list = this.listeners.get(name) ?? [];
@@ -414,6 +420,7 @@ export class FakeElement {
   };
   focusCount = 0;
   selectCount = 0;
+  blurCount = 0;
   /** Every value assigned through the setter, in order (not createEl's). */
   readonly valueWrites: string[] = [];
   private ownValue = '';
@@ -561,6 +568,29 @@ export class FakeElement {
 
   select() {
     this.selectCount++;
+  }
+
+  blur() {
+    this.blurCount++;
+  }
+
+  /* Detach from the parent, as Element.remove() does. */
+  remove() {
+    if (!this.parent) return;
+    const index = this.parent.children.indexOf(this);
+    if (index !== -1) this.parent.children.splice(index, 1);
+    this.parent = null;
+  }
+
+  /* Move `node` to just before `ref` (or to the end when ref is null),
+     detaching it from wherever it was, as Node.insertBefore does. */
+  insertBefore(node: FakeElement, ref: FakeElement | null): FakeElement {
+    node.remove();
+    const index = ref ? this.children.indexOf(ref) : -1;
+    if (index === -1) this.children.push(node);
+    else this.children.splice(index, 0, node);
+    node.parent = this;
+    return node;
   }
 
   addEventListener(type: string, listener: (event: FakeEvent) => void) {
