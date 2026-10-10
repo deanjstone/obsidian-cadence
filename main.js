@@ -4224,8 +4224,742 @@ async function togglePlannerTask(view, day, idx, checked) {
   view.render();
 }
 
-// src/views/task-links.ts
+// src/views/entity-list.ts
+var import_obsidian18 = require("obsidian");
+
+// src/views/kanban.ts
 var import_obsidian17 = require("obsidian");
+function unwrapLink(value) {
+  return String(value).replace(/^\[\[|\]\]$/g, "").trim();
+}
+function kanbanGroupBy(entityKey, def, saved) {
+  let groupBy = saved;
+  if (!groupBy) {
+    const fallbackField = def.fields.find((field) => !field.primary && ["enum", "text"].includes(field.type));
+    groupBy = fallbackField ? fallbackField.key : "status";
+    if (entityKey === "deal") groupBy = "stage";
+    else if (entityKey === "activity") groupBy = "type";
+  }
+  return groupBy;
+}
+function kanbanOptions(def, groupBy) {
+  const f = def.fields.find((field) => field.key === groupBy);
+  return f ? f.options || [] : [];
+}
+function distinctGroups(entities, groupBy, def) {
+  const uniqueVals = /* @__PURE__ */ new Set();
+  entities.forEach((e) => {
+    const val = entityValue(e, groupBy, def);
+    if (val) {
+      const parts = Array.isArray(val) ? val : String(val).split(",");
+      parts.forEach((v) => {
+        const clean = unwrapLink(v);
+        if (clean) uniqueVals.add(clean);
+      });
+    }
+  });
+  const groups = Array.from(uniqueVals);
+  return groups.length ? groups : ["To Do", "In Progress", "Done"];
+}
+function getEntityKanbanParams(view, entityKey) {
+  const def = ENTITIES[entityKey];
+  if (!def) return { groupBy: "status", groups: ["Active", "Done"] };
+  const groupBy = kanbanGroupBy(entityKey, def, view.plugin.settings.pageKanbanGroupBy?.[entityKey]);
+  let groups = kanbanOptions(def, groupBy);
+  if (!groups.length) groups = distinctGroups(listEntities(view.app, entityKey), groupBy, def);
+  return { groupBy, groups };
+}
+function kanbanGroupByFields(def) {
+  return def.fields.filter((field) => !field.primary && ["enum", "text", "multitext", "tags"].includes(field.type));
+}
+function inKanbanGroup(val, stage) {
+  if (Array.isArray(val)) {
+    const cleanVals = val.map((v) => unwrapLink(v).toLowerCase());
+    return cleanVals.includes(stage.toLowerCase());
+  }
+  return unwrapLink(val || "").toLowerCase() === stage.toLowerCase();
+}
+function kanbanGroups(list, groupBy, groups, def) {
+  return groups.map((stage) => ({ stage, items: list.filter((e) => inKanbanGroup(entityValue(e, groupBy, def), stage)) }));
+}
+function kanbanValueField(def) {
+  return def.fields.find((f) => f.type === "currency" || f.type === "number");
+}
+function kanbanColumnMeta(items, def) {
+  const valueField = kanbanValueField(def);
+  if (valueField) {
+    const sum = items.reduce((s, e) => s + (Number(entityValue(e, valueField.key, def)) || 0), 0);
+    return `${items.length} \xB7 ${fmtValue(sum, valueField.type)}`;
+  }
+  return `${items.length}`;
+}
+function kanbanDropValue(fDef, stage) {
+  const isList = fDef && (fDef.type === "multitext" || fDef.type === "tags" || fDef.isList === true);
+  const isLink = fDef && fDef.suggestionSource && fDef.suggestionSource !== "none" && fDef.suggestionSource !== "tags" && fDef.suggestionSource !== "history";
+  if (isList) {
+    return isLink ? [`[[${stage}]]`] : [stage];
+  }
+  return isLink ? `[[${stage}]]` : stage;
+}
+function kanbanCardLinks(e, def) {
+  const relFields = ["company", "contact", "owner", "assigned"];
+  return relFields.flatMap((rf) => {
+    const rfDef = def.fields.find((f) => f.key === rf);
+    if (!rfDef) return [];
+    return parseLinkValues(entityValue(e, rf, def)).map((v) => ({
+      display: v.display,
+      target: v.target,
+      entityKey: rf === "owner" || rf === "assigned" ? "contact" : rf
+    }));
+  });
+}
+async function renderEntityKanban(view, root, entityKey, groupBy, groups) {
+  root.addClass("cadence-kanban");
+  const def = ENTITIES[entityKey];
+  const entities = listEntities(view.app, entityKey);
+  const totalValue = entities.reduce((sum, e) => sum + (Number(entityValue(e, "value", def)) || 0), 0);
+  view._renderPageHeader(root, def.plural, `${entities.length} ${entities.length === 1 ? def.label.toLowerCase() : def.plural.toLowerCase()} \xB7 ${fmtValue(totalValue, "currency")} total`, (right) => {
+    const importBtn = right.createEl("button", { cls: "cad-btn", text: "Import CSV" });
+    importBtn.addEventListener("click", () => new CadenceImportModal(view.app, { entityKey }).open());
+    const btn = right.createEl("button", { cls: "cad-btn primary", text: `+ New ${def.label}` });
+    btn.addEventListener("click", () => view._createEntityFromPrompt(entityKey));
+  });
+  const board = root.createDiv({ cls: "cad-kanban-board" });
+  groups.forEach((stage) => {
+    const items = entities.filter((e) => String(entityValue(e, groupBy, def) || "") === stage);
+    const stageValue = items.reduce((s, e) => s + (Number(entityValue(e, "value", def)) || 0), 0);
+    const col = board.createDiv({ cls: "cad-kanban-col" });
+    col.dataset.stage = stage;
+    const head = col.createDiv({ cls: "cad-kanban-col-head" });
+    head.createDiv({ cls: "cad-kanban-col-title", text: stage });
+    head.createDiv({ cls: "cad-kanban-col-meta", text: `${items.length} \xB7 ${fmtValue(stageValue, "currency")}` });
+    const list = col.createDiv({ cls: "cad-kanban-col-list" });
+    list.addEventListener("dragover", (ev) => {
+      ev.preventDefault();
+      try {
+        ev.dataTransfer.dropEffect = "move";
+      } catch (_) {
+      }
+      col.addClass("drag-over");
+    });
+    list.addEventListener("dragleave", (ev) => {
+      if (!col.contains(ev.relatedTarget)) col.removeClass("drag-over");
+    });
+    list.addEventListener("drop", async (ev) => {
+      ev.preventDefault();
+      col.removeClass("drag-over");
+      const path = ev.dataTransfer.getData("text/cadence-entity");
+      const fromStage = ev.dataTransfer.getData("text/cadence-stage");
+      if (!path || fromStage === stage) return;
+      const file = view.app.vault.getAbstractFileByPath(path);
+      if (!file || !(file instanceof import_obsidian17.TFile)) return;
+      try {
+        await view.app.fileManager.processFrontMatter(file, (fm) => {
+          fm[groupBy] = groupBy === "stage" ? [stage] : stage;
+        });
+        new import_obsidian17.Notice(`Moved to ${stage}`);
+      } catch (e) {
+        new import_obsidian17.Notice(`Failed to move: ${e.message}`);
+      }
+    });
+    if (!items.length) {
+      list.createDiv({ cls: "cad-empty", text: "\u2014" });
+    } else {
+      const isMobile = !!(import_obsidian17.Platform && import_obsidian17.Platform.isMobile);
+      items.forEach((e) => {
+        const card = list.createDiv({ cls: "cad-kanban-card" });
+        card.dataset.path = e.file.path;
+        card.createDiv({ cls: "cad-kanban-card-title", text: entityValue(e, "title", def) || e.basename });
+        const meta = card.createDiv({ cls: "cad-kanban-card-meta" });
+        const v = entityValue(e, "value", def);
+        if (v) meta.createSpan({ cls: "cad-kanban-card-value", text: fmtValue(v, "currency") });
+        const coValues = parseLinkValues(entityValue(e, "company", def));
+        if (coValues.length > 0) {
+          meta.createSpan({ text: " \xB7 " });
+          coValues.forEach((item, idx) => {
+            if (idx > 0) {
+              meta.createSpan({ text: ", " });
+            }
+            const coLink = meta.createEl("a", { cls: "cad-company-link", text: item.display });
+            coLink.style.textDecoration = "underline";
+            coLink.style.cursor = "pointer";
+            coLink.addEventListener("click", (ev) => {
+              ev.preventDefault();
+              ev.stopPropagation();
+              const targetFile = view.app.vault.getMarkdownFiles().find((f) => f.basename.toLowerCase() === item.target.toLowerCase());
+              if (targetFile) view.openEntityDetail("company", targetFile);
+              else view.app.workspace.openLinkText(item.target, "", false);
+            });
+          });
+        }
+        const contactValues = parseLinkValues(entityValue(e, "contact", def));
+        if (contactValues.length > 0) {
+          meta.createSpan({ text: " \xB7 " });
+          contactValues.forEach((item, idx) => {
+            if (idx > 0) {
+              meta.createSpan({ text: ", " });
+            }
+            const ctLink = meta.createEl("a", { cls: "cad-contact-link", text: item.display });
+            ctLink.style.textDecoration = "underline";
+            ctLink.style.cursor = "pointer";
+            ctLink.addEventListener("click", (ev) => {
+              ev.preventDefault();
+              ev.stopPropagation();
+              const targetFile = view.app.vault.getMarkdownFiles().find((f) => f.basename.toLowerCase() === item.target.toLowerCase());
+              if (targetFile) view.openEntityDetail("contact", targetFile);
+              else view.app.workspace.openLinkText(item.target, "", false);
+            });
+          });
+        }
+        if (!isMobile) {
+          card.draggable = true;
+          card.addEventListener("dragstart", (ev) => {
+            card.addClass("dragging");
+            try {
+              ev.dataTransfer.effectAllowed = "move";
+              ev.dataTransfer.setData("text/cadence-entity", e.file.path);
+              ev.dataTransfer.setData("text/cadence-stage", stage);
+              ev.dataTransfer.setData("text/plain", `[[${e.file.basename}]]`);
+            } catch (_) {
+            }
+          });
+          card.addEventListener("dragend", () => card.removeClass("dragging"));
+        } else {
+          card.addClass("cad-kanban-card-touch");
+        }
+        card.addEventListener("click", () => view.openEntityDetail(entityKey, e.file));
+      });
+    }
+  });
+}
+
+// src/views/entity-list.ts
+function listLayout(mode, pageLayouts) {
+  return pageLayouts?.[mode] || (mode === "projects.projects" ? "cards" : mode === "crm.pipeline" ? "kanban" : "table");
+}
+function listSubtitle(count, def) {
+  return `${count} ${count === 1 ? def.label.toLowerCase() : def.plural.toLowerCase()} in ${def.folder}`;
+}
+function filterableKeys(def) {
+  return def.fields.map((f) => f.key).filter((k) => {
+    const fdef = def.fields.find((f) => f.key === k);
+    return !!fdef && (fdef.type === "enum" || ["company", "role", "with", "related", "status", "tier", "type"].includes(k));
+  });
+}
+function filterOptions(entities, def) {
+  return filterableKeys(def).flatMap((k) => {
+    const fdef = def.fields.find((f) => f.key === k);
+    if (!fdef) return [];
+    const uniqueVals = /* @__PURE__ */ new Set();
+    entities.forEach((e) => {
+      const val = entityValue(e, k, def);
+      if (Array.isArray(val)) {
+        val.forEach((v) => {
+          if (v) {
+            const clean = unwrapLink(v);
+            if (clean) uniqueVals.add(clean);
+          }
+        });
+      } else if (val != null && val !== "") {
+        const clean = unwrapLink(val);
+        if (clean) uniqueVals.add(clean);
+      }
+    });
+    if (uniqueVals.size === 0) return [];
+    return [{ field: fdef, values: Array.from(uniqueVals).sort() }];
+  });
+}
+function listColumns(def, columns) {
+  const baseCols = columns || def.columns;
+  const cols = baseCols.map((k) => def.fields.find((f) => f.key === k)).filter(Boolean);
+  def.fields.forEach((f) => {
+    if (!baseCols.includes(f.key) && !cols.some((c) => c.key === f.key)) {
+      cols.push(f);
+    }
+  });
+  return cols;
+}
+function filterEntities(list, def, cols, query) {
+  const searchVal = query.search;
+  return list.filter((e) => {
+    if (searchVal) {
+      const match = cols.some((f) => {
+        const val = entityValue(e, f.key, def);
+        if (val == null) return false;
+        return String(val).toLowerCase().includes(searchVal);
+      }) || e.basename.toLowerCase().includes(searchVal);
+      if (!match) return false;
+    }
+    for (const [k, filterVal] of Object.entries(query.filters)) {
+      if (!filterVal) continue;
+      const val = entityValue(e, k, def);
+      if (Array.isArray(val)) {
+        const cleanVals = val.map((v) => unwrapLink(v).toLowerCase());
+        if (!cleanVals.includes(filterVal.toLowerCase())) return false;
+      } else {
+        const cleanVal = unwrapLink(val || "").toLowerCase();
+        if (cleanVal !== filterVal.toLowerCase()) return false;
+      }
+    }
+    return true;
+  });
+}
+function sortEntities(list, def, sort) {
+  const sorted = list.slice();
+  const currentSortField = sort.field;
+  if (currentSortField) {
+    const fdef = def.fields.find((f) => f.key === currentSortField);
+    const ftype = fdef ? fdef.type : "text";
+    sorted.sort((a, b) => {
+      let valA = entityValue(a, currentSortField, def);
+      let valB = entityValue(b, currentSortField, def);
+      if (valA && typeof valA === "string") valA = unwrapLink(valA);
+      if (valB && typeof valB === "string") valB = unwrapLink(valB);
+      if (valA == null) valA = "";
+      if (valB == null) valB = "";
+      let diff = 0;
+      if (ftype === "number" || ftype === "currency") {
+        diff = Number(valA) - Number(valB);
+      } else if (ftype === "date") {
+        const dateA = new Date(valA).getTime() || 0;
+        const dateB = new Date(valB).getTime() || 0;
+        diff = dateA - dateB;
+      } else {
+        diff = String(valA).localeCompare(String(valB), void 0, { numeric: true, sensitivity: "base" });
+      }
+      return sort.asc ? diff : -diff;
+    });
+  }
+  return sorted;
+}
+function nextSort(sort, key) {
+  return sort.field === key ? { field: key, asc: !sort.asc } : { field: key, asc: true };
+}
+function primaryField(def) {
+  return def.fields.find((f) => f.primary) || def.fields[0];
+}
+function tableCell(f) {
+  if (f.key === "owner" || f.key === "assigned") return { kind: "owner" };
+  const sugSrc = f.suggestionSource || getFieldSuggestionSource(f);
+  if (f.type === "multitext" && sugSrc && sugSrc !== "none" && sugSrc !== "tags" && sugSrc !== "history") {
+    return { kind: "links", target: sugSrc };
+  }
+  if (f.key === "company") return { kind: "links", target: "company" };
+  if (f.key === "partner") return { kind: "links", target: "partner" };
+  if (f.key === "contact" || f.key === "contacts" || f.key === "with") return { kind: "links", target: "contact" };
+  if (f.key === "related") return { kind: "links", target: "project" };
+  return { kind: "text" };
+}
+function cardStatusField(def) {
+  return def.fields.find((f) => f.key === "status" || f.key === "type" || f.key === "tier") || def.fields.find((f) => f.type === "enum");
+}
+function pillText(val) {
+  const clean = Array.isArray(val) ? val[0] : val;
+  return String(clean);
+}
+function pillClass(text) {
+  return `cad-pill-${text.toLowerCase().replace(/\s+/g, "-")}`;
+}
+function cardMetaRows(e, def, primary, statusField) {
+  const rows = [];
+  def.fields.forEach((f) => {
+    if (f.key !== primary.key && (!statusField || f.key !== statusField.key) && rows.length < 4) {
+      const val = entityValue(e, f.key, def);
+      if (val != null && val !== "") {
+        const isLinkProperty = f.key === "company" || f.key === "contact" || f.key === "partner" || f.key === "owner" || f.key === "project" || !!f.suggestionSource && f.suggestionSource.startsWith("folder:");
+        rows.push({ field: f, value: val, isLink: isLinkProperty });
+      }
+    }
+  });
+  return rows;
+}
+function cardLinkEntityKey(f, entities) {
+  let relatedKey = f.key === "owner" ? "contact" : f.key;
+  if (f.suggestionSource && f.suggestionSource.startsWith("folder:")) {
+    const folder = f.suggestionSource.replace("folder:", "").split("/").pop().toLowerCase();
+    const found = Object.keys(entities).find((k) => entities[k].folder.toLowerCase().endsWith(folder) || entities[k].plural.toLowerCase() === folder);
+    if (found) relatedKey = found;
+  }
+  return relatedKey;
+}
+async function renderEntityList(view, root, entityKey, opts = {}) {
+  root.addClass("cadence-list");
+  const def = ENTITIES[entityKey];
+  if (!def) {
+    view.renderComingSoon(root, view._resolveSurface(view.mode));
+    return;
+  }
+  const entities = listEntities(view.app, entityKey);
+  const filtered = opts.filter ? entities.filter(opts.filter) : entities;
+  const mode = view.mode;
+  const layout = listLayout(mode, view.plugin.settings.pageLayouts);
+  view._renderPageHeader(root, opts.title || def.plural, listSubtitle(filtered.length, def), (right) => {
+    const switcher = right.createDiv({ cls: "cad-layout-switcher" });
+    switcher.style.display = "inline-flex";
+    switcher.style.gap = "4px";
+    switcher.style.marginRight = "12px";
+    switcher.style.border = "1px solid var(--border-color)";
+    switcher.style.borderRadius = "6px";
+    switcher.style.overflow = "hidden";
+    switcher.style.padding = "2px";
+    switcher.style.background = "var(--background-secondary)";
+    const layouts = [
+      { key: "table", icon: "layout-list", title: "Table view" },
+      { key: "kanban", icon: "kanban", title: "Kanban board" },
+      { key: "cards", icon: "layout-grid", title: "Card grid" }
+    ];
+    layouts.forEach((l) => {
+      const btn2 = switcher.createEl("button", { cls: "cad-topbar-icon-btn" });
+      btn2.style.padding = "4px 8px";
+      btn2.style.height = "auto";
+      btn2.style.border = "none";
+      btn2.style.background = layout === l.key ? "var(--background-modifier-border)" : "transparent";
+      btn2.style.borderRadius = "4px";
+      btn2.style.cursor = "pointer";
+      try {
+        (0, import_obsidian18.setIcon)(btn2, l.icon);
+      } catch (_) {
+      }
+      btn2.title = l.title;
+      btn2.addEventListener("click", async (e) => {
+        e.preventDefault();
+        if (!view.plugin.settings.pageLayouts) view.plugin.settings.pageLayouts = {};
+        view.plugin.settings.pageLayouts[mode] = l.key;
+        await view.plugin.saveSettings();
+        view.render();
+      });
+    });
+    const importBtn = right.createEl("button", { cls: "cad-btn", text: "Import CSV" });
+    importBtn.addEventListener("click", () => new CadenceImportModal(view.app, { entityKey }).open());
+    const btn = right.createEl("button", { cls: "cad-btn primary", text: `+ New ${def.label}` });
+    btn.addEventListener("click", () => view._createEntityFromPrompt(entityKey));
+  });
+  if (!filtered.length) {
+    const empty = root.createDiv({ cls: "cad-empty-state" });
+    empty.createDiv({ cls: "cad-empty-state-title", text: `No ${def.plural.toLowerCase()} yet` });
+    empty.createDiv({ cls: "cad-empty-state-desc", text: `Drop a markdown note in ${def.folder}/ with frontmatter, or hit "+ New" above.` });
+    return;
+  }
+  const controls = root.createDiv({ cls: "cad-list-controls" });
+  controls.style.display = "flex";
+  controls.style.gap = "12px";
+  controls.style.alignItems = "center";
+  controls.style.marginBottom = "16px";
+  controls.style.flexWrap = "wrap";
+  const searchWrap = controls.createDiv({ cls: "cad-search-wrap" });
+  searchWrap.style.display = "flex";
+  searchWrap.style.alignItems = "center";
+  searchWrap.style.gap = "6px";
+  searchWrap.style.flex = "1";
+  searchWrap.style.minWidth = "200px";
+  const searchInput = searchWrap.createEl("input", {
+    type: "text",
+    cls: "cad-pd-meta-input",
+    placeholder: `Search ${def.plural.toLowerCase()}...`
+  });
+  searchInput.style.width = "100%";
+  searchInput.style.margin = "0";
+  if (layout === "kanban") {
+    const kanbanFields = kanbanGroupByFields(def);
+    if (kanbanFields.length > 0) {
+      const groupSelectWrap = controls.createDiv({ attr: { style: "display: inline-flex; align-items: center; gap: 6px; margin-left: auto;" } });
+      groupSelectWrap.createSpan({ text: "Group columns by:", attr: { style: "font-size: 0.85em; color: var(--text-muted); font-weight: 600;" } });
+      const groupSelect = groupSelectWrap.createEl("select", { cls: "cad-prop-input" });
+      groupSelect.style.padding = "6px 10px";
+      groupSelect.style.height = "auto";
+      groupSelect.style.width = "auto";
+      groupSelect.style.background = "var(--background-secondary)";
+      groupSelect.style.color = "var(--text-normal)";
+      groupSelect.style.border = "1px solid var(--border-color)";
+      groupSelect.style.borderRadius = "6px";
+      kanbanFields.forEach((f) => {
+        const optEl = groupSelect.createEl("option", { value: f.key, text: f.label });
+        const currentParams = view.getEntityKanbanParams(entityKey);
+        if (currentParams.groupBy === f.key) optEl.selected = true;
+      });
+      groupSelect.addEventListener("change", async () => {
+        if (!view.plugin.settings.pageKanbanGroupBy) view.plugin.settings.pageKanbanGroupBy = {};
+        view.plugin.settings.pageKanbanGroupBy[entityKey] = groupSelect.value;
+        await view.plugin.saveSettings();
+        view.render();
+      });
+    }
+  }
+  const query = { search: "", filters: {} };
+  let sort = { field: def.columns[0] || "", asc: true };
+  filterOptions(filtered, def).forEach(({ field: fdef, values }) => {
+    const k = fdef.key;
+    const filterWrap = controls.createDiv({ cls: "cad-filter-select-wrap" });
+    filterWrap.style.display = "flex";
+    filterWrap.style.alignItems = "center";
+    filterWrap.style.gap = "6px";
+    const sel = filterWrap.createEl("select", { cls: "cad-pd-meta-input" });
+    sel.style.margin = "0";
+    sel.style.padding = "4px 8px";
+    sel.style.minHeight = "30px";
+    sel.style.border = "1px solid var(--border-color)";
+    sel.style.borderRadius = "4px";
+    sel.createEl("option", { value: "", text: `All ${fdef.label}s` });
+    values.forEach((v) => {
+      sel.createEl("option", { value: v, text: v });
+    });
+    sel.addEventListener("change", () => {
+      query.filters[k] = sel.value;
+      renderContent();
+    });
+  });
+  const cols = listColumns(def, opts.columns);
+  const tableWrap = root.createDiv({ cls: "cad-table-wrap" });
+  const kanbanWrap = root.createDiv({ cls: "cad-kanban-board-wrap" });
+  const cardsWrap = root.createDiv({ cls: "cad-proj-grid-wrap" });
+  const renderContent = async () => {
+    tableWrap.style.display = "none";
+    tableWrap.empty();
+    kanbanWrap.style.display = "none";
+    kanbanWrap.empty();
+    cardsWrap.style.display = "none";
+    cardsWrap.empty();
+    const displayed = sortEntities(filterEntities(filtered, def, cols, query), def, sort);
+    if (layout === "table") {
+      tableWrap.style.display = "block";
+      const table = tableWrap.createEl("table", { cls: "cad-table" });
+      const thead = table.createEl("thead");
+      const trh = thead.createEl("tr");
+      const headers = [];
+      cols.forEach((f) => {
+        const th = trh.createEl("th");
+        th.style.cursor = "pointer";
+        th.style.userSelect = "none";
+        const thSpan = th.createSpan({ text: f.label + " " });
+        const indicator = th.createSpan({ text: f.key === sort.field ? "\u25B2" : "\u2195" });
+        indicator.style.opacity = f.key === sort.field ? "1" : "0.4";
+        indicator.style.marginLeft = "4px";
+        headers.push({ key: f.key, th, indicator });
+        th.addEventListener("click", () => {
+          sort = nextSort(sort, f.key);
+          renderContent();
+        });
+      });
+      const tbody = table.createEl("tbody");
+      if (displayed.length === 0) {
+        const tr = tbody.createEl("tr");
+        const td = tr.createEl("td", { text: "No matching entries found." });
+        td.colSpan = cols.length;
+        td.style.textAlign = "center";
+        td.style.color = "var(--text-muted)";
+        td.style.padding = "20px";
+      } else {
+        displayed.forEach((e) => {
+          const tr = tbody.createEl("tr", { cls: "cad-row" });
+          cols.forEach((f, i) => {
+            const td = tr.createEl("td");
+            const val = entityValue(e, f.key, def);
+            const formatted = fmtValue(val, f.type);
+            const primary = primaryField(def);
+            const hasPrimaryCol = cols.some((c) => c.key === primary.key);
+            const isPrimaryCol = hasPrimaryCol ? f.key === primary.key : i === 0;
+            if (isPrimaryCol) {
+              const a = td.createEl("a", { cls: "cad-row-primary", text: formatted || e.basename });
+              a.addEventListener("click", (ev) => {
+                ev.preventDefault();
+                view.openEntityDetail(entityKey, e.file);
+              });
+            } else {
+              const cell = tableCell(f);
+              if (cell.kind === "owner") view._renderOwnerLinks(td, val, false);
+              else if (cell.kind === "links") view._renderEntityLinks(td, val, cell.target);
+              else td.setText(formatted);
+            }
+          });
+        });
+      }
+    } else if (layout === "kanban") {
+      kanbanWrap.style.display = "block";
+      const kanbanParams = view.getEntityKanbanParams(entityKey);
+      const { groupBy, groups } = kanbanParams;
+      const board = kanbanWrap.createDiv({ cls: "cad-kanban-board" });
+      const valueField = kanbanValueField(def);
+      kanbanGroups(displayed, groupBy, groups, def).forEach(({ stage, items }) => {
+        const col = board.createDiv({ cls: "cad-kanban-col" });
+        col.dataset.stage = stage;
+        const head = col.createDiv({ cls: "cad-kanban-col-head" });
+        head.createDiv({ cls: "cad-kanban-col-title", text: stage });
+        head.createDiv({ cls: "cad-kanban-col-meta", text: kanbanColumnMeta(items, def) });
+        const list = col.createDiv({ cls: "cad-kanban-col-list" });
+        list.addEventListener("dragover", (ev) => {
+          ev.preventDefault();
+          try {
+            ev.dataTransfer.dropEffect = "move";
+          } catch (_) {
+          }
+          col.addClass("drag-over");
+        });
+        list.addEventListener("dragleave", (ev) => {
+          if (!col.contains(ev.relatedTarget)) col.removeClass("drag-over");
+        });
+        list.addEventListener("drop", async (ev) => {
+          ev.preventDefault();
+          col.removeClass("drag-over");
+          const path = ev.dataTransfer.getData("text/cadence-entity");
+          const fromStage = ev.dataTransfer.getData("text/cadence-stage");
+          if (!path || fromStage === stage) return;
+          const file = view.app.vault.getAbstractFileByPath(path);
+          if (!file || !(file instanceof import_obsidian18.TFile)) return;
+          try {
+            await view.app.fileManager.processFrontMatter(file, (fm) => {
+              fm[groupBy] = kanbanDropValue(def.fields.find((fd) => fd.key === groupBy), stage);
+            });
+            new import_obsidian18.Notice(`Moved to ${stage}`);
+          } catch (e) {
+            new import_obsidian18.Notice(`Failed to move: ${e.message}`);
+          }
+        });
+        if (!items.length) {
+          list.createDiv({ cls: "cad-empty", text: "\u2014" });
+        } else {
+          const isMobile = !!(import_obsidian18.Platform && import_obsidian18.Platform.isMobile);
+          items.forEach((e) => {
+            const card = list.createDiv({ cls: "cad-kanban-card" });
+            card.dataset.path = e.file.path;
+            card.createDiv({ cls: "cad-kanban-card-title", text: entityValue(e, primaryField(def).key, def) || e.basename });
+            const meta = card.createDiv({ cls: "cad-kanban-card-meta" });
+            if (valueField) {
+              const val = entityValue(e, valueField.key, def);
+              if (val) meta.createSpan({ text: fmtValue(val, valueField.type) });
+            }
+            kanbanCardLinks(e, def).forEach((v) => {
+              meta.createSpan({ text: " \xB7 " });
+              const link = meta.createEl("a", { text: v.display });
+              link.style.textDecoration = "underline";
+              link.style.cursor = "pointer";
+              link.addEventListener("click", (ev) => {
+                ev.preventDefault();
+                ev.stopPropagation();
+                const targetFile = view.app.vault.getMarkdownFiles().find((f) => f.basename.toLowerCase() === v.target.toLowerCase());
+                if (targetFile) view.openEntityDetail(v.entityKey, targetFile);
+                else view.app.workspace.openLinkText(v.target, "", false);
+              });
+            });
+            if (!isMobile) {
+              card.draggable = true;
+              card.addEventListener("dragstart", (ev) => {
+                card.addClass("dragging");
+                try {
+                  ev.dataTransfer.effectAllowed = "move";
+                  ev.dataTransfer.setData("text/cadence-entity", e.file.path);
+                  ev.dataTransfer.setData("text/cadence-stage", stage);
+                  ev.dataTransfer.setData("text/plain", `[[${e.file.basename}]]`);
+                } catch (_) {
+                }
+              });
+              card.addEventListener("dragend", () => card.removeClass("dragging"));
+            } else {
+              card.addClass("cad-kanban-card-touch");
+            }
+            card.addEventListener("click", () => view.openEntityDetail(entityKey, e.file));
+          });
+        }
+      });
+    } else if (layout === "cards") {
+      cardsWrap.style.display = "block";
+      const grid = cardsWrap.createDiv({ cls: "cad-proj-grid" });
+      if (entityKey === "project") {
+        const projects = await Promise.all(displayed.map(async (e) => {
+          const meta = await readProjectMeta(view.app, e.file);
+          return { entity: e, meta };
+        }));
+        projects.forEach((p) => {
+          const card = grid.createDiv({ cls: "cad-proj-card" });
+          const head = card.createDiv({ cls: "cad-proj-card-head" });
+          const title = head.createEl("a", { cls: "cad-proj-title", text: entityValue(p.entity, "name", def) || p.entity.basename });
+          title.addEventListener("click", (ev) => {
+            ev.preventDefault();
+            view.openEntityDetail("project", p.entity.file);
+          });
+          const status = String(entityValue(p.entity, "status", def) || "active");
+          const priority = String(entityValue(p.entity, "priority", def) || "");
+          const pillRow = head.createDiv({ cls: "cad-proj-pills" });
+          pillRow.createSpan({ cls: `cad-pill ${pillClass(status)}`, text: status });
+          if (priority) pillRow.createSpan({ cls: `cad-pill cad-pill-prio-${priority.toLowerCase()}`, text: priority });
+          const metaRow = card.createDiv({ cls: "cad-proj-meta" });
+          const owner = entityValue(p.entity, "owner", def);
+          const due = entityValue(p.entity, "due", def);
+          if (owner) view._renderOwnerLinks(metaRow, owner);
+          if (due) metaRow.createSpan({ text: `Due: ${fmtValue(due, "date")}` });
+          const progWrap = card.createDiv({ cls: "cad-proj-progress-wrap" });
+          progWrap.dataset.pctBand = pctBand(p.meta.percent);
+          const progLabel = progWrap.createDiv({ cls: "cad-proj-progress-label" });
+          progLabel.createSpan({ text: `${p.meta.done}/${p.meta.total} milestones` });
+          progLabel.createSpan({ cls: "cad-proj-progress-pct", text: `${p.meta.percent}%` });
+          const bar = progWrap.createDiv({ cls: "cad-proj-progress-bar" });
+          const fill = bar.createDiv({ cls: "cad-proj-progress-fill" });
+          fill.style.width = `${p.meta.percent}%`;
+          if (p.meta.next) {
+            const nextRow = card.createDiv({ cls: "cad-proj-next" });
+            nextRow.createSpan({ cls: "cad-proj-next-label", text: "NEXT \xB7 " });
+            nextRow.createSpan({ cls: "cad-proj-next-date", text: fmtValue(p.meta.next.date, "date") });
+            if (p.meta.next.title) nextRow.createSpan({ text: ` \u2014 ${p.meta.next.title}` });
+          }
+        });
+      } else {
+        displayed.forEach((e) => {
+          const card = grid.createDiv({ cls: "cad-proj-card" });
+          const head = card.createDiv({ cls: "cad-proj-card-head" });
+          const primary = primaryField(def);
+          const titleText = entityValue(e, primary.key, def) || e.basename;
+          const title = head.createEl("a", { cls: "cad-proj-title", text: titleText });
+          title.addEventListener("click", (ev) => {
+            ev.preventDefault();
+            view.openEntityDetail(entityKey, e.file);
+          });
+          const pillRow = head.createDiv({ cls: "cad-proj-pills" });
+          const statusField = cardStatusField(def);
+          if (statusField) {
+            const val = entityValue(e, statusField.key, def);
+            if (val) {
+              const text = pillText(val);
+              pillRow.createSpan({ cls: `cad-pill ${pillClass(text)}`, text });
+            }
+          }
+          const metaRow = card.createDiv({ cls: "cad-proj-meta" });
+          cardMetaRows(e, def, primary, statusField).forEach(({ field: f, value: val, isLink }) => {
+            const formatted = fmtValue(val, f.type);
+            const fieldDiv = metaRow.createDiv();
+            fieldDiv.style.marginBottom = "2px";
+            fieldDiv.createSpan({ text: `${f.label}: `, attr: { style: "font-weight: 500; color: var(--text-muted);" } });
+            if (isLink) {
+              const links = parseLinkValues(val);
+              links.forEach((link, lidx) => {
+                if (lidx > 0) fieldDiv.createSpan({ text: ", " });
+                const aLink = fieldDiv.createEl("a", { text: link.display });
+                aLink.style.textDecoration = "underline";
+                aLink.style.cursor = "pointer";
+                aLink.addEventListener("click", (ev) => {
+                  ev.preventDefault();
+                  ev.stopPropagation();
+                  const targetFile = view.app.vault.getMarkdownFiles().find((f2) => f2.basename.toLowerCase() === link.target.toLowerCase());
+                  const relatedKey = cardLinkEntityKey(f, ENTITIES);
+                  if (targetFile) view.openEntityDetail(relatedKey, targetFile);
+                  else view.app.workspace.openLinkText(link.target, "", false);
+                });
+              });
+            } else {
+              fieldDiv.createSpan({ text: formatted });
+            }
+          });
+        });
+      }
+    }
+  };
+  searchInput.addEventListener("input", () => {
+    query.search = searchInput.value.trim().toLowerCase();
+    renderContent();
+  });
+  renderContent();
+}
+
+// src/views/task-links.ts
+var import_obsidian19 = require("obsidian");
 function taskLinkKey(dailyPath, text) {
   return `${dailyPath}::${(text || "").trim()}`;
 }
@@ -4247,14 +4981,14 @@ async function setTaskProjectLink(view, dailyPath, text, projectPath) {
 function openTaskProjectPicker(view, dailyPath, text, currentLink) {
   const projectFiles = listEntityFiles(view.app, "project");
   if (!projectFiles.length) {
-    new import_obsidian17.Notice("No projects yet. Create one in Planner \u2192 Projects first.");
+    new import_obsidian19.Notice("No projects yet. Create one in Planner \u2192 Projects first.");
     return;
   }
   const projects = projectFiles.map((f) => ({
     file: f,
     name: projectNameFromPath(view.app, f.path)
   }));
-  const picker = new class extends import_obsidian17.SuggestModal {
+  const picker = new class extends import_obsidian19.SuggestModal {
     constructor(app, projs, hasLink) {
       super(app);
       this.projs = projs;
@@ -4331,12 +5065,12 @@ async function propagateTaskComplete(view, text, done, source) {
   }
   for (const path of targets.projectPaths) {
     const file = view.app.vault.getAbstractFileByPath(path);
-    if (!file || !(file instanceof import_obsidian17.TFile)) continue;
+    if (!file || !(file instanceof import_obsidian19.TFile)) continue;
     await view._tickProjectTaskByText(file, targets.text, !!done);
   }
   for (const path of targets.dailyPaths) {
     const file = view.app.vault.getAbstractFileByPath(path);
-    if (!file || !(file instanceof import_obsidian17.TFile)) continue;
+    if (!file || !(file instanceof import_obsidian19.TFile)) continue;
     await view._tickDailyNoteTaskByText(file, targets.text, !!done);
   }
 }
@@ -4614,9 +5348,9 @@ function renderEntityTable(view, parent, entityKey, filteredList, columns) {
       const td = tr.createEl("td");
       const val = entityValue(e, f.key, def);
       const formatted = fmtValue(val, f.type);
-      const primaryField = def.fields.find((fd) => fd.primary) || def.fields[0];
-      const hasPrimaryCol = cols.some((c) => c.key === primaryField.key);
-      const isPrimaryCol = hasPrimaryCol ? f.key === primaryField.key : i === 0;
+      const primaryField2 = def.fields.find((fd) => fd.primary) || def.fields[0];
+      const hasPrimaryCol = cols.some((c) => c.key === primaryField2.key);
+      const isPrimaryCol = hasPrimaryCol ? f.key === primaryField2.key : i === 0;
       if (isPrimaryCol) {
         const a = td.createEl("a", { cls: "cad-row-primary", text: formatted || e.basename });
         a.style.fontWeight = "bold";
@@ -4674,7 +5408,7 @@ function getEntityFiles(view, entityKey) {
 }
 
 // src/views/components/sections.ts
-var import_obsidian18 = require("obsidian");
+var import_obsidian20 = require("obsidian");
 function linksTo(val, name) {
   if (val == null) return false;
   const cleanName = name.trim().toLowerCase();
@@ -4722,7 +5456,7 @@ function renderMarkdownTextCard(view, parent, file, sectionKey, label, initialVa
   const openBtn = head.createEl("button", { cls: "cad-btn cad-btn-sm", attr: { style: "margin-left: auto; padding: 4px 6px; display: inline-flex; align-items: center; justify-content: center; border-radius: 4px; border: 1px solid var(--border-color); background: transparent; cursor: pointer;" } });
   openBtn.title = "Open this note natively to edit with full Live Preview & Autocomplete";
   try {
-    (0, import_obsidian18.setIcon)(openBtn, "file-text");
+    (0, import_obsidian20.setIcon)(openBtn, "file-text");
   } catch (_) {
   }
   openBtn.addEventListener("click", (ev) => {
@@ -4735,7 +5469,7 @@ function renderMarkdownTextCard(view, parent, file, sectionKey, label, initialVa
     previewDiv.empty();
     const rawText = initialValue || "";
     try {
-      import_obsidian18.MarkdownRenderer.renderMarkdown(rawText, previewDiv, file.path, view);
+      import_obsidian20.MarkdownRenderer.renderMarkdown(rawText, previewDiv, file.path, view);
       previewDiv.querySelectorAll("a.internal-link").forEach((a) => {
         const href = a.getAttribute("data-href") || a.getAttribute("href");
         if (href) {
@@ -4819,8 +5553,8 @@ function renderSingleCrossSection(view, parent, targetEntity, linkField, viewTyp
       } else {
         const card = grid.createDiv({ cls: "cad-proj-card" });
         const head = card.createDiv({ cls: "cad-proj-card-head" });
-        const primaryField = def.fields.find((f) => f.primary) || def.fields[0];
-        const titleText = entityValue(e, primaryField.key, def) || e.basename;
+        const primaryField2 = def.fields.find((f) => f.primary) || def.fields[0];
+        const titleText = entityValue(e, primaryField2.key, def) || e.basename;
         const title = head.createEl("a", { cls: "cad-proj-title", text: titleText });
         title.addEventListener("click", (ev) => {
           ev.preventDefault();
@@ -4838,7 +5572,7 @@ function renderSingleCrossSection(view, parent, targetEntity, linkField, viewTyp
         const metaRow = card.createDiv({ cls: "cad-proj-meta" });
         let count = 0;
         def.fields.forEach((f) => {
-          if (f.key !== primaryField.key && (!statusField || f.key !== statusField.key) && count < 4) {
+          if (f.key !== primaryField2.key && (!statusField || f.key !== statusField.key) && count < 4) {
             const val = entityValue(e, f.key, def);
             if (val != null && val !== "") {
               count++;
@@ -4879,7 +5613,7 @@ function renderSingleCrossSection(view, parent, targetEntity, linkField, viewTyp
     const board = secWrap.createDiv({ cls: "cad-kanban-board" });
     const groupField = def.fields.find((f) => f.key === "stage" || f.key === "status" || f.key === "type" || f.type === "enum") || def.fields[1];
     const columns = groupField.options || ["To Do", "In Progress", "Done"];
-    const isMobile = !!(import_obsidian18.Platform && import_obsidian18.Platform.isMobile);
+    const isMobile = !!(import_obsidian20.Platform && import_obsidian20.Platform.isMobile);
     columns.forEach((colName) => {
       const items = filteredList.filter((e) => {
         const val = entityValue(e, groupField.key, def);
@@ -4915,7 +5649,7 @@ function renderSingleCrossSection(view, parent, targetEntity, linkField, viewTyp
         const fromStage = ev.dataTransfer.getData("text/cadence-stage");
         if (!path || fromStage === colName) return;
         const file = view.app.vault.getAbstractFileByPath(path);
-        if (!file || !(file instanceof import_obsidian18.TFile)) return;
+        if (!file || !(file instanceof import_obsidian20.TFile)) return;
         try {
           await view.app.fileManager.processFrontMatter(file, (fm) => {
             const isList = groupField.type === "multitext" || groupField.type === "tags" || groupField.isList === true;
@@ -4926,10 +5660,10 @@ function renderSingleCrossSection(view, parent, targetEntity, linkField, viewTyp
               fm[groupField.key] = isLink ? `[[${colName}]]` : colName;
             }
           });
-          new import_obsidian18.Notice(`Moved to ${colName}`);
+          new import_obsidian20.Notice(`Moved to ${colName}`);
           view.render();
         } catch (e) {
-          new import_obsidian18.Notice(`Failed to move: ${e.message}`);
+          new import_obsidian20.Notice(`Failed to move: ${e.message}`);
         }
       });
       if (!items.length) {
@@ -4938,8 +5672,8 @@ function renderSingleCrossSection(view, parent, targetEntity, linkField, viewTyp
         items.forEach((e) => {
           const card = list.createDiv({ cls: "cad-kanban-card" });
           card.dataset.path = e.file.path;
-          const primaryField = def.fields.find((f) => f.primary) || def.fields[0];
-          card.createDiv({ cls: "cad-kanban-card-title", text: entityValue(e, primaryField.key, def) || e.basename });
+          const primaryField2 = def.fields.find((f) => f.primary) || def.fields[0];
+          card.createDiv({ cls: "cad-kanban-card-title", text: entityValue(e, primaryField2.key, def) || e.basename });
           const meta = card.createDiv({ cls: "cad-kanban-card-meta" });
           if (hasValField) {
             const v = entityValue(e, hasValField.key, def);
@@ -5090,7 +5824,7 @@ function renderDynamicH2Section(view, parent, file, sections, rawKey, flashSaved
         const vBtn = viewSwitch.createEl("button", { attr: { style: `padding: 4px 6px; display: inline-flex; align-items: center; justify-content: center; border-radius: 4px; cursor: pointer; border: 1px solid var(--border-color); background: ${v === viewType ? "var(--interactive-accent)" : "transparent"}; color: ${v === viewType ? "var(--text-on-accent)" : "var(--text-muted)"};` } });
         vBtn.title = title;
         try {
-          (0, import_obsidian18.setIcon)(vBtn, icon);
+          (0, import_obsidian20.setIcon)(vBtn, icon);
         } catch (_) {
         }
         if (v !== viewType) {
@@ -5313,36 +6047,7 @@ var CadenceAppView = class extends obsidian.ItemView {
     return resolveSurface(id, this.plugin.settings);
   }
   getEntityKanbanParams(entityKey) {
-    const def = ENTITIES[entityKey];
-    if (!def) return { groupBy: "status", groups: ["Active", "Done"] };
-    let groupBy = this.plugin.settings.pageKanbanGroupBy?.[entityKey];
-    if (!groupBy) {
-      const fallbackField = def.fields.find((field) => !field.primary && ["enum", "text"].includes(field.type));
-      groupBy = fallbackField ? fallbackField.key : "status";
-      if (entityKey === "deal") groupBy = "stage";
-      else if (entityKey === "activity") groupBy = "type";
-    }
-    let f = def.fields.find((field) => field.key === groupBy);
-    let groups = f ? f.options || [] : [];
-    if (!groups.length) {
-      const allFiles = listEntities(this.app, entityKey);
-      const uniqueVals = /* @__PURE__ */ new Set();
-      allFiles.forEach((e) => {
-        const val = entityValue(e, groupBy, def);
-        if (val) {
-          const parts = Array.isArray(val) ? val : String(val).split(",");
-          parts.forEach((v) => {
-            const clean = String(v).replace(/^\[\[|\]\]$/g, "").trim();
-            if (clean) uniqueVals.add(clean);
-          });
-        }
-      });
-      groups = Array.from(uniqueVals);
-      if (!groups.length) {
-        groups = ["To Do", "In Progress", "Done"];
-      }
-    }
-    return { groupBy, groups };
+    return getEntityKanbanParams(this, entityKey);
   }
   /* Toggle Cadence-app dark mode. Scoped to `.cadence-app` only —
      does not affect Obsidian's overall light/dark mode. Persisted in settings. */
@@ -5400,512 +6105,8 @@ var CadenceAppView = class extends obsidian.ItemView {
     return renderPageHeader(this, root, title, subtitle, actions);
   }
   /* ── Generic entity LIST view ───────────── */
-  async renderEntityList(root, entityKey, opts = {}) {
-    root.addClass("cadence-list");
-    const def = ENTITIES[entityKey];
-    if (!def) {
-      this.renderComingSoon(root, this._resolveSurface(this.mode));
-      return;
-    }
-    const entities = listEntities(this.app, entityKey);
-    const filtered = opts.filter ? entities.filter(opts.filter) : entities;
-    const mode = this.mode;
-    const layout = this.plugin.settings.pageLayouts?.[mode] || (mode === "projects.projects" ? "cards" : mode === "crm.pipeline" ? "kanban" : "table");
-    this._renderPageHeader(root, opts.title || def.plural, `${filtered.length} ${filtered.length === 1 ? def.label.toLowerCase() : def.plural.toLowerCase()} in ${def.folder}`, (right) => {
-      const switcher = right.createDiv({ cls: "cad-layout-switcher" });
-      switcher.style.display = "inline-flex";
-      switcher.style.gap = "4px";
-      switcher.style.marginRight = "12px";
-      switcher.style.border = "1px solid var(--border-color)";
-      switcher.style.borderRadius = "6px";
-      switcher.style.overflow = "hidden";
-      switcher.style.padding = "2px";
-      switcher.style.background = "var(--background-secondary)";
-      const layouts = [
-        { key: "table", icon: "layout-list", title: "Table view" },
-        { key: "kanban", icon: "kanban", title: "Kanban board" },
-        { key: "cards", icon: "layout-grid", title: "Card grid" }
-      ];
-      layouts.forEach((l) => {
-        const btn2 = switcher.createEl("button", { cls: "cad-topbar-icon-btn" });
-        btn2.style.padding = "4px 8px";
-        btn2.style.height = "auto";
-        btn2.style.border = "none";
-        btn2.style.background = layout === l.key ? "var(--background-modifier-border)" : "transparent";
-        btn2.style.borderRadius = "4px";
-        btn2.style.cursor = "pointer";
-        try {
-          obsidian.setIcon(btn2, l.icon);
-        } catch (_) {
-        }
-        btn2.title = l.title;
-        btn2.addEventListener("click", async (e) => {
-          e.preventDefault();
-          if (!this.plugin.settings.pageLayouts) this.plugin.settings.pageLayouts = {};
-          this.plugin.settings.pageLayouts[mode] = l.key;
-          await this.plugin.saveSettings();
-          this.render();
-        });
-      });
-      const importBtn = right.createEl("button", { cls: "cad-btn", text: "Import CSV" });
-      importBtn.addEventListener("click", () => new CadenceImportModal(this.app, { entityKey }).open());
-      const btn = right.createEl("button", { cls: "cad-btn primary", text: `+ New ${def.label}` });
-      btn.addEventListener("click", () => this._createEntityFromPrompt(entityKey));
-    });
-    if (!filtered.length) {
-      const empty = root.createDiv({ cls: "cad-empty-state" });
-      empty.createDiv({ cls: "cad-empty-state-title", text: `No ${def.plural.toLowerCase()} yet` });
-      empty.createDiv({ cls: "cad-empty-state-desc", text: `Drop a markdown note in ${def.folder}/ with frontmatter, or hit "+ New" above.` });
-      return;
-    }
-    const controls = root.createDiv({ cls: "cad-list-controls" });
-    controls.style.display = "flex";
-    controls.style.gap = "12px";
-    controls.style.alignItems = "center";
-    controls.style.marginBottom = "16px";
-    controls.style.flexWrap = "wrap";
-    const searchWrap = controls.createDiv({ cls: "cad-search-wrap" });
-    searchWrap.style.display = "flex";
-    searchWrap.style.alignItems = "center";
-    searchWrap.style.gap = "6px";
-    searchWrap.style.flex = "1";
-    searchWrap.style.minWidth = "200px";
-    const searchInput = searchWrap.createEl("input", {
-      type: "text",
-      cls: "cad-pd-meta-input",
-      placeholder: `Search ${def.plural.toLowerCase()}...`
-    });
-    searchInput.style.width = "100%";
-    searchInput.style.margin = "0";
-    if (layout === "kanban") {
-      const kanbanFields = def.fields.filter((field) => !field.primary && ["enum", "text", "multitext", "tags"].includes(field.type));
-      if (kanbanFields.length > 0) {
-        const groupSelectWrap = controls.createDiv({ attr: { style: "display: inline-flex; align-items: center; gap: 6px; margin-left: auto;" } });
-        groupSelectWrap.createSpan({ text: "Group columns by:", attr: { style: "font-size: 0.85em; color: var(--text-muted); font-weight: 600;" } });
-        const groupSelect = groupSelectWrap.createEl("select", { cls: "cad-prop-input" });
-        groupSelect.style.padding = "6px 10px";
-        groupSelect.style.height = "auto";
-        groupSelect.style.width = "auto";
-        groupSelect.style.background = "var(--background-secondary)";
-        groupSelect.style.color = "var(--text-normal)";
-        groupSelect.style.border = "1px solid var(--border-color)";
-        groupSelect.style.borderRadius = "6px";
-        kanbanFields.forEach((f) => {
-          const optEl = groupSelect.createEl("option", { value: f.key, text: f.label });
-          const currentParams = this.getEntityKanbanParams(entityKey);
-          if (currentParams.groupBy === f.key) optEl.selected = true;
-        });
-        groupSelect.addEventListener("change", async () => {
-          if (!this.plugin.settings.pageKanbanGroupBy) this.plugin.settings.pageKanbanGroupBy = {};
-          this.plugin.settings.pageKanbanGroupBy[entityKey] = groupSelect.value;
-          await this.plugin.saveSettings();
-          this.render();
-        });
-      }
-    }
-    const filterableKeys = def.fields.map((f) => f.key).filter((k) => {
-      const fdef = def.fields.find((f) => f.key === k);
-      return fdef && (fdef.type === "enum" || ["company", "role", "with", "related", "status", "tier", "type"].includes(k));
-    });
-    const activeFilters = {};
-    let searchVal = "";
-    let currentSortField = def.columns[0] || "";
-    let currentSortAsc = true;
-    filterableKeys.forEach((k) => {
-      const fdef = def.fields.find((f) => f.key === k);
-      if (!fdef) return;
-      const uniqueVals = /* @__PURE__ */ new Set();
-      filtered.forEach((e) => {
-        const val = entityValue(e, k, def);
-        if (Array.isArray(val)) {
-          val.forEach((v) => {
-            if (v) {
-              const clean = String(v).replace(/^\[\[|\]\]$/g, "").trim();
-              if (clean) uniqueVals.add(clean);
-            }
-          });
-        } else if (val != null && val !== "") {
-          const clean = String(val).replace(/^\[\[|\]\]$/g, "").trim();
-          if (clean) uniqueVals.add(clean);
-        }
-      });
-      if (uniqueVals.size === 0) return;
-      const filterWrap = controls.createDiv({ cls: "cad-filter-select-wrap" });
-      filterWrap.style.display = "flex";
-      filterWrap.style.alignItems = "center";
-      filterWrap.style.gap = "6px";
-      const sel = filterWrap.createEl("select", { cls: "cad-pd-meta-input" });
-      sel.style.margin = "0";
-      sel.style.padding = "4px 8px";
-      sel.style.minHeight = "30px";
-      sel.style.border = "1px solid var(--border-color)";
-      sel.style.borderRadius = "4px";
-      sel.createEl("option", { value: "", text: `All ${fdef.label}s` });
-      Array.from(uniqueVals).sort().forEach((v) => {
-        sel.createEl("option", { value: v, text: v });
-      });
-      sel.addEventListener("change", () => {
-        activeFilters[k] = sel.value;
-        renderContent();
-      });
-    });
-    const baseCols = opts.columns || def.columns;
-    const cols = baseCols.map((k) => def.fields.find((f) => f.key === k)).filter(Boolean);
-    def.fields.forEach((f) => {
-      if (!baseCols.includes(f.key) && !cols.some((c) => c.key === f.key)) {
-        cols.push(f);
-      }
-    });
-    const tableWrap = root.createDiv({ cls: "cad-table-wrap" });
-    const kanbanWrap = root.createDiv({ cls: "cad-kanban-board-wrap" });
-    const cardsWrap = root.createDiv({ cls: "cad-proj-grid-wrap" });
-    const renderContent = async () => {
-      tableWrap.style.display = "none";
-      tableWrap.empty();
-      kanbanWrap.style.display = "none";
-      kanbanWrap.empty();
-      cardsWrap.style.display = "none";
-      cardsWrap.empty();
-      let displayed = filtered.filter((e) => {
-        if (searchVal) {
-          const match = cols.some((f) => {
-            const val = entityValue(e, f.key, def);
-            if (val == null) return false;
-            return String(val).toLowerCase().includes(searchVal);
-          }) || e.basename.toLowerCase().includes(searchVal);
-          if (!match) return false;
-        }
-        for (const [k, filterVal] of Object.entries(activeFilters)) {
-          if (!filterVal) continue;
-          const val = entityValue(e, k, def);
-          if (Array.isArray(val)) {
-            const cleanVals = val.map((v) => String(v).replace(/^\[\[|\]\]$/g, "").trim().toLowerCase());
-            if (!cleanVals.includes(filterVal.toLowerCase())) return false;
-          } else {
-            const cleanVal = String(val || "").replace(/^\[\[|\]\]$/g, "").trim().toLowerCase();
-            if (cleanVal !== filterVal.toLowerCase()) return false;
-          }
-        }
-        return true;
-      });
-      if (currentSortField) {
-        const fdef = def.fields.find((f) => f.key === currentSortField);
-        const ftype = fdef ? fdef.type : "text";
-        displayed.sort((a, b) => {
-          let valA = entityValue(a, currentSortField, def);
-          let valB = entityValue(b, currentSortField, def);
-          if (valA && typeof valA === "string") valA = valA.replace(/^\[\[|\]\]$/g, "").trim();
-          if (valB && typeof valB === "string") valB = valB.replace(/^\[\[|\]\]$/g, "").trim();
-          if (valA == null) valA = "";
-          if (valB == null) valB = "";
-          let diff = 0;
-          if (ftype === "number" || ftype === "currency") {
-            diff = Number(valA) - Number(valB);
-          } else if (ftype === "date") {
-            const dateA = new Date(valA).getTime() || 0;
-            const dateB = new Date(valB).getTime() || 0;
-            diff = dateA - dateB;
-          } else {
-            diff = String(valA).localeCompare(String(valB), void 0, { numeric: true, sensitivity: "base" });
-          }
-          return currentSortAsc ? diff : -diff;
-        });
-      }
-      if (layout === "table") {
-        tableWrap.style.display = "block";
-        const table = tableWrap.createEl("table", { cls: "cad-table" });
-        const thead = table.createEl("thead");
-        const trh = thead.createEl("tr");
-        const headers = [];
-        cols.forEach((f) => {
-          const th = trh.createEl("th");
-          th.style.cursor = "pointer";
-          th.style.userSelect = "none";
-          const thSpan = th.createSpan({ text: f.label + " " });
-          const indicator = th.createSpan({ text: f.key === currentSortField ? "\u25B2" : "\u2195" });
-          indicator.style.opacity = f.key === currentSortField ? "1" : "0.4";
-          indicator.style.marginLeft = "4px";
-          headers.push({ key: f.key, th, indicator });
-          th.addEventListener("click", () => {
-            if (currentSortField === f.key) {
-              currentSortAsc = !currentSortAsc;
-            } else {
-              currentSortField = f.key;
-              currentSortAsc = true;
-            }
-            renderContent();
-          });
-        });
-        const tbody = table.createEl("tbody");
-        if (displayed.length === 0) {
-          const tr = tbody.createEl("tr");
-          const td = tr.createEl("td", { text: "No matching entries found." });
-          td.colSpan = cols.length;
-          td.style.textAlign = "center";
-          td.style.color = "var(--text-muted)";
-          td.style.padding = "20px";
-        } else {
-          displayed.forEach((e) => {
-            const tr = tbody.createEl("tr", { cls: "cad-row" });
-            cols.forEach((f, i) => {
-              const td = tr.createEl("td");
-              const val = entityValue(e, f.key, def);
-              const formatted = fmtValue(val, f.type);
-              const primaryField = def.fields.find((fd) => fd.primary) || def.fields[0];
-              const hasPrimaryCol = cols.some((c) => c.key === primaryField.key);
-              const isPrimaryCol = hasPrimaryCol ? f.key === primaryField.key : i === 0;
-              if (isPrimaryCol) {
-                const a = td.createEl("a", { cls: "cad-row-primary", text: formatted || e.basename });
-                a.addEventListener("click", (ev) => {
-                  ev.preventDefault();
-                  this.openEntityDetail(entityKey, e.file);
-                });
-              } else if (f.key === "owner" || f.key === "assigned") {
-                this._renderOwnerLinks(td, val, false);
-              } else {
-                const sugSrc = f.suggestionSource || getFieldSuggestionSource(f);
-                if (f.type === "multitext" && sugSrc && sugSrc !== "none" && sugSrc !== "tags" && sugSrc !== "history") {
-                  const targetSrc = sugSrc === "history" ? "folder:Cadence/Shared" : sugSrc;
-                  this._renderEntityLinks(td, val, targetSrc);
-                } else if (f.key === "company") {
-                  this._renderEntityLinks(td, val, "company");
-                } else if (f.key === "partner") {
-                  this._renderEntityLinks(td, val, "partner");
-                } else if (f.key === "contact" || f.key === "contacts" || f.key === "with") {
-                  this._renderEntityLinks(td, val, "contact");
-                } else if (f.key === "related") {
-                  this._renderEntityLinks(td, val, "project");
-                } else {
-                  td.setText(formatted);
-                }
-              }
-            });
-          });
-        }
-      } else if (layout === "kanban") {
-        kanbanWrap.style.display = "block";
-        const kanbanParams = this.getEntityKanbanParams(entityKey);
-        const { groupBy, groups } = kanbanParams;
-        const board = kanbanWrap.createDiv({ cls: "cad-kanban-board" });
-        groups.forEach((stage) => {
-          const items = displayed.filter((e) => {
-            const val = entityValue(e, groupBy, def);
-            if (Array.isArray(val)) {
-              const cleanVals = val.map((v) => String(v).replace(/^\[\[|\]\]$/g, "").trim().toLowerCase());
-              return cleanVals.includes(stage.toLowerCase());
-            }
-            return String(val || "").replace(/^\[\[|\]\]$/g, "").trim().toLowerCase() === stage.toLowerCase();
-          });
-          const col = board.createDiv({ cls: "cad-kanban-col" });
-          col.dataset.stage = stage;
-          const head = col.createDiv({ cls: "cad-kanban-col-head" });
-          head.createDiv({ cls: "cad-kanban-col-title", text: stage });
-          const valueField = def.fields.find((f) => f.type === "currency" || f.type === "number");
-          if (valueField) {
-            const sum = items.reduce((s, e) => s + (Number(entityValue(e, valueField.key, def)) || 0), 0);
-            head.createDiv({ cls: "cad-kanban-col-meta", text: `${items.length} \xB7 ${fmtValue(sum, valueField.type)}` });
-          } else {
-            head.createDiv({ cls: "cad-kanban-col-meta", text: `${items.length}` });
-          }
-          const list = col.createDiv({ cls: "cad-kanban-col-list" });
-          list.addEventListener("dragover", (ev) => {
-            ev.preventDefault();
-            try {
-              ev.dataTransfer.dropEffect = "move";
-            } catch (_) {
-            }
-            col.addClass("drag-over");
-          });
-          list.addEventListener("dragleave", (ev) => {
-            if (!col.contains(ev.relatedTarget)) col.removeClass("drag-over");
-          });
-          list.addEventListener("drop", async (ev) => {
-            ev.preventDefault();
-            col.removeClass("drag-over");
-            const path = ev.dataTransfer.getData("text/cadence-entity");
-            const fromStage = ev.dataTransfer.getData("text/cadence-stage");
-            if (!path || fromStage === stage) return;
-            const file = this.app.vault.getAbstractFileByPath(path);
-            if (!file || !(file instanceof obsidian.TFile)) return;
-            try {
-              await this.app.fileManager.processFrontMatter(file, (fm) => {
-                const fDef = def.fields.find((fd) => fd.key === groupBy);
-                const isList = fDef && (fDef.type === "multitext" || fDef.type === "tags" || fDef.isList === true);
-                const isLink = fDef && fDef.suggestionSource && fDef.suggestionSource !== "none" && fDef.suggestionSource !== "tags" && fDef.suggestionSource !== "history";
-                if (isList) {
-                  fm[groupBy] = isLink ? [`[[${stage}]]`] : [stage];
-                } else {
-                  fm[groupBy] = isLink ? `[[${stage}]]` : stage;
-                }
-              });
-              new obsidian.Notice(`Moved to ${stage}`);
-            } catch (e) {
-              new obsidian.Notice(`Failed to move: ${e.message}`);
-            }
-          });
-          if (!items.length) {
-            list.createDiv({ cls: "cad-empty", text: "\u2014" });
-          } else {
-            const isMobile = !!(obsidian.Platform && obsidian.Platform.isMobile);
-            items.forEach((e) => {
-              const card = list.createDiv({ cls: "cad-kanban-card" });
-              card.dataset.path = e.file.path;
-              const primaryField = def.fields.find((f) => f.primary) || def.fields[0];
-              card.createDiv({ cls: "cad-kanban-card-title", text: entityValue(e, primaryField.key, def) || e.basename });
-              const meta = card.createDiv({ cls: "cad-kanban-card-meta" });
-              if (valueField) {
-                const val = entityValue(e, valueField.key, def);
-                if (val) meta.createSpan({ text: fmtValue(val, valueField.type) });
-              }
-              const relFields = ["company", "contact", "owner", "assigned"];
-              relFields.forEach((rf) => {
-                const rfDef = def.fields.find((f) => f.key === rf);
-                if (rfDef) {
-                  const vals = parseLinkValues(entityValue(e, rf, def));
-                  vals.forEach((v) => {
-                    meta.createSpan({ text: " \xB7 " });
-                    const link = meta.createEl("a", { text: v.display });
-                    link.style.textDecoration = "underline";
-                    link.style.cursor = "pointer";
-                    link.addEventListener("click", (ev) => {
-                      ev.preventDefault();
-                      ev.stopPropagation();
-                      const targetFile = this.app.vault.getMarkdownFiles().find((f) => f.basename.toLowerCase() === v.target.toLowerCase());
-                      if (targetFile) this.openEntityDetail(rf === "owner" || rf === "assigned" ? "contact" : rf, targetFile);
-                      else this.app.workspace.openLinkText(v.target, "", false);
-                    });
-                  });
-                }
-              });
-              if (!isMobile) {
-                card.draggable = true;
-                card.addEventListener("dragstart", (ev) => {
-                  card.addClass("dragging");
-                  try {
-                    ev.dataTransfer.effectAllowed = "move";
-                    ev.dataTransfer.setData("text/cadence-entity", e.file.path);
-                    ev.dataTransfer.setData("text/cadence-stage", stage);
-                    ev.dataTransfer.setData("text/plain", `[[${e.file.basename}]]`);
-                  } catch (_) {
-                  }
-                });
-                card.addEventListener("dragend", () => card.removeClass("dragging"));
-              } else {
-                card.addClass("cad-kanban-card-touch");
-              }
-              card.addEventListener("click", () => this.openEntityDetail(entityKey, e.file));
-            });
-          }
-        });
-      } else if (layout === "cards") {
-        cardsWrap.style.display = "block";
-        const grid = cardsWrap.createDiv({ cls: "cad-proj-grid" });
-        if (entityKey === "project") {
-          const projects = await Promise.all(displayed.map(async (e) => {
-            const meta = await readProjectMeta(this.app, e.file);
-            return { entity: e, meta };
-          }));
-          projects.forEach((p) => {
-            const card = grid.createDiv({ cls: "cad-proj-card" });
-            const head = card.createDiv({ cls: "cad-proj-card-head" });
-            const title = head.createEl("a", { cls: "cad-proj-title", text: entityValue(p.entity, "name", def) || p.entity.basename });
-            title.addEventListener("click", (ev) => {
-              ev.preventDefault();
-              this.openEntityDetail("project", p.entity.file);
-            });
-            const status = String(entityValue(p.entity, "status", def) || "active");
-            const priority = String(entityValue(p.entity, "priority", def) || "");
-            const pillRow = head.createDiv({ cls: "cad-proj-pills" });
-            pillRow.createSpan({ cls: `cad-pill cad-pill-${status.toLowerCase().replace(/\s+/g, "-")}`, text: status });
-            if (priority) pillRow.createSpan({ cls: `cad-pill cad-pill-prio-${priority.toLowerCase()}`, text: priority });
-            const metaRow = card.createDiv({ cls: "cad-proj-meta" });
-            const owner = entityValue(p.entity, "owner", def);
-            const due = entityValue(p.entity, "due", def);
-            if (owner) this._renderOwnerLinks(metaRow, owner);
-            if (due) metaRow.createSpan({ text: `Due: ${fmtValue(due, "date")}` });
-            const progWrap = card.createDiv({ cls: "cad-proj-progress-wrap" });
-            progWrap.dataset.pctBand = pctBand(p.meta.percent);
-            const progLabel = progWrap.createDiv({ cls: "cad-proj-progress-label" });
-            progLabel.createSpan({ text: `${p.meta.done}/${p.meta.total} milestones` });
-            progLabel.createSpan({ cls: "cad-proj-progress-pct", text: `${p.meta.percent}%` });
-            const bar = progWrap.createDiv({ cls: "cad-proj-progress-bar" });
-            const fill = bar.createDiv({ cls: "cad-proj-progress-fill" });
-            fill.style.width = `${p.meta.percent}%`;
-            if (p.meta.next) {
-              const nextRow = card.createDiv({ cls: "cad-proj-next" });
-              nextRow.createSpan({ cls: "cad-proj-next-label", text: "NEXT \xB7 " });
-              nextRow.createSpan({ cls: "cad-proj-next-date", text: fmtValue(p.meta.next.date, "date") });
-              if (p.meta.next.title) nextRow.createSpan({ text: ` \u2014 ${p.meta.next.title}` });
-            }
-          });
-        } else {
-          displayed.forEach((e) => {
-            const card = grid.createDiv({ cls: "cad-proj-card" });
-            const head = card.createDiv({ cls: "cad-proj-card-head" });
-            const primaryField = def.fields.find((f) => f.primary) || def.fields[0];
-            const titleText = entityValue(e, primaryField.key, def) || e.basename;
-            const title = head.createEl("a", { cls: "cad-proj-title", text: titleText });
-            title.addEventListener("click", (ev) => {
-              ev.preventDefault();
-              this.openEntityDetail(entityKey, e.file);
-            });
-            const pillRow = head.createDiv({ cls: "cad-proj-pills" });
-            const statusField = def.fields.find((f) => f.key === "status" || f.key === "type" || f.key === "tier") || def.fields.find((f) => f.type === "enum");
-            if (statusField) {
-              const val = entityValue(e, statusField.key, def);
-              if (val) {
-                const clean = Array.isArray(val) ? val[0] : val;
-                pillRow.createSpan({ cls: `cad-pill cad-pill-${String(clean).toLowerCase().replace(/\s+/g, "-")}`, text: String(clean) });
-              }
-            }
-            const metaRow = card.createDiv({ cls: "cad-proj-meta" });
-            let count = 0;
-            def.fields.forEach((f) => {
-              if (f.key !== primaryField.key && (!statusField || f.key !== statusField.key) && count < 4) {
-                const val = entityValue(e, f.key, def);
-                if (val != null && val !== "") {
-                  const formatted = fmtValue(val, f.type);
-                  const fieldDiv = metaRow.createDiv();
-                  fieldDiv.style.marginBottom = "2px";
-                  fieldDiv.createSpan({ text: `${f.label}: `, attr: { style: "font-weight: 500; color: var(--text-muted);" } });
-                  const isLinkProperty = f.key === "company" || f.key === "contact" || f.key === "partner" || f.key === "owner" || f.key === "project" || f.suggestionSource && f.suggestionSource.startsWith("folder:");
-                  if (isLinkProperty) {
-                    const links = parseLinkValues(val);
-                    links.forEach((link, lidx) => {
-                      if (lidx > 0) fieldDiv.createSpan({ text: ", " });
-                      const aLink = fieldDiv.createEl("a", { text: link.display });
-                      aLink.style.textDecoration = "underline";
-                      aLink.style.cursor = "pointer";
-                      aLink.addEventListener("click", (ev) => {
-                        ev.preventDefault();
-                        ev.stopPropagation();
-                        const targetFile = this.app.vault.getMarkdownFiles().find((f2) => f2.basename.toLowerCase() === link.target.toLowerCase());
-                        let relatedKey = f.key === "owner" ? "contact" : f.key;
-                        if (f.suggestionSource && f.suggestionSource.startsWith("folder:")) {
-                          const folder = f.suggestionSource.replace("folder:", "").split("/").pop().toLowerCase();
-                          const found = Object.keys(ENTITIES).find((k) => ENTITIES[k].folder.toLowerCase().endsWith(folder) || ENTITIES[k].plural.toLowerCase() === folder);
-                          if (found) relatedKey = found;
-                        }
-                        if (targetFile) this.openEntityDetail(relatedKey, targetFile);
-                        else this.app.workspace.openLinkText(link.target, "", false);
-                      });
-                    });
-                  } else {
-                    fieldDiv.createSpan({ text: formatted });
-                  }
-                  count++;
-                }
-              }
-            });
-          });
-        }
-      }
-    };
-    searchInput.addEventListener("input", () => {
-      searchVal = searchInput.value.trim().toLowerCase();
-      renderContent();
-    });
-    renderContent();
+  renderEntityList(root, entityKey, opts) {
+    return renderEntityList(this, root, entityKey, opts);
   }
   /* ── Entity DETAIL view (in-app form, autosaves to frontmatter) ── */
   async renderEntityDetail(root, entityKey, file) {
@@ -8127,124 +8328,8 @@ ${defaultBody}
     return quickAddTodayTask(this);
   }
   /* ── Pipeline kanban (deals grouped by stage) ───── */
-  async renderEntityKanban(root, entityKey, groupBy, groups) {
-    root.addClass("cadence-kanban");
-    const def = ENTITIES[entityKey];
-    const entities = listEntities(this.app, entityKey);
-    const totalValue = entities.reduce((sum, e) => sum + (Number(entityValue(e, "value", def)) || 0), 0);
-    this._renderPageHeader(root, def.plural, `${entities.length} ${entities.length === 1 ? def.label.toLowerCase() : def.plural.toLowerCase()} \xB7 ${fmtValue(totalValue, "currency")} total`, (right) => {
-      const importBtn = right.createEl("button", { cls: "cad-btn", text: "Import CSV" });
-      importBtn.addEventListener("click", () => new CadenceImportModal(this.app, { entityKey }).open());
-      const btn = right.createEl("button", { cls: "cad-btn primary", text: `+ New ${def.label}` });
-      btn.addEventListener("click", () => this._createEntityFromPrompt(entityKey));
-    });
-    const board = root.createDiv({ cls: "cad-kanban-board" });
-    groups.forEach((stage) => {
-      const items = entities.filter((e) => String(entityValue(e, groupBy, def) || "") === stage);
-      const stageValue = items.reduce((s, e) => s + (Number(entityValue(e, "value", def)) || 0), 0);
-      const col = board.createDiv({ cls: "cad-kanban-col" });
-      col.dataset.stage = stage;
-      const head = col.createDiv({ cls: "cad-kanban-col-head" });
-      head.createDiv({ cls: "cad-kanban-col-title", text: stage });
-      head.createDiv({ cls: "cad-kanban-col-meta", text: `${items.length} \xB7 ${fmtValue(stageValue, "currency")}` });
-      const list = col.createDiv({ cls: "cad-kanban-col-list" });
-      list.addEventListener("dragover", (ev) => {
-        ev.preventDefault();
-        try {
-          ev.dataTransfer.dropEffect = "move";
-        } catch (_) {
-        }
-        col.addClass("drag-over");
-      });
-      list.addEventListener("dragleave", (ev) => {
-        if (!col.contains(ev.relatedTarget)) col.removeClass("drag-over");
-      });
-      list.addEventListener("drop", async (ev) => {
-        ev.preventDefault();
-        col.removeClass("drag-over");
-        const path = ev.dataTransfer.getData("text/cadence-entity");
-        const fromStage = ev.dataTransfer.getData("text/cadence-stage");
-        if (!path || fromStage === stage) return;
-        const file = this.app.vault.getAbstractFileByPath(path);
-        if (!file || !(file instanceof obsidian.TFile)) return;
-        try {
-          await this.app.fileManager.processFrontMatter(file, (fm) => {
-            fm[groupBy] = groupBy === "stage" ? [stage] : stage;
-          });
-          new obsidian.Notice(`Moved to ${stage}`);
-        } catch (e) {
-          new obsidian.Notice(`Failed to move: ${e.message}`);
-        }
-      });
-      if (!items.length) {
-        list.createDiv({ cls: "cad-empty", text: "\u2014" });
-      } else {
-        const isMobile = !!(obsidian.Platform && obsidian.Platform.isMobile);
-        items.forEach((e) => {
-          const card = list.createDiv({ cls: "cad-kanban-card" });
-          card.dataset.path = e.file.path;
-          card.createDiv({ cls: "cad-kanban-card-title", text: entityValue(e, "title", def) || e.basename });
-          const meta = card.createDiv({ cls: "cad-kanban-card-meta" });
-          const v = entityValue(e, "value", def);
-          if (v) meta.createSpan({ cls: "cad-kanban-card-value", text: fmtValue(v, "currency") });
-          const coValues = parseLinkValues(entityValue(e, "company", def));
-          if (coValues.length > 0) {
-            meta.createSpan({ text: " \xB7 " });
-            coValues.forEach((item, idx) => {
-              if (idx > 0) {
-                meta.createSpan({ text: ", " });
-              }
-              const coLink = meta.createEl("a", { cls: "cad-company-link", text: item.display });
-              coLink.style.textDecoration = "underline";
-              coLink.style.cursor = "pointer";
-              coLink.addEventListener("click", (ev) => {
-                ev.preventDefault();
-                ev.stopPropagation();
-                const targetFile = this.app.vault.getMarkdownFiles().find((f) => f.basename.toLowerCase() === item.target.toLowerCase());
-                if (targetFile) this.openEntityDetail("company", targetFile);
-                else this.app.workspace.openLinkText(item.target, "", false);
-              });
-            });
-          }
-          const contactValues = parseLinkValues(entityValue(e, "contact", def));
-          if (contactValues.length > 0) {
-            meta.createSpan({ text: " \xB7 " });
-            contactValues.forEach((item, idx) => {
-              if (idx > 0) {
-                meta.createSpan({ text: ", " });
-              }
-              const ctLink = meta.createEl("a", { cls: "cad-contact-link", text: item.display });
-              ctLink.style.textDecoration = "underline";
-              ctLink.style.cursor = "pointer";
-              ctLink.addEventListener("click", (ev) => {
-                ev.preventDefault();
-                ev.stopPropagation();
-                const targetFile = this.app.vault.getMarkdownFiles().find((f) => f.basename.toLowerCase() === item.target.toLowerCase());
-                if (targetFile) this.openEntityDetail("contact", targetFile);
-                else this.app.workspace.openLinkText(item.target, "", false);
-              });
-            });
-          }
-          if (!isMobile) {
-            card.draggable = true;
-            card.addEventListener("dragstart", (ev) => {
-              card.addClass("dragging");
-              try {
-                ev.dataTransfer.effectAllowed = "move";
-                ev.dataTransfer.setData("text/cadence-entity", e.file.path);
-                ev.dataTransfer.setData("text/cadence-stage", stage);
-                ev.dataTransfer.setData("text/plain", `[[${e.file.basename}]]`);
-              } catch (_) {
-              }
-            });
-            card.addEventListener("dragend", () => card.removeClass("dragging"));
-          } else {
-            card.addClass("cad-kanban-card-touch");
-          }
-          card.addEventListener("click", () => this.openEntityDetail(entityKey, e.file));
-        });
-      }
-    });
+  renderEntityKanban(root, entityKey, groupBy, groups) {
+    return renderEntityKanban(this, root, entityKey, groupBy, groups);
   }
   /* Central chart dispatcher — replaces 4 duplicated if-elseif blocks at call sites. */
   _drawChart(parent, style, data) {

@@ -10,7 +10,9 @@ import type { DashCardRow } from './components/cards';
 import type { PlannerDay } from './calendar';
 import type { ChartDatum } from './components/charts';
 import type { FlashSaved, ProjectTextSectionDef } from './components/sections';
+import type { EntityListOptions } from './entity-list';
 import type { BriefingItem } from './home';
+import type { KanbanParams } from './kanban';
 
 /* The plugin as the app view sees it. */
 export interface AppViewPlugin extends ReminderStore {
@@ -151,9 +153,14 @@ export interface AppViewHost {
   _tickProjectTaskByText(file: TFile, text: string, done: boolean): Promise<void>;
   _tickDailyNoteTaskByText(file: TFile, text: string, done: boolean): Promise<void>;
 
+  /* ── Entity list and kanban (src/views/entity-list.ts, src/views/kanban.ts) ── */
+  renderEntityList(root: HTMLElement, entityKey: string, opts?: EntityListOptions): Promise<void>;
+  getEntityKanbanParams(entityKey: string): KanbanParams;
+  /** Flagged: no call site; characterized and kept. */
+  renderEntityKanban(root: HTMLElement, entityKey: string, groupBy: string, groups: string[]): Promise<void>;
+
   /* ── Called by the shell, owned by later view tickets ── */
   renderProjectsDashboard(root: HTMLElement): Promise<void>;
-  renderEntityList(root: HTMLElement, entityKey: string, opts?: Record<string, unknown>): Promise<void>;
   renderEntityDetail(root: HTMLElement, entityKey: string, file: TFile): Promise<void>;
   renderTemplateDetail(root: HTMLElement, entityKey: string, file: TFile): Promise<void>;
   renderDashboard(root: HTMLElement): Promise<void>;
