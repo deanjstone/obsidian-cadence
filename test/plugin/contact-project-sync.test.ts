@@ -56,6 +56,13 @@ describe("sync guards", () => {
     expect(app.vault.created).toEqual([]);
   });
 
+  it("skips a changed project that is no longer in the vault, even when a contact lists it", async () => {
+    const { app } = await loadedVault([{ path: jane.path, frontmatter: { type: "contact", project: "[[Gone]]" } }]);
+    await app.metadataCache.trigger("changed", new TFile("Cadence/Projects/Gone.md"));
+    expect(fm(app, jane.path)?.project).toBe("[[Gone]]");
+    expect(app.fileManager.processed).toEqual([]);
+  });
+
   it("does nothing while a sync is in progress", async () => {
     const { app, plugin } = await loadedVault([jane, sam, website]);
     plugin._syncInProgress = true;
@@ -365,6 +372,8 @@ describe("a project note is deleted", () => {
     const project = ENTITIES.project;
     delete (ENTITIES as Any).project;
     (ENTITIES as Any).contact.folder = "Cadence/Contacts";
+    await app.vault.trigger("delete", new TFile("Cadence/Other/Website relaunch.md"));
+    expect(app.fileManager.processed).toEqual([]);
     await app.vault.trigger("delete", new TFile(website.path));
     (ENTITIES as Any).project = project;
     expect(fm(app, jane.path)).not.toHaveProperty("project");
