@@ -1,11 +1,13 @@
 import type { App, EventRef, TFile, WorkspaceLeaf } from 'obsidian';
 import type { NavGroup, NavSurface } from '../constants/nav';
 import type { ReminderStore } from '../modals/reminder-edit';
-import type { Entity, EntityKey } from '../types/entities';
+import type { Entity, EntityKey, TaskNotesTask } from '../types/entities';
 import type { ChartStyle } from '../types/modals';
+import type { Reminder, ReminderBucket } from '../types/reminders';
 import type { AppViewSettings } from '../types/settings';
-import type { Milestone, TaskItem } from '../utils/parsing';
+import type { DailySections, Milestone, TaskItem } from '../utils/parsing';
 import type { DashCardRow } from './components/cards';
+import type { PlannerDay } from './calendar';
 import type { ChartDatum } from './components/charts';
 import type { FlashSaved, ProjectTextSectionDef } from './components/sections';
 import type { BriefingItem } from './home';
@@ -16,6 +18,10 @@ export interface AppViewPlugin extends ReminderStore {
   manifest: { id: string };
   saveSettings(): Promise<void>;
   openQuickCapture(): void;
+  /** Any subset of a reminder's fields, e.g. `{ done }` or `{ when, notified }`. */
+  updateReminder(id: string, patch: Partial<Reminder>): Promise<unknown>;
+  snoozeReminder(id: string, ms: number): Promise<void>;
+  completeReminder(id: string): Promise<void>;
 }
 
 /* The CadenceAppView instance a surface function receives as `view`.
@@ -36,8 +42,10 @@ export interface AppViewHost {
   /** Active surface id: a NAV_GROUPS item id or a custom page id. */
   mode: string;
   todayFile: TFile | null;
-  // TODO: confirm shape — the parseSections() result, owned by the Today ticket.
-  todayParsed: unknown;
+  /** The daily note's parseSections() result, from the last Today render. */
+  todayParsed: DailySections | null;
+  /** TaskNotes mode: today's task notes, by Today row index. Unset until Today renders. */
+  todayTaskNotes?: TaskNotesTask[];
   _journalSaveTimer: ReturnType<typeof setTimeout> | null;
   _liveRenderTimer?: ReturnType<typeof setTimeout>;
   plannerAnchor: Date;
@@ -120,11 +128,30 @@ export interface AppViewHost {
   _homePipelineCard(parent: HTMLElement): Promise<void>;
   _homeActivitiesCard(parent: HTMLElement): Promise<void>;
 
-  /* ── Called by the shell, owned by later view tickets ── */
+  /* ── Planner: Inbox, Today, Calendar and task links (src/views/inbox.ts,
+     today.ts, calendar.ts, task-links.ts) ── */
   _inboxOverdueCount(): number;
   renderInbox(root: HTMLElement): Promise<void>;
+  _renderProjectTasksSection(root: HTMLElement): Promise<void>;
+  _renderInboxRow(parent: HTMLElement, r: Reminder, bucket: ReminderBucket): void;
+  _quickAddTodayTask(): Promise<void>;
   renderTodayPane(root: HTMLElement): Promise<void>;
+  toggleTodayTask(idx: number, checked: boolean): Promise<void>;
+  appendTodayTask(text: string): Promise<void>;
+  saveTodayJournal(body: string | null | undefined): Promise<void>;
   renderPlannerPane(root: HTMLElement): Promise<void>;
+  togglePlannerTask(day: PlannerDay, idx: number, checked: boolean): Promise<void>;
+  _taskLinkKey(dailyPath: string, text: string | null | undefined): string;
+  /** The project path linked to a daily-note task, or null. */
+  _getTaskProjectLink(dailyPath: string, text: string): string | null;
+  _setTaskProjectLink(dailyPath: string, text: string, projectPath: string | null): Promise<void>;
+  _openTaskProjectPicker(dailyPath: string, text: string, currentLink: string | null): void;
+  /** Mirror a ticked task to matching reminders, their projects and daily notes. */
+  _propagateTaskComplete(text: string, done: boolean, source?: TaskCompleteSource): Promise<void>;
+  _tickProjectTaskByText(file: TFile, text: string, done: boolean): Promise<void>;
+  _tickDailyNoteTaskByText(file: TFile, text: string, done: boolean): Promise<void>;
+
+  /* ── Called by the shell, owned by later view tickets ── */
   renderProjectsDashboard(root: HTMLElement): Promise<void>;
   renderEntityList(root: HTMLElement, entityKey: string, opts?: Record<string, unknown>): Promise<void>;
   renderEntityDetail(root: HTMLElement, entityKey: string, file: TFile): Promise<void>;
@@ -140,14 +167,6 @@ export interface AppViewHost {
   renderTeam(root: HTMLElement): Promise<void>;
   renderTemplatesDashboard(root: HTMLElement): Promise<void>;
 
-  /* ── Called by Home, owned by later view tickets ── */
-  _quickAddTodayTask(): Promise<void>;
-  /** Mirror a ticked task to its linked project or reminder (Planner). */
-  _propagateTaskComplete(text: string, done: boolean, source: TaskCompleteSource): Promise<void>;
-  /** The project path linked to a daily-note task, or null. */
-  _getTaskProjectLink(dailyPath: string, text: string): string | null;
-  _openTaskProjectPicker(dailyPath: string, text: string, currentLink: string | null): void;
-
   /* ── Called by the shared components, owned by later view tickets ── */
   _renderTaskSection(parent: HTMLElement, file: TFile, tasks: TaskItem[], flashSaved?: FlashSaved, rawKey?: string): void;
   _renderMilestoneSection(
@@ -155,12 +174,14 @@ export interface AppViewHost {
   ): void;
 }
 
-/* Where a ticked task came from, for _propagateTaskComplete.
-   TODO: confirm shape — the Planner ticket owns the other kinds. */
+/* Where a ticked task came from, for _propagateTaskComplete. A daily note
+   passes its file and date, a project its file, a reminder its id. */
 export interface TaskCompleteSource {
-  kind: 'daily' | 'project' | (string & {});
-  file: TFile;
+  kind: 'daily' | 'project' | 'reminder' | (string & {});
+  file?: TFile;
   date?: Date;
+  /** kind 'reminder': the reminder's id, skipped when syncing reminders. */
+  id?: string;
 }
 
 /* What _prompt() accepts; every field falls back to a default. */

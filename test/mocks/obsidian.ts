@@ -354,6 +354,7 @@ declare global {
   }
   interface Node {
     empty(): void;
+    appendText(val: string): void;
     createEl<K extends keyof HTMLElementTagNameMap>(tag: K, o?: DomElementInfo | string, callback?: (el: HTMLElementTagNameMap[K]) => void): HTMLElementTagNameMap[K];
     createDiv(o?: DomElementInfo | string, callback?: (el: HTMLDivElement) => void): HTMLDivElement;
     createSvg<K extends keyof SVGElementTagNameMap>(tag: K, o?: SvgElementInfo | string, callback?: (el: SVGElementTagNameMap[K]) => void): SVGElementTagNameMap[K];
@@ -402,6 +403,8 @@ export class FakeElement {
   disabled = false;
   required = false;
   rows = 0;
+  /** Fixed at 0: the stub does no layout. */
+  scrollHeight = 0;
   readonly dataset: Record<string, string> = {};
   /** The DOM's classList, backed by `classes`. */
   readonly classList = {
@@ -545,6 +548,11 @@ export class FakeElement {
 
   setText(text: string) {
     this.text = String(text);
+  }
+
+  /* Obsidian's appendText adds a text node; the stub appends to `text`. */
+  appendText(text: string) {
+    this.text += String(text);
   }
 
   focus() {

@@ -7,13 +7,17 @@ import {
   entityValue, listEntities, listEntityFiles, projectNameFromPath, readEntity, readProjectMeta,
 } from '../utils/entities';
 import { fmtValue, pctBand } from '../utils/format';
-import { parseLinkValues, parseSections, replaceSection } from '../utils/parsing';
+import { parseLinkValues, parseSections } from '../utils/parsing';
 import { reminderTimeStr } from '../utils/reminders';
 import { listTaskNotesTasks, toggleTaskNotesTask } from '../utils/tasknotes';
 import type { Entity, ProjectMeta, TaskNotesTask } from '../types/entities';
 import type { Reminder } from '../types/reminders';
 import type { Milestone } from '../utils/parsing';
+import { countTaskLines, TASK_PREFIX, taskNotesToday, toggleDailyTask } from '../utils/task-lines';
 import type { AppViewHost } from './host';
+
+/* Moved to src/utils/task-lines.ts, where Today and the Calendar share them. */
+export { countTaskLines, taskNotesToday, toggleTaskLine } from '../utils/task-lines';
 
 /* Home, the command centre: the "Top of the day" briefing and the eight
    cards. Set by #12; see src/views/README.md for the seam. */
@@ -424,14 +428,6 @@ export async function homeInboxCard(view: AppViewHost, parent: HTMLElement): Pro
 
 /* ── Today card ── */
 
-const TASK_PREFIX = /^\s*-\s\[(x|X| )\]\s/;
-
-/** TaskNotes tasks scheduled on `todayYmd`, and their checklist lines. */
-export function taskNotesToday(allTaskNotes: TaskNotesTask[], todayYmd: string): { tasks: TaskNotesTask[]; lines: string[] } {
-  const tasks = allTaskNotes.filter(t => t.scheduled === todayYmd);
-  return { tasks, lines: tasks.map(t => `- [${t.done ? 'x' : ' '}] ${t.title}`) };
-}
-
 /** The Today card's counts, title and one row per checklist line. */
 export function selectTodayCard(tasksList: string[]) {
   const open = tasksList.filter((l) => / \[ \] /.test(l));
@@ -441,20 +437,6 @@ export function selectTodayCard(tasksList: string[]) {
     text: rawLine.replace(TASK_PREFIX, ''),
   }));
   return { open: open.length, done: done.length, title: `TODAY — ${open.length} open · ${done.length} done`, rows };
-}
-
-/** Ticks (or unticks) the line at `idx`, and returns the new lines with the
-    task's trimmed text. */
-export function toggleTaskLine(tasks: string[], idx: number, checked: boolean): { tasks: string[]; taskText: string } {
-  const taskLine = tasks[idx] || '';
-  const taskText = taskLine.replace(TASK_PREFIX, '').trim();
-  const newTasks = tasks.map((line, i) => {
-    if (i !== idx) return line;
-    return checked
-      ? line.replace(/^\s*-\s\[\s\]\s/, '- [x] ')
-      : line.replace(/^\s*-\s\[(x|X)\]\s/, '- [ ] ');
-  });
-  return { tasks: newTasks, taskText };
 }
 
 export async function homeTodayCard(view: AppViewHost, parent: HTMLElement): Promise<void> {
@@ -497,9 +479,7 @@ export async function homeTodayCard(view: AppViewHost, parent: HTMLElement): Pro
         await toggleTaskNotesTask(view.app, taskObj.file, cb.checked);
       } else {
         const cur = await view.app.vault.read(file!);
-        const cp = parseSections(cur, settings);
-        const { tasks: newTasks, taskText } = toggleTaskLine(cp.tasks, idx, cb.checked);
-        const next = replaceSection(cur, settings.tasksHeading, newTasks.join('\n'));
+        const { content: next, taskText } = toggleDailyTask(cur, settings, idx, cb.checked);
         await view.app.vault.modify(file!, next);
         if (taskText) {
           await view._propagateTaskComplete(taskText, cb.checked, { kind: 'daily', file: file!, date: new Date() });
@@ -560,13 +540,6 @@ export async function homeTodayCard(view: AppViewHost, parent: HTMLElement): Pro
 }
 
 /* ── This-week card ── */
-
-/** Open and done counts over checklist lines. */
-export function countTaskLines(lines: string[]): { open: number; done: number } {
-  let open = 0, done = 0;
-  lines.forEach((l) => { if (/ \[(x|X)\] /.test(l)) done++; else if (/ \[ \] /.test(l)) open++; });
-  return { open, done };
-}
 
 /** Open and done counts over TaskNotes tasks scheduled on one of `weekYmds`. */
 export function countWeekTaskNotes(allTasks: TaskNotesTask[], weekYmds: string[]): { open: number; done: number } {

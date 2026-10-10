@@ -2919,6 +2919,79 @@ function planEntityLinks(def, defaults, values) {
 
 // src/views/home.ts
 var import_obsidian13 = require("obsidian");
+
+// src/utils/task-lines.ts
+var TASK_PREFIX = /^\s*-\s\[(x|X| )\]\s/;
+function taskNotesToday(allTaskNotes, todayYmd) {
+  const tasks = allTaskNotes.filter((t) => t.scheduled === todayYmd);
+  return { tasks, lines: tasks.map((t) => `- [${t.done ? "x" : " "}] ${t.title}`) };
+}
+function toggleTaskLine(tasks, idx, checked) {
+  const taskLine = tasks[idx] || "";
+  const taskText = taskLine.replace(TASK_PREFIX, "").trim();
+  const newTasks = tasks.map((line, i) => {
+    if (i !== idx) return line;
+    return checked ? line.replace(/^\s*-\s\[\s\]\s/, "- [x] ") : line.replace(/^\s*-\s\[(x|X)\]\s/, "- [ ] ");
+  });
+  return { tasks: newTasks, taskText };
+}
+function countTaskLines(lines) {
+  let open = 0, done = 0;
+  lines.forEach((l) => {
+    if (/ \[(x|X)\] /.test(l)) done++;
+    else if (/ \[ \] /.test(l)) open++;
+  });
+  return { open, done };
+}
+function taskLineRows(lines) {
+  return lines.map((rawLine) => ({
+    checked: / \[(x|X)\] /.test(rawLine),
+    text: rawLine.replace(TASK_PREFIX, "")
+  }));
+}
+function toggleDailyTask(content, settings, idx, checked) {
+  const parsed = parseSections(content, settings);
+  const { tasks, taskText } = toggleTaskLine(parsed.tasks, idx, checked);
+  return { content: replaceSection(content, settings.tasksHeading, tasks.join("\n")), taskText };
+}
+function appendDailyTask(content, settings, text) {
+  const parsed = parseSections(content, settings);
+  const newTasks = [...parsed.tasks, `- [ ] ${text}`];
+  return replaceSection(content, settings.tasksHeading, newTasks.join("\n"));
+}
+function replaceJournal(content, settings, body) {
+  return replaceSection(content, settings.journalHeading, body || "");
+}
+function tickProjectTasks(content, text, done) {
+  const sections = parseH2Sections(content);
+  const tasks = parseTasksList(sections["Tasks"] || "");
+  let changed = false;
+  const updated = tasks.map((tk) => {
+    if (tk.title.trim() === text && !!tk.done !== !!done) {
+      changed = true;
+      return Object.assign({}, tk, { done: !!done });
+    }
+    return tk;
+  });
+  if (!changed) return null;
+  return replaceSection(content, "## Tasks", stringifyTasks(updated));
+}
+function tickDailyTasks(content, settings, text, done) {
+  const parsed = parseSections(content, settings);
+  let changed = false;
+  const updatedTasks = parsed.tasks.map((line) => {
+    const lineText = line.replace(TASK_PREFIX, "").trim();
+    if (lineText !== text) return line;
+    const isDone = / \[(x|X)\] /.test(line);
+    if (isDone === !!done) return line;
+    changed = true;
+    return done ? line.replace(/^\s*-\s\[\s\]\s/, "- [x] ") : line.replace(/^\s*-\s\[(x|X)\]\s/, "- [ ] ");
+  });
+  if (!changed) return null;
+  return replaceSection(content, settings.tasksHeading, updatedTasks.join("\n"));
+}
+
+// src/views/home.ts
 async function renderHome(view, root) {
   root.addClass("cadence-home");
   const settings = view.plugin.settings;
@@ -3168,16 +3241,16 @@ function selectInboxCard(allReminders, now) {
   const nowMs = now.getTime();
   const reminders = (allReminders || []).filter((r) => !r.done);
   const isOverdue = (r) => !!r.when && new Date(r.when).getTime() <= nowMs;
-  const overdueCount = reminders.filter(isOverdue).length;
-  const tone = overdueCount > 0 ? "rose" : "sky";
-  const title = `INBOX \u2014 ${reminders.length} item${reminders.length === 1 ? "" : "s"}${overdueCount > 0 ? ` \xB7 ${overdueCount} overdue` : ""}`;
+  const overdueCount2 = reminders.filter(isOverdue).length;
+  const tone = overdueCount2 > 0 ? "rose" : "sky";
+  const title = `INBOX \u2014 ${reminders.length} item${reminders.length === 1 ? "" : "s"}${overdueCount2 > 0 ? ` \xB7 ${overdueCount2} overdue` : ""}`;
   const sorted = [...reminders].sort((a, b) => {
     const wa = a.when ? new Date(a.when).getTime() : Infinity;
     const wb = b.when ? new Date(b.when).getTime() : Infinity;
     return wa - wb;
   });
   const rows = sorted.slice(0, 5).map((reminder) => ({ reminder, overdue: isOverdue(reminder) }));
-  return { reminders, overdueCount, tone, title, rows };
+  return { reminders, overdueCount: overdueCount2, tone, title, rows };
 }
 function inboxRowMeta(r, projectName) {
   const metaBits = [];
@@ -3219,11 +3292,6 @@ async function homeInboxCard(view, parent) {
     row.addEventListener("click", () => new CadenceReminderEditModal(view.app, view.plugin, r).open());
   });
 }
-var TASK_PREFIX = /^\s*-\s\[(x|X| )\]\s/;
-function taskNotesToday(allTaskNotes, todayYmd) {
-  const tasks = allTaskNotes.filter((t) => t.scheduled === todayYmd);
-  return { tasks, lines: tasks.map((t) => `- [${t.done ? "x" : " "}] ${t.title}`) };
-}
 function selectTodayCard(tasksList) {
   const open = tasksList.filter((l) => / \[ \] /.test(l));
   const done = tasksList.filter((l) => / \[(x|X)\] /.test(l));
@@ -3232,15 +3300,6 @@ function selectTodayCard(tasksList) {
     text: rawLine.replace(TASK_PREFIX, "")
   }));
   return { open: open.length, done: done.length, title: `TODAY \u2014 ${open.length} open \xB7 ${done.length} done`, rows };
-}
-function toggleTaskLine(tasks, idx, checked) {
-  const taskLine = tasks[idx] || "";
-  const taskText = taskLine.replace(TASK_PREFIX, "").trim();
-  const newTasks = tasks.map((line, i) => {
-    if (i !== idx) return line;
-    return checked ? line.replace(/^\s*-\s\[\s\]\s/, "- [x] ") : line.replace(/^\s*-\s\[(x|X)\]\s/, "- [ ] ");
-  });
-  return { tasks: newTasks, taskText };
 }
 async function homeTodayCard(view, parent) {
   const settings = view.plugin.settings;
@@ -3280,9 +3339,7 @@ async function homeTodayCard(view, parent) {
         await toggleTaskNotesTask(view.app, taskObj.file, cb.checked);
       } else {
         const cur = await view.app.vault.read(file);
-        const cp = parseSections(cur, settings);
-        const { tasks: newTasks, taskText } = toggleTaskLine(cp.tasks, idx, cb.checked);
-        const next = replaceSection(cur, settings.tasksHeading, newTasks.join("\n"));
+        const { content: next, taskText } = toggleDailyTask(cur, settings, idx, cb.checked);
         await view.app.vault.modify(file, next);
         if (taskText) {
           await view._propagateTaskComplete(taskText, cb.checked, { kind: "daily", file, date: /* @__PURE__ */ new Date() });
@@ -3335,14 +3392,6 @@ async function homeTodayCard(view, parent) {
       });
     }
   });
-}
-function countTaskLines(lines) {
-  let open = 0, done = 0;
-  lines.forEach((l) => {
-    if (/ \[(x|X)\] /.test(l)) done++;
-    else if (/ \[ \] /.test(l)) open++;
-  });
-  return { open, done };
 }
 function countWeekTaskNotes(allTasks, weekYmds) {
   let open = 0, done = 0;
@@ -3607,6 +3656,711 @@ async function homeActivitiesCard(view, parent) {
     main.createDiv({ cls: "cad-home-row-meta", text: `${entityValue(e, "type", def) || "\u2014"} \xB7 ${fmtValue(entityValue(e, "when", def), "date")}` });
     row.addEventListener("click", () => view.openEntityDetailFromFile(e.file));
   });
+}
+
+// src/views/inbox.ts
+var import_obsidian14 = require("obsidian");
+function overdueCount(reminders, now) {
+  const open = (reminders || []).filter((r) => !r.done);
+  return open.filter((r) => r.when && new Date(r.when).getTime() <= now).length;
+}
+function inboxOverdueCount(view) {
+  return overdueCount(view.plugin.settings.reminders, Date.now());
+}
+var INBOX_SECTION_LABELS = { now: "NOW \xB7 OVERDUE OR DUE WITHIN 1 HOUR", today: "TODAY", week: "THIS WEEK", later: "LATER \xB7 UNSCHEDULED" };
+function inboxRows(reminders) {
+  const all = (reminders || []).filter((r) => !r.done);
+  all.sort((a, b) => {
+    const wa = a.when ? new Date(a.when).getTime() : Infinity;
+    const wb = b.when ? new Date(b.when).getTime() : Infinity;
+    if (wa !== wb) return wa - wb;
+    const ca = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+    const cb = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+    return cb - ca;
+  });
+  const buckets = { now: [], today: [], week: [], later: [] };
+  all.forEach((r) => buckets[reminderBucket(r.when)].push(r));
+  const sections = ["now", "today", "week", "later"].filter((key) => buckets[key].length).map((key) => ({ key, label: `${INBOX_SECTION_LABELS[key]} \xB7 ${buckets[key].length}`, items: buckets[key] }));
+  return {
+    count: all.length,
+    subtitle: `${all.length} ${all.length === 1 ? "item" : "items"} \xB7 capture once, surface at the right time`,
+    sections
+  };
+}
+async function renderInbox(view, root) {
+  root.addClass("cadence-inbox");
+  const inbox = inboxRows(view.plugin.settings.reminders);
+  view._renderPageHeader(root, "Inbox", inbox.subtitle, (right) => {
+    const captureBtn = right.createEl("button", { cls: "cad-btn primary", text: "+ Quick capture" });
+    captureBtn.addEventListener("click", () => view.plugin.openQuickCapture());
+  });
+  if (!inbox.count) {
+    const empty = root.createDiv({ cls: "cad-empty-state" });
+    empty.createDiv({ cls: "cad-empty-state-title", text: "Inbox zero" });
+    empty.createDiv({ cls: "cad-empty-state-desc", text: "Capture anything with + Quick capture above (or Cmd+Shift+I). Add a time and Cadence will remind you." });
+    return;
+  }
+  inbox.sections.forEach(({ key, label, items }) => {
+    root.createDiv({ cls: "cad-section-label-lg", text: label });
+    const list = root.createDiv({ cls: "cad-inbox-list" });
+    items.forEach((r) => view._renderInboxRow(list, r, key));
+  });
+  await view._renderProjectTasksSection(root);
+}
+function openProjectTasks(content) {
+  const sections = parseH2Sections(content);
+  return parseTasksList(sections["Tasks"] || "").filter((t) => !t.done && t.title);
+}
+function projectTasksHeading(totalOpen, groupCount) {
+  return `PROJECT TASKS \xB7 ${totalOpen} open across ${groupCount} ${groupCount === 1 ? "project" : "projects"}`;
+}
+async function renderProjectTasksSection(view, root) {
+  const projectFiles = listEntityFiles(view.app, "project");
+  if (!projectFiles.length) return;
+  const groups = [];
+  let totalOpen = 0;
+  for (const file of projectFiles) {
+    let content;
+    try {
+      content = await view.app.vault.read(file);
+    } catch (_) {
+      continue;
+    }
+    const open = openProjectTasks(content);
+    if (!open.length) continue;
+    totalOpen += open.length;
+    groups.push({
+      file,
+      name: projectNameFromPath(view.app, file.path),
+      tasks: open
+    });
+  }
+  if (!totalOpen) return;
+  root.createDiv({ cls: "cad-section-label-lg", text: projectTasksHeading(totalOpen, groups.length) });
+  const wrap = root.createDiv({ cls: "cad-pt-wrap" });
+  groups.forEach((g) => {
+    const card = wrap.createDiv({ cls: "cad-pt-group" });
+    const head = card.createDiv({ cls: "cad-pt-group-head" });
+    const link = head.createEl("a", { cls: "cad-pt-group-link", text: "\u{1F4C1} " + g.name });
+    link.addEventListener("click", (e) => {
+      e.preventDefault();
+      view.openEntityDetail("project", g.file);
+    });
+    head.createSpan({ cls: "cad-pt-group-meta", text: `${g.tasks.length} open` });
+    const list = card.createDiv({ cls: "cad-pt-list" });
+    g.tasks.forEach((t) => {
+      const linked = findProjectTaskReminder(view.plugin, g.file.path, t.title);
+      const row = list.createDiv({ cls: "cad-pt-row" });
+      row.createSpan({ cls: "cad-pt-bullet", text: "\u2022" });
+      const txt = row.createSpan({ cls: "cad-pt-text", text: t.title });
+      void txt;
+      if (linked && linked.when) {
+        row.createSpan({ cls: "cad-pt-when", text: reminderTimeStr(linked.when) });
+      }
+      const bell = row.createEl("button", {
+        cls: "cad-btn cad-btn-sm cad-pt-bell" + (linked ? " linked" : ""),
+        text: linked ? "\u{1F514}" : "\u{1F515}"
+      });
+      bell.title = linked ? "Edit reminder" : "Set a reminder";
+      bell.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        const existing = findProjectTaskReminder(view.plugin, g.file.path, t.title);
+        if (existing) {
+          new CadenceReminderEditModal(view.app, view.plugin, existing).open();
+        } else {
+          new CadenceReminderEditModal(view.app, view.plugin, {
+            text: t.title,
+            when: null,
+            repeat: "none",
+            notes: "",
+            project: g.file.path
+          }, { isNew: true }).open();
+        }
+      });
+      row.addEventListener("click", () => view.openEntityDetail("project", g.file));
+    });
+  });
+}
+function repeatLabel(repeat) {
+  if (!repeat || repeat === "none") return null;
+  return repeat === "daily" ? "\u21BB daily" : "\u21BB weekly";
+}
+function notesPreview(notes) {
+  if (!notes) return "";
+  const previewLine = String(notes).split("\n").find((l) => l.trim()) || "";
+  return previewLine.length > 120 ? previewLine.slice(0, 117) + "\u2026" : previewLine;
+}
+function tomorrowAtNine(now) {
+  const d = new Date(now);
+  d.setDate(d.getDate() + 1);
+  d.setHours(9, 0, 0, 0);
+  return d.toISOString();
+}
+function inboxRowActions(scheduled) {
+  const timed = scheduled ? [
+    { action: "snooze15", label: "+15m", title: "Snooze 15 minutes" },
+    { action: "snooze60", label: "+1h", title: "Snooze 1 hour" },
+    { action: "tomorrow", label: "Tom.", title: "Snooze to tomorrow 9am" }
+  ] : [{ action: "schedule", label: "Schedule", title: "Add a time" }];
+  return [
+    ...timed,
+    { action: "edit", label: "Edit", title: "Edit details + notes" },
+    { action: "done", label: "Done", title: "Mark done" },
+    { action: "delete", label: "\xD7", title: "Delete" }
+  ];
+}
+function renderInboxRow(view, parent, r, bucket) {
+  const row = parent.createDiv({ cls: "cad-inbox-row" + (bucket === "now" ? " overdue" : "") });
+  const left = row.createDiv({ cls: "cad-inbox-row-left" });
+  const tWrap = left.createDiv({ cls: "cad-inbox-time" });
+  if (r.when) {
+    tWrap.createSpan({ cls: "cad-inbox-time-text", text: reminderTimeStr(r.when) });
+    const repeat = repeatLabel(r.repeat);
+    if (repeat) tWrap.createSpan({ cls: "cad-inbox-repeat", text: repeat });
+  } else {
+    tWrap.createSpan({ cls: "cad-inbox-time-text muted", text: "unscheduled" });
+  }
+  const main = row.createDiv({ cls: "cad-inbox-row-main" });
+  main.createDiv({ cls: "cad-inbox-row-text", text: r.text });
+  if (r.project) {
+    const chipRow = main.createDiv({ cls: "cad-inbox-row-meta-row" });
+    const chip = chipRow.createEl("a", { cls: "cad-rem-project-chip", text: "\u{1F4C1} " + (projectNameFromPath(view.app, r.project) || "Project") });
+    chip.title = "Open project";
+    chip.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      const file = view.app.vault.getAbstractFileByPath(r.project);
+      if (file && file instanceof import_obsidian14.TFile) view.openEntityDetail("project", file);
+    });
+  }
+  const preview = notesPreview(r.notes);
+  if (preview) {
+    const note = main.createDiv({ cls: "cad-inbox-row-notes" });
+    note.createSpan({ cls: "cad-inbox-row-notes-icon", text: "\u{1F4DD} " });
+    note.appendText(preview);
+  }
+  const openEdit = () => new CadenceReminderEditModal(view.app, view.plugin, r).open();
+  left.addEventListener("click", openEdit);
+  main.addEventListener("click", openEdit);
+  left.style.cursor = "pointer";
+  main.style.cursor = "pointer";
+  const actions = row.createDiv({ cls: "cad-inbox-actions" });
+  const mk = (label, title, fn) => {
+    const b = actions.createEl("button", { cls: "cad-btn cad-btn-sm", text: label });
+    b.title = title;
+    b.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      fn();
+    });
+    return b;
+  };
+  const handlers = {
+    snooze15: () => view.plugin.snoozeReminder(r.id, 15 * 60 * 1e3),
+    snooze60: () => view.plugin.snoozeReminder(r.id, 60 * 60 * 1e3),
+    tomorrow: () => view.plugin.updateReminder(r.id, { when: tomorrowAtNine(/* @__PURE__ */ new Date()), notified: false }),
+    schedule: () => openEdit(),
+    edit: () => openEdit(),
+    done: async () => {
+      await view.plugin.completeReminder(r.id);
+      if (r.text) await view._propagateTaskComplete(r.text, true, { kind: "reminder", id: r.id });
+    },
+    delete: () => {
+      if (confirm("Delete this reminder?")) view.plugin.deleteReminder(r.id);
+    }
+  };
+  inboxRowActions(!!r.when).forEach(({ action, label, title }) => {
+    const b = mk(label, title, handlers[action]);
+    if (action === "done") b.classList.add("primary");
+    if (action === "delete") b.classList.add("cad-btn-danger");
+  });
+}
+
+// src/views/today.ts
+var import_obsidian15 = require("obsidian");
+async function quickAddTodayTask(view) {
+  if (view.plugin.settings.taskManagementSystem === "tasknotes") {
+    const commandId = "tasknotes:create-new-task";
+    const commands = view.app.commands;
+    const hasCommand = commands && commands.commands && commands.commands[commandId];
+    if (hasCommand) {
+      commands.executeCommandById(commandId);
+      return;
+    }
+  }
+  const text = await view._prompt({
+    title: "Quick add \u2014 today",
+    placeholder: "What needs doing?",
+    cta: "Add task"
+  });
+  if (!text) return;
+  const file = await ensureDailyNote(view.app, view.plugin.settings);
+  const content = await view.app.vault.read(file);
+  await view.app.vault.modify(file, appendDailyTask(content, view.plugin.settings, text));
+  new import_obsidian15.Notice("Added to today");
+}
+function todaySummary(tasksList, greet) {
+  const open = tasksList.filter((l) => / \[ \] /.test(l)).length;
+  return {
+    greeting: open === 0 ? `${greet}. Nothing on the books \u2014 your day is clear.` : `${greet}. You have ${open} ${open === 1 ? "thing" : "things"} to handle.`,
+    count: `${open} open \xB7 ${tasksList.length - open} done`
+  };
+}
+function taskNotesProjectPath(projects, files) {
+  if (!projects) return null;
+  const parsed = parseLinkValues(projects);
+  if (!parsed.length) return null;
+  const projFile = files.find((f) => f.basename === parsed[0].target);
+  return projFile ? projFile.path : null;
+}
+function customSectionKeys(sections, settings) {
+  const cleanTasksHeading = (settings.tasksHeading || "## Today").replace(/^##\s+/, "").trim().toLowerCase();
+  const cleanJournalHeading = (settings.journalHeading || "## Journal").replace(/^##\s+/, "").trim().toLowerCase();
+  return Object.keys(sections).filter((k) => {
+    const cleanK = parseHeaderKey(k).cleanLabel.toLowerCase();
+    return cleanK !== cleanTasksHeading && cleanK !== cleanJournalHeading;
+  });
+}
+function journalRows(value) {
+  return Math.max(8, value.split("\n").length + 2);
+}
+async function renderTodayPane(view, root) {
+  root.addClass("cadence-today");
+  view.todayFile = await ensureDailyNote(view.app, view.plugin.settings);
+  const fileContent = await view.app.vault.read(view.todayFile);
+  view.todayParsed = parseSections(fileContent, view.plugin.settings);
+  let tasksList = [];
+  if (view.plugin.settings.taskManagementSystem === "tasknotes") {
+    const today = taskNotesToday(listTaskNotesTasks(view.app), ymd(/* @__PURE__ */ new Date()));
+    view.todayTaskNotes = today.tasks;
+    tasksList = today.lines;
+  } else {
+    tasksList = view.todayParsed.tasks;
+  }
+  const info = dateInfo();
+  root.createDiv({ cls: "cad-eyebrow", text: info.weekday.toUpperCase() });
+  const hero = root.createDiv({ cls: "cad-date-hero" });
+  hero.createSpan({ cls: "cad-day", text: String(info.day) });
+  const monthCol = hero.createDiv();
+  monthCol.createDiv({ cls: "cad-month", text: info.month });
+  monthCol.createDiv({ cls: "cad-year", text: String(info.year) });
+  const summary = todaySummary(tasksList, greeting());
+  root.createDiv({ cls: "cad-greet", text: summary.greeting });
+  const taskSection = root.createDiv({ cls: "cad-section" });
+  const taskLabel = taskSection.createDiv({ cls: "cad-section-label" });
+  taskLabel.createSpan({ text: "TODAY" });
+  taskLabel.createSpan({ cls: "cad-count", text: summary.count });
+  if (!tasksList.length) {
+    taskSection.createDiv({ cls: "cad-empty", text: "No tasks in today's note yet." });
+  } else {
+    const dailyPath = view.todayFile.path;
+    taskLineRows(tasksList).forEach(({ checked, text }, idx) => {
+      const row = taskSection.createDiv({ cls: "cad-task-row" + (checked ? " done" : "") });
+      const cb = row.createEl("input", { type: "checkbox" });
+      cb.checked = checked;
+      cb.addEventListener("change", () => view.toggleTodayTask(idx, cb.checked));
+      if (view.plugin.settings.taskManagementSystem === "tasknotes") {
+        const taskObj = view.todayTaskNotes[idx];
+        const taskSpan = row.createEl("a", { cls: "cad-task-text", text });
+        taskSpan.style.cursor = "pointer";
+        taskSpan.addEventListener("click", (ev) => {
+          ev.preventDefault();
+          view.app.workspace.openLinkText(taskObj.file.path, "", false);
+        });
+      } else {
+        row.createSpan({ cls: "cad-task-text", text });
+      }
+      let linkedProject = null;
+      if (view.plugin.settings.taskManagementSystem === "tasknotes") {
+        const taskObj = view.todayTaskNotes[idx];
+        if (taskObj.projects) linkedProject = taskNotesProjectPath(taskObj.projects, view.app.vault.getMarkdownFiles());
+      } else {
+        linkedProject = view._getTaskProjectLink(dailyPath, text);
+      }
+      if (linkedProject) {
+        const chip = row.createEl("a", { cls: "cad-task-proj-chip", text: "\u{1F4C1} " + (projectNameFromPath(view.app, linkedProject) || "Project") });
+        chip.title = "Open linked project";
+        chip.addEventListener("click", (ev) => {
+          ev.preventDefault();
+          ev.stopPropagation();
+          const file = view.app.vault.getAbstractFileByPath(linkedProject);
+          if (file && file instanceof import_obsidian15.TFile) view.openEntityDetail("project", file);
+        });
+      }
+      if (view.plugin.settings.taskManagementSystem !== "tasknotes") {
+        const linkBtn = row.createEl("button", { cls: "cad-task-link-btn" + (linkedProject ? " linked" : ""), text: linkedProject ? "\u270E" : "\u{1F4C1}" });
+        linkBtn.title = linkedProject ? "Change linked project" : "Link to a project";
+        linkBtn.addEventListener("click", (ev) => {
+          ev.stopPropagation();
+          view._openTaskProjectPicker(dailyPath, text, linkedProject);
+        });
+      }
+    });
+  }
+  const quickWrap = taskSection.createDiv();
+  quickWrap.style.marginTop = "8px";
+  const quick = quickWrap.createEl("input", {
+    type: "text",
+    placeholder: "Quick add a task \u2014 Enter to save"
+  });
+  quick.style.width = "100%";
+  quick.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && quick.value.trim()) {
+      const v = quick.value.trim();
+      quick.value = "";
+      view.appendTodayTask(v);
+    }
+  });
+  const journalSection = root.createDiv({ cls: "cad-section" });
+  journalSection.createDiv({ cls: "cad-section-label" }).setText("TODAY\u2019S ENTRY");
+  const ta = journalSection.createEl("textarea", { cls: "cad-journal" });
+  ta.value = view.todayParsed.journal;
+  ta.placeholder = "Write what\u2019s on your mind\u2026";
+  ta.rows = journalRows(ta.value);
+  ta.addEventListener("input", () => {
+    ta.style.height = "auto";
+    ta.style.height = ta.scrollHeight + "px";
+    if (view._journalSaveTimer) clearTimeout(view._journalSaveTimer);
+    view._journalSaveTimer = setTimeout(() => view.saveTodayJournal(ta.value), 800);
+  });
+  setTimeout(() => {
+    ta.style.height = ta.scrollHeight + "px";
+  }, 0);
+  const allSections = parseH2Sections(fileContent);
+  const otherKeys = customSectionKeys(allSections, view.plugin.settings);
+  if (otherKeys.length > 0) {
+    const customWrap = root.createDiv({ cls: "cad-custom-sections" });
+    customWrap.style.marginTop = "24px";
+    customWrap.style.display = "grid";
+    customWrap.style.gridTemplateColumns = "repeat(auto-fit, minmax(320px, 1fr))";
+    customWrap.style.gap = "16px";
+    const flashSaved = () => {
+      new import_obsidian15.Notice("Section saved");
+    };
+    otherKeys.forEach((rawKey) => {
+      view._renderDynamicH2Section(customWrap, view.todayFile, allSections, rawKey, flashSaved);
+    });
+  }
+  const footer = root.createDiv();
+  footer.style.marginTop = "24px";
+  footer.style.fontSize = "12px";
+  footer.style.color = "var(--cad-ink-4)";
+  const link = footer.createEl("a", { text: "Open today's daily note \u2192" });
+  link.style.color = "var(--cad-emerald-deep)";
+  link.style.cursor = "pointer";
+  link.addEventListener("click", () => {
+    view.app.workspace.openLinkText(view.todayFile.path, "", false);
+  });
+}
+async function toggleTodayTask(view, idx, checked) {
+  if (view.plugin.settings.taskManagementSystem === "tasknotes") {
+    if (view.todayTaskNotes && view.todayTaskNotes[idx]) {
+      const taskObj = view.todayTaskNotes[idx];
+      await toggleTaskNotesTask(view.app, taskObj.file, checked);
+    }
+  } else {
+    const content = await view.app.vault.read(view.todayFile);
+    const { content: newContent, taskText } = toggleDailyTask(content, view.plugin.settings, idx, checked);
+    await view.app.vault.modify(view.todayFile, newContent);
+    if (taskText) {
+      await view._propagateTaskComplete(taskText, checked, { kind: "daily", file: view.todayFile, date: /* @__PURE__ */ new Date() });
+    }
+  }
+  view.render();
+}
+async function appendTodayTask(view, text) {
+  if (view.plugin.settings.taskManagementSystem === "tasknotes") {
+    await appendTaskNotesTask(view.app, text, /* @__PURE__ */ new Date());
+  } else {
+    const content = await view.app.vault.read(view.todayFile);
+    await view.app.vault.modify(view.todayFile, appendDailyTask(content, view.plugin.settings, text));
+  }
+  view.render();
+}
+async function saveTodayJournal(view, body) {
+  const content = await view.app.vault.read(view.todayFile);
+  await view.app.vault.modify(view.todayFile, replaceJournal(content, view.plugin.settings, body));
+}
+
+// src/views/calendar.ts
+var import_obsidian16 = require("obsidian");
+function plannerWeekTitle(days) {
+  const startStr = days[0].toLocaleDateString(void 0, { month: "long", day: "numeric" });
+  const endStr = days[6].toLocaleDateString(void 0, { month: "long", day: "numeric", year: "numeric" });
+  return `${startStr} \u2013 ${endStr}`;
+}
+function plannerWeek(dayData, today) {
+  const totals = countTaskLines(dayData.flatMap((d) => d.tasks));
+  const columns = dayData.map((d) => {
+    const open = d.tasks.filter((l) => / \[ \] /.test(l)).length;
+    const done = d.tasks.filter((l) => / \[(x|X)\] /.test(l)).length;
+    return {
+      isToday: sameDay(d.date, today),
+      weekday: d.date.toLocaleDateString(void 0, { weekday: "short" }).toUpperCase(),
+      dayNum: String(d.date.getDate()),
+      meta: d.exists ? `${open} open \xB7 ${done} done` : "no note",
+      empty: d.tasks.length ? null : d.exists ? "\u2014" : "",
+      rows: taskLineRows(d.tasks)
+    };
+  });
+  return { stats: { open: totals.open, done: totals.done, total: totals.open + totals.done }, columns };
+}
+async function renderPlannerPane(view, root) {
+  root.addClass("cadence-planner");
+  const settings = view.plugin.settings;
+  const days = weekDates(view.plannerAnchor, settings.weekStartsOn);
+  const today = startOfDay(/* @__PURE__ */ new Date());
+  const header = root.createDiv({ cls: "cad-pl-header" });
+  const titleWrap = header.createDiv({ cls: "cad-pl-title-wrap" });
+  titleWrap.createDiv({ cls: "cad-eyebrow", text: "WEEK OF" });
+  titleWrap.createDiv({ cls: "cad-pl-title", text: plannerWeekTitle(days) });
+  const nav = header.createDiv({ cls: "cad-pl-nav" });
+  const mkBtn = (label, fn, cls = "") => {
+    const b = nav.createEl("button", { text: label, cls: "cad-pl-btn " + cls });
+    b.addEventListener("click", fn);
+  };
+  mkBtn("\u25C0", () => {
+    view.plannerAnchor = addDays(view.plannerAnchor, -7);
+    view.render();
+  });
+  mkBtn("Today", () => {
+    view.plannerAnchor = startOfDay(/* @__PURE__ */ new Date());
+    view.render();
+  }, "primary");
+  mkBtn("\u25B6", () => {
+    view.plannerAnchor = addDays(view.plannerAnchor, 7);
+    view.render();
+  });
+  let dayData = [];
+  if (settings.taskManagementSystem === "tasknotes") {
+    const allTasks = listTaskNotesTasks(view.app);
+    dayData = days.map((d) => {
+      const path = dailyNotePath(settings, d);
+      const file = view.app.vault.getAbstractFileByPath(path);
+      const forDay = taskNotesToday(allTasks, ymd(d));
+      return {
+        date: d,
+        path,
+        exists: !!file,
+        file,
+        tasks: forDay.lines,
+        rawTasks: forDay.tasks
+      };
+    });
+  } else {
+    dayData = await Promise.all(days.map(async (d) => {
+      const path = dailyNotePath(settings, d);
+      const file = view.app.vault.getAbstractFileByPath(path);
+      if (!file || !(file instanceof import_obsidian16.TFile)) {
+        return { date: d, path, exists: false, tasks: [] };
+      }
+      const content = await view.app.vault.read(file);
+      const parsed = parseSections(content, settings);
+      return { date: d, path, exists: true, file, tasks: parsed.tasks };
+    }));
+  }
+  const week = plannerWeek(dayData, today);
+  const stats = root.createDiv({ cls: "cad-pl-stats" });
+  const mkStat = (label, value) => {
+    const c = stats.createDiv({ cls: "cad-pl-stat" });
+    c.createDiv({ cls: "cad-pl-stat-label", text: label });
+    c.createDiv({ cls: "cad-pl-stat-value", text: String(value) });
+  };
+  mkStat("OPEN", week.stats.open);
+  mkStat("DONE", week.stats.done);
+  mkStat("TOTAL", week.stats.total);
+  const grid = root.createDiv({ cls: "cad-pl-grid" });
+  dayData.forEach((d, dayIdx) => {
+    const column = week.columns[dayIdx];
+    const col = grid.createDiv({ cls: "cad-pl-day" + (column.isToday ? " today" : "") });
+    const colHead = col.createDiv({ cls: "cad-pl-day-head" });
+    colHead.createDiv({ cls: "cad-pl-weekday", text: column.weekday });
+    colHead.createDiv({ cls: "cad-pl-daynum", text: column.dayNum });
+    colHead.createDiv({ cls: "cad-pl-meta", text: column.meta });
+    colHead.addEventListener("click", async () => {
+      if (!d.exists) {
+        await ensureDailyNote(view.app, settings, d.date);
+      }
+      view.app.workspace.openLinkText(d.path, "", false);
+    });
+    const list = col.createDiv({ cls: "cad-pl-tasks" });
+    if (column.empty !== null) {
+      list.createDiv({ cls: "cad-empty", text: column.empty });
+    } else {
+      column.rows.forEach(({ checked, text }, idx) => {
+        const row = list.createDiv({ cls: "cad-pl-task" + (checked ? " done" : "") });
+        const cb = row.createEl("input", { type: "checkbox" });
+        cb.checked = checked;
+        cb.addEventListener("change", () => view.togglePlannerTask(d, idx, cb.checked));
+        if (settings.taskManagementSystem === "tasknotes") {
+          const taskObj = d.rawTasks[idx];
+          const taskSpan = row.createEl("a", { text });
+          taskSpan.style.cursor = "pointer";
+          taskSpan.addEventListener("click", (ev) => {
+            ev.preventDefault();
+            view.app.workspace.openLinkText(taskObj.file.path, "", false);
+          });
+        } else {
+          row.createSpan({ text });
+        }
+      });
+    }
+  });
+}
+async function togglePlannerTask(view, day, idx, checked) {
+  if (view.plugin.settings.taskManagementSystem === "tasknotes") {
+    if (day.rawTasks && day.rawTasks[idx]) {
+      const taskObj = day.rawTasks[idx];
+      await toggleTaskNotesTask(view.app, taskObj.file, checked);
+    }
+  } else {
+    if (!day.file) return;
+    const content = await view.app.vault.read(day.file);
+    const { content: newContent, taskText } = toggleDailyTask(content, view.plugin.settings, idx, checked);
+    await view.app.vault.modify(day.file, newContent);
+    if (taskText) {
+      await view._propagateTaskComplete(taskText, checked, { kind: "daily", file: day.file, date: day.date });
+    }
+  }
+  view.render();
+}
+
+// src/views/task-links.ts
+var import_obsidian17 = require("obsidian");
+function taskLinkKey(dailyPath, text) {
+  return `${dailyPath}::${(text || "").trim()}`;
+}
+function getTaskProjectLink(view, dailyPath, text) {
+  const map = view.plugin.settings && view.plugin.settings.taskProjectLinks || {};
+  return map[view._taskLinkKey(dailyPath, text)] || null;
+}
+async function setTaskProjectLink(view, dailyPath, text, projectPath) {
+  if (!view.plugin.settings.taskProjectLinks) view.plugin.settings.taskProjectLinks = {};
+  const key = view._taskLinkKey(dailyPath, text);
+  if (projectPath) {
+    view.plugin.settings.taskProjectLinks[key] = projectPath;
+  } else {
+    delete view.plugin.settings.taskProjectLinks[key];
+  }
+  await view.plugin.saveSettings();
+  view.render();
+}
+function openTaskProjectPicker(view, dailyPath, text, currentLink) {
+  const projectFiles = listEntityFiles(view.app, "project");
+  if (!projectFiles.length) {
+    new import_obsidian17.Notice("No projects yet. Create one in Planner \u2192 Projects first.");
+    return;
+  }
+  const projects = projectFiles.map((f) => ({
+    file: f,
+    name: projectNameFromPath(view.app, f.path)
+  }));
+  const picker = new class extends import_obsidian17.SuggestModal {
+    constructor(app, projs, hasLink) {
+      super(app);
+      this.projs = projs;
+      this.hasLink = hasLink;
+      this.setPlaceholder(hasLink ? 'Pick a project (or type "unlink" to remove)' : "Pick a project to link this task to");
+    }
+    getSuggestions(query) {
+      const q = (query || "").toLowerCase();
+      const matches = this.projs.filter((p) => p.name.toLowerCase().includes(q));
+      if (this.hasLink && (q === "" || "unlink".includes(q))) {
+        return [{ unlink: true, name: "\u2014 Remove link \u2014" }, ...matches];
+      }
+      return matches;
+    }
+    renderSuggestion(item, el) {
+      if (item.unlink) {
+        el.setText(item.name);
+        el.style.color = "var(--text-error, #c0392b)";
+      } else {
+        el.setText("\u{1F4C1}  " + item.name);
+      }
+    }
+    onChooseSuggestion(item) {
+      if (item.unlink) view._setTaskProjectLink(dailyPath, text, null);
+      else view._setTaskProjectLink(dailyPath, text, item.file.path);
+    }
+  }(view.app, projects, !!currentLink);
+  picker.open();
+}
+function propagationTargets(text, done, source, reminders, dailyNoteFolder, now) {
+  const t = String(text || "").trim();
+  if (!t) return null;
+  source = source || {};
+  const matches = reminders.filter((r) => r.text && r.text.trim() === t);
+  const reminderIds = [];
+  for (const r of matches) {
+    if (source.kind === "reminder" && r.id === source.id) continue;
+    if (!!r.done === !!done) continue;
+    reminderIds.push(r.id);
+  }
+  const projectPaths = [];
+  for (const r of matches) {
+    if (!r.project) continue;
+    if (source.kind === "project" && source.file && source.file.path === r.project) continue;
+    if (projectPaths.includes(r.project)) continue;
+    projectPaths.push(r.project);
+  }
+  const datesToCheck = /* @__PURE__ */ new Set([ymd(now)]);
+  matches.forEach((r) => {
+    if (r.when) {
+      const d = new Date(r.when);
+      if (!isNaN(d.getTime())) datesToCheck.add(ymd(d));
+    }
+    if (r.createdAt) {
+      const d = new Date(r.createdAt);
+      if (!isNaN(d.getTime())) datesToCheck.add(ymd(d));
+    }
+  });
+  if (source.kind === "daily" && source.date) datesToCheck.add(ymd(source.date));
+  const dailyPaths = [];
+  for (const dateStr of datesToCheck) {
+    const path = dailyNoteFolder ? `${dailyNoteFolder.replace(/\/$/, "")}/${dateStr}.md` : `${dateStr}.md`;
+    if (source.kind === "daily" && source.file && source.file.path === path) continue;
+    dailyPaths.push(path);
+  }
+  return { text: t, reminderIds, projectPaths, dailyPaths };
+}
+async function propagateTaskComplete(view, text, done, source) {
+  const settings = view.plugin.settings;
+  const targets = propagationTargets(text, done, source, (settings.reminders || []).slice(), settings.dailyNoteFolder, /* @__PURE__ */ new Date());
+  if (!targets) return;
+  for (const id of targets.reminderIds) {
+    await view.plugin.updateReminder(id, { done: !!done });
+  }
+  for (const path of targets.projectPaths) {
+    const file = view.app.vault.getAbstractFileByPath(path);
+    if (!file || !(file instanceof import_obsidian17.TFile)) continue;
+    await view._tickProjectTaskByText(file, targets.text, !!done);
+  }
+  for (const path of targets.dailyPaths) {
+    const file = view.app.vault.getAbstractFileByPath(path);
+    if (!file || !(file instanceof import_obsidian17.TFile)) continue;
+    await view._tickDailyNoteTaskByText(file, targets.text, !!done);
+  }
+}
+async function tickProjectTaskByText(view, file, text, done) {
+  let content;
+  try {
+    content = await view.app.vault.read(file);
+  } catch (_) {
+    return;
+  }
+  const next = tickProjectTasks(content, text, done);
+  if (next === null) return;
+  await view.app.vault.modify(file, next);
+}
+async function tickDailyNoteTaskByText(view, file, text, done) {
+  let content;
+  try {
+    content = await view.app.vault.read(file);
+  } catch (_) {
+    return;
+  }
+  const next = tickDailyTasks(content, view.plugin.settings, text, done);
+  if (next === null) return;
+  await view.app.vault.modify(file, next);
 }
 
 // src/views/components/cards.ts
@@ -3920,7 +4674,7 @@ function getEntityFiles(view, entityKey) {
 }
 
 // src/views/components/sections.ts
-var import_obsidian14 = require("obsidian");
+var import_obsidian18 = require("obsidian");
 function linksTo(val, name) {
   if (val == null) return false;
   const cleanName = name.trim().toLowerCase();
@@ -3968,7 +4722,7 @@ function renderMarkdownTextCard(view, parent, file, sectionKey, label, initialVa
   const openBtn = head.createEl("button", { cls: "cad-btn cad-btn-sm", attr: { style: "margin-left: auto; padding: 4px 6px; display: inline-flex; align-items: center; justify-content: center; border-radius: 4px; border: 1px solid var(--border-color); background: transparent; cursor: pointer;" } });
   openBtn.title = "Open this note natively to edit with full Live Preview & Autocomplete";
   try {
-    (0, import_obsidian14.setIcon)(openBtn, "file-text");
+    (0, import_obsidian18.setIcon)(openBtn, "file-text");
   } catch (_) {
   }
   openBtn.addEventListener("click", (ev) => {
@@ -3981,7 +4735,7 @@ function renderMarkdownTextCard(view, parent, file, sectionKey, label, initialVa
     previewDiv.empty();
     const rawText = initialValue || "";
     try {
-      import_obsidian14.MarkdownRenderer.renderMarkdown(rawText, previewDiv, file.path, view);
+      import_obsidian18.MarkdownRenderer.renderMarkdown(rawText, previewDiv, file.path, view);
       previewDiv.querySelectorAll("a.internal-link").forEach((a) => {
         const href = a.getAttribute("data-href") || a.getAttribute("href");
         if (href) {
@@ -4125,7 +4879,7 @@ function renderSingleCrossSection(view, parent, targetEntity, linkField, viewTyp
     const board = secWrap.createDiv({ cls: "cad-kanban-board" });
     const groupField = def.fields.find((f) => f.key === "stage" || f.key === "status" || f.key === "type" || f.type === "enum") || def.fields[1];
     const columns = groupField.options || ["To Do", "In Progress", "Done"];
-    const isMobile = !!(import_obsidian14.Platform && import_obsidian14.Platform.isMobile);
+    const isMobile = !!(import_obsidian18.Platform && import_obsidian18.Platform.isMobile);
     columns.forEach((colName) => {
       const items = filteredList.filter((e) => {
         const val = entityValue(e, groupField.key, def);
@@ -4161,7 +4915,7 @@ function renderSingleCrossSection(view, parent, targetEntity, linkField, viewTyp
         const fromStage = ev.dataTransfer.getData("text/cadence-stage");
         if (!path || fromStage === colName) return;
         const file = view.app.vault.getAbstractFileByPath(path);
-        if (!file || !(file instanceof import_obsidian14.TFile)) return;
+        if (!file || !(file instanceof import_obsidian18.TFile)) return;
         try {
           await view.app.fileManager.processFrontMatter(file, (fm) => {
             const isList = groupField.type === "multitext" || groupField.type === "tags" || groupField.isList === true;
@@ -4172,10 +4926,10 @@ function renderSingleCrossSection(view, parent, targetEntity, linkField, viewTyp
               fm[groupField.key] = isLink ? `[[${colName}]]` : colName;
             }
           });
-          new import_obsidian14.Notice(`Moved to ${colName}`);
+          new import_obsidian18.Notice(`Moved to ${colName}`);
           view.render();
         } catch (e) {
-          new import_obsidian14.Notice(`Failed to move: ${e.message}`);
+          new import_obsidian18.Notice(`Failed to move: ${e.message}`);
         }
       });
       if (!items.length) {
@@ -4336,7 +5090,7 @@ function renderDynamicH2Section(view, parent, file, sections, rawKey, flashSaved
         const vBtn = viewSwitch.createEl("button", { attr: { style: `padding: 4px 6px; display: inline-flex; align-items: center; justify-content: center; border-radius: 4px; cursor: pointer; border: 1px solid var(--border-color); background: ${v === viewType ? "var(--interactive-accent)" : "transparent"}; color: ${v === viewType ? "var(--text-on-accent)" : "var(--text-muted)"};` } });
         vBtn.title = title;
         try {
-          (0, import_obsidian14.setIcon)(vBtn, icon);
+          (0, import_obsidian18.setIcon)(vBtn, icon);
         } catch (_) {
         }
         if (v !== viewType) {
@@ -4600,68 +5354,19 @@ var CadenceAppView = class extends obsidian.ItemView {
   }
   /* Link a daily-note task to a project. Keyed by (dailyPath, taskText). */
   _taskLinkKey(dailyPath, text) {
-    return `${dailyPath}::${(text || "").trim()}`;
+    return taskLinkKey(dailyPath, text);
   }
   _getTaskProjectLink(dailyPath, text) {
-    const map = this.plugin.settings && this.plugin.settings.taskProjectLinks || {};
-    return map[this._taskLinkKey(dailyPath, text)] || null;
+    return getTaskProjectLink(this, dailyPath, text);
   }
-  async _setTaskProjectLink(dailyPath, text, projectPath) {
-    if (!this.plugin.settings.taskProjectLinks) this.plugin.settings.taskProjectLinks = {};
-    const key = this._taskLinkKey(dailyPath, text);
-    if (projectPath) {
-      this.plugin.settings.taskProjectLinks[key] = projectPath;
-    } else {
-      delete this.plugin.settings.taskProjectLinks[key];
-    }
-    await this.plugin.saveSettings();
-    this.render();
+  _setTaskProjectLink(dailyPath, text, projectPath) {
+    return setTaskProjectLink(this, dailyPath, text, projectPath);
   }
   _openTaskProjectPicker(dailyPath, text, currentLink) {
-    const projectFiles = listEntityFiles(this.app, "project");
-    if (!projectFiles.length) {
-      new obsidian.Notice("No projects yet. Create one in Planner \u2192 Projects first.");
-      return;
-    }
-    const view = this;
-    const projects = projectFiles.map((f) => ({
-      file: f,
-      name: projectNameFromPath(this.app, f.path)
-    }));
-    const picker = new class extends obsidian.SuggestModal {
-      constructor(app, projs, hasLink) {
-        super(app);
-        this.projs = projs;
-        this.hasLink = hasLink;
-        this.setPlaceholder(hasLink ? 'Pick a project (or type "unlink" to remove)' : "Pick a project to link this task to");
-      }
-      getSuggestions(query) {
-        const q = (query || "").toLowerCase();
-        const matches = this.projs.filter((p) => p.name.toLowerCase().includes(q));
-        if (this.hasLink && (q === "" || "unlink".includes(q))) {
-          return [{ unlink: true, name: "\u2014 Remove link \u2014" }, ...matches];
-        }
-        return matches;
-      }
-      renderSuggestion(item, el) {
-        if (item.unlink) {
-          el.setText(item.name);
-          el.style.color = "var(--text-error, #c0392b)";
-        } else {
-          el.setText("\u{1F4C1}  " + item.name);
-        }
-      }
-      onChooseSuggestion(item) {
-        if (item.unlink) view._setTaskProjectLink(dailyPath, text, null);
-        else view._setTaskProjectLink(dailyPath, text, item.file.path);
-      }
-    }(this.app, projects, !!currentLink);
-    picker.open();
+    return openTaskProjectPicker(this, dailyPath, text, currentLink);
   }
   _inboxOverdueCount() {
-    const reminders = (this.plugin.settings.reminders || []).filter((r) => !r.done);
-    const now = Date.now();
-    return reminders.filter((r) => r.when && new Date(r.when).getTime() <= now).length;
+    return inboxOverdueCount(this);
   }
   getViewType() {
     return VIEW_TYPE_CADENCE_APP;
@@ -7409,203 +8114,17 @@ ${defaultBody}
     }
   }
   /* ── Inbox (Planner reminders + captures) ── */
-  async renderInbox(root) {
-    root.addClass("cadence-inbox");
-    const all = (this.plugin.settings.reminders || []).filter((r) => !r.done);
-    all.sort((a, b) => {
-      const wa = a.when ? new Date(a.when).getTime() : Infinity;
-      const wb = b.when ? new Date(b.when).getTime() : Infinity;
-      if (wa !== wb) return wa - wb;
-      const ca = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-      const cb = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-      return cb - ca;
-    });
-    const buckets = { now: [], today: [], week: [], later: [] };
-    all.forEach((r) => buckets[reminderBucket(r.when)].push(r));
-    this._renderPageHeader(root, "Inbox", `${all.length} ${all.length === 1 ? "item" : "items"} \xB7 capture once, surface at the right time`, (right) => {
-      const captureBtn = right.createEl("button", { cls: "cad-btn primary", text: "+ Quick capture" });
-      captureBtn.addEventListener("click", () => this.plugin.openQuickCapture());
-    });
-    if (!all.length) {
-      const empty = root.createDiv({ cls: "cad-empty-state" });
-      empty.createDiv({ cls: "cad-empty-state-title", text: "Inbox zero" });
-      empty.createDiv({ cls: "cad-empty-state-desc", text: "Capture anything with + Quick capture above (or Cmd+Shift+I). Add a time and Cadence will remind you." });
-      return;
-    }
-    const sectionLabels = { now: "NOW \xB7 OVERDUE OR DUE WITHIN 1 HOUR", today: "TODAY", week: "THIS WEEK", later: "LATER \xB7 UNSCHEDULED" };
-    ["now", "today", "week", "later"].forEach((key) => {
-      const items = buckets[key];
-      if (!items.length) return;
-      root.createDiv({ cls: "cad-section-label-lg", text: `${sectionLabels[key]} \xB7 ${items.length}` });
-      const list = root.createDiv({ cls: "cad-inbox-list" });
-      items.forEach((r) => this._renderInboxRow(list, r, key));
-    });
-    await this._renderProjectTasksSection(root);
+  renderInbox(root) {
+    return renderInbox(this, root);
   }
-  async _renderProjectTasksSection(root) {
-    const projectFiles = listEntityFiles(this.app, "project");
-    if (!projectFiles.length) return;
-    const groups = [];
-    let totalOpen = 0;
-    for (const file of projectFiles) {
-      let content;
-      try {
-        content = await this.app.vault.read(file);
-      } catch (_) {
-        continue;
-      }
-      const sections = parseH2Sections(content);
-      const tasksText = sections["Tasks"] || "";
-      if (!tasksText.trim()) continue;
-      const tasks = parseTasksList(tasksText);
-      const open = tasks.filter((t) => !t.done && t.title);
-      if (!open.length) continue;
-      totalOpen += open.length;
-      groups.push({
-        file,
-        name: projectNameFromPath(this.app, file.path),
-        tasks: open
-      });
-    }
-    if (!totalOpen) return;
-    root.createDiv({ cls: "cad-section-label-lg", text: `PROJECT TASKS \xB7 ${totalOpen} open across ${groups.length} ${groups.length === 1 ? "project" : "projects"}` });
-    const wrap = root.createDiv({ cls: "cad-pt-wrap" });
-    groups.forEach((g) => {
-      const card = wrap.createDiv({ cls: "cad-pt-group" });
-      const head = card.createDiv({ cls: "cad-pt-group-head" });
-      const link = head.createEl("a", { cls: "cad-pt-group-link", text: "\u{1F4C1} " + g.name });
-      link.addEventListener("click", (e) => {
-        e.preventDefault();
-        this.openEntityDetail("project", g.file);
-      });
-      head.createSpan({ cls: "cad-pt-group-meta", text: `${g.tasks.length} open` });
-      const list = card.createDiv({ cls: "cad-pt-list" });
-      g.tasks.forEach((t) => {
-        const linked = findProjectTaskReminder(this.plugin, g.file.path, t.title);
-        const row = list.createDiv({ cls: "cad-pt-row" });
-        row.createSpan({ cls: "cad-pt-bullet", text: "\u2022" });
-        const txt = row.createSpan({ cls: "cad-pt-text", text: t.title });
-        void txt;
-        if (linked && linked.when) {
-          row.createSpan({ cls: "cad-pt-when", text: reminderTimeStr(linked.when) });
-        }
-        const bell = row.createEl("button", {
-          cls: "cad-btn cad-btn-sm cad-pt-bell" + (linked ? " linked" : ""),
-          text: linked ? "\u{1F514}" : "\u{1F515}"
-        });
-        bell.title = linked ? "Edit reminder" : "Set a reminder";
-        bell.addEventListener("click", (ev) => {
-          ev.stopPropagation();
-          const existing = findProjectTaskReminder(this.plugin, g.file.path, t.title);
-          if (existing) {
-            new CadenceReminderEditModal(this.app, this.plugin, existing).open();
-          } else {
-            new CadenceReminderEditModal(this.app, this.plugin, {
-              text: t.title,
-              when: null,
-              repeat: "none",
-              notes: "",
-              project: g.file.path
-            }, { isNew: true }).open();
-          }
-        });
-        row.addEventListener("click", () => this.openEntityDetail("project", g.file));
-      });
-    });
+  _renderProjectTasksSection(root) {
+    return renderProjectTasksSection(this, root);
   }
   _renderInboxRow(parent, r, bucket) {
-    const row = parent.createDiv({ cls: "cad-inbox-row" + (bucket === "now" ? " overdue" : "") });
-    const left = row.createDiv({ cls: "cad-inbox-row-left" });
-    const tWrap = left.createDiv({ cls: "cad-inbox-time" });
-    if (r.when) {
-      tWrap.createSpan({ cls: "cad-inbox-time-text", text: reminderTimeStr(r.when) });
-      if (r.repeat && r.repeat !== "none") {
-        tWrap.createSpan({ cls: "cad-inbox-repeat", text: r.repeat === "daily" ? "\u21BB daily" : "\u21BB weekly" });
-      }
-    } else {
-      tWrap.createSpan({ cls: "cad-inbox-time-text muted", text: "unscheduled" });
-    }
-    const main = row.createDiv({ cls: "cad-inbox-row-main" });
-    main.createDiv({ cls: "cad-inbox-row-text", text: r.text });
-    if (r.project) {
-      const chipRow = main.createDiv({ cls: "cad-inbox-row-meta-row" });
-      const chip = chipRow.createEl("a", { cls: "cad-rem-project-chip", text: "\u{1F4C1} " + (projectNameFromPath(this.app, r.project) || "Project") });
-      chip.title = "Open project";
-      chip.addEventListener("click", (ev) => {
-        ev.preventDefault();
-        ev.stopPropagation();
-        const file = this.app.vault.getAbstractFileByPath(r.project);
-        if (file && file instanceof obsidian.TFile) this.openEntityDetail("project", file);
-      });
-    }
-    if (r.notes) {
-      const previewLine = String(r.notes).split("\n").find((l) => l.trim()) || "";
-      if (previewLine) {
-        const note = main.createDiv({ cls: "cad-inbox-row-notes" });
-        note.createSpan({ cls: "cad-inbox-row-notes-icon", text: "\u{1F4DD} " });
-        note.appendText(previewLine.length > 120 ? previewLine.slice(0, 117) + "\u2026" : previewLine);
-      }
-    }
-    const openEdit = () => new CadenceReminderEditModal(this.app, this.plugin, r).open();
-    left.addEventListener("click", openEdit);
-    main.addEventListener("click", openEdit);
-    left.style.cursor = "pointer";
-    main.style.cursor = "pointer";
-    const actions = row.createDiv({ cls: "cad-inbox-actions" });
-    const mk = (label, title, fn) => {
-      const b = actions.createEl("button", { cls: "cad-btn cad-btn-sm", text: label });
-      b.title = title;
-      b.addEventListener("click", (ev) => {
-        ev.stopPropagation();
-        fn();
-      });
-      return b;
-    };
-    if (r.when) {
-      mk("+15m", "Snooze 15 minutes", () => this.plugin.snoozeReminder(r.id, 15 * 60 * 1e3));
-      mk("+1h", "Snooze 1 hour", () => this.plugin.snoozeReminder(r.id, 60 * 60 * 1e3));
-      mk("Tom.", "Snooze to tomorrow 9am", () => {
-        const d = /* @__PURE__ */ new Date();
-        d.setDate(d.getDate() + 1);
-        d.setHours(9, 0, 0, 0);
-        this.plugin.updateReminder(r.id, { when: d.toISOString(), notified: false });
-      });
-    } else {
-      mk("Schedule", "Add a time", () => openEdit());
-    }
-    mk("Edit", "Edit details + notes", () => openEdit());
-    const doneBtn = mk("Done", "Mark done", async () => {
-      await this.plugin.completeReminder(r.id);
-      if (r.text) await this._propagateTaskComplete(r.text, true, { kind: "reminder", id: r.id });
-    });
-    doneBtn.classList.add("primary");
-    const delBtn = mk("\xD7", "Delete", () => {
-      if (confirm("Delete this reminder?")) this.plugin.deleteReminder(r.id);
-    });
-    delBtn.classList.add("cad-btn-danger");
+    return renderInboxRow(this, parent, r, bucket);
   }
-  async _quickAddTodayTask() {
-    if (this.plugin.settings.taskManagementSystem === "tasknotes") {
-      const commandId = "tasknotes:create-new-task";
-      const hasCommand = this.app.commands && this.app.commands.commands && this.app.commands.commands[commandId];
-      if (hasCommand) {
-        this.app.commands.executeCommandById(commandId);
-        return;
-      }
-    }
-    const text = await this._prompt({
-      title: "Quick add \u2014 today",
-      placeholder: "What needs doing?",
-      cta: "Add task"
-    });
-    if (!text) return;
-    const file = await ensureDailyNote(this.app, this.plugin.settings);
-    const content = await this.app.vault.read(file);
-    const parsed = parseSections(content, this.plugin.settings);
-    const newTasks = [...parsed.tasks, `- [ ] ${text}`];
-    const next = replaceSection(content, this.plugin.settings.tasksHeading, newTasks.join("\n"));
-    await this.app.vault.modify(file, next);
-    new obsidian.Notice("Added to today");
+  _quickAddTodayTask() {
+    return quickAddTodayTask(this);
   }
   /* ── Pipeline kanban (deals grouped by stage) ───── */
   async renderEntityKanban(root, entityKey, groupBy, groups) {
@@ -9261,91 +9780,14 @@ ${defaultBody}
        - matching reminders by text (and via reminder.project to the linked project)
        - matching task lines in today's daily note + the linked reminder's date note
      Match is by exact (trimmed) task text. Renaming a task breaks the link. */
-  async _propagateTaskComplete(text, done, source) {
-    const t = String(text || "").trim();
-    if (!t) return;
-    source = source || {};
-    const reminders = (this.plugin.settings.reminders || []).slice();
-    const matches = reminders.filter((r) => r.text && r.text.trim() === t);
-    for (const r of matches) {
-      if (source.kind === "reminder" && r.id === source.id) continue;
-      if (!!r.done === !!done) continue;
-      await this.plugin.updateReminder(r.id, { done: !!done });
-    }
-    const projectsTouched = /* @__PURE__ */ new Set();
-    for (const r of matches) {
-      if (!r.project) continue;
-      if (source.kind === "project" && source.file && source.file.path === r.project) continue;
-      if (projectsTouched.has(r.project)) continue;
-      projectsTouched.add(r.project);
-      const file = this.app.vault.getAbstractFileByPath(r.project);
-      if (!file || !(file instanceof obsidian.TFile)) continue;
-      await this._tickProjectTaskByText(file, t, !!done);
-    }
-    const datesToCheck = /* @__PURE__ */ new Set([ymd(/* @__PURE__ */ new Date())]);
-    matches.forEach((r) => {
-      if (r.when) {
-        const d = new Date(r.when);
-        if (!isNaN(d.getTime())) datesToCheck.add(ymd(d));
-      }
-      if (r.createdAt) {
-        const d = new Date(r.createdAt);
-        if (!isNaN(d.getTime())) datesToCheck.add(ymd(d));
-      }
-    });
-    if (source.kind === "daily" && source.date) datesToCheck.add(ymd(source.date));
-    const settings = this.plugin.settings;
-    for (const dateStr of datesToCheck) {
-      const path = settings.dailyNoteFolder ? `${settings.dailyNoteFolder.replace(/\/$/, "")}/${dateStr}.md` : `${dateStr}.md`;
-      const file = this.app.vault.getAbstractFileByPath(path);
-      if (!file || !(file instanceof obsidian.TFile)) continue;
-      if (source.kind === "daily" && source.file && source.file.path === file.path) continue;
-      await this._tickDailyNoteTaskByText(file, t, !!done);
-    }
+  _propagateTaskComplete(text, done, source) {
+    return propagateTaskComplete(this, text, done, source);
   }
-  async _tickProjectTaskByText(file, text, done) {
-    let content;
-    try {
-      content = await this.app.vault.read(file);
-    } catch (_) {
-      return;
-    }
-    const sections = parseH2Sections(content);
-    const tasks = parseTasksList(sections["Tasks"] || "");
-    let changed = false;
-    const updated = tasks.map((tk) => {
-      if (tk.title.trim() === text && !!tk.done !== !!done) {
-        changed = true;
-        return Object.assign({}, tk, { done: !!done });
-      }
-      return tk;
-    });
-    if (!changed) return;
-    const newSection = stringifyTasks(updated);
-    const next = replaceSection(content, "## Tasks", newSection);
-    await this.app.vault.modify(file, next);
+  _tickProjectTaskByText(file, text, done) {
+    return tickProjectTaskByText(this, file, text, done);
   }
-  async _tickDailyNoteTaskByText(file, text, done) {
-    let content;
-    try {
-      content = await this.app.vault.read(file);
-    } catch (_) {
-      return;
-    }
-    const parsed = parseSections(content, this.plugin.settings);
-    let changed = false;
-    const updatedTasks = parsed.tasks.map((line) => {
-      const lineText = line.replace(/^\s*-\s\[(x|X| )\]\s/, "").trim();
-      if (lineText !== text) return line;
-      const isDone = / \[(x|X)\] /.test(line);
-      if (isDone === !!done) return line;
-      changed = true;
-      return done ? line.replace(/^\s*-\s\[\s\]\s/, "- [x] ") : line.replace(/^\s*-\s\[(x|X)\]\s/, "- [ ] ");
-    });
-    if (!changed) return;
-    const newSection = updatedTasks.join("\n");
-    const next = replaceSection(content, this.plugin.settings.tasksHeading, newSection);
-    await this.app.vault.modify(file, next);
+  _tickDailyNoteTaskByText(file, text, done) {
+    return tickDailyNoteTaskByText(this, file, text, done);
   }
   /* ── Cadence-styled prompt modal ─ */
   _prompt(opts) {
@@ -9355,340 +9797,24 @@ ${defaultBody}
     return createEntityFromPrompt(this, entityKey, defaults);
   }
   /* ── Today pane ─────────────────────────── */
-  async renderTodayPane(root) {
-    root.addClass("cadence-today");
-    this.todayFile = await ensureDailyNote(this.app, this.plugin.settings);
-    const fileContent = await this.app.vault.read(this.todayFile);
-    this.todayParsed = parseSections(fileContent, this.plugin.settings);
-    let tasksList = [];
-    if (this.plugin.settings.taskManagementSystem === "tasknotes") {
-      const todayYmd = ymd(/* @__PURE__ */ new Date());
-      const allTaskNotes = listTaskNotesTasks(this.app);
-      this.todayTaskNotes = allTaskNotes.filter((t) => t.scheduled === todayYmd);
-      tasksList = this.todayTaskNotes.map((t) => `- [${t.done ? "x" : " "}] ${t.title}`);
-    } else {
-      tasksList = this.todayParsed.tasks;
-    }
-    const info = dateInfo();
-    root.createDiv({ cls: "cad-eyebrow", text: info.weekday.toUpperCase() });
-    const hero = root.createDiv({ cls: "cad-date-hero" });
-    hero.createSpan({ cls: "cad-day", text: String(info.day) });
-    const monthCol = hero.createDiv();
-    monthCol.createDiv({ cls: "cad-month", text: info.month });
-    monthCol.createDiv({ cls: "cad-year", text: String(info.year) });
-    const taskCount = tasksList.filter((l) => / \[ \] /.test(l)).length;
-    root.createDiv({
-      cls: "cad-greet",
-      text: taskCount === 0 ? `${greeting()}. Nothing on the books \u2014 your day is clear.` : `${greeting()}. You have ${taskCount} ${taskCount === 1 ? "thing" : "things"} to handle.`
-    });
-    const taskSection = root.createDiv({ cls: "cad-section" });
-    const taskLabel = taskSection.createDiv({ cls: "cad-section-label" });
-    taskLabel.createSpan({ text: "TODAY" });
-    const total = tasksList.length;
-    const open = tasksList.filter((l) => / \[ \] /.test(l)).length;
-    taskLabel.createSpan({ cls: "cad-count", text: `${open} open \xB7 ${total - open} done` });
-    if (!tasksList.length) {
-      taskSection.createDiv({ cls: "cad-empty", text: "No tasks in today's note yet." });
-    } else {
-      const dailyPath = this.todayFile.path;
-      tasksList.forEach((rawLine, idx) => {
-        const checked = / \[(x|X)\] /.test(rawLine);
-        const text = rawLine.replace(/^\s*-\s\[(x|X| )\]\s/, "");
-        const row = taskSection.createDiv({ cls: "cad-task-row" + (checked ? " done" : "") });
-        const cb = row.createEl("input", { type: "checkbox" });
-        cb.checked = checked;
-        cb.addEventListener("change", () => this.toggleTodayTask(idx, cb.checked));
-        if (this.plugin.settings.taskManagementSystem === "tasknotes") {
-          const taskObj = this.todayTaskNotes[idx];
-          const taskSpan = row.createEl("a", { cls: "cad-task-text", text });
-          taskSpan.style.cursor = "pointer";
-          taskSpan.addEventListener("click", (ev) => {
-            ev.preventDefault();
-            this.app.workspace.openLinkText(taskObj.file.path, "", false);
-          });
-        } else {
-          row.createSpan({ cls: "cad-task-text", text });
-        }
-        let linkedProject = null;
-        if (this.plugin.settings.taskManagementSystem === "tasknotes") {
-          const taskObj = this.todayTaskNotes[idx];
-          if (taskObj.projects) {
-            const parsed = parseLinkValues(taskObj.projects);
-            if (parsed.length > 0) {
-              const projFile = this.app.vault.getMarkdownFiles().find((f) => f.basename === parsed[0].target);
-              if (projFile) {
-                linkedProject = projFile.path;
-              }
-            }
-          }
-        } else {
-          linkedProject = this._getTaskProjectLink(dailyPath, text);
-        }
-        if (linkedProject) {
-          const chip = row.createEl("a", { cls: "cad-task-proj-chip", text: "\u{1F4C1} " + (projectNameFromPath(this.app, linkedProject) || "Project") });
-          chip.title = "Open linked project";
-          chip.addEventListener("click", (ev) => {
-            ev.preventDefault();
-            ev.stopPropagation();
-            const file = this.app.vault.getAbstractFileByPath(linkedProject);
-            if (file && file instanceof obsidian.TFile) this.openEntityDetail("project", file);
-          });
-        }
-        if (this.plugin.settings.taskManagementSystem !== "tasknotes") {
-          const linkBtn = row.createEl("button", { cls: "cad-task-link-btn" + (linkedProject ? " linked" : ""), text: linkedProject ? "\u270E" : "\u{1F4C1}" });
-          linkBtn.title = linkedProject ? "Change linked project" : "Link to a project";
-          linkBtn.addEventListener("click", (ev) => {
-            ev.stopPropagation();
-            this._openTaskProjectPicker(dailyPath, text, linkedProject);
-          });
-        }
-      });
-    }
-    const quickWrap = taskSection.createDiv();
-    quickWrap.style.marginTop = "8px";
-    const quick = quickWrap.createEl("input", {
-      type: "text",
-      placeholder: "Quick add a task \u2014 Enter to save"
-    });
-    quick.style.width = "100%";
-    quick.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" && quick.value.trim()) {
-        const v = quick.value.trim();
-        quick.value = "";
-        this.appendTodayTask(v);
-      }
-    });
-    const journalSection = root.createDiv({ cls: "cad-section" });
-    journalSection.createDiv({ cls: "cad-section-label" }).setText("TODAY\u2019S ENTRY");
-    const ta = journalSection.createEl("textarea", { cls: "cad-journal" });
-    ta.value = this.todayParsed.journal;
-    ta.placeholder = "Write what\u2019s on your mind\u2026";
-    ta.rows = Math.max(8, ta.value.split("\n").length + 2);
-    ta.addEventListener("input", () => {
-      ta.style.height = "auto";
-      ta.style.height = ta.scrollHeight + "px";
-      if (this._journalSaveTimer) clearTimeout(this._journalSaveTimer);
-      this._journalSaveTimer = setTimeout(() => this.saveTodayJournal(ta.value), 800);
-    });
-    setTimeout(() => {
-      ta.style.height = ta.scrollHeight + "px";
-    }, 0);
-    const allSections = parseH2Sections(fileContent);
-    const cleanTasksHeading = (this.plugin.settings.tasksHeading || "## Today").replace(/^##\s+/, "").trim().toLowerCase();
-    const cleanJournalHeading = (this.plugin.settings.journalHeading || "## Journal").replace(/^##\s+/, "").trim().toLowerCase();
-    const otherKeys = Object.keys(allSections).filter((k) => {
-      const cleanK = parseHeaderKey(k).cleanLabel.toLowerCase();
-      return cleanK !== cleanTasksHeading && cleanK !== cleanJournalHeading;
-    });
-    if (otherKeys.length > 0) {
-      const customWrap = root.createDiv({ cls: "cad-custom-sections" });
-      customWrap.style.marginTop = "24px";
-      customWrap.style.display = "grid";
-      customWrap.style.gridTemplateColumns = "repeat(auto-fit, minmax(320px, 1fr))";
-      customWrap.style.gap = "16px";
-      const flashSaved = () => {
-        new obsidian.Notice("Section saved");
-      };
-      otherKeys.forEach((rawKey) => {
-        this._renderDynamicH2Section(customWrap, this.todayFile, allSections, rawKey, flashSaved);
-      });
-    }
-    const footer = root.createDiv();
-    footer.style.marginTop = "24px";
-    footer.style.fontSize = "12px";
-    footer.style.color = "var(--cad-ink-4)";
-    const link = footer.createEl("a", { text: "Open today's daily note \u2192" });
-    link.style.color = "var(--cad-emerald-deep)";
-    link.style.cursor = "pointer";
-    link.addEventListener("click", () => {
-      this.app.workspace.openLinkText(this.todayFile.path, "", false);
-    });
+  renderTodayPane(root) {
+    return renderTodayPane(this, root);
   }
-  async toggleTodayTask(idx, checked) {
-    if (this.plugin.settings.taskManagementSystem === "tasknotes") {
-      if (this.todayTaskNotes && this.todayTaskNotes[idx]) {
-        const taskObj = this.todayTaskNotes[idx];
-        await toggleTaskNotesTask(this.app, taskObj.file, checked);
-      }
-    } else {
-      const content = await this.app.vault.read(this.todayFile);
-      const parsed = parseSections(content, this.plugin.settings);
-      const taskLine = parsed.tasks[idx] || "";
-      const taskText = taskLine.replace(/^\s*-\s\[(x|X| )\]\s/, "").trim();
-      const newTasks = parsed.tasks.map((line, i) => {
-        if (i !== idx) return line;
-        return checked ? line.replace(/^\s*-\s\[\s\]\s/, "- [x] ") : line.replace(/^\s*-\s\[(x|X)\]\s/, "- [ ] ");
-      });
-      const newContent = replaceSection(content, this.plugin.settings.tasksHeading, newTasks.join("\n"));
-      await this.app.vault.modify(this.todayFile, newContent);
-      if (taskText) {
-        await this._propagateTaskComplete(taskText, checked, { kind: "daily", file: this.todayFile, date: /* @__PURE__ */ new Date() });
-      }
-    }
-    this.render();
+  toggleTodayTask(idx, checked) {
+    return toggleTodayTask(this, idx, checked);
   }
-  async appendTodayTask(text) {
-    if (this.plugin.settings.taskManagementSystem === "tasknotes") {
-      await appendTaskNotesTask(this.app, text, /* @__PURE__ */ new Date());
-    } else {
-      const content = await this.app.vault.read(this.todayFile);
-      const parsed = parseSections(content, this.plugin.settings);
-      const newTasks = [...parsed.tasks, `- [ ] ${text}`];
-      const newContent = replaceSection(content, this.plugin.settings.tasksHeading, newTasks.join("\n"));
-      await this.app.vault.modify(this.todayFile, newContent);
-    }
-    this.render();
+  appendTodayTask(text) {
+    return appendTodayTask(this, text);
   }
-  async saveTodayJournal(body) {
-    const content = await this.app.vault.read(this.todayFile);
-    const newContent = replaceSection(content, this.plugin.settings.journalHeading, body || "");
-    await this.app.vault.modify(this.todayFile, newContent);
+  saveTodayJournal(body) {
+    return saveTodayJournal(this, body);
   }
   /* ── Planner pane ───────────────────────── */
-  async renderPlannerPane(root) {
-    root.addClass("cadence-planner");
-    const settings = this.plugin.settings;
-    const days = weekDates(this.plannerAnchor, settings.weekStartsOn);
-    const today = startOfDay(/* @__PURE__ */ new Date());
-    const header = root.createDiv({ cls: "cad-pl-header" });
-    const titleWrap = header.createDiv({ cls: "cad-pl-title-wrap" });
-    titleWrap.createDiv({ cls: "cad-eyebrow", text: "WEEK OF" });
-    const startStr = days[0].toLocaleDateString(void 0, { month: "long", day: "numeric" });
-    const endStr = days[6].toLocaleDateString(void 0, { month: "long", day: "numeric", year: "numeric" });
-    titleWrap.createDiv({ cls: "cad-pl-title", text: `${startStr} \u2013 ${endStr}` });
-    const nav = header.createDiv({ cls: "cad-pl-nav" });
-    const mkBtn = (label, fn, cls = "") => {
-      const b = nav.createEl("button", { text: label, cls: "cad-pl-btn " + cls });
-      b.addEventListener("click", fn);
-    };
-    mkBtn("\u25C0", () => {
-      this.plannerAnchor = addDays(this.plannerAnchor, -7);
-      this.render();
-    });
-    mkBtn("Today", () => {
-      this.plannerAnchor = startOfDay(/* @__PURE__ */ new Date());
-      this.render();
-    }, "primary");
-    mkBtn("\u25B6", () => {
-      this.plannerAnchor = addDays(this.plannerAnchor, 7);
-      this.render();
-    });
-    let totalOpen = 0, totalDone = 0;
-    let dayData = [];
-    if (settings.taskManagementSystem === "tasknotes") {
-      const allTasks = listTaskNotesTasks(this.app);
-      dayData = days.map((d) => {
-        const ymdStr = ymd(d);
-        const path = dailyNotePath(settings, d);
-        const file = this.app.vault.getAbstractFileByPath(path);
-        const tasksForDay = allTasks.filter((t) => t.scheduled === ymdStr);
-        return {
-          date: d,
-          path,
-          exists: !!file,
-          file,
-          tasks: tasksForDay.map((t) => `- [${t.done ? "x" : " "}] ${t.title}`),
-          rawTasks: tasksForDay
-        };
-      });
-    } else {
-      dayData = await Promise.all(days.map(async (d) => {
-        const path = dailyNotePath(settings, d);
-        const file = this.app.vault.getAbstractFileByPath(path);
-        if (!file || !(file instanceof obsidian.TFile)) {
-          return { date: d, path, exists: false, tasks: [] };
-        }
-        const content = await this.app.vault.read(file);
-        const parsed = parseSections(content, settings);
-        return { date: d, path, exists: true, file, tasks: parsed.tasks };
-      }));
-    }
-    dayData.forEach((d) => {
-      d.tasks.forEach((l) => {
-        if (/ \[(x|X)\] /.test(l)) totalDone++;
-        else if (/ \[ \] /.test(l)) totalOpen++;
-      });
-    });
-    const stats = root.createDiv({ cls: "cad-pl-stats" });
-    const mkStat = (label, value) => {
-      const c = stats.createDiv({ cls: "cad-pl-stat" });
-      c.createDiv({ cls: "cad-pl-stat-label", text: label });
-      c.createDiv({ cls: "cad-pl-stat-value", text: String(value) });
-    };
-    mkStat("OPEN", totalOpen);
-    mkStat("DONE", totalDone);
-    mkStat("TOTAL", totalOpen + totalDone);
-    const grid = root.createDiv({ cls: "cad-pl-grid" });
-    dayData.forEach((d) => {
-      const isToday = sameDay(d.date, today);
-      const col = grid.createDiv({ cls: "cad-pl-day" + (isToday ? " today" : "") });
-      const colHead = col.createDiv({ cls: "cad-pl-day-head" });
-      colHead.createDiv({
-        cls: "cad-pl-weekday",
-        text: d.date.toLocaleDateString(void 0, { weekday: "short" }).toUpperCase()
-      });
-      colHead.createDiv({ cls: "cad-pl-daynum", text: String(d.date.getDate()) });
-      const open = d.tasks.filter((l) => / \[ \] /.test(l)).length;
-      const done = d.tasks.filter((l) => / \[(x|X)\] /.test(l)).length;
-      colHead.createDiv({
-        cls: "cad-pl-meta",
-        text: d.exists ? `${open} open \xB7 ${done} done` : "no note"
-      });
-      colHead.addEventListener("click", async () => {
-        if (!d.exists) {
-          await ensureDailyNote(this.app, settings, d.date);
-        }
-        this.app.workspace.openLinkText(d.path, "", false);
-      });
-      const list = col.createDiv({ cls: "cad-pl-tasks" });
-      if (!d.tasks.length) {
-        list.createDiv({ cls: "cad-empty", text: d.exists ? "\u2014" : "" });
-      } else {
-        d.tasks.forEach((rawLine, idx) => {
-          const checked = / \[(x|X)\] /.test(rawLine);
-          const text = rawLine.replace(/^\s*-\s\[(x|X| )\]\s/, "");
-          const row = list.createDiv({ cls: "cad-pl-task" + (checked ? " done" : "") });
-          const cb = row.createEl("input", { type: "checkbox" });
-          cb.checked = checked;
-          cb.addEventListener("change", () => this.togglePlannerTask(d, idx, cb.checked));
-          if (settings.taskManagementSystem === "tasknotes") {
-            const taskObj = d.rawTasks[idx];
-            const taskSpan = row.createEl("a", { text });
-            taskSpan.style.cursor = "pointer";
-            taskSpan.addEventListener("click", (ev) => {
-              ev.preventDefault();
-              this.app.workspace.openLinkText(taskObj.file.path, "", false);
-            });
-          } else {
-            row.createSpan({ text });
-          }
-        });
-      }
-    });
+  renderPlannerPane(root) {
+    return renderPlannerPane(this, root);
   }
-  async togglePlannerTask(day, idx, checked) {
-    if (this.plugin.settings.taskManagementSystem === "tasknotes") {
-      if (day.rawTasks && day.rawTasks[idx]) {
-        const taskObj = day.rawTasks[idx];
-        await toggleTaskNotesTask(this.app, taskObj.file, checked);
-      }
-    } else {
-      if (!day.file) return;
-      const content = await this.app.vault.read(day.file);
-      const parsed = parseSections(content, this.plugin.settings);
-      const taskLine = parsed.tasks[idx] || "";
-      const taskText = taskLine.replace(/^\s*-\s\[(x|X| )\]\s/, "").trim();
-      const newTasks = parsed.tasks.map((line, i) => {
-        if (i !== idx) return line;
-        return checked ? line.replace(/^\s*-\s\[\s\]\s/, "- [x] ") : line.replace(/^\s*-\s\[(x|X)\]\s/, "- [ ] ");
-      });
-      const newContent = replaceSection(content, this.plugin.settings.tasksHeading, newTasks.join("\n"));
-      await this.app.vault.modify(day.file, newContent);
-      if (taskText) {
-        await this._propagateTaskComplete(taskText, checked, { kind: "daily", file: day.file, date: day.date });
-      }
-    }
-    this.render();
+  togglePlannerTask(day, idx, checked) {
+    return togglePlannerTask(this, day, idx, checked);
   }
   async onClose() {
   }
