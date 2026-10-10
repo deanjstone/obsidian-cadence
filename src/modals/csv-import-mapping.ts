@@ -1,7 +1,7 @@
 import type { EntityDef } from '../types/entities';
 
 /* State logic of CadenceImportModal, lifted out of the modal so it can be
-   tested without a DOM. The modal (still in src/legacy/cadence.js) calls
+   tested without a DOM. The modal (src/modals/import-modal.ts) calls
    these from _autoDetectMapping and _submitImport. */
 
 /** CSV header → entity field key, or null when the column is skipped. */

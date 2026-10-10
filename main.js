@@ -1960,6 +1960,504 @@ var CadenceWidgetCreateModal = class extends import_obsidian9.Modal {
   }
 };
 
+// src/modals/entity-create.ts
+var import_obsidian10 = require("obsidian");
+var PLACEHOLDER_EXAMPLES = {
+  contact: "e.g. Jane Smith",
+  company: "e.g. Acme Corp",
+  partner: "e.g. Acme Distribution",
+  deal: "e.g. Acme \u2014 FTTH expansion",
+  registration: "e.g. Vodacom 12-site FTTB",
+  commission: "e.g. C-2026-Q2-0042",
+  lead: "e.g. Sarah from Vodacom",
+  certification: "e.g. Cisco CCNP \u2014 May 2026",
+  activity: "e.g. Discovery call with Jane",
+  sequence: "e.g. Outbound \u2014 SMB",
+  project: "e.g. Q3 Cadence launch"
+};
+function placeholderFor(entityKey, isPrimary) {
+  if (!isPrimary) return "";
+  return PLACEHOLDER_EXAMPLES[entityKey] || "";
+}
+function defaultEnumValue(f) {
+  if (["stage", "status", "priority", "tier", "type"].includes(f.key) && f.options && f.options.length) {
+    const sensible = f.key === "stage" ? "Lead" : f.key === "status" ? f.options.find((o) => /active|new|draft|submitted|pending/i.test(o)) || f.options[0] : f.key === "priority" ? f.options.find((o) => /medium/i.test(o)) || f.options[0] : f.options[0];
+    if (f.options.includes(sensible)) return sensible;
+  }
+  return void 0;
+}
+function buildEntityCreateValues(def, inputs) {
+  const values = {};
+  let primaryValue = null;
+  inputs.forEach((input, idx) => {
+    const { key, type } = input;
+    let raw = input.value;
+    if (idx === 0) primaryValue = (raw || "").trim();
+    if (raw === "" || raw == null) return;
+    const f = def.fields.find((fd) => fd.key === key);
+    const suggestionSource = getFieldSuggestionSource(f);
+    const isWikilink = suggestionSource !== "none" && suggestionSource !== "tags" && suggestionSource !== "history";
+    const isEntityRef = ["owner", "assigned", "company", "contact", "contacts", "partner", "with", "related"].includes(key) || isWikilink;
+    const isListField = type === "tags" || type === "multitext" || f && f.isList || ["domain", "industry", "role", "tags"].includes(key) || isEntityRef;
+    if (isListField) {
+      const parts = raw.split(",").map((t) => t.trim()).filter(Boolean);
+      if (isEntityRef) {
+        raw = parts.map((p) => `[[${p.replace(/^\[\[|\]\]$/g, "")}]]`);
+      } else {
+        raw = parts;
+      }
+    } else if (isEntityRef) {
+      raw = `[[${raw.replace(/^\[\[|\]\]$/g, "").trim()}]]`;
+    } else if (type === "number" || type === "currency") {
+      const n = Number(raw);
+      raw = isNaN(n) ? null : n;
+    }
+    if (raw == null) return;
+    if (Array.isArray(raw) && raw.length === 0) return;
+    values[key] = raw;
+  });
+  if (!primaryValue) return null;
+  return { name: primaryValue, values };
+}
+function entityCreateSuggestions(app, f, suggestionSource, fullVal) {
+  const lastCommaIdx = fullVal.lastIndexOf(",");
+  const query = (lastCommaIdx === -1 ? fullVal : fullVal.slice(lastCommaIdx + 1)).trim().toLowerCase();
+  if (!query) return [];
+  const isEntitySrc = ENTITIES[suggestionSource] != null;
+  const isFolderSrc = suggestionSource && suggestionSource.startsWith("folder:");
+  const customFolderPath = isFolderSrc ? suggestionSource.slice("folder:".length) : null;
+  const typedNames = fullVal.split(",").map((s) => s.trim().replace(/^\[\[|\]\]$/g, "").toLowerCase()).filter(Boolean);
+  let filtered = [];
+  if (suggestionSource === "tags") {
+    const suggestions = Object.keys(app.metadataCache.getTags() || {}).map((t) => t.replace(/^#/, ""));
+    filtered = suggestions.filter(
+      (v) => v.toLowerCase().includes(query) && !typedNames.includes(v.toLowerCase())
+    );
+  } else if (suggestionSource === "history") {
+    const allFiles = app.vault.getMarkdownFiles();
+    const allValues = /* @__PURE__ */ new Set();
+    allFiles.forEach((file) => {
+      const cache = app.metadataCache.getFileCache(file);
+      const fm = cache && cache.frontmatter || {};
+      const val = fm[f.key];
+      if (Array.isArray(val)) {
+        val.forEach((v) => {
+          if (v) allValues.add(String(v).replace(/^\[\[|\]\]$/g, "").trim());
+        });
+      } else if (val != null && val !== "") {
+        allValues.add(String(val).replace(/^\[\[|\]\]$/g, "").trim());
+      }
+    });
+    filtered = Array.from(allValues).filter(
+      (v) => v.toLowerCase().includes(query) && !typedNames.includes(v.toLowerCase())
+    );
+  } else if (suggestionSource !== "none") {
+    if (customFolderPath) {
+      const folderNode = app.vault.getAbstractFileByPath(customFolderPath);
+      const names = [];
+      if (folderNode && folderNode.children) {
+        const walk = (node) => {
+          for (const child of node.children) {
+            if (child.children) walk(child);
+            else if (child.path && child.path.endsWith(".md")) names.push(child.basename);
+          }
+        };
+        walk(folderNode);
+      }
+      filtered = names.filter(
+        (n) => n.toLowerCase().includes(query) && !typedNames.includes(n.toLowerCase())
+      );
+    } else {
+      const targetKey = isEntitySrc ? suggestionSource : f.key === "company" ? "company" : f.key === "partner" ? "partner" : f.key === "related" ? "project" : "contact";
+      const entitiesList = listEntities(app, targetKey);
+      filtered = entitiesList.filter(
+        (c) => c.basename.toLowerCase().includes(query) && !typedNames.includes(c.basename.toLowerCase())
+      ).map((c) => c.basename);
+    }
+  }
+  return filtered;
+}
+var CadenceEntityCreateModal = class extends import_obsidian10.Modal {
+  constructor(app, entityKey, opts) {
+    super(app);
+    this.entityKey = entityKey;
+    this.def = ENTITIES[entityKey];
+    this.onSubmit = opts.onSubmit;
+    this.defaults = opts.defaults || {};
+    this._submitted = false;
+  }
+  onOpen() {
+    const { contentEl, modalEl } = this;
+    contentEl.empty();
+    contentEl.addClass("cad-create-modal");
+    if (modalEl) modalEl.addClass("cad-create-modal-shell");
+    contentEl.createEl("h3", { cls: "cad-create-title", text: `New ${this.def.label}` });
+    const form = contentEl.createDiv({ cls: "cad-create-form" });
+    const inputs = [];
+    this.def.fields.forEach((f, idx) => {
+      if (f.key === "type" && f.type !== "enum") return;
+      const isPrimary = idx === 0;
+      const row = form.createDiv({ cls: "cad-create-row" });
+      const label = row.createDiv({ cls: "cad-create-label" });
+      label.setText(f.label.toUpperCase() + (isPrimary ? " *" : ""));
+      let input;
+      const fieldType = f.type || "text";
+      if (fieldType === "enum") {
+        input = row.createEl("select", { cls: "cad-create-input" });
+        input.createEl("option", { value: "", text: "\u2014 \u2014" });
+        (f.options || []).forEach((opt) => input.createEl("option", { value: opt, text: opt }));
+        const sensible = defaultEnumValue(f);
+        if (sensible !== void 0) input.value = sensible;
+      } else if (fieldType === "date") {
+        input = row.createEl("input", { type: "date", cls: "cad-create-input" });
+      } else if (fieldType === "number" || fieldType === "currency") {
+        input = row.createEl("input", { type: "number", cls: "cad-create-input" });
+        input.placeholder = "0";
+      } else if (fieldType === "email") {
+        input = row.createEl("input", { type: "email", cls: "cad-create-input" });
+        input.placeholder = "name@example.com";
+      } else {
+        input = row.createEl("input", { type: "text", cls: "cad-create-input" });
+        input.placeholder = fieldType === "tags" ? "tag1, tag2" : this._placeholderFor(f, isPrimary);
+        const suggestionSource = getFieldSuggestionSource(f);
+        const hasSuggestions = suggestionSource !== "none";
+        if (hasSuggestions) {
+          row.style.position = "relative";
+          const suggestionsBox = row.createDiv({ cls: "cad-pd-tag-suggestions" });
+          suggestionsBox.style.position = "absolute";
+          suggestionsBox.style.zIndex = "10000";
+          suggestionsBox.style.backgroundColor = "var(--background-secondary)";
+          suggestionsBox.style.border = "1px solid var(--border-color)";
+          suggestionsBox.style.borderRadius = "4px";
+          suggestionsBox.style.boxShadow = "var(--shadow-s)";
+          suggestionsBox.style.maxHeight = "150px";
+          suggestionsBox.style.overflowY = "auto";
+          suggestionsBox.style.display = "none";
+          suggestionsBox.style.width = "calc(100% - 130px)";
+          suggestionsBox.style.boxSizing = "border-box";
+          suggestionsBox.style.top = "100%";
+          suggestionsBox.style.right = "0";
+          suggestionsBox.style.marginTop = "4px";
+          const updateSuggestions = () => {
+            const fullVal = input.value;
+            const lastCommaIdx = fullVal.lastIndexOf(",");
+            suggestionsBox.empty();
+            const filtered = entityCreateSuggestions(this.app, f, suggestionSource, fullVal);
+            if (filtered.length === 0) {
+              suggestionsBox.style.display = "none";
+              return;
+            }
+            filtered.forEach((valStr) => {
+              const item = suggestionsBox.createDiv({ cls: "cad-suggestion-item" });
+              item.style.padding = "6px 10px";
+              item.style.cursor = "pointer";
+              item.style.fontSize = "13px";
+              item.style.color = "var(--text-normal)";
+              item.setText(valStr);
+              item.addEventListener("mouseenter", () => {
+                item.style.backgroundColor = "var(--background-modifier-hover)";
+              });
+              item.addEventListener("mouseleave", () => {
+                item.style.backgroundColor = "transparent";
+              });
+              item.addEventListener("mousedown", (ev) => {
+                ev.preventDefault();
+                const baseVal = lastCommaIdx === -1 ? "" : fullVal.slice(0, lastCommaIdx + 1) + " ";
+                input.value = baseVal + valStr + ", ";
+                suggestionsBox.style.display = "none";
+                input.focus();
+              });
+            });
+            suggestionsBox.style.display = "block";
+          };
+          input.addEventListener("input", updateSuggestions);
+          input.addEventListener("focus", updateSuggestions);
+          input.addEventListener("blur", () => {
+            setTimeout(() => {
+              suggestionsBox.style.display = "none";
+            }, 180);
+          });
+        }
+      }
+      input.dataset.fieldKey = f.key;
+      input.dataset.fieldType = fieldType;
+      if (isPrimary) input.required = true;
+      if (this.defaults && this.defaults[f.key] != null) {
+        input.value = String(this.defaults[f.key]);
+      }
+      inputs.push(input);
+    });
+    const actions = contentEl.createDiv({ cls: "cad-create-actions" });
+    const cancel = actions.createEl("button", { cls: "cad-btn", text: "Cancel" });
+    cancel.type = "button";
+    cancel.addEventListener("click", () => this.close());
+    const submitBtn = actions.createEl("button", { cls: "cad-btn primary", text: `Create ${this.def.label}` });
+    submitBtn.type = "button";
+    const submit = () => {
+      const result = buildEntityCreateValues(this.def, inputs.map((el) => ({
+        key: el.dataset.fieldKey,
+        type: el.dataset.fieldType,
+        value: el.value
+      })));
+      if (!result) {
+        if (inputs[0]) inputs[0].focus();
+        return;
+      }
+      this._submitted = true;
+      this.close();
+      this.onSubmit(result);
+    };
+    submitBtn.addEventListener("click", submit);
+    inputs.forEach((el) => {
+      el.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && el.tagName === "INPUT") {
+          e.preventDefault();
+          submit();
+        }
+        if (e.key === "Escape") this.close();
+      });
+    });
+    setTimeout(() => {
+      if (inputs[0]) {
+        inputs[0].focus();
+      }
+    }, 0);
+  }
+  _placeholderFor(field, isPrimary) {
+    return placeholderFor(this.entityKey, isPrimary);
+  }
+  onClose() {
+    if (!this._submitted && this.onSubmit) this.onSubmit(null);
+    this.contentEl.empty();
+  }
+};
+
+// src/modals/import-modal.ts
+var import_obsidian11 = require("obsidian");
+function csvColumnSamples(rows, index) {
+  return rows.slice(0, 2).map((r) => String(r[index] || "").trim()).filter(Boolean);
+}
+function csvImportSummary(def, mapping, rowCount) {
+  const primaryMapped = Object.values(mapping).includes(def.fields[0].key);
+  if (!primaryMapped) {
+    return { ready: false, text: `No CSV column maps to "${def.fields[0].label}" \u2014 required to name the file. Pick a column above.` };
+  }
+  const mappedCount = Object.values(mapping).filter(Boolean).length;
+  return {
+    ready: true,
+    text: `Will create ${rowCount} ${rowCount === 1 ? def.label.toLowerCase() : def.plural.toLowerCase()} in ${def.folder}/  \xB7  ${mappedCount} column${mappedCount === 1 ? "" : "s"} mapped`
+  };
+}
+function filterCsvFiles(files, query) {
+  return files.filter((f) => f.path.toLowerCase().includes(query.toLowerCase()));
+}
+var CsvFileSuggestModal = class extends import_obsidian11.SuggestModal {
+  constructor(app, files, onPick) {
+    super(app);
+    this.files = files;
+    this.onPick = onPick;
+    this.setPlaceholder("Search .csv files\u2026");
+  }
+  getSuggestions(q) {
+    return filterCsvFiles(this.files, q);
+  }
+  renderSuggestion(file, el) {
+    el.setText(file.path);
+  }
+  onChooseSuggestion(file) {
+    this.onPick(file);
+  }
+};
+var CadenceImportModal = class extends import_obsidian11.Modal {
+  constructor(app, opts) {
+    super(app);
+    this.entityKey = opts && opts.entityKey || "contact";
+    this.onSubmit = opts && opts.onSubmit || (() => {
+    });
+    this.csvText = "";
+    this.headers = [];
+    this.rows = [];
+    this.mapping = {};
+  }
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.addClass("cad-import-modal");
+    contentEl.createEl("h3", { cls: "cad-create-title", text: "Import from CSV" });
+    const entityRow = contentEl.createDiv({ cls: "cad-create-row" });
+    entityRow.createDiv({ cls: "cad-create-label", text: "IMPORT AS" });
+    const entitySelect = entityRow.createEl("select", { cls: "cad-create-input" });
+    Object.entries(ENTITIES).forEach(([key, def]) => {
+      const o = entitySelect.createEl("option", { value: key, text: def.plural });
+      if (key === this.entityKey) o.selected = true;
+    });
+    entitySelect.addEventListener("change", () => {
+      this.entityKey = entitySelect.value;
+      this._autoDetectMapping();
+      this._renderPreview();
+    });
+    const csvRow = contentEl.createDiv({ cls: "cad-create-row" });
+    csvRow.style.alignItems = "flex-start";
+    csvRow.createDiv({ cls: "cad-create-label", text: "CSV DATA" });
+    const csvWrap = csvRow.createDiv();
+    csvWrap.style.display = "flex";
+    csvWrap.style.flexDirection = "column";
+    csvWrap.style.gap = "8px";
+    const tabs = csvWrap.createDiv();
+    tabs.style.display = "flex";
+    tabs.style.gap = "6px";
+    const pasteBtn = tabs.createEl("button", { cls: "cad-btn cad-btn-sm", text: "Paste" });
+    pasteBtn.type = "button";
+    const fileBtn = tabs.createEl("button", { cls: "cad-btn cad-btn-sm", text: "Pick .csv from vault" });
+    fileBtn.type = "button";
+    const ta = csvWrap.createEl("textarea", { cls: "cad-create-input" });
+    ta.rows = 8;
+    ta.placeholder = "Paste CSV here, including a header row\u2026";
+    ta.style.fontFamily = "var(--font-monospace-theme, var(--font-monospace))";
+    ta.style.fontSize = "12px";
+    ta.style.resize = "vertical";
+    ta.addEventListener("input", () => {
+      this.csvText = ta.value;
+      this._parse();
+      this._renderPreview();
+    });
+    pasteBtn.addEventListener("click", () => ta.focus());
+    fileBtn.addEventListener("click", async () => {
+      const csvFiles = this.app.vault.getFiles().filter((f) => f.path.toLowerCase().endsWith(".csv"));
+      if (!csvFiles.length) {
+        new import_obsidian11.Notice("No .csv files found in vault. Drop one in the vault first.");
+        return;
+      }
+      const picker = new CsvFileSuggestModal(this.app, csvFiles, async (file) => {
+        try {
+          const text = await this.app.vault.read(file);
+          ta.value = text;
+          this.csvText = text;
+          this._parse();
+          this._renderPreview();
+        } catch (e) {
+          new import_obsidian11.Notice(`Failed to read ${file.path}: ${e.message}`);
+        }
+      });
+      picker.open();
+    });
+    this.previewEl = contentEl.createDiv({ cls: "cad-import-preview" });
+    this._renderPreview();
+    const actions = contentEl.createDiv({ cls: "cad-create-actions" });
+    const cancel = actions.createEl("button", { cls: "cad-btn", text: "Cancel" });
+    cancel.type = "button";
+    cancel.addEventListener("click", () => this.close());
+    this.importBtn = actions.createEl("button", { cls: "cad-btn primary", text: "Import" });
+    this.importBtn.type = "button";
+    this.importBtn.disabled = true;
+    this.importBtn.addEventListener("click", () => this._submitImport());
+  }
+  _parse() {
+    if (!this.csvText.trim()) {
+      this.headers = [];
+      this.rows = [];
+      return;
+    }
+    const all = parseCSV(this.csvText);
+    if (!all.length) {
+      this.headers = [];
+      this.rows = [];
+      return;
+    }
+    this.headers = all[0].map((h) => String(h).trim());
+    this.rows = all.slice(1);
+    this._autoDetectMapping();
+  }
+  _autoDetectMapping() {
+    this.mapping = autoDetectCsvMapping(ENTITIES[this.entityKey], this.headers);
+  }
+  _renderPreview() {
+    this.previewEl.empty();
+    if (!this.headers.length) {
+      this.previewEl.createDiv({ cls: "cad-empty", text: "Paste or pick a CSV to preview\u2026" });
+      if (this.importBtn) this.importBtn.disabled = true;
+      return;
+    }
+    const def = ENTITIES[this.entityKey];
+    const head = this.previewEl.createDiv({ cls: "cad-create-label" });
+    head.style.marginTop = "14px";
+    head.setText("COLUMN MAPPING");
+    const tableWrap = this.previewEl.createDiv({ cls: "cad-import-table-wrap" });
+    const table = tableWrap.createEl("table", { cls: "cad-import-table" });
+    const thr = table.createEl("thead").createEl("tr");
+    thr.createEl("th", { text: "CSV column" });
+    thr.createEl("th", { text: "Maps to" });
+    thr.createEl("th", { text: "Sample" });
+    const tbody = table.createEl("tbody");
+    this.headers.forEach((h, i) => {
+      const tr = tbody.createEl("tr");
+      tr.createEl("td", { text: h });
+      const mc = tr.createEl("td");
+      const sel = mc.createEl("select", { cls: "cad-create-input cad-import-select" });
+      sel.createEl("option", { value: "", text: "\u2014 skip \u2014" });
+      def.fields.forEach((f) => {
+        const o = sel.createEl("option", { value: f.key, text: f.label });
+        if (this.mapping[h] === f.key) o.selected = true;
+      });
+      sel.addEventListener("change", () => {
+        this.mapping[h] = sel.value || null;
+        this._renderPreview();
+      });
+      const sample = tr.createEl("td");
+      const samples = csvColumnSamples(this.rows, i);
+      sample.setText(samples.join(" \xB7 ").slice(0, 60));
+      sample.title = samples.join("\n");
+    });
+    const summary = this.previewEl.createDiv({ cls: "cad-import-summary" });
+    const { ready, text } = csvImportSummary(def, this.mapping, this.rows.length);
+    if (!ready) summary.addClass("cad-import-summary-warn");
+    summary.setText(text);
+    if (this.importBtn) this.importBtn.disabled = !ready;
+  }
+  async _submitImport() {
+    const def = ENTITIES[this.entityKey];
+    const primaryKey = def.fields[0].key;
+    const primaryHeader = Object.entries(this.mapping).find(([_, v]) => v === primaryKey);
+    if (!primaryHeader) return;
+    const primaryColIdx = this.headers.indexOf(primaryHeader[0]);
+    this.importBtn.disabled = true;
+    this.importBtn.setText("Importing\u2026");
+    const start = Date.now();
+    let created = 0;
+    let failed = 0;
+    for (const row of this.rows) {
+      const primaryValue = String(row[primaryColIdx] || "").trim();
+      if (!primaryValue) {
+        failed++;
+        continue;
+      }
+      try {
+        const file = await createEntity(this.app, this.entityKey, primaryValue);
+        const extras = csvRowExtras(def, this.mapping, this.headers, row, primaryKey);
+        if (Object.keys(extras).length) {
+          await this.app.fileManager.processFrontMatter(file, (fm) => {
+            Object.entries(extras).forEach(([k, v]) => {
+              if (v == null || v === "") return;
+              if (Array.isArray(v) && v.length === 0) return;
+              fm[k] = v;
+            });
+          });
+        }
+        created++;
+      } catch (e) {
+        failed++;
+      }
+    }
+    const elapsed = ((Date.now() - start) / 1e3).toFixed(1);
+    new import_obsidian11.Notice(`Imported ${created} ${def.plural.toLowerCase()} in ${elapsed}s${failed ? ` \xB7 ${failed} skipped` : ""}`, 5e3);
+    this.close();
+    this.onSubmit({ created, failed, entityKey: this.entityKey });
+  }
+  onClose() {
+    this.contentEl.empty();
+  }
+};
+
 // src/legacy/cadence.js
 var DEFAULT_SETTINGS = {
   dailyNoteFolder: "daily",
@@ -2096,470 +2594,6 @@ var CURRENCY_OPTIONS = [
   { code: "BRL", label: "BRL \u2014 Brazilian Real" },
   { code: "AED", label: "AED \u2014 UAE Dirham" }
 ];
-var CadenceImportModal = class extends obsidian.Modal {
-  constructor(app, opts) {
-    super(app);
-    this.entityKey = opts && opts.entityKey || "contact";
-    this.onSubmit = opts && opts.onSubmit || (() => {
-    });
-    this.csvText = "";
-    this.headers = [];
-    this.rows = [];
-    this.mapping = {};
-  }
-  onOpen() {
-    const { contentEl } = this;
-    contentEl.empty();
-    contentEl.addClass("cad-import-modal");
-    contentEl.createEl("h3", { cls: "cad-create-title", text: "Import from CSV" });
-    const entityRow = contentEl.createDiv({ cls: "cad-create-row" });
-    entityRow.createDiv({ cls: "cad-create-label", text: "IMPORT AS" });
-    const entitySelect = entityRow.createEl("select", { cls: "cad-create-input" });
-    Object.entries(ENTITIES).forEach(([key, def]) => {
-      const o = entitySelect.createEl("option", { value: key, text: def.plural });
-      if (key === this.entityKey) o.selected = true;
-    });
-    entitySelect.addEventListener("change", () => {
-      this.entityKey = entitySelect.value;
-      this._autoDetectMapping();
-      this._renderPreview();
-    });
-    const csvRow = contentEl.createDiv({ cls: "cad-create-row" });
-    csvRow.style.alignItems = "flex-start";
-    csvRow.createDiv({ cls: "cad-create-label", text: "CSV DATA" });
-    const csvWrap = csvRow.createDiv();
-    csvWrap.style.display = "flex";
-    csvWrap.style.flexDirection = "column";
-    csvWrap.style.gap = "8px";
-    const tabs = csvWrap.createDiv();
-    tabs.style.display = "flex";
-    tabs.style.gap = "6px";
-    const pasteBtn = tabs.createEl("button", { cls: "cad-btn cad-btn-sm", text: "Paste" });
-    pasteBtn.type = "button";
-    const fileBtn = tabs.createEl("button", { cls: "cad-btn cad-btn-sm", text: "Pick .csv from vault" });
-    fileBtn.type = "button";
-    const ta = csvWrap.createEl("textarea", { cls: "cad-create-input" });
-    ta.rows = 8;
-    ta.placeholder = "Paste CSV here, including a header row\u2026";
-    ta.style.fontFamily = "var(--font-monospace-theme, var(--font-monospace))";
-    ta.style.fontSize = "12px";
-    ta.style.resize = "vertical";
-    ta.addEventListener("input", () => {
-      this.csvText = ta.value;
-      this._parse();
-      this._renderPreview();
-    });
-    pasteBtn.addEventListener("click", () => ta.focus());
-    fileBtn.addEventListener("click", async () => {
-      const csvFiles = this.app.vault.getFiles().filter((f) => f.path.toLowerCase().endsWith(".csv"));
-      if (!csvFiles.length) {
-        new obsidian.Notice("No .csv files found in vault. Drop one in the vault first.");
-        return;
-      }
-      const picker = new class extends obsidian.SuggestModal {
-        constructor(app, files, onPick) {
-          super(app);
-          this.files = files;
-          this.onPick = onPick;
-          this.setPlaceholder("Search .csv files\u2026");
-        }
-        getSuggestions(q) {
-          return this.files.filter((f) => f.path.toLowerCase().includes(q.toLowerCase()));
-        }
-        renderSuggestion(file, el) {
-          el.setText(file.path);
-        }
-        onChooseSuggestion(file) {
-          this.onPick(file);
-        }
-      }(this.app, csvFiles, async (file) => {
-        try {
-          const text = await this.app.vault.read(file);
-          ta.value = text;
-          this.csvText = text;
-          this._parse();
-          this._renderPreview();
-        } catch (e) {
-          new obsidian.Notice(`Failed to read ${file.path}: ${e.message}`);
-        }
-      });
-      picker.open();
-    });
-    this.previewEl = contentEl.createDiv({ cls: "cad-import-preview" });
-    this._renderPreview();
-    const actions = contentEl.createDiv({ cls: "cad-create-actions" });
-    const cancel = actions.createEl("button", { cls: "cad-btn", text: "Cancel" });
-    cancel.type = "button";
-    cancel.addEventListener("click", () => this.close());
-    this.importBtn = actions.createEl("button", { cls: "cad-btn primary", text: "Import" });
-    this.importBtn.type = "button";
-    this.importBtn.disabled = true;
-    this.importBtn.addEventListener("click", () => this._submitImport());
-  }
-  _parse() {
-    if (!this.csvText.trim()) {
-      this.headers = [];
-      this.rows = [];
-      return;
-    }
-    const all = parseCSV(this.csvText);
-    if (!all.length) {
-      this.headers = [];
-      this.rows = [];
-      return;
-    }
-    this.headers = all[0].map((h) => String(h).trim());
-    this.rows = all.slice(1);
-    this._autoDetectMapping();
-  }
-  _autoDetectMapping() {
-    this.mapping = autoDetectCsvMapping(ENTITIES[this.entityKey], this.headers);
-  }
-  _renderPreview() {
-    this.previewEl.empty();
-    if (!this.headers.length) {
-      this.previewEl.createDiv({ cls: "cad-empty", text: "Paste or pick a CSV to preview\u2026" });
-      if (this.importBtn) this.importBtn.disabled = true;
-      return;
-    }
-    const def = ENTITIES[this.entityKey];
-    const head = this.previewEl.createDiv({ cls: "cad-create-label" });
-    head.style.marginTop = "14px";
-    head.setText("COLUMN MAPPING");
-    const tableWrap = this.previewEl.createDiv({ cls: "cad-import-table-wrap" });
-    const table = tableWrap.createEl("table", { cls: "cad-import-table" });
-    const thr = table.createEl("thead").createEl("tr");
-    thr.createEl("th", { text: "CSV column" });
-    thr.createEl("th", { text: "Maps to" });
-    thr.createEl("th", { text: "Sample" });
-    const tbody = table.createEl("tbody");
-    this.headers.forEach((h, i) => {
-      const tr = tbody.createEl("tr");
-      tr.createEl("td", { text: h });
-      const mc = tr.createEl("td");
-      const sel = mc.createEl("select", { cls: "cad-create-input cad-import-select" });
-      sel.createEl("option", { value: "", text: "\u2014 skip \u2014" });
-      def.fields.forEach((f) => {
-        const o = sel.createEl("option", { value: f.key, text: f.label });
-        if (this.mapping[h] === f.key) o.selected = true;
-      });
-      sel.addEventListener("change", () => {
-        this.mapping[h] = sel.value || null;
-        this._renderPreview();
-      });
-      const sample = tr.createEl("td");
-      const samples = this.rows.slice(0, 2).map((r) => String(r[i] || "").trim()).filter(Boolean);
-      sample.setText(samples.join(" \xB7 ").slice(0, 60));
-      sample.title = samples.join("\n");
-    });
-    const summary = this.previewEl.createDiv({ cls: "cad-import-summary" });
-    const primaryKey = def.fields[0].key;
-    const primaryMapped = Object.values(this.mapping).includes(primaryKey);
-    if (!primaryMapped) {
-      summary.addClass("cad-import-summary-warn");
-      summary.setText(`No CSV column maps to "${def.fields[0].label}" \u2014 required to name the file. Pick a column above.`);
-      if (this.importBtn) this.importBtn.disabled = true;
-    } else {
-      const mappedCount = Object.values(this.mapping).filter(Boolean).length;
-      summary.setText(`Will create ${this.rows.length} ${this.rows.length === 1 ? def.label.toLowerCase() : def.plural.toLowerCase()} in ${def.folder}/  \xB7  ${mappedCount} column${mappedCount === 1 ? "" : "s"} mapped`);
-      if (this.importBtn) this.importBtn.disabled = false;
-    }
-  }
-  async _submitImport() {
-    const def = ENTITIES[this.entityKey];
-    const primaryKey = def.fields[0].key;
-    const primaryHeader = Object.entries(this.mapping).find(([_, v]) => v === primaryKey);
-    if (!primaryHeader) return;
-    const primaryColIdx = this.headers.indexOf(primaryHeader[0]);
-    this.importBtn.disabled = true;
-    this.importBtn.setText("Importing\u2026");
-    const start = Date.now();
-    let created = 0;
-    let failed = 0;
-    for (const row of this.rows) {
-      const primaryValue = String(row[primaryColIdx] || "").trim();
-      if (!primaryValue) {
-        failed++;
-        continue;
-      }
-      try {
-        const file = await createEntity(this.app, this.entityKey, primaryValue);
-        const extras = csvRowExtras(def, this.mapping, this.headers, row, primaryKey);
-        if (Object.keys(extras).length) {
-          await this.app.fileManager.processFrontMatter(file, (fm) => {
-            Object.entries(extras).forEach(([k, v]) => {
-              if (v == null || v === "") return;
-              if (Array.isArray(v) && v.length === 0) return;
-              fm[k] = v;
-            });
-          });
-        }
-        created++;
-      } catch (e) {
-        failed++;
-      }
-    }
-    const elapsed = ((Date.now() - start) / 1e3).toFixed(1);
-    new obsidian.Notice(`Imported ${created} ${def.plural.toLowerCase()} in ${elapsed}s${failed ? ` \xB7 ${failed} skipped` : ""}`, 5e3);
-    this.close();
-    this.onSubmit({ created, failed, entityKey: this.entityKey });
-  }
-  onClose() {
-    this.contentEl.empty();
-  }
-};
-var CadenceEntityCreateModal = class extends obsidian.Modal {
-  constructor(app, entityKey, opts) {
-    super(app);
-    this.entityKey = entityKey;
-    this.def = ENTITIES[entityKey];
-    this.onSubmit = opts.onSubmit;
-    this.defaults = opts.defaults || {};
-    this._submitted = false;
-  }
-  onOpen() {
-    const { contentEl, modalEl } = this;
-    contentEl.empty();
-    contentEl.addClass("cad-create-modal");
-    if (modalEl) modalEl.addClass("cad-create-modal-shell");
-    contentEl.createEl("h3", { cls: "cad-create-title", text: `New ${this.def.label}` });
-    const form = contentEl.createDiv({ cls: "cad-create-form" });
-    const inputs = [];
-    this.def.fields.forEach((f, idx) => {
-      if (f.key === "type" && f.type !== "enum") return;
-      const isPrimary = idx === 0;
-      const row = form.createDiv({ cls: "cad-create-row" });
-      const label = row.createDiv({ cls: "cad-create-label" });
-      label.setText(f.label.toUpperCase() + (isPrimary ? " *" : ""));
-      let input;
-      const fieldType = f.type || "text";
-      if (fieldType === "enum") {
-        input = row.createEl("select", { cls: "cad-create-input" });
-        input.createEl("option", { value: "", text: "\u2014 \u2014" });
-        (f.options || []).forEach((opt) => input.createEl("option", { value: opt, text: opt }));
-        if (["stage", "status", "priority", "tier", "type"].includes(f.key) && f.options && f.options.length) {
-          const sensible = f.key === "stage" ? "Lead" : f.key === "status" ? f.options.find((o) => /active|new|draft|submitted|pending/i.test(o)) || f.options[0] : f.key === "priority" ? f.options.find((o) => /medium/i.test(o)) || f.options[0] : f.options[0];
-          if (f.options.includes(sensible)) input.value = sensible;
-        }
-      } else if (fieldType === "date") {
-        input = row.createEl("input", { type: "date", cls: "cad-create-input" });
-      } else if (fieldType === "number" || fieldType === "currency") {
-        input = row.createEl("input", { type: "number", cls: "cad-create-input" });
-        input.placeholder = "0";
-      } else if (fieldType === "email") {
-        input = row.createEl("input", { type: "email", cls: "cad-create-input" });
-        input.placeholder = "name@example.com";
-      } else {
-        input = row.createEl("input", { type: "text", cls: "cad-create-input" });
-        input.placeholder = fieldType === "tags" ? "tag1, tag2" : this._placeholderFor(f, isPrimary);
-        const suggestionSource = getFieldSuggestionSource(f);
-        const hasSuggestions = suggestionSource !== "none";
-        if (hasSuggestions) {
-          row.style.position = "relative";
-          const suggestionsBox = row.createDiv({ cls: "cad-pd-tag-suggestions" });
-          suggestionsBox.style.position = "absolute";
-          suggestionsBox.style.zIndex = "10000";
-          suggestionsBox.style.backgroundColor = "var(--background-secondary)";
-          suggestionsBox.style.border = "1px solid var(--border-color)";
-          suggestionsBox.style.borderRadius = "4px";
-          suggestionsBox.style.boxShadow = "var(--shadow-s)";
-          suggestionsBox.style.maxHeight = "150px";
-          suggestionsBox.style.overflowY = "auto";
-          suggestionsBox.style.display = "none";
-          suggestionsBox.style.width = "calc(100% - 130px)";
-          suggestionsBox.style.boxSizing = "border-box";
-          suggestionsBox.style.top = "100%";
-          suggestionsBox.style.right = "0";
-          suggestionsBox.style.marginTop = "4px";
-          const updateSuggestions = () => {
-            const fullVal = input.value;
-            const lastCommaIdx = fullVal.lastIndexOf(",");
-            const query = (lastCommaIdx === -1 ? fullVal : fullVal.slice(lastCommaIdx + 1)).trim().toLowerCase();
-            suggestionsBox.empty();
-            if (!query) {
-              suggestionsBox.style.display = "none";
-              return;
-            }
-            const isEntitySrc = ENTITIES[suggestionSource] != null;
-            const isFolderSrc = suggestionSource && suggestionSource.startsWith("folder:");
-            const customFolderPath = isFolderSrc ? suggestionSource.slice("folder:".length) : null;
-            const typedNames = fullVal.split(",").map((s) => s.trim().replace(/^\[\[|\]\]$/g, "").toLowerCase()).filter(Boolean);
-            let filtered = [];
-            if (suggestionSource === "tags") {
-              const suggestions = Object.keys(this.app.metadataCache.getTags() || {}).map((t) => t.replace(/^#/, ""));
-              filtered = suggestions.filter(
-                (v) => v.toLowerCase().includes(query) && !typedNames.includes(v.toLowerCase())
-              );
-            } else if (suggestionSource === "history") {
-              const allFiles = this.app.vault.getMarkdownFiles();
-              const allValues = /* @__PURE__ */ new Set();
-              allFiles.forEach((file) => {
-                const cache = this.app.metadataCache.getFileCache(file);
-                const fm = cache && cache.frontmatter || {};
-                const val = fm[f.key];
-                if (Array.isArray(val)) {
-                  val.forEach((v) => {
-                    if (v) allValues.add(String(v).replace(/^\[\[|\]\]$/g, "").trim());
-                  });
-                } else if (val != null && val !== "") {
-                  allValues.add(String(val).replace(/^\[\[|\]\]$/g, "").trim());
-                }
-              });
-              filtered = Array.from(allValues).filter(
-                (v) => v.toLowerCase().includes(query) && !typedNames.includes(v.toLowerCase())
-              );
-            } else if (suggestionSource !== "none") {
-              if (customFolderPath) {
-                const folderNode = this.app.vault.getAbstractFileByPath(customFolderPath);
-                const names = [];
-                if (folderNode && folderNode.children) {
-                  const walk = (node) => {
-                    for (const child of node.children) {
-                      if (child.children) walk(child);
-                      else if (child.path && child.path.endsWith(".md")) names.push(child.basename);
-                    }
-                  };
-                  walk(folderNode);
-                }
-                filtered = names.filter(
-                  (n) => n.toLowerCase().includes(query) && !typedNames.includes(n.toLowerCase())
-                );
-              } else {
-                const targetKey = isEntitySrc ? suggestionSource : f.key === "company" ? "company" : f.key === "partner" ? "partner" : f.key === "related" ? "project" : "contact";
-                const entitiesList = listEntities(this.app, targetKey);
-                filtered = entitiesList.filter(
-                  (c) => c.basename.toLowerCase().includes(query) && !typedNames.includes(c.basename.toLowerCase())
-                ).map((c) => c.basename);
-              }
-            }
-            if (filtered.length === 0) {
-              suggestionsBox.style.display = "none";
-              return;
-            }
-            filtered.forEach((valStr) => {
-              const item = suggestionsBox.createDiv({ cls: "cad-suggestion-item" });
-              item.style.padding = "6px 10px";
-              item.style.cursor = "pointer";
-              item.style.fontSize = "13px";
-              item.style.color = "var(--text-normal)";
-              item.setText(valStr);
-              item.addEventListener("mouseenter", () => {
-                item.style.backgroundColor = "var(--background-modifier-hover)";
-              });
-              item.addEventListener("mouseleave", () => {
-                item.style.backgroundColor = "transparent";
-              });
-              item.addEventListener("mousedown", (ev) => {
-                ev.preventDefault();
-                const baseVal = lastCommaIdx === -1 ? "" : fullVal.slice(0, lastCommaIdx + 1) + " ";
-                input.value = baseVal + valStr + ", ";
-                suggestionsBox.style.display = "none";
-                input.focus();
-              });
-            });
-            suggestionsBox.style.display = "block";
-          };
-          input.addEventListener("input", updateSuggestions);
-          input.addEventListener("focus", updateSuggestions);
-          input.addEventListener("blur", () => {
-            setTimeout(() => {
-              suggestionsBox.style.display = "none";
-            }, 180);
-          });
-        }
-      }
-      input.dataset.fieldKey = f.key;
-      input.dataset.fieldType = fieldType;
-      if (isPrimary) input.required = true;
-      if (this.defaults && this.defaults[f.key] != null) {
-        input.value = String(this.defaults[f.key]);
-      }
-      inputs.push(input);
-    });
-    const actions = contentEl.createDiv({ cls: "cad-create-actions" });
-    const cancel = actions.createEl("button", { cls: "cad-btn", text: "Cancel" });
-    cancel.type = "button";
-    cancel.addEventListener("click", () => this.close());
-    const submitBtn = actions.createEl("button", { cls: "cad-btn primary", text: `Create ${this.def.label}` });
-    submitBtn.type = "button";
-    const submit = () => {
-      const values = {};
-      let primaryValue = null;
-      inputs.forEach((el, idx) => {
-        const key = el.dataset.fieldKey;
-        const type = el.dataset.fieldType;
-        let raw = el.value;
-        if (idx === 0) primaryValue = (raw || "").trim();
-        if (raw === "" || raw == null) return;
-        const f = this.def.fields.find((fd) => fd.key === key);
-        const suggestionSource = getFieldSuggestionSource(f);
-        const isWikilink = suggestionSource !== "none" && suggestionSource !== "tags" && suggestionSource !== "history";
-        const isEntityRef = ["owner", "assigned", "company", "contact", "contacts", "partner", "with", "related"].includes(key) || isWikilink;
-        const isListField = type === "tags" || type === "multitext" || f && f.isList || ["domain", "industry", "role", "tags"].includes(key) || isEntityRef;
-        if (isListField) {
-          const parts = raw.split(",").map((t) => t.trim()).filter(Boolean);
-          if (isEntityRef) {
-            raw = parts.map((p) => `[[${p.replace(/^\[\[|\]\]$/g, "")}]]`);
-          } else {
-            raw = parts;
-          }
-        } else if (isEntityRef) {
-          raw = `[[${raw.replace(/^\[\[|\]\]$/g, "").trim()}]]`;
-        } else if (type === "number" || type === "currency") {
-          const n = Number(raw);
-          raw = isNaN(n) ? null : n;
-        }
-        if (raw == null) return;
-        if (Array.isArray(raw) && raw.length === 0) return;
-        values[key] = raw;
-      });
-      if (!primaryValue) {
-        if (inputs[0]) inputs[0].focus();
-        return;
-      }
-      this._submitted = true;
-      this.close();
-      this.onSubmit({ name: primaryValue, values });
-    };
-    submitBtn.addEventListener("click", submit);
-    inputs.forEach((el) => {
-      el.addEventListener("keydown", (e) => {
-        if (e.key === "Enter" && el.tagName === "INPUT") {
-          e.preventDefault();
-          submit();
-        }
-        if (e.key === "Escape") this.close();
-      });
-    });
-    setTimeout(() => {
-      if (inputs[0]) {
-        inputs[0].focus();
-      }
-    }, 0);
-  }
-  _placeholderFor(field, isPrimary) {
-    if (!isPrimary) return "";
-    const ek = this.entityKey;
-    const examples = {
-      contact: "e.g. Jane Smith",
-      company: "e.g. Acme Corp",
-      partner: "e.g. Acme Distribution",
-      deal: "e.g. Acme \u2014 FTTH expansion",
-      registration: "e.g. Vodacom 12-site FTTB",
-      commission: "e.g. C-2026-Q2-0042",
-      lead: "e.g. Sarah from Vodacom",
-      certification: "e.g. Cisco CCNP \u2014 May 2026",
-      activity: "e.g. Discovery call with Jane",
-      sequence: "e.g. Outbound \u2014 SMB",
-      project: "e.g. Q3 Cadence launch"
-    };
-    return examples[ek] || "";
-  }
-  onClose() {
-    if (!this._submitted && this.onSubmit) this.onSubmit(null);
-    this.contentEl.empty();
-  }
-};
 var CadenceAppView = class extends obsidian.ItemView {
   constructor(leaf, plugin) {
     super(leaf);
