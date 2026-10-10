@@ -1962,6 +1962,121 @@ var CadenceWidgetCreateModal = class extends import_obsidian9.Modal {
 
 // src/modals/entity-create.ts
 var import_obsidian10 = require("obsidian");
+var PLACEHOLDER_EXAMPLES = {
+  contact: "e.g. Jane Smith",
+  company: "e.g. Acme Corp",
+  partner: "e.g. Acme Distribution",
+  deal: "e.g. Acme \u2014 FTTH expansion",
+  registration: "e.g. Vodacom 12-site FTTB",
+  commission: "e.g. C-2026-Q2-0042",
+  lead: "e.g. Sarah from Vodacom",
+  certification: "e.g. Cisco CCNP \u2014 May 2026",
+  activity: "e.g. Discovery call with Jane",
+  sequence: "e.g. Outbound \u2014 SMB",
+  project: "e.g. Q3 Cadence launch"
+};
+function placeholderFor(entityKey, isPrimary) {
+  if (!isPrimary) return "";
+  return PLACEHOLDER_EXAMPLES[entityKey] || "";
+}
+function defaultEnumValue(f) {
+  if (["stage", "status", "priority", "tier", "type"].includes(f.key) && f.options && f.options.length) {
+    const sensible = f.key === "stage" ? "Lead" : f.key === "status" ? f.options.find((o) => /active|new|draft|submitted|pending/i.test(o)) || f.options[0] : f.key === "priority" ? f.options.find((o) => /medium/i.test(o)) || f.options[0] : f.options[0];
+    if (f.options.includes(sensible)) return sensible;
+  }
+  return void 0;
+}
+function buildEntityCreateValues(def, inputs) {
+  const values = {};
+  let primaryValue = null;
+  inputs.forEach((input, idx) => {
+    const { key, type } = input;
+    let raw = input.value;
+    if (idx === 0) primaryValue = (raw || "").trim();
+    if (raw === "" || raw == null) return;
+    const f = def.fields.find((fd) => fd.key === key);
+    const suggestionSource = getFieldSuggestionSource(f);
+    const isWikilink = suggestionSource !== "none" && suggestionSource !== "tags" && suggestionSource !== "history";
+    const isEntityRef = ["owner", "assigned", "company", "contact", "contacts", "partner", "with", "related"].includes(key) || isWikilink;
+    const isListField = type === "tags" || type === "multitext" || f && f.isList || ["domain", "industry", "role", "tags"].includes(key) || isEntityRef;
+    if (isListField) {
+      const parts = raw.split(",").map((t) => t.trim()).filter(Boolean);
+      if (isEntityRef) {
+        raw = parts.map((p) => `[[${p.replace(/^\[\[|\]\]$/g, "")}]]`);
+      } else {
+        raw = parts;
+      }
+    } else if (isEntityRef) {
+      raw = `[[${raw.replace(/^\[\[|\]\]$/g, "").trim()}]]`;
+    } else if (type === "number" || type === "currency") {
+      const n = Number(raw);
+      raw = isNaN(n) ? null : n;
+    }
+    if (raw == null) return;
+    if (Array.isArray(raw) && raw.length === 0) return;
+    values[key] = raw;
+  });
+  if (!primaryValue) return null;
+  return { name: primaryValue, values };
+}
+function entityCreateSuggestions(app, f, suggestionSource, fullVal) {
+  const lastCommaIdx = fullVal.lastIndexOf(",");
+  const query = (lastCommaIdx === -1 ? fullVal : fullVal.slice(lastCommaIdx + 1)).trim().toLowerCase();
+  if (!query) return [];
+  const isEntitySrc = ENTITIES[suggestionSource] != null;
+  const isFolderSrc = suggestionSource && suggestionSource.startsWith("folder:");
+  const customFolderPath = isFolderSrc ? suggestionSource.slice("folder:".length) : null;
+  const typedNames = fullVal.split(",").map((s) => s.trim().replace(/^\[\[|\]\]$/g, "").toLowerCase()).filter(Boolean);
+  let filtered = [];
+  if (suggestionSource === "tags") {
+    const suggestions = Object.keys(app.metadataCache.getTags() || {}).map((t) => t.replace(/^#/, ""));
+    filtered = suggestions.filter(
+      (v) => v.toLowerCase().includes(query) && !typedNames.includes(v.toLowerCase())
+    );
+  } else if (suggestionSource === "history") {
+    const allFiles = app.vault.getMarkdownFiles();
+    const allValues = /* @__PURE__ */ new Set();
+    allFiles.forEach((file) => {
+      const cache = app.metadataCache.getFileCache(file);
+      const fm = cache && cache.frontmatter || {};
+      const val = fm[f.key];
+      if (Array.isArray(val)) {
+        val.forEach((v) => {
+          if (v) allValues.add(String(v).replace(/^\[\[|\]\]$/g, "").trim());
+        });
+      } else if (val != null && val !== "") {
+        allValues.add(String(val).replace(/^\[\[|\]\]$/g, "").trim());
+      }
+    });
+    filtered = Array.from(allValues).filter(
+      (v) => v.toLowerCase().includes(query) && !typedNames.includes(v.toLowerCase())
+    );
+  } else if (suggestionSource !== "none") {
+    if (customFolderPath) {
+      const folderNode = app.vault.getAbstractFileByPath(customFolderPath);
+      const names = [];
+      if (folderNode && folderNode.children) {
+        const walk = (node) => {
+          for (const child of node.children) {
+            if (child.children) walk(child);
+            else if (child.path && child.path.endsWith(".md")) names.push(child.basename);
+          }
+        };
+        walk(folderNode);
+      }
+      filtered = names.filter(
+        (n) => n.toLowerCase().includes(query) && !typedNames.includes(n.toLowerCase())
+      );
+    } else {
+      const targetKey = isEntitySrc ? suggestionSource : f.key === "company" ? "company" : f.key === "partner" ? "partner" : f.key === "related" ? "project" : "contact";
+      const entitiesList = listEntities(app, targetKey);
+      filtered = entitiesList.filter(
+        (c) => c.basename.toLowerCase().includes(query) && !typedNames.includes(c.basename.toLowerCase())
+      ).map((c) => c.basename);
+    }
+  }
+  return filtered;
+}
 var CadenceEntityCreateModal = class extends import_obsidian10.Modal {
   constructor(app, entityKey, opts) {
     super(app);
@@ -1991,10 +2106,8 @@ var CadenceEntityCreateModal = class extends import_obsidian10.Modal {
         input = row.createEl("select", { cls: "cad-create-input" });
         input.createEl("option", { value: "", text: "\u2014 \u2014" });
         (f.options || []).forEach((opt) => input.createEl("option", { value: opt, text: opt }));
-        if (["stage", "status", "priority", "tier", "type"].includes(f.key) && f.options && f.options.length) {
-          const sensible = f.key === "stage" ? "Lead" : f.key === "status" ? f.options.find((o) => /active|new|draft|submitted|pending/i.test(o)) || f.options[0] : f.key === "priority" ? f.options.find((o) => /medium/i.test(o)) || f.options[0] : f.options[0];
-          if (f.options.includes(sensible)) input.value = sensible;
-        }
+        const sensible = defaultEnumValue(f);
+        if (sensible !== void 0) input.value = sensible;
       } else if (fieldType === "date") {
         input = row.createEl("input", { type: "date", cls: "cad-create-input" });
       } else if (fieldType === "number" || fieldType === "currency") {
@@ -2028,64 +2141,8 @@ var CadenceEntityCreateModal = class extends import_obsidian10.Modal {
           const updateSuggestions = () => {
             const fullVal = input.value;
             const lastCommaIdx = fullVal.lastIndexOf(",");
-            const query = (lastCommaIdx === -1 ? fullVal : fullVal.slice(lastCommaIdx + 1)).trim().toLowerCase();
             suggestionsBox.empty();
-            if (!query) {
-              suggestionsBox.style.display = "none";
-              return;
-            }
-            const isEntitySrc = ENTITIES[suggestionSource] != null;
-            const isFolderSrc = suggestionSource && suggestionSource.startsWith("folder:");
-            const customFolderPath = isFolderSrc ? suggestionSource.slice("folder:".length) : null;
-            const typedNames = fullVal.split(",").map((s) => s.trim().replace(/^\[\[|\]\]$/g, "").toLowerCase()).filter(Boolean);
-            let filtered = [];
-            if (suggestionSource === "tags") {
-              const suggestions = Object.keys(this.app.metadataCache.getTags() || {}).map((t) => t.replace(/^#/, ""));
-              filtered = suggestions.filter(
-                (v) => v.toLowerCase().includes(query) && !typedNames.includes(v.toLowerCase())
-              );
-            } else if (suggestionSource === "history") {
-              const allFiles = this.app.vault.getMarkdownFiles();
-              const allValues = /* @__PURE__ */ new Set();
-              allFiles.forEach((file) => {
-                const cache = this.app.metadataCache.getFileCache(file);
-                const fm = cache && cache.frontmatter || {};
-                const val = fm[f.key];
-                if (Array.isArray(val)) {
-                  val.forEach((v) => {
-                    if (v) allValues.add(String(v).replace(/^\[\[|\]\]$/g, "").trim());
-                  });
-                } else if (val != null && val !== "") {
-                  allValues.add(String(val).replace(/^\[\[|\]\]$/g, "").trim());
-                }
-              });
-              filtered = Array.from(allValues).filter(
-                (v) => v.toLowerCase().includes(query) && !typedNames.includes(v.toLowerCase())
-              );
-            } else if (suggestionSource !== "none") {
-              if (customFolderPath) {
-                const folderNode = this.app.vault.getAbstractFileByPath(customFolderPath);
-                const names = [];
-                if (folderNode && folderNode.children) {
-                  const walk = (node) => {
-                    for (const child of node.children) {
-                      if (child.children) walk(child);
-                      else if (child.path && child.path.endsWith(".md")) names.push(child.basename);
-                    }
-                  };
-                  walk(folderNode);
-                }
-                filtered = names.filter(
-                  (n) => n.toLowerCase().includes(query) && !typedNames.includes(n.toLowerCase())
-                );
-              } else {
-                const targetKey = isEntitySrc ? suggestionSource : f.key === "company" ? "company" : f.key === "partner" ? "partner" : f.key === "related" ? "project" : "contact";
-                const entitiesList = listEntities(this.app, targetKey);
-                filtered = entitiesList.filter(
-                  (c) => c.basename.toLowerCase().includes(query) && !typedNames.includes(c.basename.toLowerCase())
-                ).map((c) => c.basename);
-              }
-            }
+            const filtered = entityCreateSuggestions(this.app, f, suggestionSource, fullVal);
             if (filtered.length === 0) {
               suggestionsBox.style.display = "none";
               return;
@@ -2137,43 +2194,18 @@ var CadenceEntityCreateModal = class extends import_obsidian10.Modal {
     const submitBtn = actions.createEl("button", { cls: "cad-btn primary", text: `Create ${this.def.label}` });
     submitBtn.type = "button";
     const submit = () => {
-      const values = {};
-      let primaryValue = null;
-      inputs.forEach((el, idx) => {
-        const key = el.dataset.fieldKey;
-        const type = el.dataset.fieldType;
-        let raw = el.value;
-        if (idx === 0) primaryValue = (raw || "").trim();
-        if (raw === "" || raw == null) return;
-        const f = this.def.fields.find((fd) => fd.key === key);
-        const suggestionSource = getFieldSuggestionSource(f);
-        const isWikilink = suggestionSource !== "none" && suggestionSource !== "tags" && suggestionSource !== "history";
-        const isEntityRef = ["owner", "assigned", "company", "contact", "contacts", "partner", "with", "related"].includes(key) || isWikilink;
-        const isListField = type === "tags" || type === "multitext" || f && f.isList || ["domain", "industry", "role", "tags"].includes(key) || isEntityRef;
-        if (isListField) {
-          const parts = raw.split(",").map((t) => t.trim()).filter(Boolean);
-          if (isEntityRef) {
-            raw = parts.map((p) => `[[${p.replace(/^\[\[|\]\]$/g, "")}]]`);
-          } else {
-            raw = parts;
-          }
-        } else if (isEntityRef) {
-          raw = `[[${raw.replace(/^\[\[|\]\]$/g, "").trim()}]]`;
-        } else if (type === "number" || type === "currency") {
-          const n = Number(raw);
-          raw = isNaN(n) ? null : n;
-        }
-        if (raw == null) return;
-        if (Array.isArray(raw) && raw.length === 0) return;
-        values[key] = raw;
-      });
-      if (!primaryValue) {
+      const result = buildEntityCreateValues(this.def, inputs.map((el) => ({
+        key: el.dataset.fieldKey,
+        type: el.dataset.fieldType,
+        value: el.value
+      })));
+      if (!result) {
         if (inputs[0]) inputs[0].focus();
         return;
       }
       this._submitted = true;
       this.close();
-      this.onSubmit({ name: primaryValue, values });
+      this.onSubmit(result);
     };
     submitBtn.addEventListener("click", submit);
     inputs.forEach((el) => {
@@ -2192,22 +2224,7 @@ var CadenceEntityCreateModal = class extends import_obsidian10.Modal {
     }, 0);
   }
   _placeholderFor(field, isPrimary) {
-    if (!isPrimary) return "";
-    const ek = this.entityKey;
-    const examples = {
-      contact: "e.g. Jane Smith",
-      company: "e.g. Acme Corp",
-      partner: "e.g. Acme Distribution",
-      deal: "e.g. Acme \u2014 FTTH expansion",
-      registration: "e.g. Vodacom 12-site FTTB",
-      commission: "e.g. C-2026-Q2-0042",
-      lead: "e.g. Sarah from Vodacom",
-      certification: "e.g. Cisco CCNP \u2014 May 2026",
-      activity: "e.g. Discovery call with Jane",
-      sequence: "e.g. Outbound \u2014 SMB",
-      project: "e.g. Q3 Cadence launch"
-    };
-    return examples[ek] || "";
+    return placeholderFor(this.entityKey, isPrimary);
   }
   onClose() {
     if (!this._submitted && this.onSubmit) this.onSubmit(null);
@@ -2217,6 +2234,40 @@ var CadenceEntityCreateModal = class extends import_obsidian10.Modal {
 
 // src/modals/import-modal.ts
 var import_obsidian11 = require("obsidian");
+function csvColumnSamples(rows, index) {
+  return rows.slice(0, 2).map((r) => String(r[index] || "").trim()).filter(Boolean);
+}
+function csvImportSummary(def, mapping, rowCount) {
+  const primaryMapped = Object.values(mapping).includes(def.fields[0].key);
+  if (!primaryMapped) {
+    return { ready: false, text: `No CSV column maps to "${def.fields[0].label}" \u2014 required to name the file. Pick a column above.` };
+  }
+  const mappedCount = Object.values(mapping).filter(Boolean).length;
+  return {
+    ready: true,
+    text: `Will create ${rowCount} ${rowCount === 1 ? def.label.toLowerCase() : def.plural.toLowerCase()} in ${def.folder}/  \xB7  ${mappedCount} column${mappedCount === 1 ? "" : "s"} mapped`
+  };
+}
+function filterCsvFiles(files, query) {
+  return files.filter((f) => f.path.toLowerCase().includes(query.toLowerCase()));
+}
+var CsvFileSuggestModal = class extends import_obsidian11.SuggestModal {
+  constructor(app, files, onPick) {
+    super(app);
+    this.files = files;
+    this.onPick = onPick;
+    this.setPlaceholder("Search .csv files\u2026");
+  }
+  getSuggestions(q) {
+    return filterCsvFiles(this.files, q);
+  }
+  renderSuggestion(file, el) {
+    el.setText(file.path);
+  }
+  onChooseSuggestion(file) {
+    this.onPick(file);
+  }
+};
 var CadenceImportModal = class extends import_obsidian11.Modal {
   constructor(app, opts) {
     super(app);
@@ -2277,23 +2328,7 @@ var CadenceImportModal = class extends import_obsidian11.Modal {
         new import_obsidian11.Notice("No .csv files found in vault. Drop one in the vault first.");
         return;
       }
-      const picker = new class extends import_obsidian11.SuggestModal {
-        constructor(app, files, onPick) {
-          super(app);
-          this.files = files;
-          this.onPick = onPick;
-          this.setPlaceholder("Search .csv files\u2026");
-        }
-        getSuggestions(q) {
-          return this.files.filter((f) => f.path.toLowerCase().includes(q.toLowerCase()));
-        }
-        renderSuggestion(file, el) {
-          el.setText(file.path);
-        }
-        onChooseSuggestion(file) {
-          this.onPick(file);
-        }
-      }(this.app, csvFiles, async (file) => {
+      const picker = new CsvFileSuggestModal(this.app, csvFiles, async (file) => {
         try {
           const text = await this.app.vault.read(file);
           ta.value = text;
@@ -2369,22 +2404,15 @@ var CadenceImportModal = class extends import_obsidian11.Modal {
         this._renderPreview();
       });
       const sample = tr.createEl("td");
-      const samples = this.rows.slice(0, 2).map((r) => String(r[i] || "").trim()).filter(Boolean);
+      const samples = csvColumnSamples(this.rows, i);
       sample.setText(samples.join(" \xB7 ").slice(0, 60));
       sample.title = samples.join("\n");
     });
     const summary = this.previewEl.createDiv({ cls: "cad-import-summary" });
-    const primaryKey = def.fields[0].key;
-    const primaryMapped = Object.values(this.mapping).includes(primaryKey);
-    if (!primaryMapped) {
-      summary.addClass("cad-import-summary-warn");
-      summary.setText(`No CSV column maps to "${def.fields[0].label}" \u2014 required to name the file. Pick a column above.`);
-      if (this.importBtn) this.importBtn.disabled = true;
-    } else {
-      const mappedCount = Object.values(this.mapping).filter(Boolean).length;
-      summary.setText(`Will create ${this.rows.length} ${this.rows.length === 1 ? def.label.toLowerCase() : def.plural.toLowerCase()} in ${def.folder}/  \xB7  ${mappedCount} column${mappedCount === 1 ? "" : "s"} mapped`);
-      if (this.importBtn) this.importBtn.disabled = false;
-    }
+    const { ready, text } = csvImportSummary(def, this.mapping, this.rows.length);
+    if (!ready) summary.addClass("cad-import-summary-warn");
+    summary.setText(text);
+    if (this.importBtn) this.importBtn.disabled = !ready;
   }
   async _submitImport() {
     const def = ENTITIES[this.entityKey];

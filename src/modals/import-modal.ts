@@ -2,7 +2,7 @@ import { Modal, Notice, SuggestModal, type App, type TFile } from 'obsidian';
 import { ENTITIES } from '../constants/entities';
 import { parseCSV } from '../utils/csv';
 import { createEntity } from '../utils/entities';
-import type { EntityKey } from '../types/entities';
+import type { EntityDef, EntityKey } from '../types/entities';
 import type { ImportResult } from '../types/modals';
 import { autoDetectCsvMapping, csvRowExtras, type CsvMapping } from './csv-import-mapping';
 
@@ -11,6 +11,47 @@ export interface ImportModalOptions {
   entityKey?: EntityKey;
   /** Called after an import runs. Not called on cancel. */
   onSubmit?: (result: ImportResult) => void;
+}
+
+/** Up to two trimmed, non-empty sample cells from a column's first two rows. */
+export function csvColumnSamples(rows: string[][], index: number): string[] {
+  return rows.slice(0, 2).map((r) => String(r[index] || '').trim()).filter(Boolean);
+}
+
+/** The preview's summary line, and whether Import is enabled. Import needs a
+    column mapped to the primary field, but not any rows: a header-only CSV
+    offers to create 0 notes (flagged, not fixed). */
+export function csvImportSummary(def: EntityDef, mapping: CsvMapping, rowCount: number): { ready: boolean; text: string } {
+  const primaryMapped = Object.values(mapping).includes(def.fields[0].key);
+  if (!primaryMapped) {
+    return { ready: false, text: `No CSV column maps to "${def.fields[0].label}" — required to name the file. Pick a column above.` };
+  }
+  const mappedCount = Object.values(mapping).filter(Boolean).length;
+  return {
+    ready: true,
+    text: `Will create ${rowCount} ${rowCount === 1 ? def.label.toLowerCase() : def.plural.toLowerCase()} in ${def.folder}/  ·  ${mappedCount} column${mappedCount === 1 ? '' : 's'} mapped`,
+  };
+}
+
+/** Files whose full path contains the query, case-insensitively. */
+export function filterCsvFiles(files: TFile[], query: string): TFile[] {
+  return files.filter((f) => f.path.toLowerCase().includes(query.toLowerCase()));
+}
+
+/* Picker over the vault's .csv files; onPick loads the chosen one. */
+export class CsvFileSuggestModal extends SuggestModal<TFile> {
+  declare files: TFile[];
+  declare onPick: (file: TFile) => void;
+
+  constructor(app: App, files: TFile[], onPick: (file: TFile) => void) {
+    super(app);
+    this.files = files;
+    this.onPick = onPick;
+    this.setPlaceholder('Search .csv files…');
+  }
+  getSuggestions(q: string) { return filterCsvFiles(this.files, q); }
+  renderSuggestion(file: TFile, el: HTMLElement) { el.setText(file.path); }
+  onChooseSuggestion(file: TFile) { this.onPick(file); }
 }
 
 /* ─────────── CSV import modal ─────────── */
@@ -94,14 +135,7 @@ export class CadenceImportModal extends Modal {
         new Notice('No .csv files found in vault. Drop one in the vault first.');
         return;
       }
-      const picker = new (class extends SuggestModal<TFile> {
-        declare files: TFile[];
-        declare onPick: (file: TFile) => void;
-        constructor(app: App, files: TFile[], onPick: (file: TFile) => void) { super(app); this.files = files; this.onPick = onPick; this.setPlaceholder('Search .csv files…'); }
-        getSuggestions(q: string) { return this.files.filter((f) => f.path.toLowerCase().includes(q.toLowerCase())); }
-        renderSuggestion(file: TFile, el: HTMLElement) { el.setText(file.path); }
-        onChooseSuggestion(file: TFile) { this.onPick(file); }
-      })(this.app, csvFiles, async (file: TFile) => {
+      const picker = new CsvFileSuggestModal(this.app, csvFiles, async (file: TFile) => {
         try {
           const text = await this.app.vault.read(file);
           ta.value = text;
@@ -181,24 +215,17 @@ export class CadenceImportModal extends Modal {
         this._renderPreview(); // re-render to update warning state
       });
       const sample = tr.createEl('td');
-      const samples = this.rows.slice(0, 2).map((r) => String(r[i] || '').trim()).filter(Boolean);
+      const samples = csvColumnSamples(this.rows, i);
       sample.setText(samples.join(' · ').slice(0, 60));
       sample.title = samples.join('\n');
     });
 
     /* Summary */
     const summary = this.previewEl.createDiv({ cls: 'cad-import-summary' });
-    const primaryKey = def.fields[0].key;
-    const primaryMapped = Object.values(this.mapping).includes(primaryKey);
-    if (!primaryMapped) {
-      summary.addClass('cad-import-summary-warn');
-      summary.setText(`No CSV column maps to "${def.fields[0].label}" — required to name the file. Pick a column above.`);
-      if (this.importBtn) this.importBtn.disabled = true;
-    } else {
-      const mappedCount = Object.values(this.mapping).filter(Boolean).length;
-      summary.setText(`Will create ${this.rows.length} ${this.rows.length === 1 ? def.label.toLowerCase() : def.plural.toLowerCase()} in ${def.folder}/  ·  ${mappedCount} column${mappedCount === 1 ? '' : 's'} mapped`);
-      if (this.importBtn) this.importBtn.disabled = false;
-    }
+    const { ready, text } = csvImportSummary(def, this.mapping, this.rows.length);
+    if (!ready) summary.addClass('cad-import-summary-warn');
+    summary.setText(text);
+    if (this.importBtn) this.importBtn.disabled = !ready;
   }
 
   async _submitImport() {

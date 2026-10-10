@@ -24,6 +24,160 @@ interface FolderNode {
   children?: FolderNode[];
 }
 
+/** One form input, as read back on submit. */
+export interface EntityCreateInput {
+  key: string;
+  /** The field type the input was built for; undefined reads as text. */
+  type?: string;
+  value: string;
+}
+
+const PLACEHOLDER_EXAMPLES: Record<string, string> = {
+  contact: 'e.g. Jane Smith',
+  company: 'e.g. Acme Corp',
+  partner: 'e.g. Acme Distribution',
+  deal: 'e.g. Acme — FTTH expansion',
+  registration: 'e.g. Vodacom 12-site FTTB',
+  commission: 'e.g. C-2026-Q2-0042',
+  lead: 'e.g. Sarah from Vodacom',
+  certification: 'e.g. Cisco CCNP — May 2026',
+  activity: 'e.g. Discovery call with Jane',
+  sequence: 'e.g. Outbound — SMB',
+  project: 'e.g. Q3 Cadence launch',
+};
+
+/** The primary field's example placeholder; '' for any other field or an
+    entity without an example. */
+export function placeholderFor(entityKey: EntityKey, isPrimary: boolean): string {
+  if (!isPrimary) return '';
+  return PLACEHOLDER_EXAMPLES[entityKey] || '';
+}
+
+/** The enum option pre-selected for a new entity, or undefined to leave
+    the blank option. Only stage, status, priority, tier and type get one;
+    stage stays blank without a 'Lead' option. */
+export function defaultEnumValue(f: EntityField): string | undefined {
+  if (['stage', 'status', 'priority', 'tier', 'type'].includes(f.key) && f.options && f.options.length) {
+    const sensible = f.key === 'stage' ? 'Lead'
+      : f.key === 'status' ? (f.options.find((o) => /active|new|draft|submitted|pending/i.test(o)) || f.options[0])
+        : f.key === 'priority' ? (f.options.find((o) => /medium/i.test(o)) || f.options[0])
+          : f.options[0];
+    if (f.options.includes(sensible)) return sensible;
+  }
+  return undefined;
+}
+
+/** The onSubmit payload, or null while the first input is blank. Entity
+    references become `[[wiki-link]]` lists; tags, multitext, isList and the
+    domain/industry/role/tags keys become plain lists; numbers and currency
+    are parsed (unparseable ones dropped); everything else stays a string.
+    Empty values and empty lists are left out. The primary value is trimmed
+    for `name` but kept as typed in `values` (flagged, not fixed). */
+export function buildEntityCreateValues(def: EntityDef, inputs: EntityCreateInput[]): EntityCreateResult | null {
+  const values: Record<string, unknown> = {};
+  let primaryValue = null as string | null;
+  inputs.forEach((input, idx) => {
+    const { key, type } = input;
+    let raw: string | string[] | number | null = input.value;
+    if (idx === 0) primaryValue = (raw || '').trim();
+    if (raw === '' || raw == null) return;
+
+    const f = def.fields.find(fd => fd.key === key);
+    const suggestionSource = getFieldSuggestionSource(f);
+    const isWikilink = suggestionSource !== 'none' && suggestionSource !== 'tags' && suggestionSource !== 'history';
+    const isEntityRef = ['owner', 'assigned', 'company', 'contact', 'contacts', 'partner', 'with', 'related'].includes(key) || isWikilink;
+    const isListField = type === 'tags' || type === 'multitext' || (f && f.isList) || ['domain', 'industry', 'role', 'tags'].includes(key) || isEntityRef;
+
+    if (isListField) {
+      const parts = raw.split(',').map((t) => t.trim()).filter(Boolean);
+      if (isEntityRef) {
+        raw = parts.map(p => `[[${p.replace(/^\[\[|\]\]$/g, '')}]]`);
+      } else {
+        raw = parts;
+      }
+    } else if (isEntityRef) {
+      // Unreachable: every entity reference is also a list field.
+      raw = `[[${raw.replace(/^\[\[|\]\]$/g, '').trim()}]]`;
+    } else if (type === 'number' || type === 'currency') {
+      const n = Number(raw);
+      raw = isNaN(n) ? null : n;
+    }
+    if (raw == null) return;
+    if (Array.isArray(raw) && raw.length === 0) return;
+    values[key] = raw;
+  });
+  if (!primaryValue) return null;
+  return { name: primaryValue, values };
+}
+
+/** Typeahead suggestions for a text field: names or values containing the
+    text after the last comma, minus names already typed. Reads vault tags,
+    the same key across markdown notes (history), a folder:<path> walk, or
+    an entity's notes. An entity:<key> source is not an ENTITIES key, so it
+    falls back to the field-key rule (flagged, not fixed). */
+export function entityCreateSuggestions(app: App, f: EntityField, suggestionSource: string, fullVal: string): string[] {
+  const lastCommaIdx = fullVal.lastIndexOf(',');
+  const query = (lastCommaIdx === -1 ? fullVal : fullVal.slice(lastCommaIdx + 1)).trim().toLowerCase();
+  if (!query) return [];
+
+  const isEntitySrc = ENTITIES[suggestionSource] != null;
+  const isFolderSrc = suggestionSource && suggestionSource.startsWith('folder:');
+  const customFolderPath = isFolderSrc ? suggestionSource.slice('folder:'.length) : null;
+  const typedNames = fullVal.split(',').map(s => s.trim().replace(/^\[\[|\]\]$/g, '').toLowerCase()).filter(Boolean);
+
+  let filtered: string[] = [];
+  if (suggestionSource === 'tags') {
+    // getTags() is not in the public obsidian.d.ts.
+    const suggestions = Object.keys((app.metadataCache as unknown as TagSource).getTags() || {}).map(t => t.replace(/^#/, ''));
+    filtered = suggestions.filter((v) =>
+      v.toLowerCase().includes(query) &&
+      !typedNames.includes(v.toLowerCase())
+    );
+  } else if (suggestionSource === 'history') {
+    const allFiles = app.vault.getMarkdownFiles();
+    const allValues = new Set<string>();
+    allFiles.forEach(file => {
+      const cache = app.metadataCache.getFileCache(file);
+      const fm: Record<string, unknown> = cache && cache.frontmatter || {};
+      const val = fm[f.key];
+      if (Array.isArray(val)) {
+        val.forEach(v => { if (v) allValues.add(String(v).replace(/^\[\[|\]\]$/g, '').trim()); });
+      } else if (val != null && val !== '') {
+        allValues.add(String(val).replace(/^\[\[|\]\]$/g, '').trim());
+      }
+    });
+    filtered = Array.from(allValues).filter((v) =>
+      v.toLowerCase().includes(query) &&
+      !typedNames.includes(v.toLowerCase())
+    );
+  } else if (suggestionSource !== 'none') {
+    if (customFolderPath) {
+      const folderNode = app.vault.getAbstractFileByPath(customFolderPath) as FolderNode | null;
+      const names: string[] = [];
+      if (folderNode && folderNode.children) {
+        const walk = (node: FolderNode) => {
+          for (const child of node.children!) {
+            if (child.children) walk(child);
+            else if (child.path && child.path.endsWith('.md')) names.push(child.basename!);
+          }
+        };
+        walk(folderNode);
+      }
+      filtered = names.filter(n =>
+        n.toLowerCase().includes(query) && !typedNames.includes(n.toLowerCase())
+      );
+    } else {
+      const targetKey = isEntitySrc ? suggestionSource : (f.key === 'company' ? 'company' : (f.key === 'partner' ? 'partner' : (f.key === 'related' ? 'project' : 'contact')));
+      const entitiesList = listEntities(app, targetKey);
+      filtered = entitiesList.filter((c) =>
+        c.basename.toLowerCase().includes(query) &&
+        !typedNames.includes(c.basename.toLowerCase())
+      ).map(c => c.basename);
+    }
+  }
+  return filtered;
+}
+
 /* ─────────── Entity create modal (rich, all fields up-front) ─────────── */
 export class CadenceEntityCreateModal extends Modal {
   declare entityKey: EntityKey;
@@ -66,14 +220,8 @@ export class CadenceEntityCreateModal extends Modal {
         input = row.createEl('select', { cls: 'cad-create-input' });
         input.createEl('option', { value: '', text: '— —' });
         (f.options || []).forEach((opt) => input.createEl('option', { value: opt, text: opt }));
-        // Smart defaults — first option for stage/status fields
-        if (['stage', 'status', 'priority', 'tier', 'type'].includes(f.key) && f.options && f.options.length) {
-          const sensible = f.key === 'stage' ? 'Lead'
-            : f.key === 'status' ? (f.options.find((o) => /active|new|draft|submitted|pending/i.test(o)) || f.options[0])
-              : f.key === 'priority' ? (f.options.find((o) => /medium/i.test(o)) || f.options[0])
-                : f.options[0];
-          if (f.options.includes(sensible)) input.value = sensible;
-        }
+        const sensible = defaultEnumValue(f);
+        if (sensible !== undefined) input.value = sensible;
       } else if (fieldType === 'date') {
         input = row.createEl('input', { type: 'date', cls: 'cad-create-input' });
       } else if (fieldType === 'number' || fieldType === 'currency') {
@@ -110,69 +258,8 @@ export class CadenceEntityCreateModal extends Modal {
           const updateSuggestions = () => {
             const fullVal = input.value;
             const lastCommaIdx = fullVal.lastIndexOf(',');
-            const query = (lastCommaIdx === -1 ? fullVal : fullVal.slice(lastCommaIdx + 1)).trim().toLowerCase();
             suggestionsBox.empty();
-
-            if (!query) {
-              suggestionsBox.style.display = 'none';
-              return;
-            }
-
-            const isEntitySrc = ENTITIES[suggestionSource] != null;
-            const isFolderSrc = suggestionSource && suggestionSource.startsWith('folder:');
-            const customFolderPath = isFolderSrc ? suggestionSource.slice('folder:'.length) : null;
-            const typedNames = fullVal.split(',').map(s => s.trim().replace(/^\[\[|\]\]$/g, '').toLowerCase()).filter(Boolean);
-
-            let filtered: string[] = [];
-            if (suggestionSource === 'tags') {
-              // getTags() is not in the public obsidian.d.ts.
-              const suggestions = Object.keys((this.app.metadataCache as unknown as TagSource).getTags() || {}).map(t => t.replace(/^#/, ''));
-              filtered = suggestions.filter((v) =>
-                v.toLowerCase().includes(query) &&
-                !typedNames.includes(v.toLowerCase())
-              );
-            } else if (suggestionSource === 'history') {
-              const allFiles = this.app.vault.getMarkdownFiles();
-              const allValues = new Set<string>();
-              allFiles.forEach(file => {
-                const cache = this.app.metadataCache.getFileCache(file);
-                const fm: Record<string, unknown> = cache && cache.frontmatter || {};
-                const val = fm[f.key];
-                if (Array.isArray(val)) {
-                  val.forEach(v => { if (v) allValues.add(String(v).replace(/^\[\[|\]\]$/g, '').trim()); });
-                } else if (val != null && val !== '') {
-                  allValues.add(String(val).replace(/^\[\[|\]\]$/g, '').trim());
-                }
-              });
-              filtered = Array.from(allValues).filter((v) =>
-                v.toLowerCase().includes(query) &&
-                !typedNames.includes(v.toLowerCase())
-              );
-            } else if (suggestionSource !== 'none') {
-              if (customFolderPath) {
-                const folderNode = this.app.vault.getAbstractFileByPath(customFolderPath) as FolderNode | null;
-                const names: string[] = [];
-                if (folderNode && folderNode.children) {
-                  const walk = (node: FolderNode) => {
-                    for (const child of node.children!) {
-                      if (child.children) walk(child);
-                      else if (child.path && child.path.endsWith('.md')) names.push(child.basename!);
-                    }
-                  };
-                  walk(folderNode);
-                }
-                filtered = names.filter(n =>
-                  n.toLowerCase().includes(query) && !typedNames.includes(n.toLowerCase())
-                );
-              } else {
-                const targetKey = isEntitySrc ? suggestionSource : (f.key === 'company' ? 'company' : (f.key === 'partner' ? 'partner' : (f.key === 'related' ? 'project' : 'contact')));
-                const entitiesList = listEntities(this.app, targetKey);
-                filtered = entitiesList.filter((c) =>
-                  c.basename.toLowerCase().includes(query) &&
-                  !typedNames.includes(c.basename.toLowerCase())
-                ).map(c => c.basename);
-              }
-            }
+            const filtered = entityCreateSuggestions(this.app, f, suggestionSource, fullVal);
 
             if (filtered.length === 0) {
               suggestionsBox.style.display = 'none';
@@ -231,45 +318,18 @@ export class CadenceEntityCreateModal extends Modal {
     submitBtn.type = 'button';
 
     const submit = () => {
-      const values: Record<string, unknown> = {};
-      let primaryValue = null as string | null;
-      inputs.forEach((el, idx) => {
-        const key = el.dataset.fieldKey!;
-        const type = el.dataset.fieldType;
-        let raw: string | string[] | number | null = el.value;
-        if (idx === 0) primaryValue = (raw || '').trim();
-        if (raw === '' || raw == null) return;
-
-        const f = this.def.fields.find(fd => fd.key === key);
-        const suggestionSource = getFieldSuggestionSource(f);
-        const isWikilink = suggestionSource !== 'none' && suggestionSource !== 'tags' && suggestionSource !== 'history';
-        const isEntityRef = ['owner', 'assigned', 'company', 'contact', 'contacts', 'partner', 'with', 'related'].includes(key) || isWikilink;
-        const isListField = type === 'tags' || type === 'multitext' || (f && f.isList) || ['domain', 'industry', 'role', 'tags'].includes(key) || isEntityRef;
-
-        if (isListField) {
-          const parts = raw.split(',').map((t) => t.trim()).filter(Boolean);
-          if (isEntityRef) {
-            raw = parts.map(p => `[[${p.replace(/^\[\[|\]\]$/g, '')}]]`);
-          } else {
-            raw = parts;
-          }
-        } else if (isEntityRef) {
-          raw = `[[${raw.replace(/^\[\[|\]\]$/g, '').trim()}]]`;
-        } else if (type === 'number' || type === 'currency') {
-          const n = Number(raw);
-          raw = isNaN(n) ? null : n;
-        }
-        if (raw == null) return;
-        if (Array.isArray(raw) && raw.length === 0) return;
-        values[key] = raw;
-      });
-      if (!primaryValue) {
+      const result = buildEntityCreateValues(this.def, inputs.map((el) => ({
+        key: el.dataset.fieldKey!,
+        type: el.dataset.fieldType,
+        value: el.value,
+      })));
+      if (!result) {
         if (inputs[0]) inputs[0].focus();
         return;
       }
       this._submitted = true;
       this.close();
-      this.onSubmit!({ name: primaryValue, values });
+      this.onSubmit!(result);
     };
     submitBtn.addEventListener('click', submit);
 
@@ -285,22 +345,7 @@ export class CadenceEntityCreateModal extends Modal {
   }
 
   _placeholderFor(field: EntityField, isPrimary: boolean) {
-    if (!isPrimary) return '';
-    const ek = this.entityKey;
-    const examples: Record<string, string> = {
-      contact: 'e.g. Jane Smith',
-      company: 'e.g. Acme Corp',
-      partner: 'e.g. Acme Distribution',
-      deal: 'e.g. Acme — FTTH expansion',
-      registration: 'e.g. Vodacom 12-site FTTB',
-      commission: 'e.g. C-2026-Q2-0042',
-      lead: 'e.g. Sarah from Vodacom',
-      certification: 'e.g. Cisco CCNP — May 2026',
-      activity: 'e.g. Discovery call with Jane',
-      sequence: 'e.g. Outbound — SMB',
-      project: 'e.g. Q3 Cadence launch',
-    };
-    return examples[ek] || '';
+    return placeholderFor(this.entityKey, isPrimary);
   }
 
   onClose() {
