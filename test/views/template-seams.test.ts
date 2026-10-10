@@ -122,9 +122,15 @@ describe("propagateSectionAdd", () => {
     expect(propagateSectionAdd("# Cy", { cleanTitle: "Deals", tag: "#cross-deal-contact-table" })).toBe("# Cy\n\n## Deals #cross-deal-contact-table\n\n");
   });
 
-  it("returns null when the note has a same-named section, whatever its tag or case", () => {
-    for (const heading of ["## Ideas #notes", "## ideas", "## IDEAS #tasks", "##   Ideas   #notes"]) {
+  it("returns null when the note has the section: same name and tag, any case", () => {
+    for (const heading of ["## Ideas #notes", "## ideas #notes", "## IDEAS #NOTES", "##   Ideas   #notes"]) {
       expect(propagateSectionAdd(`# Cy\n${heading}\nx\n`, { cleanTitle: "Ideas", tag: "#notes" })).toBeNull();
+    }
+  });
+
+  it("appends beside a same-named section with another tag or none, which is the user's own", () => {
+    for (const heading of ["## ideas", "## IDEAS #tasks"]) {
+      expect(propagateSectionAdd(`# Cy\n${heading}\nx\n`, { cleanTitle: "Ideas", tag: "#notes" })).toBe(`# Cy\n${heading}\nx\n\n## Ideas #notes\n\n`);
     }
   });
 
@@ -147,16 +153,20 @@ describe("propagateSectionDelete", () => {
     expect(propagateSectionDelete(NOTE, "Tasks #tasks")).toBe("# Ann\n\n## Bio #notes\nLikes tea\n\n## Links #cross-deal-contact-table\n");
   });
 
-  it("matches by name only, case-insensitively", () => {
-    expect(propagateSectionDelete(NOTE, "BIO #milestones")).toBe("# Ann\n\n## Tasks #tasks\n- [ ] call\n\n## Links #cross-deal-contact-table\n");
+  it("matches by name and tag, case-insensitively", () => {
+    expect(propagateSectionDelete(NOTE, "BIO #NOTES")).toBe("# Ann\n\n## Tasks #tasks\n- [ ] call\n\n## Links #cross-deal-contact-table\n");
+    expect(propagateSectionDelete(NOTE, "Bio #milestones")).toBeNull();
+    expect(propagateSectionDelete(NOTE, "Bio")).toBeNull();
+    expect(propagateSectionDelete("## Notes\nmine\n", "Notes #notes")).toBeNull();
   });
 
   it("removes a last section to the end of the note", () => {
-    expect(propagateSectionDelete(NOTE, "Links")).toBe("# Ann\n\n## Bio #notes\nLikes tea\n\n## Tasks #tasks\n- [ ] call\n");
+    expect(propagateSectionDelete(NOTE, "Links #cross-deal-contact-table")).toBe("# Ann\n\n## Bio #notes\nLikes tea\n\n## Tasks #tasks\n- [ ] call\n");
   });
 
-  it("removes only the first of two same-named sections", () => {
-    expect(propagateSectionDelete("## Bio\none\n## Bio #notes\ntwo\n", "Bio #notes")).toBe("## Bio #notes\ntwo\n");
+  it("leaves a same-named section with another tag or none, and removes every section that matches", () => {
+    expect(propagateSectionDelete("## Bio\none\n## Bio #notes\ntwo\n", "Bio #notes")).toBe("## Bio\none\n");
+    expect(propagateSectionDelete("## Bio #notes\none\n## Bio #tasks\n- [ ] t\n## Bio #notes\ntwo\n", "Bio #notes")).toBe("## Bio #tasks\n- [ ] t\n");
   });
 
   it("returns null when no H2 matches (indented headings and plain lines don't)", () => {
@@ -206,9 +216,11 @@ describe("moveTemplateSection", () => {
 });
 
 describe("sectionInUse and filesUsingTemplateSection", () => {
-  it("sectionInUse: a same-named section (any tag, any case) with non-placeholder content", () => {
+  it("sectionInUse: the same section (name and tag, any case) with non-placeholder content", () => {
     expect(sectionInUse("## Bio #notes\nLikes tea\n", "Bio #notes")).toBe(true);
-    expect(sectionInUse("## BIO #tasks\nx\n", "bio")).toBe(true);
+    expect(sectionInUse("## BIO #TASKS\nx\n", "bio #tasks")).toBe(true);
+    expect(sectionInUse("## BIO #tasks\nx\n", "bio")).toBe(false);
+    expect(sectionInUse("## Bio\nx\n", "Bio #notes")).toBe(false);
     expect(sectionInUse("## Bio\n\n  \n", "Bio")).toBe(false);
     expect(sectionInUse("## Biography\nx\n", "Bio")).toBe(false);
     expect(sectionInUse("no sections", "Bio")).toBe(false);
@@ -224,7 +236,7 @@ describe("sectionInUse and filesUsingTemplateSection", () => {
   });
 
   it("QUIRK: the default Notes body, a dated first milestone and an empty task count as content", () => {
-    expect(sectionInUse("## Notes #notes\n_Context and general notes..._\n", "Notes")).toBe(true);
+    expect(sectionInUse("## Notes #notes\n_Context and general notes..._\n", "Notes #notes")).toBe(true);
     expect(sectionInUse("## Plan\n- [ ] 2026-10-08 — First milestone in template\n", "Plan")).toBe(true);
     expect(sectionInUse("## Tasks\n- [ ] \n", "Tasks")).toBe(true);
   });
@@ -235,7 +247,8 @@ describe("sectionInUse and filesUsingTemplateSection", () => {
       { file: "b", content: "## Bio\n" },
       { file: "c", content: "## bio #notes\ny\n" },
     ];
-    expect(filesUsingTemplateSection(notes, "Bio #notes")).toEqual(["a", "c"]);
+    expect(filesUsingTemplateSection(notes, "Bio #notes")).toEqual(["c"]);
+    expect(filesUsingTemplateSection(notes, "Bio")).toEqual(["a"]);
     expect(filesUsingTemplateSection([], "Bio")).toEqual([]);
   });
 
@@ -249,7 +262,7 @@ describe("sectionInUse and filesUsingTemplateSection", () => {
       "Notes #notes": ["partner", "registration", "commission", "lead", "certification", "activity", "sequence", "deal"],
       "Bio #notes": [],
       "Description #notes": [],
-      "Tasks #tasks": ["contact", "project"],
+      "Tasks #tasks": ["contact"],
       Brief: [],
       Milestones: ["project"],
       Scope: ["project"],
@@ -272,17 +285,17 @@ describe("propagation over a fake vault of several notes", () => {
       return next === null ? [] : [{ file: n.file, content: next }];
     });
 
-  it("an added section goes to every note without a same-named section", () => {
+  it("an added section goes to every note without the same section (name and tag)", () => {
     expect(writes(vault(), (c) => propagateSectionAdd(c, { cleanTitle: "Ideas", tag: "#notes", defaultBody: "_x_" }))).toEqual([
       { file: "Ann", content: "# Ann\n\n## Bio #notes\nhi\n\n## Ideas #notes\n_x_\n" },
+      { file: "Bob", content: "# Bob\n\n## ideas #tasks\n- [ ] x\n\n## Ideas #notes\n_x_\n" },
       { file: "Cy", content: "# Cy\n\n## Ideas #notes\n_x_\n" },
     ]);
   });
 
-  it("a deleted section comes out of every note that has it, first match only", () => {
+  it("a deleted section comes out of every note that has it; differently tagged or untagged sections stay", () => {
     expect(writes(vault(), (c) => propagateSectionDelete(c, "Ideas #notes"))).toEqual([
-      { file: "Bob", content: "# Bob\n" },
-      { file: "Di", content: "## Ideas #notes\ntwo\n" },
+      { file: "Di", content: "## Ideas\none\n" },
     ]);
   });
 

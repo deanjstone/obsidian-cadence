@@ -7,7 +7,7 @@ import type { EntityDef, EntityKey } from '../types/entities';
 import type { ChartSectionConfig, CrossSectionConfig } from '../types/modals';
 import { ymd } from '../utils/dates';
 import { splitSectionColumns } from '../utils/field-edit';
-import { appendSection, parseH2Sections, parseHeaderKey } from '../utils/parsing';
+import { appendSection, parseH2Sections, parseHeaderKey, type HeaderKey } from '../utils/parsing';
 import { DAILY_TEMPLATE_CONTENT, defaultTemplateContent } from '../utils/templates';
 import { ensureFolderSync } from '../utils/vault';
 import type { FlashSaved } from './components/sections';
@@ -529,44 +529,50 @@ export interface TemplateSection {
   defaultBody?: string;
 }
 
-/* Same section name: the labels match case-insensitively, whatever the tags. */
-function sameLabel(key: string, cleanLabel: string): boolean {
-  return parseHeaderKey(key).cleanLabel.toLowerCase() === cleanLabel.toLowerCase();
+/* Same section: the labels and the tags both match, case-insensitively. A
+   same-named section with another tag, or none, is the user's own. */
+function sameSection(key: string, other: HeaderKey): boolean {
+  const { cleanLabel, tag } = parseHeaderKey(key);
+  return cleanLabel.toLowerCase() === other.cleanLabel.toLowerCase()
+    && tag.toLowerCase() === other.tag.toLowerCase();
 }
 
-/* Remove lines[idx] and everything up to the next H2 line, in place. */
+/* Remove lines[idx] and everything up to the next H2 line, in place. A
+   last section keeps the note's final newline. */
 function spliceSection(lines: string[], idx: number): void {
   let endIdx = lines.length;
   for (let i = idx + 1; i < lines.length; i++) {
     if (/^##\s/.test(lines[i])) { endIdx = i; break; }
   }
+  if (endIdx === lines.length && idx > 0 && lines[idx - 1] !== '' && lines[endIdx - 1] === '') endIdx--;
   lines.splice(idx, endIdx - idx);
 }
 
 /* Propagate an added section to one note: append it, unless the note has
-   an H2 section of the same name (any tag). null = no change, as for a
-   missing or blank title (a cancelled prompt). */
+   the same H2 section (name and tag). null = no change, as for a missing
+   or blank title (a cancelled prompt). */
 export function propagateSectionAdd(content: string, section: TemplateSection): string | null {
   if (!section.cleanTitle?.trim()) return null;
   const sections = parseH2Sections(content);
-  const exists = Object.keys(sections).some(k => sameLabel(k, section.cleanTitle));
+  const target = parseHeaderKey(templateHeader(section.cleanTitle, section.tag).replace(/^##\s+/, ''));
+  const exists = Object.keys(sections).some(k => sameSection(k, target));
   if (exists) return null;
   return appendSection(content, templateHeader(section.cleanTitle, section.tag), section.defaultBody ?? '');
 }
 
-/* Propagate a deleted section to one note: remove the first H2 section of
-   the same name (any tag), up to the next H2. null = no change. */
+/* Propagate a deleted section to one note: remove every H2 section that is
+   the same section (name and tag), each up to the next H2. null = no change. */
 export function propagateSectionDelete(content: string, sectionKey: string): string | null {
-  const { cleanLabel } = parseHeaderKey(sectionKey);
+  const target = parseHeaderKey(sectionKey);
   const lines = content.split('\n');
-  const idx = lines.findIndex(l => {
-    if (!/^##\s/.test(l)) return false;
-    const key = l.trim().replace(/^##\s+/, '');
-    return sameLabel(key, cleanLabel);
-  });
-  if (idx === -1) return null;
-  spliceSection(lines, idx);
-  return lines.join('\n');
+  let removed = false;
+  for (let idx = lines.length - 1; idx >= 0; idx--) {
+    if (!/^##\s/.test(lines[idx])) continue;
+    if (!sameSection(lines[idx].trim().replace(/^##\s+/, ''), target)) continue;
+    spliceSection(lines, idx);
+    removed = true;
+  }
+  return removed ? lines.join('\n') : null;
 }
 
 /* Remove a section from the template itself, matched by its exact raw key.
@@ -626,14 +632,14 @@ export const TEMPLATE_PLACEHOLDERS = [
   '- [ ] First milestone',
 ];
 
-/* Does the note have a same-named section (any tag) with real content? */
+/* Does the note have the same section (name and tag) with real content? */
 export function sectionInUse(content: string, sectionKey: string): boolean {
-  const { cleanLabel } = parseHeaderKey(sectionKey);
+  const target = parseHeaderKey(sectionKey);
   const sections = parseH2Sections(content);
-  const matchingKey = Object.keys(sections).find(k => sameLabel(k, cleanLabel));
-  if (!matchingKey) return false;
-  const body = (sections[matchingKey] || '').trim();
-  return !!body && !TEMPLATE_PLACEHOLDERS.some(p => body.startsWith(p));
+  return Object.keys(sections).filter(k => sameSection(k, target)).some((k) => {
+    const body = (sections[k] || '').trim();
+    return !!body && !TEMPLATE_PLACEHOLDERS.some(p => body.startsWith(p));
+  });
 }
 
 /** A note and its content, as read from the vault. */

@@ -3,6 +3,7 @@ import { FakeElement, Notice, type MockFileSpec } from "../mocks/obsidian";
 import { flush, makeAppView } from "../helpers/app-view";
 import { ENTITIES } from "../../src/constants/entities";
 import { ensureDefaultTemplates } from "../../src/utils/templates";
+import { parseH2Sections } from "../../src/utils/parsing";
 
 /* Characterization tests for the template builder's section controls,
    _renderTemplateSectionWithDelete (drag to reorder, × to delete), and for
@@ -176,7 +177,7 @@ describe("_renderTemplateSectionWithDelete: × delete", () => {
   it("warns with the names of notes whose section has content", async () => {
     const confirm = vi.fn(() => false);
     vi.stubGlobal("confirm", confirm);
-    const { draw } = setup([note("Ann", "## Bio #notes\nLikes tea\n"), note("Bob", "## bio\nchess\n"), note("Cy", "## Other\nx\n")]);
+    const { draw } = setup([note("Ann", "## Bio #notes\nLikes tea\n"), note("Bob", "## bio #NOTES\nchess\n"), note("Cy", "## Bio\nmine\n")]);
     delButton(draw("Bio #notes")).trigger("click");
     await flush();
     expect(confirm.mock.calls).toEqual([
@@ -273,10 +274,12 @@ describe("_renderTemplateSectionWithDelete: × delete", () => {
 });
 
 describe("_getFilesUsingTemplateSection", () => {
-  it("returns the entity notes whose same-named section (any tag, any case) has content", async () => {
+  it("returns the entity notes whose same section (name and tag, any case) has content", async () => {
     const { view, file } = setup([
       note("Ann", "## Bio #notes\nLikes tea\n"),
-      note("Bob", "## BIO\nchess\n"),
+      note("Bob", "## BIO #NOTES\nchess\n"),
+      note("Gus", "## Bio\nuntagged\n"),
+      note("Hal", "## Bio #tasks\n- [ ] t\n"),
       note("Cy", "## Bio #notes\n\n   \n"),
       note("Di", "## Biography\nlong\n"),
       note("Ed", "no sections"),
@@ -302,8 +305,8 @@ describe("_getFilesUsingTemplateSection", () => {
   it("QUIRK: the default '_Context and general notes..._' and a dated first milestone count as content", async () => {
     const { view, file } = setup([
       note("A", "## Notes #notes\n_Context and general notes..._\n"),
-      note("B", "## Notes #milestones\n- [ ] 2026-10-08 — First milestone in template\n"),
-      note("C", "## Notes #tasks\n- [ ] Follow up in 2 weeks\n"),
+      note("B", "## Notes #notes\n- [ ] 2026-10-08 — First milestone in template\n"),
+      note("C", "## Notes #notes\n- [ ] Follow up in 2 weeks\n"),
     ]);
     expect(await view._getFilesUsingTemplateSection("contact", "Notes #notes")).toEqual([
       file(`${C}/A.md`), file(`${C}/B.md`), file(`${C}/C.md`),
@@ -331,22 +334,23 @@ describe("_getFilesUsingTemplateSection", () => {
     }
     const used: Record<string, string[]> = {};
     for (const key of Object.keys(ENTITIES)) {
-      for (const label of ["Notes", "Bio", "Description", "Tasks", "Brief", "Milestones"]) {
-        const files = await made.view._getFilesUsingTemplateSection(key, `${label} #notes`);
-        if (files.length) (used[key] ??= []).push(label);
+      const content = await made.app.vault.read(made.app.vault.getAbstractFileByPath(`${T}/${key}.md`) as Any);
+      for (const rawKey of Object.keys(parseH2Sections(content))) {
+        const files = await made.view._getFilesUsingTemplateSection(key, rawKey);
+        if (files.length) (used[key] ??= []).push(rawKey);
       }
     }
     expect(used).toEqual({
-      partner: ["Notes"], registration: ["Notes"], commission: ["Notes"], lead: ["Notes"], certification: ["Notes"],
-      activity: ["Notes"], sequence: ["Notes"], deal: ["Notes"],
-      contact: ["Tasks"],
-      project: ["Tasks", "Milestones"],
+      partner: ["Notes #notes"], registration: ["Notes #notes"], commission: ["Notes #notes"], lead: ["Notes #notes"],
+      certification: ["Notes #notes"], activity: ["Notes #notes"], sequence: ["Notes #notes"], deal: ["Notes #notes"],
+      contact: ["Tasks #tasks"],
+      project: ["Scope", "Milestones", "Tasks", "Risks", "Stakeholders"],
     });
   });
 });
 
 describe("_propagateTemplateSectionAdd over a vault", () => {
-  it("appends the section to every entity note without a same-named one, and only writes those", async () => {
+  it("appends the section to every entity note without the same one (name and tag), and only writes those", async () => {
     const { view, app, read } = setup([
       note("Ann", "# Ann\n\n## Bio #notes\nhi\n\n\n"),
       note("Bob", "# Bob\n\n## ideas #tasks\n- [ ] x\n"),
@@ -356,9 +360,9 @@ describe("_propagateTemplateSectionAdd over a vault", () => {
       note("Eve", "# Eve\n", "Cadence/Companies"),
     ]);
     await view._propagateTemplateSectionAdd("contact", "Ideas", "#notes", "_Enter your notes here..._");
-    expect(app.vault.modified).toEqual([`${C}/Ann.md`, `${C}/Cy.md`, `${C}/Old/Di.md`]);
+    expect(app.vault.modified).toEqual([`${C}/Ann.md`, `${C}/Bob.md`, `${C}/Cy.md`, `${C}/Old/Di.md`]);
     expect(await read(`${C}/Ann.md`)).toBe("# Ann\n\n## Bio #notes\nhi\n\n## Ideas #notes\n_Enter your notes here..._\n");
-    expect(await read(`${C}/Bob.md`)).toBe("# Bob\n\n## ideas #tasks\n- [ ] x\n");
+    expect(await read(`${C}/Bob.md`)).toBe("# Bob\n\n## ideas #tasks\n- [ ] x\n\n## Ideas #notes\n_Enter your notes here..._\n");
     expect(await read(`${C}/Cy.md`)).toBe("# Cy\n\n## Ideas #notes\n_Enter your notes here..._\n");
     expect(await read(`${C}/Old/Di.md`)).toBe("# Di\n\n## Ideas #notes\n_Enter your notes here..._\n");
     expect(await read("Cadence/Companies/Eve.md")).toBe("# Eve\n");
@@ -392,19 +396,21 @@ describe("_propagateTemplateSectionAdd over a vault", () => {
 });
 
 describe("_propagateTemplateSectionDelete over a vault", () => {
-  it("removes the first same-named section (any tag, any case) from each note, and only writes those", async () => {
+  it("removes the same section (name and tag, any case) from each note, leaves other-tagged or untagged ones, and only writes those", async () => {
     const { view, app, read } = setup([
       note("Ann", "# Ann\n\n## Bio #notes\nhi\n\n## Tasks\n- [ ] x\n"),
       note("Bob", "# Bob\n\n## BIO\nchess\n"),
       note("Cy", "# Cy\n\n## Tasks\n- [ ] y\n"),
-      note("Di", "## Bio\none\n## Bio #notes\ntwo\n", `${C}/Old`),
+      note("Di", "## Bio\none\n## BIO #Notes\ntwo\n", `${C}/Old`),
+      note("Ed", "# Ed\n\n## Bio #tasks\n- [ ] e\n"),
     ]);
     await view._propagateTemplateSectionDelete("contact", "Bio #notes");
-    expect(app.vault.modified).toEqual([`${C}/Ann.md`, `${C}/Bob.md`, `${C}/Old/Di.md`]);
+    expect(app.vault.modified).toEqual([`${C}/Ann.md`, `${C}/Old/Di.md`]);
     expect(await read(`${C}/Ann.md`)).toBe("# Ann\n\n## Tasks\n- [ ] x\n");
-    expect(await read(`${C}/Bob.md`)).toBe("# Bob\n");
+    expect(await read(`${C}/Bob.md`)).toBe("# Bob\n\n## BIO\nchess\n");
     expect(await read(`${C}/Cy.md`)).toBe("# Cy\n\n## Tasks\n- [ ] y\n");
-    expect(await read(`${C}/Old/Di.md`)).toBe("## Bio #notes\ntwo\n");
+    expect(await read(`${C}/Old/Di.md`)).toBe("## Bio\none\n");
+    expect(await read(`${C}/Ed.md`)).toBe("# Ed\n\n## Bio #tasks\n- [ ] e\n");
   });
 
   it("ignores an indented heading and a plain line with the same text", async () => {
