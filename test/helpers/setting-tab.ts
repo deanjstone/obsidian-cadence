@@ -53,7 +53,7 @@ export function makeSettingTab(opts: { settings?: Record<string, unknown>; files
       calls.push("register");
     }),
   };
-  const tab: Any = new CadenceSettingTab(app, plugin);
+  const tab: Any = new CadenceSettingTab(app, plugin as Any);
   const display = tab.display.bind(tab);
   tab.display = vi.fn(() => {
     calls.push("display");

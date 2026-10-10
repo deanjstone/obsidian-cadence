@@ -112,6 +112,9 @@ export class Vault {
     return this.files.get(path) ?? null;
   }
 
+  /** Obsidian 1.6+ lists folders directly; unset here, so callers fall back. Set it in a test. */
+  getAllFolders?: (includeRoot?: boolean) => TFolder[];
+
   getMarkdownFiles(): TFile[] {
     return [...this.files.values()].filter((f): f is TFile => f instanceof TFile && f.extension === 'md');
   }

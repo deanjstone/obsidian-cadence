@@ -18,6 +18,8 @@ export interface EntityField {
   options?: string[];
   /** 'none' | 'tags' | 'contact' | 'company' | 'partner' | 'project' | 'history' | 'folder:<path>' | 'entity:<key>' */
   suggestionSource?: string;
+  /** Set by the settings tab: locked fields can't be renamed, retyped, moved or deleted. */
+  locked?: boolean;
 }
 
 export interface EntityDef {
