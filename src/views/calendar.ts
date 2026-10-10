@@ -1,7 +1,8 @@
 import { TFile } from 'obsidian';
 import { addDays, dailyNotePath, sameDay, startOfDay, weekDates, ymd } from '../utils/dates';
 import { ensureDailyNote } from '../utils/daily-notes';
-import { parseSections, replaceSection } from '../utils/parsing';
+import { parseSections } from '../utils/parsing';
+import { countTaskLines, taskLineRows, taskNotesToday, toggleDailyTask } from '../utils/task-lines';
 import { listTaskNotesTasks, toggleTaskNotesTask } from '../utils/tasknotes';
 import type { TAbstractFile } from 'obsidian';
 import type { TaskNotesTask } from '../types/entities';
@@ -21,6 +22,50 @@ export interface PlannerDay {
   rawTasks?: TaskNotesTask[];
 }
 
+/** "October 5 – October 11, 2026": the first and last day, locale-formatted. */
+export function plannerWeekTitle(days: Date[]): string {
+  const startStr = days[0].toLocaleDateString(undefined, { month: 'long', day: 'numeric' });
+  const endStr = days[6].toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' });
+  return `${startStr} – ${endStr}`;
+}
+
+/** One rendered day column. */
+export interface PlannerColumn {
+  isToday: boolean;
+  /** Short weekday, upper-case ("MON"). */
+  weekday: string;
+  dayNum: string;
+  /** `N open · M done`, or 'no note'. */
+  meta: string;
+  /** Text of the empty placeholder ('—' or '' without a note), or null with tasks. */
+  empty: string | null;
+  rows: Array<{ checked: boolean; text: string }>;
+}
+
+/** The week grid's numbers and columns from the loaded days. The totals
+    count a line as done if it has an [x] box, else open if it has a [ ] box;
+    each column counts the two boxes separately, so a line with both counts
+    once in the totals and twice in its column. */
+export function plannerWeek(dayData: Array<Pick<PlannerDay, 'date' | 'exists' | 'tasks'>>, today: Date): {
+  stats: { open: number; done: number; total: number };
+  columns: PlannerColumn[];
+} {
+  const totals = countTaskLines(dayData.flatMap((d) => d.tasks));
+  const columns = dayData.map((d) => {
+    const open = d.tasks.filter((l) => / \[ \] /.test(l)).length;
+    const done = d.tasks.filter((l) => / \[(x|X)\] /.test(l)).length;
+    return {
+      isToday: sameDay(d.date, today),
+      weekday: d.date.toLocaleDateString(undefined, { weekday: 'short' }).toUpperCase(),
+      dayNum: String(d.date.getDate()),
+      meta: d.exists ? `${open} open · ${done} done` : 'no note',
+      empty: d.tasks.length ? null : (d.exists ? '—' : ''),
+      rows: taskLineRows(d.tasks),
+    };
+  });
+  return { stats: { open: totals.open, done: totals.done, total: totals.open + totals.done }, columns };
+}
+
 /* ── Planner pane ───────────────────────── */
 export async function renderPlannerPane(view: AppViewHost, root: HTMLElement): Promise<void> {
   root.addClass('cadence-planner');
@@ -31,9 +76,7 @@ export async function renderPlannerPane(view: AppViewHost, root: HTMLElement): P
   const header = root.createDiv({ cls: 'cad-pl-header' });
   const titleWrap = header.createDiv({ cls: 'cad-pl-title-wrap' });
   titleWrap.createDiv({ cls: 'cad-eyebrow', text: 'WEEK OF' });
-  const startStr = days[0].toLocaleDateString(undefined, { month: 'long', day: 'numeric' });
-  const endStr = days[6].toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' });
-  titleWrap.createDiv({ cls: 'cad-pl-title', text: `${startStr} – ${endStr}` });
+  titleWrap.createDiv({ cls: 'cad-pl-title', text: plannerWeekTitle(days) });
 
   const nav = header.createDiv({ cls: 'cad-pl-nav' });
   const mkBtn = (label: string, fn: () => void, cls = '') => {
@@ -44,23 +87,21 @@ export async function renderPlannerPane(view: AppViewHost, root: HTMLElement): P
   mkBtn('Today', () => { view.plannerAnchor = startOfDay(new Date()); view.render(); }, 'primary');
   mkBtn('▶', () => { view.plannerAnchor = addDays(view.plannerAnchor, 7); view.render(); });
 
-  let totalOpen = 0, totalDone = 0;
   let dayData: PlannerDay[] = [];
 
   if (settings.taskManagementSystem === 'tasknotes') {
     const allTasks = listTaskNotesTasks(view.app);
     dayData = days.map((d) => {
-      const ymdStr = ymd(d);
       const path = dailyNotePath(settings, d);
       const file = view.app.vault.getAbstractFileByPath(path);
-      const tasksForDay = allTasks.filter(t => t.scheduled === ymdStr);
+      const forDay = taskNotesToday(allTasks, ymd(d));
       return {
         date: d,
         path,
         exists: !!file,
         file,
-        tasks: tasksForDay.map(t => `- [${t.done ? 'x' : ' '}] ${t.title}`),
-        rawTasks: tasksForDay
+        tasks: forDay.lines,
+        rawTasks: forDay.tasks
       };
     });
   } else {
@@ -76,12 +117,7 @@ export async function renderPlannerPane(view: AppViewHost, root: HTMLElement): P
     }));
   }
 
-  dayData.forEach((d) => {
-    d.tasks.forEach((l) => {
-      if (/ \[(x|X)\] /.test(l)) totalDone++;
-      else if (/ \[ \] /.test(l)) totalOpen++;
-    });
-  });
+  const week = plannerWeek(dayData, today);
 
   const stats = root.createDiv({ cls: 'cad-pl-stats' });
   const mkStat = (label: string, value: number) => {
@@ -89,27 +125,19 @@ export async function renderPlannerPane(view: AppViewHost, root: HTMLElement): P
     c.createDiv({ cls: 'cad-pl-stat-label', text: label });
     c.createDiv({ cls: 'cad-pl-stat-value', text: String(value) });
   };
-  mkStat('OPEN', totalOpen);
-  mkStat('DONE', totalDone);
-  mkStat('TOTAL', totalOpen + totalDone);
+  mkStat('OPEN', week.stats.open);
+  mkStat('DONE', week.stats.done);
+  mkStat('TOTAL', week.stats.total);
 
   const grid = root.createDiv({ cls: 'cad-pl-grid' });
-  dayData.forEach((d) => {
-    const isToday = sameDay(d.date, today);
-    const col = grid.createDiv({ cls: 'cad-pl-day' + (isToday ? ' today' : '') });
+  dayData.forEach((d, dayIdx) => {
+    const column = week.columns[dayIdx];
+    const col = grid.createDiv({ cls: 'cad-pl-day' + (column.isToday ? ' today' : '') });
 
     const colHead = col.createDiv({ cls: 'cad-pl-day-head' });
-    colHead.createDiv({
-      cls: 'cad-pl-weekday',
-      text: d.date.toLocaleDateString(undefined, { weekday: 'short' }).toUpperCase(),
-    });
-    colHead.createDiv({ cls: 'cad-pl-daynum', text: String(d.date.getDate()) });
-    const open = d.tasks.filter((l) => / \[ \] /.test(l)).length;
-    const done = d.tasks.filter((l) => / \[(x|X)\] /.test(l)).length;
-    colHead.createDiv({
-      cls: 'cad-pl-meta',
-      text: d.exists ? `${open} open · ${done} done` : 'no note',
-    });
+    colHead.createDiv({ cls: 'cad-pl-weekday', text: column.weekday });
+    colHead.createDiv({ cls: 'cad-pl-daynum', text: column.dayNum });
+    colHead.createDiv({ cls: 'cad-pl-meta', text: column.meta });
     colHead.addEventListener('click', async () => {
       if (!d.exists) {
         await ensureDailyNote(view.app, settings, d.date);
@@ -118,12 +146,10 @@ export async function renderPlannerPane(view: AppViewHost, root: HTMLElement): P
     });
 
     const list = col.createDiv({ cls: 'cad-pl-tasks' });
-    if (!d.tasks.length) {
-      list.createDiv({ cls: 'cad-empty', text: d.exists ? '—' : '' });
+    if (column.empty !== null) {
+      list.createDiv({ cls: 'cad-empty', text: column.empty });
     } else {
-      d.tasks.forEach((rawLine, idx) => {
-        const checked = / \[(x|X)\] /.test(rawLine);
-        const text = rawLine.replace(/^\s*-\s\[(x|X| )\]\s/, '');
+      column.rows.forEach(({ checked, text }, idx) => {
         const row = list.createDiv({ cls: 'cad-pl-task' + (checked ? ' done' : '') });
         const cb = row.createEl('input', { type: 'checkbox' });
         cb.checked = checked;
@@ -154,16 +180,7 @@ export async function togglePlannerTask(view: AppViewHost, day: PlannerDay, idx:
   } else {
     if (!day.file) return;
     const content = await view.app.vault.read(day.file as TFile);
-    const parsed = parseSections(content, view.plugin.settings);
-    const taskLine = parsed.tasks[idx] || '';
-    const taskText = taskLine.replace(/^\s*-\s\[(x|X| )\]\s/, '').trim();
-    const newTasks = parsed.tasks.map((line, i) => {
-      if (i !== idx) return line;
-      return checked
-        ? line.replace(/^\s*-\s\[\s\]\s/, '- [x] ')
-        : line.replace(/^\s*-\s\[(x|X)\]\s/, '- [ ] ');
-    });
-    const newContent = replaceSection(content, view.plugin.settings.tasksHeading, newTasks.join('\n'));
+    const { content: newContent, taskText } = toggleDailyTask(content, view.plugin.settings, idx, checked);
     await view.app.vault.modify(day.file as TFile, newContent);
     if (taskText) {
       await view._propagateTaskComplete(taskText, checked, { kind: 'daily', file: day.file as TFile, date: day.date });

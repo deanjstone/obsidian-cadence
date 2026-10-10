@@ -2919,6 +2919,79 @@ function planEntityLinks(def, defaults, values) {
 
 // src/views/home.ts
 var import_obsidian13 = require("obsidian");
+
+// src/utils/task-lines.ts
+var TASK_PREFIX = /^\s*-\s\[(x|X| )\]\s/;
+function taskNotesToday(allTaskNotes, todayYmd) {
+  const tasks = allTaskNotes.filter((t) => t.scheduled === todayYmd);
+  return { tasks, lines: tasks.map((t) => `- [${t.done ? "x" : " "}] ${t.title}`) };
+}
+function toggleTaskLine(tasks, idx, checked) {
+  const taskLine = tasks[idx] || "";
+  const taskText = taskLine.replace(TASK_PREFIX, "").trim();
+  const newTasks = tasks.map((line, i) => {
+    if (i !== idx) return line;
+    return checked ? line.replace(/^\s*-\s\[\s\]\s/, "- [x] ") : line.replace(/^\s*-\s\[(x|X)\]\s/, "- [ ] ");
+  });
+  return { tasks: newTasks, taskText };
+}
+function countTaskLines(lines) {
+  let open = 0, done = 0;
+  lines.forEach((l) => {
+    if (/ \[(x|X)\] /.test(l)) done++;
+    else if (/ \[ \] /.test(l)) open++;
+  });
+  return { open, done };
+}
+function taskLineRows(lines) {
+  return lines.map((rawLine) => ({
+    checked: / \[(x|X)\] /.test(rawLine),
+    text: rawLine.replace(TASK_PREFIX, "")
+  }));
+}
+function toggleDailyTask(content, settings, idx, checked) {
+  const parsed = parseSections(content, settings);
+  const { tasks, taskText } = toggleTaskLine(parsed.tasks, idx, checked);
+  return { content: replaceSection(content, settings.tasksHeading, tasks.join("\n")), taskText };
+}
+function appendDailyTask(content, settings, text) {
+  const parsed = parseSections(content, settings);
+  const newTasks = [...parsed.tasks, `- [ ] ${text}`];
+  return replaceSection(content, settings.tasksHeading, newTasks.join("\n"));
+}
+function replaceJournal(content, settings, body) {
+  return replaceSection(content, settings.journalHeading, body || "");
+}
+function tickProjectTasks(content, text, done) {
+  const sections = parseH2Sections(content);
+  const tasks = parseTasksList(sections["Tasks"] || "");
+  let changed = false;
+  const updated = tasks.map((tk) => {
+    if (tk.title.trim() === text && !!tk.done !== !!done) {
+      changed = true;
+      return Object.assign({}, tk, { done: !!done });
+    }
+    return tk;
+  });
+  if (!changed) return null;
+  return replaceSection(content, "## Tasks", stringifyTasks(updated));
+}
+function tickDailyTasks(content, settings, text, done) {
+  const parsed = parseSections(content, settings);
+  let changed = false;
+  const updatedTasks = parsed.tasks.map((line) => {
+    const lineText = line.replace(TASK_PREFIX, "").trim();
+    if (lineText !== text) return line;
+    const isDone = / \[(x|X)\] /.test(line);
+    if (isDone === !!done) return line;
+    changed = true;
+    return done ? line.replace(/^\s*-\s\[\s\]\s/, "- [x] ") : line.replace(/^\s*-\s\[(x|X)\]\s/, "- [ ] ");
+  });
+  if (!changed) return null;
+  return replaceSection(content, settings.tasksHeading, updatedTasks.join("\n"));
+}
+
+// src/views/home.ts
 async function renderHome(view, root) {
   root.addClass("cadence-home");
   const settings = view.plugin.settings;
@@ -3168,16 +3241,16 @@ function selectInboxCard(allReminders, now) {
   const nowMs = now.getTime();
   const reminders = (allReminders || []).filter((r) => !r.done);
   const isOverdue = (r) => !!r.when && new Date(r.when).getTime() <= nowMs;
-  const overdueCount = reminders.filter(isOverdue).length;
-  const tone = overdueCount > 0 ? "rose" : "sky";
-  const title = `INBOX \u2014 ${reminders.length} item${reminders.length === 1 ? "" : "s"}${overdueCount > 0 ? ` \xB7 ${overdueCount} overdue` : ""}`;
+  const overdueCount2 = reminders.filter(isOverdue).length;
+  const tone = overdueCount2 > 0 ? "rose" : "sky";
+  const title = `INBOX \u2014 ${reminders.length} item${reminders.length === 1 ? "" : "s"}${overdueCount2 > 0 ? ` \xB7 ${overdueCount2} overdue` : ""}`;
   const sorted = [...reminders].sort((a, b) => {
     const wa = a.when ? new Date(a.when).getTime() : Infinity;
     const wb = b.when ? new Date(b.when).getTime() : Infinity;
     return wa - wb;
   });
   const rows = sorted.slice(0, 5).map((reminder) => ({ reminder, overdue: isOverdue(reminder) }));
-  return { reminders, overdueCount, tone, title, rows };
+  return { reminders, overdueCount: overdueCount2, tone, title, rows };
 }
 function inboxRowMeta(r, projectName) {
   const metaBits = [];
@@ -3219,11 +3292,6 @@ async function homeInboxCard(view, parent) {
     row.addEventListener("click", () => new CadenceReminderEditModal(view.app, view.plugin, r).open());
   });
 }
-var TASK_PREFIX = /^\s*-\s\[(x|X| )\]\s/;
-function taskNotesToday(allTaskNotes, todayYmd) {
-  const tasks = allTaskNotes.filter((t) => t.scheduled === todayYmd);
-  return { tasks, lines: tasks.map((t) => `- [${t.done ? "x" : " "}] ${t.title}`) };
-}
 function selectTodayCard(tasksList) {
   const open = tasksList.filter((l) => / \[ \] /.test(l));
   const done = tasksList.filter((l) => / \[(x|X)\] /.test(l));
@@ -3232,15 +3300,6 @@ function selectTodayCard(tasksList) {
     text: rawLine.replace(TASK_PREFIX, "")
   }));
   return { open: open.length, done: done.length, title: `TODAY \u2014 ${open.length} open \xB7 ${done.length} done`, rows };
-}
-function toggleTaskLine(tasks, idx, checked) {
-  const taskLine = tasks[idx] || "";
-  const taskText = taskLine.replace(TASK_PREFIX, "").trim();
-  const newTasks = tasks.map((line, i) => {
-    if (i !== idx) return line;
-    return checked ? line.replace(/^\s*-\s\[\s\]\s/, "- [x] ") : line.replace(/^\s*-\s\[(x|X)\]\s/, "- [ ] ");
-  });
-  return { tasks: newTasks, taskText };
 }
 async function homeTodayCard(view, parent) {
   const settings = view.plugin.settings;
@@ -3280,9 +3339,7 @@ async function homeTodayCard(view, parent) {
         await toggleTaskNotesTask(view.app, taskObj.file, cb.checked);
       } else {
         const cur = await view.app.vault.read(file);
-        const cp = parseSections(cur, settings);
-        const { tasks: newTasks, taskText } = toggleTaskLine(cp.tasks, idx, cb.checked);
-        const next = replaceSection(cur, settings.tasksHeading, newTasks.join("\n"));
+        const { content: next, taskText } = toggleDailyTask(cur, settings, idx, cb.checked);
         await view.app.vault.modify(file, next);
         if (taskText) {
           await view._propagateTaskComplete(taskText, cb.checked, { kind: "daily", file, date: /* @__PURE__ */ new Date() });
@@ -3335,14 +3392,6 @@ async function homeTodayCard(view, parent) {
       });
     }
   });
-}
-function countTaskLines(lines) {
-  let open = 0, done = 0;
-  lines.forEach((l) => {
-    if (/ \[(x|X)\] /.test(l)) done++;
-    else if (/ \[ \] /.test(l)) open++;
-  });
-  return { open, done };
 }
 function countWeekTaskNotes(allTasks, weekYmds) {
   let open = 0, done = 0;
@@ -3611,14 +3660,16 @@ async function homeActivitiesCard(view, parent) {
 
 // src/views/inbox.ts
 var import_obsidian14 = require("obsidian");
-function inboxOverdueCount(view) {
-  const reminders = (view.plugin.settings.reminders || []).filter((r) => !r.done);
-  const now = Date.now();
-  return reminders.filter((r) => r.when && new Date(r.when).getTime() <= now).length;
+function overdueCount(reminders, now) {
+  const open = (reminders || []).filter((r) => !r.done);
+  return open.filter((r) => r.when && new Date(r.when).getTime() <= now).length;
 }
-async function renderInbox(view, root) {
-  root.addClass("cadence-inbox");
-  const all = (view.plugin.settings.reminders || []).filter((r) => !r.done);
+function inboxOverdueCount(view) {
+  return overdueCount(view.plugin.settings.reminders, Date.now());
+}
+var INBOX_SECTION_LABELS = { now: "NOW \xB7 OVERDUE OR DUE WITHIN 1 HOUR", today: "TODAY", week: "THIS WEEK", later: "LATER \xB7 UNSCHEDULED" };
+function inboxRows(reminders) {
+  const all = (reminders || []).filter((r) => !r.done);
   all.sort((a, b) => {
     const wa = a.when ? new Date(a.when).getTime() : Infinity;
     const wb = b.when ? new Date(b.when).getTime() : Infinity;
@@ -3629,25 +3680,39 @@ async function renderInbox(view, root) {
   });
   const buckets = { now: [], today: [], week: [], later: [] };
   all.forEach((r) => buckets[reminderBucket(r.when)].push(r));
-  view._renderPageHeader(root, "Inbox", `${all.length} ${all.length === 1 ? "item" : "items"} \xB7 capture once, surface at the right time`, (right) => {
+  const sections = ["now", "today", "week", "later"].filter((key) => buckets[key].length).map((key) => ({ key, label: `${INBOX_SECTION_LABELS[key]} \xB7 ${buckets[key].length}`, items: buckets[key] }));
+  return {
+    count: all.length,
+    subtitle: `${all.length} ${all.length === 1 ? "item" : "items"} \xB7 capture once, surface at the right time`,
+    sections
+  };
+}
+async function renderInbox(view, root) {
+  root.addClass("cadence-inbox");
+  const inbox = inboxRows(view.plugin.settings.reminders);
+  view._renderPageHeader(root, "Inbox", inbox.subtitle, (right) => {
     const captureBtn = right.createEl("button", { cls: "cad-btn primary", text: "+ Quick capture" });
     captureBtn.addEventListener("click", () => view.plugin.openQuickCapture());
   });
-  if (!all.length) {
+  if (!inbox.count) {
     const empty = root.createDiv({ cls: "cad-empty-state" });
     empty.createDiv({ cls: "cad-empty-state-title", text: "Inbox zero" });
     empty.createDiv({ cls: "cad-empty-state-desc", text: "Capture anything with + Quick capture above (or Cmd+Shift+I). Add a time and Cadence will remind you." });
     return;
   }
-  const sectionLabels = { now: "NOW \xB7 OVERDUE OR DUE WITHIN 1 HOUR", today: "TODAY", week: "THIS WEEK", later: "LATER \xB7 UNSCHEDULED" };
-  ["now", "today", "week", "later"].forEach((key) => {
-    const items = buckets[key];
-    if (!items.length) return;
-    root.createDiv({ cls: "cad-section-label-lg", text: `${sectionLabels[key]} \xB7 ${items.length}` });
+  inbox.sections.forEach(({ key, label, items }) => {
+    root.createDiv({ cls: "cad-section-label-lg", text: label });
     const list = root.createDiv({ cls: "cad-inbox-list" });
     items.forEach((r) => view._renderInboxRow(list, r, key));
   });
   await view._renderProjectTasksSection(root);
+}
+function openProjectTasks(content) {
+  const sections = parseH2Sections(content);
+  return parseTasksList(sections["Tasks"] || "").filter((t) => !t.done && t.title);
+}
+function projectTasksHeading(totalOpen, groupCount) {
+  return `PROJECT TASKS \xB7 ${totalOpen} open across ${groupCount} ${groupCount === 1 ? "project" : "projects"}`;
 }
 async function renderProjectTasksSection(view, root) {
   const projectFiles = listEntityFiles(view.app, "project");
@@ -3661,11 +3726,7 @@ async function renderProjectTasksSection(view, root) {
     } catch (_) {
       continue;
     }
-    const sections = parseH2Sections(content);
-    const tasksText = sections["Tasks"] || "";
-    if (!tasksText.trim()) continue;
-    const tasks = parseTasksList(tasksText);
-    const open = tasks.filter((t) => !t.done && t.title);
+    const open = openProjectTasks(content);
     if (!open.length) continue;
     totalOpen += open.length;
     groups.push({
@@ -3675,7 +3736,7 @@ async function renderProjectTasksSection(view, root) {
     });
   }
   if (!totalOpen) return;
-  root.createDiv({ cls: "cad-section-label-lg", text: `PROJECT TASKS \xB7 ${totalOpen} open across ${groups.length} ${groups.length === 1 ? "project" : "projects"}` });
+  root.createDiv({ cls: "cad-section-label-lg", text: projectTasksHeading(totalOpen, groups.length) });
   const wrap = root.createDiv({ cls: "cad-pt-wrap" });
   groups.forEach((g) => {
     const card = wrap.createDiv({ cls: "cad-pt-group" });
@@ -3720,15 +3781,42 @@ async function renderProjectTasksSection(view, root) {
     });
   });
 }
+function repeatLabel(repeat) {
+  if (!repeat || repeat === "none") return null;
+  return repeat === "daily" ? "\u21BB daily" : "\u21BB weekly";
+}
+function notesPreview(notes) {
+  if (!notes) return "";
+  const previewLine = String(notes).split("\n").find((l) => l.trim()) || "";
+  return previewLine.length > 120 ? previewLine.slice(0, 117) + "\u2026" : previewLine;
+}
+function tomorrowAtNine(now) {
+  const d = new Date(now);
+  d.setDate(d.getDate() + 1);
+  d.setHours(9, 0, 0, 0);
+  return d.toISOString();
+}
+function inboxRowActions(scheduled) {
+  const timed = scheduled ? [
+    { action: "snooze15", label: "+15m", title: "Snooze 15 minutes" },
+    { action: "snooze60", label: "+1h", title: "Snooze 1 hour" },
+    { action: "tomorrow", label: "Tom.", title: "Snooze to tomorrow 9am" }
+  ] : [{ action: "schedule", label: "Schedule", title: "Add a time" }];
+  return [
+    ...timed,
+    { action: "edit", label: "Edit", title: "Edit details + notes" },
+    { action: "done", label: "Done", title: "Mark done" },
+    { action: "delete", label: "\xD7", title: "Delete" }
+  ];
+}
 function renderInboxRow(view, parent, r, bucket) {
   const row = parent.createDiv({ cls: "cad-inbox-row" + (bucket === "now" ? " overdue" : "") });
   const left = row.createDiv({ cls: "cad-inbox-row-left" });
   const tWrap = left.createDiv({ cls: "cad-inbox-time" });
   if (r.when) {
     tWrap.createSpan({ cls: "cad-inbox-time-text", text: reminderTimeStr(r.when) });
-    if (r.repeat && r.repeat !== "none") {
-      tWrap.createSpan({ cls: "cad-inbox-repeat", text: r.repeat === "daily" ? "\u21BB daily" : "\u21BB weekly" });
-    }
+    const repeat = repeatLabel(r.repeat);
+    if (repeat) tWrap.createSpan({ cls: "cad-inbox-repeat", text: repeat });
   } else {
     tWrap.createSpan({ cls: "cad-inbox-time-text muted", text: "unscheduled" });
   }
@@ -3745,13 +3833,11 @@ function renderInboxRow(view, parent, r, bucket) {
       if (file && file instanceof import_obsidian14.TFile) view.openEntityDetail("project", file);
     });
   }
-  if (r.notes) {
-    const previewLine = String(r.notes).split("\n").find((l) => l.trim()) || "";
-    if (previewLine) {
-      const note = main.createDiv({ cls: "cad-inbox-row-notes" });
-      note.createSpan({ cls: "cad-inbox-row-notes-icon", text: "\u{1F4DD} " });
-      note.appendText(previewLine.length > 120 ? previewLine.slice(0, 117) + "\u2026" : previewLine);
-    }
+  const preview = notesPreview(r.notes);
+  if (preview) {
+    const note = main.createDiv({ cls: "cad-inbox-row-notes" });
+    note.createSpan({ cls: "cad-inbox-row-notes-icon", text: "\u{1F4DD} " });
+    note.appendText(preview);
   }
   const openEdit = () => new CadenceReminderEditModal(view.app, view.plugin, r).open();
   left.addEventListener("click", openEdit);
@@ -3768,28 +3854,25 @@ function renderInboxRow(view, parent, r, bucket) {
     });
     return b;
   };
-  if (r.when) {
-    mk("+15m", "Snooze 15 minutes", () => view.plugin.snoozeReminder(r.id, 15 * 60 * 1e3));
-    mk("+1h", "Snooze 1 hour", () => view.plugin.snoozeReminder(r.id, 60 * 60 * 1e3));
-    mk("Tom.", "Snooze to tomorrow 9am", () => {
-      const d = /* @__PURE__ */ new Date();
-      d.setDate(d.getDate() + 1);
-      d.setHours(9, 0, 0, 0);
-      view.plugin.updateReminder(r.id, { when: d.toISOString(), notified: false });
-    });
-  } else {
-    mk("Schedule", "Add a time", () => openEdit());
-  }
-  mk("Edit", "Edit details + notes", () => openEdit());
-  const doneBtn = mk("Done", "Mark done", async () => {
-    await view.plugin.completeReminder(r.id);
-    if (r.text) await view._propagateTaskComplete(r.text, true, { kind: "reminder", id: r.id });
+  const handlers = {
+    snooze15: () => view.plugin.snoozeReminder(r.id, 15 * 60 * 1e3),
+    snooze60: () => view.plugin.snoozeReminder(r.id, 60 * 60 * 1e3),
+    tomorrow: () => view.plugin.updateReminder(r.id, { when: tomorrowAtNine(/* @__PURE__ */ new Date()), notified: false }),
+    schedule: () => openEdit(),
+    edit: () => openEdit(),
+    done: async () => {
+      await view.plugin.completeReminder(r.id);
+      if (r.text) await view._propagateTaskComplete(r.text, true, { kind: "reminder", id: r.id });
+    },
+    delete: () => {
+      if (confirm("Delete this reminder?")) view.plugin.deleteReminder(r.id);
+    }
+  };
+  inboxRowActions(!!r.when).forEach(({ action, label, title }) => {
+    const b = mk(label, title, handlers[action]);
+    if (action === "done") b.classList.add("primary");
+    if (action === "delete") b.classList.add("cad-btn-danger");
   });
-  doneBtn.classList.add("primary");
-  const delBtn = mk("\xD7", "Delete", () => {
-    if (confirm("Delete this reminder?")) view.plugin.deleteReminder(r.id);
-  });
-  delBtn.classList.add("cad-btn-danger");
 }
 
 // src/views/today.ts
@@ -3797,9 +3880,10 @@ var import_obsidian15 = require("obsidian");
 async function quickAddTodayTask(view) {
   if (view.plugin.settings.taskManagementSystem === "tasknotes") {
     const commandId = "tasknotes:create-new-task";
-    const hasCommand = view.app.commands && view.app.commands.commands && view.app.commands.commands[commandId];
+    const commands = view.app.commands;
+    const hasCommand = commands && commands.commands && commands.commands[commandId];
     if (hasCommand) {
-      view.app.commands.executeCommandById(commandId);
+      commands.executeCommandById(commandId);
       return;
     }
   }
@@ -3811,11 +3895,33 @@ async function quickAddTodayTask(view) {
   if (!text) return;
   const file = await ensureDailyNote(view.app, view.plugin.settings);
   const content = await view.app.vault.read(file);
-  const parsed = parseSections(content, view.plugin.settings);
-  const newTasks = [...parsed.tasks, `- [ ] ${text}`];
-  const next = replaceSection(content, view.plugin.settings.tasksHeading, newTasks.join("\n"));
-  await view.app.vault.modify(file, next);
+  await view.app.vault.modify(file, appendDailyTask(content, view.plugin.settings, text));
   new import_obsidian15.Notice("Added to today");
+}
+function todaySummary(tasksList, greet) {
+  const open = tasksList.filter((l) => / \[ \] /.test(l)).length;
+  return {
+    greeting: open === 0 ? `${greet}. Nothing on the books \u2014 your day is clear.` : `${greet}. You have ${open} ${open === 1 ? "thing" : "things"} to handle.`,
+    count: `${open} open \xB7 ${tasksList.length - open} done`
+  };
+}
+function taskNotesProjectPath(projects, files) {
+  if (!projects) return null;
+  const parsed = parseLinkValues(projects);
+  if (!parsed.length) return null;
+  const projFile = files.find((f) => f.basename === parsed[0].target);
+  return projFile ? projFile.path : null;
+}
+function customSectionKeys(sections, settings) {
+  const cleanTasksHeading = (settings.tasksHeading || "## Today").replace(/^##\s+/, "").trim().toLowerCase();
+  const cleanJournalHeading = (settings.journalHeading || "## Journal").replace(/^##\s+/, "").trim().toLowerCase();
+  return Object.keys(sections).filter((k) => {
+    const cleanK = parseHeaderKey(k).cleanLabel.toLowerCase();
+    return cleanK !== cleanTasksHeading && cleanK !== cleanJournalHeading;
+  });
+}
+function journalRows(value) {
+  return Math.max(8, value.split("\n").length + 2);
 }
 async function renderTodayPane(view, root) {
   root.addClass("cadence-today");
@@ -3824,10 +3930,9 @@ async function renderTodayPane(view, root) {
   view.todayParsed = parseSections(fileContent, view.plugin.settings);
   let tasksList = [];
   if (view.plugin.settings.taskManagementSystem === "tasknotes") {
-    const todayYmd = ymd(/* @__PURE__ */ new Date());
-    const allTaskNotes = listTaskNotesTasks(view.app);
-    view.todayTaskNotes = allTaskNotes.filter((t) => t.scheduled === todayYmd);
-    tasksList = view.todayTaskNotes.map((t) => `- [${t.done ? "x" : " "}] ${t.title}`);
+    const today = taskNotesToday(listTaskNotesTasks(view.app), ymd(/* @__PURE__ */ new Date()));
+    view.todayTaskNotes = today.tasks;
+    tasksList = today.lines;
   } else {
     tasksList = view.todayParsed.tasks;
   }
@@ -3838,24 +3943,17 @@ async function renderTodayPane(view, root) {
   const monthCol = hero.createDiv();
   monthCol.createDiv({ cls: "cad-month", text: info.month });
   monthCol.createDiv({ cls: "cad-year", text: String(info.year) });
-  const taskCount = tasksList.filter((l) => / \[ \] /.test(l)).length;
-  root.createDiv({
-    cls: "cad-greet",
-    text: taskCount === 0 ? `${greeting()}. Nothing on the books \u2014 your day is clear.` : `${greeting()}. You have ${taskCount} ${taskCount === 1 ? "thing" : "things"} to handle.`
-  });
+  const summary = todaySummary(tasksList, greeting());
+  root.createDiv({ cls: "cad-greet", text: summary.greeting });
   const taskSection = root.createDiv({ cls: "cad-section" });
   const taskLabel = taskSection.createDiv({ cls: "cad-section-label" });
   taskLabel.createSpan({ text: "TODAY" });
-  const total = tasksList.length;
-  const open = tasksList.filter((l) => / \[ \] /.test(l)).length;
-  taskLabel.createSpan({ cls: "cad-count", text: `${open} open \xB7 ${total - open} done` });
+  taskLabel.createSpan({ cls: "cad-count", text: summary.count });
   if (!tasksList.length) {
     taskSection.createDiv({ cls: "cad-empty", text: "No tasks in today's note yet." });
   } else {
     const dailyPath = view.todayFile.path;
-    tasksList.forEach((rawLine, idx) => {
-      const checked = / \[(x|X)\] /.test(rawLine);
-      const text = rawLine.replace(/^\s*-\s\[(x|X| )\]\s/, "");
+    taskLineRows(tasksList).forEach(({ checked, text }, idx) => {
       const row = taskSection.createDiv({ cls: "cad-task-row" + (checked ? " done" : "") });
       const cb = row.createEl("input", { type: "checkbox" });
       cb.checked = checked;
@@ -3874,15 +3972,7 @@ async function renderTodayPane(view, root) {
       let linkedProject = null;
       if (view.plugin.settings.taskManagementSystem === "tasknotes") {
         const taskObj = view.todayTaskNotes[idx];
-        if (taskObj.projects) {
-          const parsed = parseLinkValues(taskObj.projects);
-          if (parsed.length > 0) {
-            const projFile = view.app.vault.getMarkdownFiles().find((f) => f.basename === parsed[0].target);
-            if (projFile) {
-              linkedProject = projFile.path;
-            }
-          }
-        }
+        if (taskObj.projects) linkedProject = taskNotesProjectPath(taskObj.projects, view.app.vault.getMarkdownFiles());
       } else {
         linkedProject = view._getTaskProjectLink(dailyPath, text);
       }
@@ -3925,7 +4015,7 @@ async function renderTodayPane(view, root) {
   const ta = journalSection.createEl("textarea", { cls: "cad-journal" });
   ta.value = view.todayParsed.journal;
   ta.placeholder = "Write what\u2019s on your mind\u2026";
-  ta.rows = Math.max(8, ta.value.split("\n").length + 2);
+  ta.rows = journalRows(ta.value);
   ta.addEventListener("input", () => {
     ta.style.height = "auto";
     ta.style.height = ta.scrollHeight + "px";
@@ -3936,12 +4026,7 @@ async function renderTodayPane(view, root) {
     ta.style.height = ta.scrollHeight + "px";
   }, 0);
   const allSections = parseH2Sections(fileContent);
-  const cleanTasksHeading = (view.plugin.settings.tasksHeading || "## Today").replace(/^##\s+/, "").trim().toLowerCase();
-  const cleanJournalHeading = (view.plugin.settings.journalHeading || "## Journal").replace(/^##\s+/, "").trim().toLowerCase();
-  const otherKeys = Object.keys(allSections).filter((k) => {
-    const cleanK = parseHeaderKey(k).cleanLabel.toLowerCase();
-    return cleanK !== cleanTasksHeading && cleanK !== cleanJournalHeading;
-  });
+  const otherKeys = customSectionKeys(allSections, view.plugin.settings);
   if (otherKeys.length > 0) {
     const customWrap = root.createDiv({ cls: "cad-custom-sections" });
     customWrap.style.marginTop = "24px";
@@ -3974,14 +4059,7 @@ async function toggleTodayTask(view, idx, checked) {
     }
   } else {
     const content = await view.app.vault.read(view.todayFile);
-    const parsed = parseSections(content, view.plugin.settings);
-    const taskLine = parsed.tasks[idx] || "";
-    const taskText = taskLine.replace(/^\s*-\s\[(x|X| )\]\s/, "").trim();
-    const newTasks = parsed.tasks.map((line, i) => {
-      if (i !== idx) return line;
-      return checked ? line.replace(/^\s*-\s\[\s\]\s/, "- [x] ") : line.replace(/^\s*-\s\[(x|X)\]\s/, "- [ ] ");
-    });
-    const newContent = replaceSection(content, view.plugin.settings.tasksHeading, newTasks.join("\n"));
+    const { content: newContent, taskText } = toggleDailyTask(content, view.plugin.settings, idx, checked);
     await view.app.vault.modify(view.todayFile, newContent);
     if (taskText) {
       await view._propagateTaskComplete(taskText, checked, { kind: "daily", file: view.todayFile, date: /* @__PURE__ */ new Date() });
@@ -3994,21 +4072,38 @@ async function appendTodayTask(view, text) {
     await appendTaskNotesTask(view.app, text, /* @__PURE__ */ new Date());
   } else {
     const content = await view.app.vault.read(view.todayFile);
-    const parsed = parseSections(content, view.plugin.settings);
-    const newTasks = [...parsed.tasks, `- [ ] ${text}`];
-    const newContent = replaceSection(content, view.plugin.settings.tasksHeading, newTasks.join("\n"));
-    await view.app.vault.modify(view.todayFile, newContent);
+    await view.app.vault.modify(view.todayFile, appendDailyTask(content, view.plugin.settings, text));
   }
   view.render();
 }
 async function saveTodayJournal(view, body) {
   const content = await view.app.vault.read(view.todayFile);
-  const newContent = replaceSection(content, view.plugin.settings.journalHeading, body || "");
-  await view.app.vault.modify(view.todayFile, newContent);
+  await view.app.vault.modify(view.todayFile, replaceJournal(content, view.plugin.settings, body));
 }
 
 // src/views/calendar.ts
 var import_obsidian16 = require("obsidian");
+function plannerWeekTitle(days) {
+  const startStr = days[0].toLocaleDateString(void 0, { month: "long", day: "numeric" });
+  const endStr = days[6].toLocaleDateString(void 0, { month: "long", day: "numeric", year: "numeric" });
+  return `${startStr} \u2013 ${endStr}`;
+}
+function plannerWeek(dayData, today) {
+  const totals = countTaskLines(dayData.flatMap((d) => d.tasks));
+  const columns = dayData.map((d) => {
+    const open = d.tasks.filter((l) => / \[ \] /.test(l)).length;
+    const done = d.tasks.filter((l) => / \[(x|X)\] /.test(l)).length;
+    return {
+      isToday: sameDay(d.date, today),
+      weekday: d.date.toLocaleDateString(void 0, { weekday: "short" }).toUpperCase(),
+      dayNum: String(d.date.getDate()),
+      meta: d.exists ? `${open} open \xB7 ${done} done` : "no note",
+      empty: d.tasks.length ? null : d.exists ? "\u2014" : "",
+      rows: taskLineRows(d.tasks)
+    };
+  });
+  return { stats: { open: totals.open, done: totals.done, total: totals.open + totals.done }, columns };
+}
 async function renderPlannerPane(view, root) {
   root.addClass("cadence-planner");
   const settings = view.plugin.settings;
@@ -4017,9 +4112,7 @@ async function renderPlannerPane(view, root) {
   const header = root.createDiv({ cls: "cad-pl-header" });
   const titleWrap = header.createDiv({ cls: "cad-pl-title-wrap" });
   titleWrap.createDiv({ cls: "cad-eyebrow", text: "WEEK OF" });
-  const startStr = days[0].toLocaleDateString(void 0, { month: "long", day: "numeric" });
-  const endStr = days[6].toLocaleDateString(void 0, { month: "long", day: "numeric", year: "numeric" });
-  titleWrap.createDiv({ cls: "cad-pl-title", text: `${startStr} \u2013 ${endStr}` });
+  titleWrap.createDiv({ cls: "cad-pl-title", text: plannerWeekTitle(days) });
   const nav = header.createDiv({ cls: "cad-pl-nav" });
   const mkBtn = (label, fn, cls = "") => {
     const b = nav.createEl("button", { text: label, cls: "cad-pl-btn " + cls });
@@ -4037,22 +4130,20 @@ async function renderPlannerPane(view, root) {
     view.plannerAnchor = addDays(view.plannerAnchor, 7);
     view.render();
   });
-  let totalOpen = 0, totalDone = 0;
   let dayData = [];
   if (settings.taskManagementSystem === "tasknotes") {
     const allTasks = listTaskNotesTasks(view.app);
     dayData = days.map((d) => {
-      const ymdStr = ymd(d);
       const path = dailyNotePath(settings, d);
       const file = view.app.vault.getAbstractFileByPath(path);
-      const tasksForDay = allTasks.filter((t) => t.scheduled === ymdStr);
+      const forDay = taskNotesToday(allTasks, ymd(d));
       return {
         date: d,
         path,
         exists: !!file,
         file,
-        tasks: tasksForDay.map((t) => `- [${t.done ? "x" : " "}] ${t.title}`),
-        rawTasks: tasksForDay
+        tasks: forDay.lines,
+        rawTasks: forDay.tasks
       };
     });
   } else {
@@ -4067,37 +4158,24 @@ async function renderPlannerPane(view, root) {
       return { date: d, path, exists: true, file, tasks: parsed.tasks };
     }));
   }
-  dayData.forEach((d) => {
-    d.tasks.forEach((l) => {
-      if (/ \[(x|X)\] /.test(l)) totalDone++;
-      else if (/ \[ \] /.test(l)) totalOpen++;
-    });
-  });
+  const week = plannerWeek(dayData, today);
   const stats = root.createDiv({ cls: "cad-pl-stats" });
   const mkStat = (label, value) => {
     const c = stats.createDiv({ cls: "cad-pl-stat" });
     c.createDiv({ cls: "cad-pl-stat-label", text: label });
     c.createDiv({ cls: "cad-pl-stat-value", text: String(value) });
   };
-  mkStat("OPEN", totalOpen);
-  mkStat("DONE", totalDone);
-  mkStat("TOTAL", totalOpen + totalDone);
+  mkStat("OPEN", week.stats.open);
+  mkStat("DONE", week.stats.done);
+  mkStat("TOTAL", week.stats.total);
   const grid = root.createDiv({ cls: "cad-pl-grid" });
-  dayData.forEach((d) => {
-    const isToday = sameDay(d.date, today);
-    const col = grid.createDiv({ cls: "cad-pl-day" + (isToday ? " today" : "") });
+  dayData.forEach((d, dayIdx) => {
+    const column = week.columns[dayIdx];
+    const col = grid.createDiv({ cls: "cad-pl-day" + (column.isToday ? " today" : "") });
     const colHead = col.createDiv({ cls: "cad-pl-day-head" });
-    colHead.createDiv({
-      cls: "cad-pl-weekday",
-      text: d.date.toLocaleDateString(void 0, { weekday: "short" }).toUpperCase()
-    });
-    colHead.createDiv({ cls: "cad-pl-daynum", text: String(d.date.getDate()) });
-    const open = d.tasks.filter((l) => / \[ \] /.test(l)).length;
-    const done = d.tasks.filter((l) => / \[(x|X)\] /.test(l)).length;
-    colHead.createDiv({
-      cls: "cad-pl-meta",
-      text: d.exists ? `${open} open \xB7 ${done} done` : "no note"
-    });
+    colHead.createDiv({ cls: "cad-pl-weekday", text: column.weekday });
+    colHead.createDiv({ cls: "cad-pl-daynum", text: column.dayNum });
+    colHead.createDiv({ cls: "cad-pl-meta", text: column.meta });
     colHead.addEventListener("click", async () => {
       if (!d.exists) {
         await ensureDailyNote(view.app, settings, d.date);
@@ -4105,12 +4183,10 @@ async function renderPlannerPane(view, root) {
       view.app.workspace.openLinkText(d.path, "", false);
     });
     const list = col.createDiv({ cls: "cad-pl-tasks" });
-    if (!d.tasks.length) {
-      list.createDiv({ cls: "cad-empty", text: d.exists ? "\u2014" : "" });
+    if (column.empty !== null) {
+      list.createDiv({ cls: "cad-empty", text: column.empty });
     } else {
-      d.tasks.forEach((rawLine, idx) => {
-        const checked = / \[(x|X)\] /.test(rawLine);
-        const text = rawLine.replace(/^\s*-\s\[(x|X| )\]\s/, "");
+      column.rows.forEach(({ checked, text }, idx) => {
         const row = list.createDiv({ cls: "cad-pl-task" + (checked ? " done" : "") });
         const cb = row.createEl("input", { type: "checkbox" });
         cb.checked = checked;
@@ -4139,14 +4215,7 @@ async function togglePlannerTask(view, day, idx, checked) {
   } else {
     if (!day.file) return;
     const content = await view.app.vault.read(day.file);
-    const parsed = parseSections(content, view.plugin.settings);
-    const taskLine = parsed.tasks[idx] || "";
-    const taskText = taskLine.replace(/^\s*-\s\[(x|X| )\]\s/, "").trim();
-    const newTasks = parsed.tasks.map((line, i) => {
-      if (i !== idx) return line;
-      return checked ? line.replace(/^\s*-\s\[\s\]\s/, "- [x] ") : line.replace(/^\s*-\s\[(x|X)\]\s/, "- [ ] ");
-    });
-    const newContent = replaceSection(content, view.plugin.settings.tasksHeading, newTasks.join("\n"));
+    const { content: newContent, taskText } = toggleDailyTask(content, view.plugin.settings, idx, checked);
     await view.app.vault.modify(day.file, newContent);
     if (taskText) {
       await view._propagateTaskComplete(taskText, checked, { kind: "daily", file: day.file, date: day.date });
@@ -4215,28 +4284,25 @@ function openTaskProjectPicker(view, dailyPath, text, currentLink) {
   }(view.app, projects, !!currentLink);
   picker.open();
 }
-async function propagateTaskComplete(view, text, done, source) {
+function propagationTargets(text, done, source, reminders, dailyNoteFolder, now) {
   const t = String(text || "").trim();
-  if (!t) return;
+  if (!t) return null;
   source = source || {};
-  const reminders = (view.plugin.settings.reminders || []).slice();
   const matches = reminders.filter((r) => r.text && r.text.trim() === t);
+  const reminderIds = [];
   for (const r of matches) {
     if (source.kind === "reminder" && r.id === source.id) continue;
     if (!!r.done === !!done) continue;
-    await view.plugin.updateReminder(r.id, { done: !!done });
+    reminderIds.push(r.id);
   }
-  const projectsTouched = /* @__PURE__ */ new Set();
+  const projectPaths = [];
   for (const r of matches) {
     if (!r.project) continue;
     if (source.kind === "project" && source.file && source.file.path === r.project) continue;
-    if (projectsTouched.has(r.project)) continue;
-    projectsTouched.add(r.project);
-    const file = view.app.vault.getAbstractFileByPath(r.project);
-    if (!file || !(file instanceof import_obsidian17.TFile)) continue;
-    await view._tickProjectTaskByText(file, t, !!done);
+    if (projectPaths.includes(r.project)) continue;
+    projectPaths.push(r.project);
   }
-  const datesToCheck = /* @__PURE__ */ new Set([ymd(/* @__PURE__ */ new Date())]);
+  const datesToCheck = /* @__PURE__ */ new Set([ymd(now)]);
   matches.forEach((r) => {
     if (r.when) {
       const d = new Date(r.when);
@@ -4248,13 +4314,30 @@ async function propagateTaskComplete(view, text, done, source) {
     }
   });
   if (source.kind === "daily" && source.date) datesToCheck.add(ymd(source.date));
-  const settings = view.plugin.settings;
+  const dailyPaths = [];
   for (const dateStr of datesToCheck) {
-    const path = settings.dailyNoteFolder ? `${settings.dailyNoteFolder.replace(/\/$/, "")}/${dateStr}.md` : `${dateStr}.md`;
+    const path = dailyNoteFolder ? `${dailyNoteFolder.replace(/\/$/, "")}/${dateStr}.md` : `${dateStr}.md`;
+    if (source.kind === "daily" && source.file && source.file.path === path) continue;
+    dailyPaths.push(path);
+  }
+  return { text: t, reminderIds, projectPaths, dailyPaths };
+}
+async function propagateTaskComplete(view, text, done, source) {
+  const settings = view.plugin.settings;
+  const targets = propagationTargets(text, done, source, (settings.reminders || []).slice(), settings.dailyNoteFolder, /* @__PURE__ */ new Date());
+  if (!targets) return;
+  for (const id of targets.reminderIds) {
+    await view.plugin.updateReminder(id, { done: !!done });
+  }
+  for (const path of targets.projectPaths) {
     const file = view.app.vault.getAbstractFileByPath(path);
     if (!file || !(file instanceof import_obsidian17.TFile)) continue;
-    if (source.kind === "daily" && source.file && source.file.path === file.path) continue;
-    await view._tickDailyNoteTaskByText(file, t, !!done);
+    await view._tickProjectTaskByText(file, targets.text, !!done);
+  }
+  for (const path of targets.dailyPaths) {
+    const file = view.app.vault.getAbstractFileByPath(path);
+    if (!file || !(file instanceof import_obsidian17.TFile)) continue;
+    await view._tickDailyNoteTaskByText(file, targets.text, !!done);
   }
 }
 async function tickProjectTaskByText(view, file, text, done) {
@@ -4264,19 +4347,8 @@ async function tickProjectTaskByText(view, file, text, done) {
   } catch (_) {
     return;
   }
-  const sections = parseH2Sections(content);
-  const tasks = parseTasksList(sections["Tasks"] || "");
-  let changed = false;
-  const updated = tasks.map((tk) => {
-    if (tk.title.trim() === text && !!tk.done !== !!done) {
-      changed = true;
-      return Object.assign({}, tk, { done: !!done });
-    }
-    return tk;
-  });
-  if (!changed) return;
-  const newSection = stringifyTasks(updated);
-  const next = replaceSection(content, "## Tasks", newSection);
+  const next = tickProjectTasks(content, text, done);
+  if (next === null) return;
   await view.app.vault.modify(file, next);
 }
 async function tickDailyNoteTaskByText(view, file, text, done) {
@@ -4286,19 +4358,8 @@ async function tickDailyNoteTaskByText(view, file, text, done) {
   } catch (_) {
     return;
   }
-  const parsed = parseSections(content, view.plugin.settings);
-  let changed = false;
-  const updatedTasks = parsed.tasks.map((line) => {
-    const lineText = line.replace(/^\s*-\s\[(x|X| )\]\s/, "").trim();
-    if (lineText !== text) return line;
-    const isDone = / \[(x|X)\] /.test(line);
-    if (isDone === !!done) return line;
-    changed = true;
-    return done ? line.replace(/^\s*-\s\[\s\]\s/, "- [x] ") : line.replace(/^\s*-\s\[(x|X)\]\s/, "- [ ] ");
-  });
-  if (!changed) return;
-  const newSection = updatedTasks.join("\n");
-  const next = replaceSection(content, view.plugin.settings.tasksHeading, newSection);
+  const next = tickDailyTasks(content, view.plugin.settings, text, done);
+  if (next === null) return;
   await view.app.vault.modify(file, next);
 }
 

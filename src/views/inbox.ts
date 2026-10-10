@@ -7,16 +7,31 @@ import type { Reminder, ReminderBucket } from '../types/reminders';
 import type { TaskItem } from '../utils/parsing';
 import type { AppViewHost } from './host';
 
-export function inboxOverdueCount(view: AppViewHost): number {
-  const reminders = (view.plugin.settings.reminders || []).filter((r) => !r.done);
-  const now = Date.now();
-  return reminders.filter((r) => r.when && new Date(r.when).getTime() <= now).length;
+/** Open reminders due at or before `now` (ms). An unparseable time never is. */
+export function overdueCount(reminders: Reminder[] | undefined, now: number): number {
+  const open = (reminders || []).filter((r) => !r.done);
+  return open.filter((r) => r.when && new Date(r.when).getTime() <= now).length;
 }
 
-/* ── Inbox (Planner reminders + captures) ── */
-export async function renderInbox(view: AppViewHost, root: HTMLElement): Promise<void> {
-  root.addClass('cadence-inbox');
-  const all = (view.plugin.settings.reminders || []).filter((r) => !r.done);
+export function inboxOverdueCount(view: AppViewHost): number {
+  return overdueCount(view.plugin.settings.reminders, Date.now());
+}
+
+const INBOX_SECTION_LABELS: Record<ReminderBucket, string> = { now: 'NOW · OVERDUE OR DUE WITHIN 1 HOUR', today: 'TODAY', week: 'THIS WEEK', later: 'LATER · UNSCHEDULED' };
+
+export interface InboxSection {
+  key: ReminderBucket;
+  /** `LABEL · count`. */
+  label: string;
+  items: Reminder[];
+}
+
+/** The Inbox's open reminders: sorted by time (unscheduled last), ties and
+    unscheduled items newest capture first, then grouped into the non-empty
+    buckets in now / today / week / later order. Buckets come from
+    reminderBucket, which reads the clock. The settings array is not sorted. */
+export function inboxRows(reminders: Reminder[] | undefined): { count: number; subtitle: string; sections: InboxSection[] } {
+  const all = (reminders || []).filter((r) => !r.done);
 
   // Sort: scheduled by when, captures by createdAt
   all.sort((a, b) => {
@@ -32,23 +47,35 @@ export async function renderInbox(view: AppViewHost, root: HTMLElement): Promise
   const buckets: Record<ReminderBucket, Reminder[]> = { now: [], today: [], week: [], later: [] };
   all.forEach((r) => buckets[reminderBucket(r.when)].push(r));
 
-  view._renderPageHeader(root, 'Inbox', `${all.length} ${all.length === 1 ? 'item' : 'items'} · capture once, surface at the right time`, (right) => {
+  const sections = (['now', 'today', 'week', 'later'] as ReminderBucket[])
+    .filter((key) => buckets[key].length)
+    .map((key) => ({ key, label: `${INBOX_SECTION_LABELS[key]} · ${buckets[key].length}`, items: buckets[key] }));
+  return {
+    count: all.length,
+    subtitle: `${all.length} ${all.length === 1 ? 'item' : 'items'} · capture once, surface at the right time`,
+    sections,
+  };
+}
+
+/* ── Inbox (Planner reminders + captures) ── */
+export async function renderInbox(view: AppViewHost, root: HTMLElement): Promise<void> {
+  root.addClass('cadence-inbox');
+  const inbox = inboxRows(view.plugin.settings.reminders);
+
+  view._renderPageHeader(root, 'Inbox', inbox.subtitle, (right) => {
     const captureBtn = right.createEl('button', { cls: 'cad-btn primary', text: '+ Quick capture' });
     captureBtn.addEventListener('click', () => view.plugin.openQuickCapture());
   });
 
-  if (!all.length) {
+  if (!inbox.count) {
     const empty = root.createDiv({ cls: 'cad-empty-state' });
     empty.createDiv({ cls: 'cad-empty-state-title', text: 'Inbox zero' });
     empty.createDiv({ cls: 'cad-empty-state-desc', text: 'Capture anything with + Quick capture above (or Cmd+Shift+I). Add a time and Cadence will remind you.' });
     return;
   }
 
-  const sectionLabels: Record<ReminderBucket, string> = { now: 'NOW · OVERDUE OR DUE WITHIN 1 HOUR', today: 'TODAY', week: 'THIS WEEK', later: 'LATER · UNSCHEDULED' };
-  (['now', 'today', 'week', 'later'] as ReminderBucket[]).forEach((key) => {
-    const items = buckets[key];
-    if (!items.length) return;
-    root.createDiv({ cls: 'cad-section-label-lg', text: `${sectionLabels[key]} · ${items.length}` });
+  inbox.sections.forEach(({ key, label, items }) => {
+    root.createDiv({ cls: 'cad-section-label-lg', text: label });
     const list = root.createDiv({ cls: 'cad-inbox-list' });
     items.forEach((r) => view._renderInboxRow(list, r, key));
   });
@@ -57,22 +84,28 @@ export async function renderInbox(view: AppViewHost, root: HTMLElement): Promise
   await view._renderProjectTasksSection(root);
 }
 
+/** A project's open, titled tasks from its `## Tasks` section. */
+export function openProjectTasks(content: string): TaskItem[] {
+  const sections = parseH2Sections(content);
+  return parseTasksList(sections['Tasks'] || '').filter((t) => !t.done && t.title);
+}
+
+export function projectTasksHeading(totalOpen: number, groupCount: number): string {
+  return `PROJECT TASKS · ${totalOpen} open across ${groupCount} ${groupCount === 1 ? 'project' : 'projects'}`;
+}
+
 export async function renderProjectTasksSection(view: AppViewHost, root: HTMLElement): Promise<void> {
   const projectFiles = listEntityFiles(view.app, 'project');
   if (!projectFiles.length) return;
 
   /* Read each project's Tasks section + collect open tasks */
-  const groups = [];
+  const groups: Array<{ file: TFile; name: string | null; tasks: TaskItem[] }> = [];
   let totalOpen = 0;
   for (const file of projectFiles) {
     let content;
     try { content = await view.app.vault.read(file); }
     catch (_) { continue; }
-    const sections = parseH2Sections(content);
-    const tasksText = sections['Tasks'] || '';
-    if (!tasksText.trim()) continue;
-    const tasks = parseTasksList(tasksText);
-    const open = tasks.filter((t) => !t.done && t.title);
+    const open = openProjectTasks(content);
     if (!open.length) continue;
     totalOpen += open.length;
     groups.push({
@@ -84,7 +117,7 @@ export async function renderProjectTasksSection(view: AppViewHost, root: HTMLEle
 
   if (!totalOpen) return;
 
-  root.createDiv({ cls: 'cad-section-label-lg', text: `PROJECT TASKS · ${totalOpen} open across ${groups.length} ${groups.length === 1 ? 'project' : 'projects'}` });
+  root.createDiv({ cls: 'cad-section-label-lg', text: projectTasksHeading(totalOpen, groups.length) });
   const wrap = root.createDiv({ cls: 'cad-pt-wrap' });
 
   groups.forEach((g) => {
@@ -129,6 +162,44 @@ export async function renderProjectTasksSection(view: AppViewHost, root: HTMLEle
   });
 }
 
+/** The repeat badge for a scheduled item; any repeat but none or daily reads weekly. */
+export function repeatLabel(repeat: string | null | undefined): string | null {
+  if (!repeat || repeat === 'none') return null;
+  return repeat === 'daily' ? '↻ daily' : '↻ weekly';
+}
+
+/** The first non-blank notes line, cut to 117 characters plus '…' past 120. */
+export function notesPreview(notes: string | null | undefined): string {
+  if (!notes) return '';
+  const previewLine = String(notes).split('\n').find((l) => l.trim()) || '';
+  return previewLine.length > 120 ? previewLine.slice(0, 117) + '…' : previewLine;
+}
+
+/** "Tom." snooze: 9am local tomorrow, as an ISO string. */
+export function tomorrowAtNine(now: Date): string {
+  const d = new Date(now); d.setDate(d.getDate() + 1); d.setHours(9, 0, 0, 0);
+  return d.toISOString();
+}
+
+export type InboxRowAction = 'snooze15' | 'snooze60' | 'tomorrow' | 'schedule' | 'edit' | 'done' | 'delete';
+
+/** An Inbox row's action buttons, in order. */
+export function inboxRowActions(scheduled: boolean): Array<{ action: InboxRowAction; label: string; title: string }> {
+  const timed: Array<{ action: InboxRowAction; label: string; title: string }> = scheduled
+    ? [
+      { action: 'snooze15', label: '+15m', title: 'Snooze 15 minutes' },
+      { action: 'snooze60', label: '+1h', title: 'Snooze 1 hour' },
+      { action: 'tomorrow', label: 'Tom.', title: 'Snooze to tomorrow 9am' },
+    ]
+    : [{ action: 'schedule', label: 'Schedule', title: 'Add a time' }];
+  return [
+    ...timed,
+    { action: 'edit', label: 'Edit', title: 'Edit details + notes' },
+    { action: 'done', label: 'Done', title: 'Mark done' },
+    { action: 'delete', label: '×', title: 'Delete' },
+  ];
+}
+
 export function renderInboxRow(view: AppViewHost, parent: HTMLElement, r: Reminder, bucket: ReminderBucket): void {
   const row = parent.createDiv({ cls: 'cad-inbox-row' + (bucket === 'now' ? ' overdue' : '') });
 
@@ -136,9 +207,8 @@ export function renderInboxRow(view: AppViewHost, parent: HTMLElement, r: Remind
   const tWrap = left.createDiv({ cls: 'cad-inbox-time' });
   if (r.when) {
     tWrap.createSpan({ cls: 'cad-inbox-time-text', text: reminderTimeStr(r.when) });
-    if (r.repeat && r.repeat !== 'none') {
-      tWrap.createSpan({ cls: 'cad-inbox-repeat', text: r.repeat === 'daily' ? '↻ daily' : '↻ weekly' });
-    }
+    const repeat = repeatLabel(r.repeat);
+    if (repeat) tWrap.createSpan({ cls: 'cad-inbox-repeat', text: repeat });
   } else {
     tWrap.createSpan({ cls: 'cad-inbox-time-text muted', text: 'unscheduled' });
   }
@@ -158,13 +228,11 @@ export function renderInboxRow(view: AppViewHost, parent: HTMLElement, r: Remind
     });
   }
 
-  if (r.notes) {
-    const previewLine = String(r.notes).split('\n').find((l) => l.trim()) || '';
-    if (previewLine) {
-      const note = main.createDiv({ cls: 'cad-inbox-row-notes' });
-      note.createSpan({ cls: 'cad-inbox-row-notes-icon', text: '📝 ' });
-      note.appendText(previewLine.length > 120 ? previewLine.slice(0, 117) + '…' : previewLine);
-    }
+  const preview = notesPreview(r.notes);
+  if (preview) {
+    const note = main.createDiv({ cls: 'cad-inbox-row-notes' });
+    note.createSpan({ cls: 'cad-inbox-row-notes-icon', text: '📝 ' });
+    note.appendText(preview);
   }
 
   // Row body click → open edit modal
@@ -181,24 +249,23 @@ export function renderInboxRow(view: AppViewHost, parent: HTMLElement, r: Remind
     b.addEventListener('click', (ev) => { ev.stopPropagation(); fn(); });
     return b;
   };
-  if (r.when) {
-    mk('+15m', 'Snooze 15 minutes', () => view.plugin.snoozeReminder(r.id, 15 * 60 * 1000));
-    mk('+1h', 'Snooze 1 hour', () => view.plugin.snoozeReminder(r.id, 60 * 60 * 1000));
-    mk('Tom.', 'Snooze to tomorrow 9am', () => {
-      const d = new Date(); d.setDate(d.getDate() + 1); d.setHours(9, 0, 0, 0);
-      view.plugin.updateReminder(r.id, { when: d.toISOString(), notified: false });
-    });
-  } else {
-    mk('Schedule', 'Add a time', () => openEdit());
-  }
-  mk('Edit', 'Edit details + notes', () => openEdit());
-  const doneBtn = mk('Done', 'Mark done', async () => {
-    await view.plugin.completeReminder(r.id);
-    if (r.text) await view._propagateTaskComplete(r.text, true, { kind: 'reminder', id: r.id });
+  const handlers: Record<InboxRowAction, () => unknown> = {
+    snooze15: () => view.plugin.snoozeReminder(r.id, 15 * 60 * 1000),
+    snooze60: () => view.plugin.snoozeReminder(r.id, 60 * 60 * 1000),
+    tomorrow: () => view.plugin.updateReminder(r.id, { when: tomorrowAtNine(new Date()), notified: false }),
+    schedule: () => openEdit(),
+    edit: () => openEdit(),
+    done: async () => {
+      await view.plugin.completeReminder(r.id);
+      if (r.text) await view._propagateTaskComplete(r.text, true, { kind: 'reminder', id: r.id });
+    },
+    delete: () => {
+      if (confirm('Delete this reminder?')) view.plugin.deleteReminder(r.id);
+    },
+  };
+  inboxRowActions(!!r.when).forEach(({ action, label, title }) => {
+    const b = mk(label, title, handlers[action]);
+    if (action === 'done') b.classList.add('primary');
+    if (action === 'delete') b.classList.add('cad-btn-danger');
   });
-  doneBtn.classList.add('primary');
-  const delBtn = mk('×', 'Delete', () => {
-    if (confirm('Delete this reminder?')) view.plugin.deleteReminder(r.id);
-  });
-  delBtn.classList.add('cad-btn-danger');
 }

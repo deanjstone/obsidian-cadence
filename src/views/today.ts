@@ -2,13 +2,14 @@ import { Notice, TFile } from 'obsidian';
 import { dateInfo, greeting, ymd } from '../utils/dates';
 import { ensureDailyNote } from '../utils/daily-notes';
 import { projectNameFromPath } from '../utils/entities';
-import { parseH2Sections, parseHeaderKey, parseLinkValues, parseSections, replaceSection } from '../utils/parsing';
+import { parseH2Sections, parseHeaderKey, parseLinkValues, parseSections } from '../utils/parsing';
+import { appendDailyTask, replaceJournal, taskLineRows, taskNotesToday, toggleDailyTask } from '../utils/task-lines';
 import { appendTaskNotesTask, listTaskNotesTasks, toggleTaskNotesTask } from '../utils/tasknotes';
 import type { AppViewHost } from './host';
 
 /* App.commands is not in the public obsidian.d.ts. */
 interface CommandsApp {
-  commands: {
+  commands?: {
     commands: Record<string, unknown>;
     executeCommandById(id: string): boolean;
   };
@@ -17,9 +18,10 @@ interface CommandsApp {
 export async function quickAddTodayTask(view: AppViewHost): Promise<void> {
   if (view.plugin.settings.taskManagementSystem === 'tasknotes') {
     const commandId = "tasknotes:create-new-task";
-    const hasCommand = (view.app as unknown as CommandsApp).commands && (view.app as unknown as CommandsApp).commands.commands && (view.app as unknown as CommandsApp).commands.commands[commandId];
+    const commands = (view.app as unknown as CommandsApp).commands;
+    const hasCommand = commands && commands.commands && commands.commands[commandId];
     if (hasCommand) {
-      (view.app as unknown as CommandsApp).commands.executeCommandById(commandId);
+      commands.executeCommandById(commandId);
       return;
     }
   }
@@ -31,11 +33,46 @@ export async function quickAddTodayTask(view: AppViewHost): Promise<void> {
   if (!text) return;
   const file = await ensureDailyNote(view.app, view.plugin.settings);
   const content = await view.app.vault.read(file);
-  const parsed = parseSections(content, view.plugin.settings);
-  const newTasks = [...parsed.tasks, `- [ ] ${text}`];
-  const next = replaceSection(content, view.plugin.settings.tasksHeading, newTasks.join('\n'));
-  await view.app.vault.modify(file, next);
+  await view.app.vault.modify(file, appendDailyTask(content, view.plugin.settings, text));
   new Notice('Added to today');
+}
+
+/** The greeting line and the TODAY label's count. Open is a ` [ ] ` box;
+    done is every other line, so a line matching neither counts as done. */
+export function todaySummary(tasksList: string[], greet: string): { greeting: string; count: string } {
+  const open = tasksList.filter((l) => / \[ \] /.test(l)).length;
+  return {
+    greeting: open === 0
+      ? `${greet}. Nothing on the books — your day is clear.`
+      : `${greet}. You have ${open} ${open === 1 ? 'thing' : 'things'} to handle.`,
+    count: `${open} open · ${tasksList.length - open} done`,
+  };
+}
+
+/** A TaskNotes task's linked project: the first `projects` link, resolved
+    to the first markdown file with that basename. */
+export function taskNotesProjectPath(projects: unknown, files: Array<{ basename: string; path: string }>): string | null {
+  if (!projects) return null;
+  const parsed = parseLinkValues(projects);
+  if (!parsed.length) return null;
+  const projFile = files.find(f => f.basename === parsed[0].target);
+  return projFile ? projFile.path : null;
+}
+
+/** The daily note's other H2 sections: every key whose clean label is not
+    the tasks or journal heading (case-insensitive, defaults when unset). */
+export function customSectionKeys(sections: Record<string, string>, settings: { tasksHeading?: string; journalHeading?: string }): string[] {
+  const cleanTasksHeading = (settings.tasksHeading || '## Today').replace(/^##\s+/, '').trim().toLowerCase();
+  const cleanJournalHeading = (settings.journalHeading || '## Journal').replace(/^##\s+/, '').trim().toLowerCase();
+  return Object.keys(sections).filter((k) => {
+    const cleanK = parseHeaderKey(k).cleanLabel.toLowerCase();
+    return cleanK !== cleanTasksHeading && cleanK !== cleanJournalHeading;
+  });
+}
+
+/** The journal textarea's rows: the line count plus two, at least eight. */
+export function journalRows(value: string): number {
+  return Math.max(8, value.split('\n').length + 2);
 }
 
 /* ── Today pane ─────────────────────────── */
@@ -45,12 +82,11 @@ export async function renderTodayPane(view: AppViewHost, root: HTMLElement): Pro
   const fileContent = await view.app.vault.read(view.todayFile);
   view.todayParsed = parseSections(fileContent, view.plugin.settings);
 
-  let tasksList = [];
+  let tasksList: string[] = [];
   if (view.plugin.settings.taskManagementSystem === 'tasknotes') {
-    const todayYmd = ymd(new Date());
-    const allTaskNotes = listTaskNotesTasks(view.app);
-    view.todayTaskNotes = allTaskNotes.filter(t => t.scheduled === todayYmd);
-    tasksList = view.todayTaskNotes.map(t => `- [${t.done ? 'x' : ' '}] ${t.title}`);
+    const today = taskNotesToday(listTaskNotesTasks(view.app), ymd(new Date()));
+    view.todayTaskNotes = today.tasks;
+    tasksList = today.lines;
   } else {
     tasksList = view.todayParsed.tasks;
   }
@@ -63,29 +99,20 @@ export async function renderTodayPane(view: AppViewHost, root: HTMLElement): Pro
   monthCol.createDiv({ cls: 'cad-month', text: info.month });
   monthCol.createDiv({ cls: 'cad-year', text: String(info.year) });
 
-  const taskCount = tasksList.filter((l) => / \[ \] /.test(l)).length;
-  root.createDiv({
-    cls: 'cad-greet',
-    text: taskCount === 0
-      ? `${greeting()}. Nothing on the books — your day is clear.`
-      : `${greeting()}. You have ${taskCount} ${taskCount === 1 ? 'thing' : 'things'} to handle.`,
-  });
+  const summary = todaySummary(tasksList, greeting());
+  root.createDiv({ cls: 'cad-greet', text: summary.greeting });
 
   /* Tasks */
   const taskSection = root.createDiv({ cls: 'cad-section' });
   const taskLabel = taskSection.createDiv({ cls: 'cad-section-label' });
   taskLabel.createSpan({ text: 'TODAY' });
-  const total = tasksList.length;
-  const open = tasksList.filter((l) => / \[ \] /.test(l)).length;
-  taskLabel.createSpan({ cls: 'cad-count', text: `${open} open · ${total - open} done` });
+  taskLabel.createSpan({ cls: 'cad-count', text: summary.count });
 
   if (!tasksList.length) {
     taskSection.createDiv({ cls: 'cad-empty', text: 'No tasks in today\'s note yet.' });
   } else {
     const dailyPath = view.todayFile.path;
-    tasksList.forEach((rawLine, idx) => {
-      const checked = / \[(x|X)\] /.test(rawLine);
-      const text = rawLine.replace(/^\s*-\s\[(x|X| )\]\s/, '');
+    taskLineRows(tasksList).forEach(({ checked, text }, idx) => {
       const row = taskSection.createDiv({ cls: 'cad-task-row' + (checked ? ' done' : '') });
       const cb = row.createEl('input', { type: 'checkbox' });
       cb.checked = checked;
@@ -104,18 +131,10 @@ export async function renderTodayPane(view: AppViewHost, root: HTMLElement): Pro
       }
 
       /* Project link — chip if linked, then a button */
-      let linkedProject = null;
+      let linkedProject: string | null = null;
       if (view.plugin.settings.taskManagementSystem === 'tasknotes') {
         const taskObj = view.todayTaskNotes![idx];
-        if (taskObj.projects) {
-          const parsed = parseLinkValues(taskObj.projects);
-          if (parsed.length > 0) {
-            const projFile = view.app.vault.getMarkdownFiles().find(f => f.basename === parsed[0].target);
-            if (projFile) {
-              linkedProject = projFile.path;
-            }
-          }
-        }
+        if (taskObj.projects) linkedProject = taskNotesProjectPath(taskObj.projects, view.app.vault.getMarkdownFiles());
       } else {
         linkedProject = view._getTaskProjectLink(dailyPath, text);
       }
@@ -126,7 +145,7 @@ export async function renderTodayPane(view: AppViewHost, root: HTMLElement): Pro
         chip.addEventListener('click', (ev) => {
           ev.preventDefault();
           ev.stopPropagation();
-          const file = view.app.vault.getAbstractFileByPath(linkedProject);
+          const file = view.app.vault.getAbstractFileByPath(linkedProject!);
           if (file && file instanceof TFile) view.openEntityDetail('project', file);
         });
       }
@@ -163,7 +182,7 @@ export async function renderTodayPane(view: AppViewHost, root: HTMLElement): Pro
   const ta = journalSection.createEl('textarea', { cls: 'cad-journal' });
   ta.value = view.todayParsed.journal;
   ta.placeholder = 'Write what’s on your mind…';
-  ta.rows = Math.max(8, ta.value.split('\n').length + 2);
+  ta.rows = journalRows(ta.value);
   ta.addEventListener('input', () => {
     ta.style.height = 'auto';
     ta.style.height = ta.scrollHeight + 'px';
@@ -174,13 +193,7 @@ export async function renderTodayPane(view: AppViewHost, root: HTMLElement): Pro
 
   /* Custom sections from daily note */
   const allSections = parseH2Sections(fileContent);
-  const cleanTasksHeading = (view.plugin.settings.tasksHeading || '## Today').replace(/^##\s+/, '').trim().toLowerCase();
-  const cleanJournalHeading = (view.plugin.settings.journalHeading || '## Journal').replace(/^##\s+/, '').trim().toLowerCase();
-
-  const otherKeys = Object.keys(allSections).filter((k) => {
-    const cleanK = parseHeaderKey(k).cleanLabel.toLowerCase();
-    return cleanK !== cleanTasksHeading && cleanK !== cleanJournalHeading;
-  });
+  const otherKeys = customSectionKeys(allSections, view.plugin.settings);
 
   if (otherKeys.length > 0) {
     const customWrap = root.createDiv({ cls: 'cad-custom-sections' });
@@ -219,16 +232,7 @@ export async function toggleTodayTask(view: AppViewHost, idx: number, checked: b
     }
   } else {
     const content = await view.app.vault.read(view.todayFile!);
-    const parsed = parseSections(content, view.plugin.settings);
-    const taskLine = parsed.tasks[idx] || '';
-    const taskText = taskLine.replace(/^\s*-\s\[(x|X| )\]\s/, '').trim();
-    const newTasks = parsed.tasks.map((line, i) => {
-      if (i !== idx) return line;
-      return checked
-        ? line.replace(/^\s*-\s\[\s\]\s/, '- [x] ')
-        : line.replace(/^\s*-\s\[(x|X)\]\s/, '- [ ] ');
-    });
-    const newContent = replaceSection(content, view.plugin.settings.tasksHeading, newTasks.join('\n'));
+    const { content: newContent, taskText } = toggleDailyTask(content, view.plugin.settings, idx, checked);
     await view.app.vault.modify(view.todayFile!, newContent);
     if (taskText) {
       await view._propagateTaskComplete(taskText, checked, { kind: 'daily', file: view.todayFile!, date: new Date() });
@@ -242,16 +246,12 @@ export async function appendTodayTask(view: AppViewHost, text: string): Promise<
     await appendTaskNotesTask(view.app, text, new Date());
   } else {
     const content = await view.app.vault.read(view.todayFile!);
-    const parsed = parseSections(content, view.plugin.settings);
-    const newTasks = [...parsed.tasks, `- [ ] ${text}`];
-    const newContent = replaceSection(content, view.plugin.settings.tasksHeading, newTasks.join('\n'));
-    await view.app.vault.modify(view.todayFile!, newContent);
+    await view.app.vault.modify(view.todayFile!, appendDailyTask(content, view.plugin.settings, text));
   }
   view.render();
 }
 
 export async function saveTodayJournal(view: AppViewHost, body: string | null | undefined): Promise<void> {
   const content = await view.app.vault.read(view.todayFile!);
-  const newContent = replaceSection(content, view.plugin.settings.journalHeading, body || '');
-  await view.app.vault.modify(view.todayFile!, newContent);
+  await view.app.vault.modify(view.todayFile!, replaceJournal(content, view.plugin.settings, body));
 }
