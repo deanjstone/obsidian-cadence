@@ -5,7 +5,7 @@ import { dailyNotePath, ymd } from './dates';
 /* ─────────── Daily-note read/write ─────────── */
 /* Returns whatever already sits at the daily-note path. That is a TFile in
    practice; a folder with the same name would be returned as-is (unchanged
-   legacy behaviour), hence the cast. */
+   original behaviour), hence the cast. */
 export async function ensureDailyNote(app: App, settings: DailyNoteSettings, date: Date = new Date()): Promise<TFile> {
   const path = dailyNotePath(settings, date);
   let file = app.vault.getAbstractFileByPath(path) as TFile | null;

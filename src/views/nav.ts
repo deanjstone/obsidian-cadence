@@ -72,7 +72,7 @@ export type SurfaceMethod =
   | 'renderReportPartners' | 'renderReportActivity' | 'renderReportGraph' | 'renderProductivity'
   | 'renderTeam' | 'renderTemplatesDashboard' | 'openSettingsTab';
 
-/* What render() shows for a mode. `inherited` keeps a legacy quirk: the
+/* What render() shows for a mode. `inherited` keeps an original quirk: the
    route table was a plain object, so a mode named after an Object.prototype
    member (only reachable through a hand-edited custom page id) "routed" to
    that member. */

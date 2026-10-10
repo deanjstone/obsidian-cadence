@@ -35,7 +35,7 @@ export async function setTaskProjectLink(view: AppViewHost, dailyPath: string, t
   view.render();
 }
 
-/* The legacy method opened with `const view = this;` for the inline class to
+/* The original method opened with `const view = this;` for the inline class to
    close over. Here `view` is already the parameter, so that line is gone; the
    class body keeps its own `this`. */
 export function openTaskProjectPicker(view: AppViewHost, dailyPath: string, text: string, currentLink: string | null): void {

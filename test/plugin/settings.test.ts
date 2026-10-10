@@ -46,10 +46,10 @@ describe("loadSettings: merge with the defaults", () => {
   });
 
   it("lets saved values override the defaults and keeps unknown keys", async () => {
-    const { plugin } = await loaded({ defaultTab: "crm.pipeline", weekStartsOn: 0, legacyKey: 7 });
+    const { plugin } = await loaded({ defaultTab: "crm.pipeline", weekStartsOn: 0, unknownKey: 7 });
     expect(plugin.settings.defaultTab).toBe("crm.pipeline");
     expect(plugin.settings.weekStartsOn).toBe(0);
-    expect(plugin.settings.legacyKey).toBe(7);
+    expect(plugin.settings.unknownKey).toBe(7);
     expect(plugin.settings.dailyNoteFolder).toBe("daily");
   });
 

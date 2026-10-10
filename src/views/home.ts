@@ -314,7 +314,7 @@ export function computeBriefing(data: BriefingData, now: Date): BriefingEntry[] 
   return items;
 }
 
-/* Gathers what the briefing reads (in the legacy order: tasks, deals,
+/* Gathers what the briefing reads (in the original order: tasks, deals,
    contacts, then each project note), runs computeBriefing and turns each
    entry's target into a click action. */
 export async function loadBriefing(view: AppViewHost): Promise<BriefingItem[]> {

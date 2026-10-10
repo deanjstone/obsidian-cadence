@@ -2,10 +2,9 @@ import type { App } from 'obsidian';
 import type { Reminder } from '../types/reminders';
 import type { PluginSettings } from '../types/settings';
 
-/* The plugin's seam. CadencePlugin (still in src/legacy/cadence.js) keeps a
-   one-line delegate for each method that moved to src/plugin/, and the
-   moved functions reach the plugin through this interface. See
-   src/views/README.md ("The plugin"). */
+/* The plugin's seam. CadencePlugin (src/main.ts) keeps a one-line delegate
+   for each method that moved to src/plugin/, and the moved functions reach
+   the plugin through this interface. See src/views/README.md ("The plugin"). */
 export interface PluginHost {
   app: App;
   settings: PluginSettings;
