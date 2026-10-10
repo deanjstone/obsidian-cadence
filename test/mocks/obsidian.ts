@@ -341,10 +341,17 @@ declare global {
     placeholder?: string;
     href?: string;
   }
+  interface SvgElementInfo {
+    cls?: string | string[];
+    attr?: { [key: string]: string | number | boolean | null };
+    parent?: Node;
+    prepend?: boolean;
+  }
   interface Node {
     empty(): void;
     createEl<K extends keyof HTMLElementTagNameMap>(tag: K, o?: DomElementInfo | string, callback?: (el: HTMLElementTagNameMap[K]) => void): HTMLElementTagNameMap[K];
     createDiv(o?: DomElementInfo | string, callback?: (el: HTMLDivElement) => void): HTMLDivElement;
+    createSvg<K extends keyof SVGElementTagNameMap>(tag: K, o?: SvgElementInfo | string, callback?: (el: SVGElementTagNameMap[K]) => void): SVGElementTagNameMap[K];
   }
   interface Element extends Node {
     setText(val: string | DocumentFragment): void;
@@ -360,6 +367,8 @@ declare global {
 
 export interface FakeEvent {
   type: string;
+  /** Extra fields passed to trigger() (dataTransfer, relatedTarget, …). */
+  [extra: string]: unknown;
   key?: string;
   metaKey?: boolean;
   ctrlKey?: boolean;
@@ -382,6 +391,7 @@ export class FakeElement {
   /** Last icon set on this element through setIcon(). */
   icon = '';
   checked = false;
+  draggable = false;
   disabled = false;
   required = false;
   rows = 0;
@@ -466,6 +476,28 @@ export class FakeElement {
     return this.createEl('div', o, callback);
   }
 
+  /* Like createEl: SvgElementInfo carries only cls and attr. */
+  createSvg(tag: string, o?: SvgElementInfo | string, callback?: (el: FakeElement) => void): FakeElement {
+    return this.createEl(tag, o, callback);
+  }
+
+  getAttribute(name: string): string | null {
+    const value = this.attrs[name];
+    return value == null ? null : String(value);
+  }
+
+  contains(other: unknown): boolean {
+    for (let node = other as FakeElement | null; node; node = node.parent) if (node === this) return true;
+    return false;
+  }
+
+  /** Descendants matching `tag`, `.cls` or `tag.cls` (one class only). */
+  querySelectorAll(selector: string): FakeElement[] {
+    const [tag, cls] = selector.split('.');
+    const all = this.children.flatMap((c) => [c, ...c.querySelectorAll('*')]);
+    return all.filter((e) => (!tag || tag === '*' || e.localName === tag) && (!cls || e.classes.includes(cls)));
+  }
+
   empty() {
     for (const child of this.children) child.parent = null;
     this.children.length = 0;
@@ -523,7 +555,7 @@ export class FakeElement {
   }
 
   /** Fire `type` at this element's listeners; returns the event. */
-  trigger(type: string, init: { key?: string; metaKey?: boolean; ctrlKey?: boolean } = {}): FakeEvent {
+  trigger(type: string, init: { key?: string; metaKey?: boolean; ctrlKey?: boolean; [extra: string]: unknown } = {}): FakeEvent {
     const event: FakeEvent = {
       type,
       ...init,
@@ -615,6 +647,9 @@ export function setIcon(el: unknown, icon: string) {
   if (el instanceof FakeElement) el.icon = icon;
 }
 
+/* Renders nothing; spy on renderMarkdown to fake its output. */
 export const MarkdownRenderer = {
   render: async () => {},
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  renderMarkdown: async (_markdown: string, _el: HTMLElement, _sourcePath: string, _component: unknown) => {},
 };
