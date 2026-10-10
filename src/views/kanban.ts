@@ -4,6 +4,7 @@ import { CadenceImportModal } from '../modals/import-modal';
 import { entityValue, listEntities } from '../utils/entities';
 import { fmtValue } from '../utils/format';
 import { parseLinkValues } from '../utils/parsing';
+import type { Entity, EntityDef, EntityField } from '../types/entities';
 import type { AppViewHost } from './host';
 
 /** Which field groups a kanban board, and its columns in order. */
@@ -12,11 +13,16 @@ export interface KanbanParams {
   groups: string[];
 }
 
-export function getEntityKanbanParams(view: AppViewHost, entityKey: string): KanbanParams {
-  const def = ENTITIES[entityKey];
-  if (!def) return { groupBy: 'status', groups: ['Active', 'Done'] };
+/** A `[[Link]]` value with its brackets and outer whitespace removed. */
+export function unwrapLink(value: unknown): string {
+  return String(value).replace(/^\[\[|\]\]$/g, '').trim();
+}
 
-  let groupBy = view.plugin.settings.pageKanbanGroupBy?.[entityKey];
+/** The group-by field: the saved one, else `stage` for deals, `type` for
+    activities, else the first non-primary enum or text field, else `status`
+    (even when the entity has no such field). */
+export function kanbanGroupBy(entityKey: string, def: EntityDef, saved: string | undefined): string {
+  let groupBy = saved;
 
   if (!groupBy) {
     const fallbackField = def.fields.find(field => !field.primary && ['enum', 'text'].includes(field.type as string));
@@ -24,29 +30,116 @@ export function getEntityKanbanParams(view: AppViewHost, entityKey: string): Kan
     if (entityKey === 'deal') groupBy = 'stage';
     else if (entityKey === 'activity') groupBy = 'type';
   }
+  return groupBy;
+}
 
-  let f = def.fields.find(field => field.key === groupBy);
-  let groups = f ? (f.options || []) : [];
+/** The group-by field's options, or [] when it has none or doesn't exist. */
+export function kanbanOptions(def: EntityDef, groupBy: string): string[] {
+  const f = def.fields.find(field => field.key === groupBy);
+  return f ? (f.options || []) : [];
+}
 
-  if (!groups.length) {
-    const allFiles = listEntities(view.app, entityKey);
-    const uniqueVals = new Set<string>();
-    allFiles.forEach(e => {
-      const val = entityValue(e, groupBy, def);
-      if (val) {
-        const parts = Array.isArray(val) ? val : String(val).split(',');
-        parts.forEach(v => {
-          const clean = String(v).replace(/^\[\[|\]\]$/g, '').trim();
-          if (clean) uniqueVals.add(clean);
-        });
-      }
-    });
-    groups = Array.from(uniqueVals);
-    if (!groups.length) {
-      groups = ['To Do', 'In Progress', 'Done'];
+/** Columns for a field without options: its distinct values in first-seen
+    order (arrays flattened, strings comma-split, links unwrapped), or
+    To Do / In Progress / Done when there are none. */
+export function distinctGroups(entities: Entity[], groupBy: string, def: EntityDef): string[] {
+  const uniqueVals = new Set<string>();
+  entities.forEach(e => {
+    const val = entityValue(e, groupBy, def);
+    if (val) {
+      const parts = Array.isArray(val) ? val : String(val).split(',');
+      parts.forEach(v => {
+        const clean = unwrapLink(v);
+        if (clean) uniqueVals.add(clean);
+      });
     }
-  }
+  });
+  const groups = Array.from(uniqueVals);
+  return groups.length ? groups : ['To Do', 'In Progress', 'Done'];
+}
+
+export function getEntityKanbanParams(view: AppViewHost, entityKey: string): KanbanParams {
+  const def = ENTITIES[entityKey];
+  if (!def) return { groupBy: 'status', groups: ['Active', 'Done'] };
+
+  const groupBy = kanbanGroupBy(entityKey, def, view.plugin.settings.pageKanbanGroupBy?.[entityKey]);
+  let groups = kanbanOptions(def, groupBy);
+  // The vault is only read when the field has no options.
+  if (!groups.length) groups = distinctGroups(listEntities(view.app, entityKey), groupBy, def);
   return { groupBy, groups };
+}
+
+/** The fields the list's group-by selector offers: non-primary enum, text,
+    multitext and tags fields. Fields with no type are left out. */
+export function kanbanGroupByFields(def: EntityDef): EntityField[] {
+  return def.fields.filter(field => !field.primary && ['enum', 'text', 'multitext', 'tags'].includes(field.type as string));
+}
+
+/** True when an entity's group-by value matches a column: case-insensitive,
+    links unwrapped, any item of an array. */
+export function inKanbanGroup(val: unknown, stage: string): boolean {
+  if (Array.isArray(val)) {
+    const cleanVals = val.map(v => unwrapLink(v).toLowerCase());
+    return cleanVals.includes(stage.toLowerCase());
+  }
+  return unwrapLink(val || '').toLowerCase() === stage.toLowerCase();
+}
+
+export interface KanbanColumn {
+  stage: string;
+  items: Entity[];
+}
+
+/** One column per group, in order. An entity can sit in several columns,
+    and one that matches no group is in none. */
+export function kanbanGroups(list: Entity[], groupBy: string, groups: string[], def: EntityDef): KanbanColumn[] {
+  return groups.map((stage) => ({ stage, items: list.filter((e) => inKanbanGroup(entityValue(e, groupBy, def), stage)) }));
+}
+
+/** The first currency or number field: summed in column heads, shown on cards. */
+export function kanbanValueField(def: EntityDef): EntityField | undefined {
+  return def.fields.find(f => f.type === 'currency' || f.type === 'number');
+}
+
+/** A column head's meta line: `count · total` with a value field, else the count. */
+export function kanbanColumnMeta(items: Entity[], def: EntityDef): string {
+  const valueField = kanbanValueField(def);
+  if (valueField) {
+    const sum = items.reduce((s, e) => s + (Number(entityValue(e, valueField.key, def)) || 0), 0);
+    return `${items.length} · ${fmtValue(sum, valueField.type)}`;
+  }
+  return `${items.length}`;
+}
+
+/** What a drop writes to the group-by field: a list for multitext, tags and
+    isList fields, a `[[link]]` when the field has a link suggestion source. */
+export function kanbanDropValue(fDef: EntityField | undefined, stage: string): string | string[] {
+  const isList = fDef && (fDef.type === 'multitext' || fDef.type === 'tags' || fDef.isList === true);
+  const isLink = fDef && fDef.suggestionSource && fDef.suggestionSource !== 'none' && fDef.suggestionSource !== 'tags' && fDef.suggestionSource !== 'history';
+  if (isList) {
+    return isLink ? [`[[${stage}]]`] : [stage];
+  }
+  return isLink ? `[[${stage}]]` : stage;
+}
+
+export interface KanbanCardLink {
+  display: string;
+  target: string;
+  /** The detail form a matching note opens in: owner and assigned are contacts. */
+  entityKey: string;
+}
+
+/** A card's relation links, from its company, contact, owner and assigned
+    fields, in that order. Fields the entity doesn't define are skipped. */
+export function kanbanCardLinks(e: Entity, def: EntityDef): KanbanCardLink[] {
+  const relFields = ['company', 'contact', 'owner', 'assigned'];
+  return relFields.flatMap(rf => {
+    const rfDef = def.fields.find(f => f.key === rf);
+    if (!rfDef) return [];
+    return parseLinkValues(entityValue(e, rf, def)).map(v => ({
+      display: v.display, target: v.target, entityKey: rf === 'owner' || rf === 'assigned' ? 'contact' : rf,
+    }));
+  });
 }
 
 /* The older pipeline board. Flagged: nothing calls it (the list's kanban

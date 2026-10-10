@@ -4,8 +4,11 @@ import { CadenceImportModal } from '../modals/import-modal';
 import { entityValue, getFieldSuggestionSource, listEntities, readProjectMeta } from '../utils/entities';
 import { fmtValue, pctBand } from '../utils/format';
 import { parseLinkValues } from '../utils/parsing';
-import type { Entity, EntityField } from '../types/entities';
+import type { Entity, EntityDef, EntityField } from '../types/entities';
 import type { AppViewHost } from './host';
+import {
+  kanbanCardLinks, kanbanColumnMeta, kanbanDropValue, kanbanGroupByFields, kanbanGroups, kanbanValueField, unwrapLink,
+} from './kanban';
 
 /** What a caller of renderEntityList can override (renderTeam passes all three). */
 export interface EntityListOptions {
@@ -13,6 +16,239 @@ export interface EntityListOptions {
   filter?: (entity: Entity) => boolean;
   /** Columns shown first; every other field is still appended. */
   columns?: string[];
+}
+
+/** The saved layout for a surface, else cards for Projects, kanban for the
+    Pipeline and a table elsewhere. Any saved string is returned as-is. */
+export function listLayout(mode: string, pageLayouts: Record<string, string> | undefined): string {
+  return pageLayouts?.[mode] || (mode === 'projects.projects' ? 'cards' : (mode === 'crm.pipeline' ? 'kanban' : 'table'));
+}
+
+/** `3 contacts in Cadence/Contacts`, with the singular label for one. */
+export function listSubtitle(count: number, def: EntityDef): string {
+  return `${count} ${count === 1 ? def.label.toLowerCase() : def.plural.toLowerCase()} in ${def.folder}`;
+}
+
+/** Keys that get a filter select: enum fields, plus a fixed set of relation
+    and status keys whatever their type. Checked against the first field with
+    each key. */
+export function filterableKeys(def: EntityDef): string[] {
+  return def.fields
+    .map(f => f.key)
+    .filter(k => {
+      const fdef = def.fields.find(f => f.key === k);
+      return !!fdef && (fdef.type === 'enum' || ['company', 'role', 'with', 'related', 'status', 'tier', 'type'].includes(k));
+    });
+}
+
+export interface FilterOption {
+  field: EntityField;
+  /** Distinct values, links unwrapped, sorted by code unit (so case-sensitive). */
+  values: string[];
+}
+
+/** One filter select per filterable key with at least one value among `entities`. */
+export function filterOptions(entities: Entity[], def: EntityDef): FilterOption[] {
+  return filterableKeys(def).flatMap(k => {
+    const fdef = def.fields.find(f => f.key === k);
+    if (!fdef) return [];
+
+    const uniqueVals = new Set<string>();
+    entities.forEach(e => {
+      const val = entityValue(e, k, def);
+      if (Array.isArray(val)) {
+        val.forEach(v => {
+          if (v) {
+            const clean = unwrapLink(v);
+            if (clean) uniqueVals.add(clean);
+          }
+        });
+      } else if (val != null && val !== '') {
+        const clean = unwrapLink(val);
+        if (clean) uniqueVals.add(clean);
+      }
+    });
+
+    if (uniqueVals.size === 0) return [];
+    return [{ field: fdef, values: Array.from(uniqueVals).sort() }];
+  });
+}
+
+/** The table columns: `columns` (or def.columns) in order, then every other
+    field. Unknown keys are dropped. */
+export function listColumns(def: EntityDef, columns?: string[]): EntityField[] {
+  const baseCols = columns || def.columns;
+  const cols = baseCols.map((k) => def.fields.find((f) => f.key === k)).filter(Boolean) as EntityField[];
+  // Dynamically append any custom/extra fields not present in baseCols
+  def.fields.forEach((f) => {
+    if (!baseCols.includes(f.key) && !cols.some(c => c.key === f.key)) {
+      cols.push(f);
+    }
+  });
+  return cols;
+}
+
+export interface ListQuery {
+  /** Already trimmed and lower-cased; '' matches everything. */
+  search: string;
+  /** Field key → selected value; '' means no filter. */
+  filters: Record<string, string>;
+}
+
+/** Entities whose column values or basename contain the search, and whose
+    values match every selected filter (case-insensitive, links unwrapped). */
+export function filterEntities(list: Entity[], def: EntityDef, cols: EntityField[], query: ListQuery): Entity[] {
+  const searchVal = query.search;
+  return list.filter(e => {
+    if (searchVal) {
+      const match = cols.some(f => {
+        const val = entityValue(e, f.key, def);
+        if (val == null) return false;
+        return String(val).toLowerCase().includes(searchVal);
+      }) || e.basename.toLowerCase().includes(searchVal);
+      if (!match) return false;
+    }
+
+    for (const [k, filterVal] of Object.entries(query.filters)) {
+      if (!filterVal) continue;
+      const val = entityValue(e, k, def);
+      if (Array.isArray(val)) {
+        const cleanVals = val.map(v => unwrapLink(v).toLowerCase());
+        if (!cleanVals.includes(filterVal.toLowerCase())) return false;
+      } else {
+        const cleanVal = unwrapLink(val || '').toLowerCase();
+        if (cleanVal !== filterVal.toLowerCase()) return false;
+      }
+    }
+
+    return true;
+  });
+}
+
+export interface ListSort {
+  /** '' leaves the order alone. */
+  field: string;
+  asc: boolean;
+}
+
+/** A sorted copy: numbers and currency numerically, dates by time (invalid
+    as 0), anything else as text, numeric-aware and case-insensitive. String
+    values have their [[ ]] stripped; arrays are compared as joined text. */
+export function sortEntities(list: Entity[], def: EntityDef, sort: ListSort): Entity[] {
+  const sorted = list.slice();
+  const currentSortField = sort.field;
+  if (currentSortField) {
+    const fdef = def.fields.find(f => f.key === currentSortField);
+    const ftype = fdef ? fdef.type : 'text';
+
+    sorted.sort((a, b) => {
+      let valA = entityValue(a, currentSortField, def);
+      let valB = entityValue(b, currentSortField, def);
+
+      if (valA && typeof valA === 'string') valA = unwrapLink(valA);
+      if (valB && typeof valB === 'string') valB = unwrapLink(valB);
+
+      if (valA == null) valA = '';
+      if (valB == null) valB = '';
+
+      let diff = 0;
+      if (ftype === 'number' || ftype === 'currency') {
+        diff = Number(valA) - Number(valB);
+      } else if (ftype === 'date') {
+        const dateA = new Date(valA as string).getTime() || 0;
+        const dateB = new Date(valB as string).getTime() || 0;
+        diff = dateA - dateB;
+      } else {
+        diff = String(valA).localeCompare(String(valB), undefined, { numeric: true, sensitivity: 'base' });
+      }
+
+      return sort.asc ? diff : -diff;
+    });
+  }
+  return sorted;
+}
+
+/** A header click: the sorted column flips direction, another sorts ascending. */
+export function nextSort(sort: ListSort, key: string): ListSort {
+  return sort.field === key ? { field: key, asc: !sort.asc } : { field: key, asc: true };
+}
+
+/** The primary field, or the first field when none is marked. */
+export function primaryField(def: EntityDef): EntityField {
+  return def.fields.find(f => f.primary) || def.fields[0];
+}
+
+export type TableCell =
+  | { kind: 'owner' }
+  | { kind: 'links'; target: string }
+  | { kind: 'text' };
+
+/** How a non-primary table cell renders: owner and assigned as contact links,
+    a multitext field with a link source as links to that source, a few
+    relation keys as links to their entity, anything else as formatted text. */
+export function tableCell(f: EntityField): TableCell {
+  if (f.key === 'owner' || f.key === 'assigned') return { kind: 'owner' };
+  const sugSrc = f.suggestionSource || getFieldSuggestionSource(f);
+  if (f.type === 'multitext' && sugSrc && sugSrc !== 'none' && sugSrc !== 'tags' && sugSrc !== 'history') {
+    return { kind: 'links', target: sugSrc };
+  }
+  if (f.key === 'company') return { kind: 'links', target: 'company' };
+  if (f.key === 'partner') return { kind: 'links', target: 'partner' };
+  if (f.key === 'contact' || f.key === 'contacts' || f.key === 'with') return { kind: 'links', target: 'contact' };
+  if (f.key === 'related') return { kind: 'links', target: 'project' };
+  return { kind: 'text' };
+}
+
+/** The card pill's field: the first status, type or tier field, else the first enum. */
+export function cardStatusField(def: EntityDef): EntityField | undefined {
+  return def.fields.find(f => f.key === 'status' || f.key === 'type' || f.key === 'tier') || def.fields.find(f => f.type === 'enum');
+}
+
+/** A card pill's text: the first item of an array. */
+export function pillText(val: unknown): string {
+  const clean = Array.isArray(val) ? val[0] : val;
+  return String(clean);
+}
+
+/** `cad-pill-<value>`, lower-cased with whitespace runs as dashes. */
+export function pillClass(text: string): string {
+  return `cad-pill-${text.toLowerCase().replace(/\s+/g, '-')}`;
+}
+
+export interface CardMetaRow {
+  field: EntityField;
+  value: unknown;
+  /** Rendered as links (relation keys and folder: sources), else as text. */
+  isLink: boolean;
+}
+
+/** A card's meta rows: up to four non-empty fields, in field order, skipping
+    the primary and pill fields. */
+export function cardMetaRows(e: Entity, def: EntityDef, primary: EntityField, statusField: EntityField | undefined): CardMetaRow[] {
+  const rows: CardMetaRow[] = [];
+  def.fields.forEach(f => {
+    if (f.key !== primary.key && (!statusField || f.key !== statusField.key) && rows.length < 4) {
+      const val = entityValue(e, f.key, def);
+      if (val != null && val !== '') {
+        const isLinkProperty = f.key === 'company' || f.key === 'contact' || f.key === 'partner' || f.key === 'owner' || f.key === 'project' || (!!f.suggestionSource && f.suggestionSource.startsWith('folder:'));
+        rows.push({ field: f, value: val, isLink: isLinkProperty });
+      }
+    }
+  });
+  return rows;
+}
+
+/** Which detail form a card link opens: owner as contact, a `folder:` source
+    as the entity whose folder ends with (or whose plural is) its last
+    segment, else the field key itself. */
+export function cardLinkEntityKey(f: EntityField, entities: Record<string, EntityDef>): string {
+  let relatedKey = f.key === 'owner' ? 'contact' : f.key;
+  if (f.suggestionSource && f.suggestionSource.startsWith('folder:')) {
+    const folder = f.suggestionSource.replace('folder:', '').split('/').pop()!.toLowerCase();
+    const found = Object.keys(entities).find(k => entities[k].folder.toLowerCase().endsWith(folder) || entities[k].plural.toLowerCase() === folder);
+    if (found) relatedKey = found;
+  }
+  return relatedKey;
 }
 
 export async function renderEntityList(
@@ -26,9 +262,9 @@ export async function renderEntityList(
   const filtered = opts.filter ? entities.filter(opts.filter) : entities;
 
   const mode = view.mode;
-  const layout = view.plugin.settings.pageLayouts?.[mode] || (mode === 'projects.projects' ? 'cards' : (mode === 'crm.pipeline' ? 'kanban' : 'table'));
+  const layout = listLayout(mode, view.plugin.settings.pageLayouts);
 
-  view._renderPageHeader(root, opts.title || def.plural, `${filtered.length} ${filtered.length === 1 ? def.label.toLowerCase() : def.plural.toLowerCase()} in ${def.folder}`, (right) => {
+  view._renderPageHeader(root, opts.title || def.plural, listSubtitle(filtered.length, def), (right) => {
     // Layout switcher
     const switcher = right.createDiv({ cls: 'cad-layout-switcher' });
     switcher.style.display = 'inline-flex';
@@ -105,7 +341,7 @@ export async function renderEntityList(
 
   // Render Kanban GroupBy Selector in the Controls bar
   if (layout === 'kanban') {
-    const kanbanFields = def.fields.filter(field => !field.primary && ['enum', 'text', 'multitext', 'tags'].includes(field.type as string));
+    const kanbanFields = kanbanGroupByFields(def);
     if (kanbanFields.length > 0) {
       const groupSelectWrap = controls.createDiv({ attr: { style: 'display: inline-flex; align-items: center; gap: 6px; margin-left: auto;' } });
       groupSelectWrap.createSpan({ text: 'Group columns by:', attr: { style: 'font-size: 0.85em; color: var(--text-muted); font-weight: 600;' } });
@@ -133,41 +369,12 @@ export async function renderEntityList(
     }
   }
 
+  const query: ListQuery = { search: '', filters: {} };
+  let sort: ListSort = { field: def.columns[0] || '', asc: true };
+
   // Dynamic Filters based on fields
-  const filterableKeys = def.fields
-    .map(f => f.key)
-    .filter(k => {
-      const fdef = def.fields.find(f => f.key === k);
-      return fdef && (fdef.type === 'enum' || ['company', 'role', 'with', 'related', 'status', 'tier', 'type'].includes(k));
-    });
-
-  const activeFilters: Record<string, string> = {};
-  let searchVal = '';
-  let currentSortField = def.columns[0] || '';
-  let currentSortAsc = true;
-
-  filterableKeys.forEach(k => {
-    const fdef = def.fields.find(f => f.key === k);
-    if (!fdef) return;
-
-    const uniqueVals = new Set<string>();
-    filtered.forEach(e => {
-      const val = entityValue(e, k, def);
-      if (Array.isArray(val)) {
-        val.forEach(v => {
-          if (v) {
-            const clean = String(v).replace(/^\[\[|\]\]$/g, '').trim();
-            if (clean) uniqueVals.add(clean);
-          }
-        });
-      } else if (val != null && val !== '') {
-        const clean = String(val).replace(/^\[\[|\]\]$/g, '').trim();
-        if (clean) uniqueVals.add(clean);
-      }
-    });
-
-    if (uniqueVals.size === 0) return;
-
+  filterOptions(filtered, def).forEach(({ field: fdef, values }) => {
+    const k = fdef.key;
     const filterWrap = controls.createDiv({ cls: 'cad-filter-select-wrap' });
     filterWrap.style.display = 'flex';
     filterWrap.style.alignItems = 'center';
@@ -181,24 +388,17 @@ export async function renderEntityList(
     sel.style.borderRadius = '4px';
 
     sel.createEl('option', { value: '', text: `All ${fdef.label}s` });
-    Array.from(uniqueVals).sort().forEach(v => {
+    values.forEach(v => {
       sel.createEl('option', { value: v, text: v });
     });
 
     sel.addEventListener('change', () => {
-      activeFilters[k] = sel.value;
+      query.filters[k] = sel.value;
       renderContent();
     });
   });
 
-  const baseCols = opts.columns || def.columns;
-  const cols = baseCols.map((k) => def.fields.find((f) => f.key === k)).filter(Boolean) as EntityField[];
-  // Dynamically append any custom/extra fields not present in baseCols
-  def.fields.forEach((f) => {
-    if (!baseCols.includes(f.key) && !cols.some(c => c.key === f.key)) {
-      cols.push(f);
-    }
-  });
+  const cols = listColumns(def, opts.columns);
 
   // Create container elements for each layout type
   const tableWrap = root.createDiv({ cls: 'cad-table-wrap' });
@@ -214,61 +414,8 @@ export async function renderEntityList(
     cardsWrap.style.display = 'none';
     cardsWrap.empty();
 
-    // 2. Filter
-    let displayed = filtered.filter(e => {
-      if (searchVal) {
-        const match = cols.some(f => {
-          const val = entityValue(e, f.key, def);
-          if (val == null) return false;
-          return String(val).toLowerCase().includes(searchVal);
-        }) || e.basename.toLowerCase().includes(searchVal);
-        if (!match) return false;
-      }
-
-      for (const [k, filterVal] of Object.entries(activeFilters)) {
-        if (!filterVal) continue;
-        const val = entityValue(e, k, def);
-        if (Array.isArray(val)) {
-          const cleanVals = val.map(v => String(v).replace(/^\[\[|\]\]$/g, '').trim().toLowerCase());
-          if (!cleanVals.includes(filterVal.toLowerCase())) return false;
-        } else {
-          const cleanVal = String(val || '').replace(/^\[\[|\]\]$/g, '').trim().toLowerCase();
-          if (cleanVal !== filterVal.toLowerCase()) return false;
-        }
-      }
-
-      return true;
-    });
-
-    // 3. Sort
-    if (currentSortField) {
-      const fdef = def.fields.find(f => f.key === currentSortField);
-      const ftype = fdef ? fdef.type : 'text';
-
-      displayed.sort((a, b) => {
-        let valA = entityValue(a, currentSortField, def);
-        let valB = entityValue(b, currentSortField, def);
-
-        if (valA && typeof valA === 'string') valA = valA.replace(/^\[\[|\]\]$/g, '').trim();
-        if (valB && typeof valB === 'string') valB = valB.replace(/^\[\[|\]\]$/g, '').trim();
-
-        if (valA == null) valA = '';
-        if (valB == null) valB = '';
-
-        let diff = 0;
-        if (ftype === 'number' || ftype === 'currency') {
-          diff = Number(valA) - Number(valB);
-        } else if (ftype === 'date') {
-          const dateA = new Date(valA as string).getTime() || 0;
-          const dateB = new Date(valB as string).getTime() || 0;
-          diff = dateA - dateB;
-        } else {
-          diff = String(valA).localeCompare(String(valB), undefined, { numeric: true, sensitivity: 'base' });
-        }
-
-        return currentSortAsc ? diff : -diff;
-      });
-    }
+    // 2. Filter, 3. Sort
+    const displayed = sortEntities(filterEntities(filtered, def, cols, query), def, sort);
 
     // 4. Render Layout
     if (layout === 'table') {
@@ -283,19 +430,14 @@ export async function renderEntityList(
         th.style.cursor = 'pointer';
         th.style.userSelect = 'none';
         const thSpan = th.createSpan({ text: f.label + ' ' });
-        const indicator = th.createSpan({ text: f.key === currentSortField ? '▲' : '↕' });
-        indicator.style.opacity = f.key === currentSortField ? '1' : '0.4';
+        const indicator = th.createSpan({ text: f.key === sort.field ? '▲' : '↕' });
+        indicator.style.opacity = f.key === sort.field ? '1' : '0.4';
         indicator.style.marginLeft = '4px';
 
         headers.push({ key: f.key, th, indicator });
 
         th.addEventListener('click', () => {
-          if (currentSortField === f.key) {
-            currentSortAsc = !currentSortAsc;
-          } else {
-            currentSortField = f.key;
-            currentSortAsc = true;
-          }
+          sort = nextSort(sort, f.key);
           renderContent();
         });
       });
@@ -315,9 +457,9 @@ export async function renderEntityList(
             const td = tr.createEl('td');
             const val = entityValue(e, f.key, def);
             const formatted = fmtValue(val, f.type);
-            const primaryField = def.fields.find(fd => fd.primary) || def.fields[0];
-            const hasPrimaryCol = cols.some(c => c.key === primaryField.key);
-            const isPrimaryCol = hasPrimaryCol ? (f.key === primaryField.key) : (i === 0);
+            const primary = primaryField(def);
+            const hasPrimaryCol = cols.some(c => c.key === primary.key);
+            const isPrimaryCol = hasPrimaryCol ? (f.key === primary.key) : (i === 0);
 
             if (isPrimaryCol) {
               const a = td.createEl('a', { cls: 'cad-row-primary', text: formatted || e.basename });
@@ -325,24 +467,11 @@ export async function renderEntityList(
                 ev.preventDefault();
                 view.openEntityDetail(entityKey, e.file);
               });
-            } else if (f.key === 'owner' || f.key === 'assigned') {
-              view._renderOwnerLinks(td, val, false);
             } else {
-              const sugSrc = f.suggestionSource || getFieldSuggestionSource(f);
-              if (f.type === 'multitext' && sugSrc && sugSrc !== 'none' && sugSrc !== 'tags' && sugSrc !== 'history') {
-                const targetSrc = sugSrc === 'history' ? 'folder:Cadence/Shared' : sugSrc;
-                view._renderEntityLinks(td, val, targetSrc);
-              } else if (f.key === 'company') {
-                view._renderEntityLinks(td, val, 'company');
-              } else if (f.key === 'partner') {
-                view._renderEntityLinks(td, val, 'partner');
-              } else if (f.key === 'contact' || f.key === 'contacts' || f.key === 'with') {
-                view._renderEntityLinks(td, val, 'contact');
-              } else if (f.key === 'related') {
-                view._renderEntityLinks(td, val, 'project');
-              } else {
-                td.setText(formatted);
-              }
+              const cell = tableCell(f);
+              if (cell.kind === 'owner') view._renderOwnerLinks(td, val, false);
+              else if (cell.kind === 'links') view._renderEntityLinks(td, val, cell.target);
+              else td.setText(formatted);
             }
           });
         });
@@ -353,28 +482,15 @@ export async function renderEntityList(
       const { groupBy, groups } = kanbanParams;
       const board = kanbanWrap.createDiv({ cls: 'cad-kanban-board' });
 
-      groups.forEach((stage) => {
-        const items = displayed.filter((e) => {
-          const val = entityValue(e, groupBy, def);
-          if (Array.isArray(val)) {
-            const cleanVals = val.map(v => String(v).replace(/^\[\[|\]\]$/g, '').trim().toLowerCase());
-            return cleanVals.includes(stage.toLowerCase());
-          }
-          return String(val || '').replace(/^\[\[|\]\]$/g, '').trim().toLowerCase() === stage.toLowerCase();
-        });
+      const valueField = kanbanValueField(def);
+      kanbanGroups(displayed, groupBy, groups, def).forEach(({ stage, items }) => {
 
         const col = board.createDiv({ cls: 'cad-kanban-col' });
         col.dataset.stage = stage;
         const head = col.createDiv({ cls: 'cad-kanban-col-head' });
         head.createDiv({ cls: 'cad-kanban-col-title', text: stage });
 
-        const valueField = def.fields.find(f => f.type === 'currency' || f.type === 'number');
-        if (valueField) {
-          const sum = items.reduce((s, e) => s + (Number(entityValue(e, valueField.key, def)) || 0), 0);
-          head.createDiv({ cls: 'cad-kanban-col-meta', text: `${items.length} · ${fmtValue(sum, valueField.type)}` });
-        } else {
-          head.createDiv({ cls: 'cad-kanban-col-meta', text: `${items.length}` });
-        }
+        head.createDiv({ cls: 'cad-kanban-col-meta', text: kanbanColumnMeta(items, def) });
 
         const list = col.createDiv({ cls: 'cad-kanban-col-list' });
 
@@ -396,14 +512,7 @@ export async function renderEntityList(
           if (!file || !(file instanceof TFile)) return;
           try {
             await view.app.fileManager.processFrontMatter(file, (fm) => {
-              const fDef = def.fields.find(fd => fd.key === groupBy);
-              const isList = fDef && (fDef.type === 'multitext' || fDef.type === 'tags' || fDef.isList === true);
-              const isLink = fDef && fDef.suggestionSource && fDef.suggestionSource !== 'none' && fDef.suggestionSource !== 'tags' && fDef.suggestionSource !== 'history';
-              if (isList) {
-                fm[groupBy] = isLink ? [`[[${stage}]]`] : [stage];
-              } else {
-                fm[groupBy] = isLink ? `[[${stage}]]` : stage;
-              }
+              fm[groupBy] = kanbanDropValue(def.fields.find(fd => fd.key === groupBy), stage);
             });
             new Notice(`Moved to ${stage}`);
           } catch (e) {
@@ -419,8 +528,7 @@ export async function renderEntityList(
             const card = list.createDiv({ cls: 'cad-kanban-card' });
             card.dataset.path = e.file.path;
 
-            const primaryField = def.fields.find(f => f.primary) || def.fields[0];
-            card.createDiv({ cls: 'cad-kanban-card-title', text: (entityValue(e, primaryField.key, def) || e.basename) as string });
+            card.createDiv({ cls: 'cad-kanban-card-title', text: (entityValue(e, primaryField(def).key, def) || e.basename) as string });
 
             const meta = card.createDiv({ cls: 'cad-kanban-card-meta' });
             if (valueField) {
@@ -428,25 +536,18 @@ export async function renderEntityList(
               if (val) meta.createSpan({ text: fmtValue(val, valueField.type) });
             }
 
-            const relFields = ['company', 'contact', 'owner', 'assigned'];
-            relFields.forEach(rf => {
-              const rfDef = def.fields.find(f => f.key === rf);
-              if (rfDef) {
-                const vals = parseLinkValues(entityValue(e, rf, def));
-                vals.forEach(v => {
-                  meta.createSpan({ text: ' · ' });
-                  const link = meta.createEl('a', { text: v.display });
-                  link.style.textDecoration = 'underline';
-                  link.style.cursor = 'pointer';
-                  link.addEventListener('click', (ev) => {
-                    ev.preventDefault();
-                    ev.stopPropagation();
-                    const targetFile = view.app.vault.getMarkdownFiles().find(f => f.basename.toLowerCase() === v.target.toLowerCase());
-                    if (targetFile) view.openEntityDetail(rf === 'owner' || rf === 'assigned' ? 'contact' : rf, targetFile);
-                    else view.app.workspace.openLinkText(v.target, '', false);
-                  });
-                });
-              }
+            kanbanCardLinks(e, def).forEach(v => {
+              meta.createSpan({ text: ' · ' });
+              const link = meta.createEl('a', { text: v.display });
+              link.style.textDecoration = 'underline';
+              link.style.cursor = 'pointer';
+              link.addEventListener('click', (ev) => {
+                ev.preventDefault();
+                ev.stopPropagation();
+                const targetFile = view.app.vault.getMarkdownFiles().find(f => f.basename.toLowerCase() === v.target.toLowerCase());
+                if (targetFile) view.openEntityDetail(v.entityKey, targetFile);
+                else view.app.workspace.openLinkText(v.target, '', false);
+              });
             });
 
             if (!isMobile) {
@@ -486,7 +587,7 @@ export async function renderEntityList(
           const status = String(entityValue(p.entity, 'status', def) || 'active');
           const priority = String(entityValue(p.entity, 'priority', def) || '');
           const pillRow = head.createDiv({ cls: 'cad-proj-pills' });
-          pillRow.createSpan({ cls: `cad-pill cad-pill-${status.toLowerCase().replace(/\s+/g, '-')}`, text: status });
+          pillRow.createSpan({ cls: `cad-pill ${pillClass(status)}`, text: status });
           if (priority) pillRow.createSpan({ cls: `cad-pill cad-pill-prio-${priority.toLowerCase()}`, text: priority });
 
           const metaRow = card.createDiv({ cls: 'cad-proj-meta' });
@@ -516,61 +617,46 @@ export async function renderEntityList(
           const card = grid.createDiv({ cls: 'cad-proj-card' });
           const head = card.createDiv({ cls: 'cad-proj-card-head' });
 
-          const primaryField = def.fields.find(f => f.primary) || def.fields[0];
-          const titleText = (entityValue(e, primaryField.key, def) || e.basename) as string;
+          const primary = primaryField(def);
+          const titleText = (entityValue(e, primary.key, def) || e.basename) as string;
           const title = head.createEl('a', { cls: 'cad-proj-title', text: titleText });
           title.addEventListener('click', (ev) => { ev.preventDefault(); view.openEntityDetail(entityKey, e.file); });
 
           const pillRow = head.createDiv({ cls: 'cad-proj-pills' });
-          const statusField = def.fields.find(f => f.key === 'status' || f.key === 'type' || f.key === 'tier') || def.fields.find(f => f.type === 'enum');
+          const statusField = cardStatusField(def);
           if (statusField) {
             const val = entityValue(e, statusField.key, def);
             if (val) {
-              const clean = Array.isArray(val) ? val[0] : val;
-              pillRow.createSpan({ cls: `cad-pill cad-pill-${String(clean).toLowerCase().replace(/\s+/g, '-')}`, text: String(clean) });
+              const text = pillText(val);
+              pillRow.createSpan({ cls: `cad-pill ${pillClass(text)}`, text });
             }
           }
 
           const metaRow = card.createDiv({ cls: 'cad-proj-meta' });
-          let count = 0;
-          def.fields.forEach(f => {
-            if (f.key !== primaryField.key && (!statusField || f.key !== statusField.key) && count < 4) {
-              const val = entityValue(e, f.key, def);
-              if (val != null && val !== '') {
-                const formatted = fmtValue(val, f.type);
-                const fieldDiv = metaRow.createDiv();
-                fieldDiv.style.marginBottom = '2px';
-                fieldDiv.createSpan({ text: `${f.label}: `, attr: { style: 'font-weight: 500; color: var(--text-muted);' }});
+          cardMetaRows(e, def, primary, statusField).forEach(({ field: f, value: val, isLink }) => {
+            const formatted = fmtValue(val, f.type);
+            const fieldDiv = metaRow.createDiv();
+            fieldDiv.style.marginBottom = '2px';
+            fieldDiv.createSpan({ text: `${f.label}: `, attr: { style: 'font-weight: 500; color: var(--text-muted);' }});
 
-                const isLinkProperty = f.key === 'company' || f.key === 'contact' || f.key === 'partner' || f.key === 'owner' || f.key === 'project' || (f.suggestionSource && f.suggestionSource.startsWith('folder:'));
-                if (isLinkProperty) {
-                  const links = parseLinkValues(val);
-                  links.forEach((link, lidx) => {
-                    if (lidx > 0) fieldDiv.createSpan({ text: ', ' });
-                    const aLink = fieldDiv.createEl('a', { text: link.display });
-                    aLink.style.textDecoration = 'underline';
-                    aLink.style.cursor = 'pointer';
-                    aLink.addEventListener('click', (ev) => {
-                      ev.preventDefault();
-                      ev.stopPropagation();
-                      const targetFile = view.app.vault.getMarkdownFiles().find(f => f.basename.toLowerCase() === link.target.toLowerCase());
-
-                      let relatedKey = f.key === 'owner' ? 'contact' : f.key;
-                      if (f.suggestionSource && f.suggestionSource.startsWith('folder:')) {
-                        const folder = f.suggestionSource.replace('folder:', '').split('/').pop()!.toLowerCase();
-                        const found = Object.keys(ENTITIES).find(k => ENTITIES[k].folder.toLowerCase().endsWith(folder) || ENTITIES[k].plural.toLowerCase() === folder);
-                        if (found) relatedKey = found;
-                      }
-
-                      if (targetFile) view.openEntityDetail(relatedKey, targetFile);
-                      else view.app.workspace.openLinkText(link.target, '', false);
-                    });
-                  });
-                } else {
-                  fieldDiv.createSpan({ text: formatted });
-                }
-                count++;
-              }
+            if (isLink) {
+              const links = parseLinkValues(val);
+              links.forEach((link, lidx) => {
+                if (lidx > 0) fieldDiv.createSpan({ text: ', ' });
+                const aLink = fieldDiv.createEl('a', { text: link.display });
+                aLink.style.textDecoration = 'underline';
+                aLink.style.cursor = 'pointer';
+                aLink.addEventListener('click', (ev) => {
+                  ev.preventDefault();
+                  ev.stopPropagation();
+                  const targetFile = view.app.vault.getMarkdownFiles().find(f => f.basename.toLowerCase() === link.target.toLowerCase());
+                  const relatedKey = cardLinkEntityKey(f, ENTITIES);
+                  if (targetFile) view.openEntityDetail(relatedKey, targetFile);
+                  else view.app.workspace.openLinkText(link.target, '', false);
+                });
+              });
+            } else {
+              fieldDiv.createSpan({ text: formatted });
             }
           });
         });
@@ -579,7 +665,7 @@ export async function renderEntityList(
   };
 
   searchInput.addEventListener('input', () => {
-    searchVal = searchInput.value.trim().toLowerCase();
+    query.search = searchInput.value.trim().toLowerCase();
     renderContent();
   });
 
