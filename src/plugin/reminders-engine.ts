@@ -47,9 +47,10 @@ export function dueReminders(reminders: Reminder[], now: number): Reminder[] {
 }
 
 /* The next occurrence of a repeating reminder that just fired, one repeat
-   after its own `when` (not after `now`), or null for a one-off.
-   QUIRK (#22): it drops the reminder's notes and project link, and a
-   series missed for several periods catches up one occurrence per tick. */
+   after its own `when` (not after `now`), or null for a one-off. It keeps
+   the reminder's notes and project link.
+   QUIRK (#22): a series missed for several periods catches up one
+   occurrence per tick. */
 export function advanceReminder(r: Reminder, now: Date): Reminder | null {
   const next = nextRepeat(new Date(r.when as string), r.repeat);
   if (!next) return null;
@@ -58,10 +59,12 @@ export function advanceReminder(r: Reminder, now: Date): Reminder | null {
     text: r.text,
     when: next.toISOString(),
     repeat: r.repeat,
+    notes: r.notes || '',
+    project: r.project || null,
     notified: false,
     done: false,
     createdAt: now.toISOString(),
-  } as Reminder;
+  };
 }
 
 /* Snooze moves `when` to now + ms and clears `notified`. QUIRK (#22): it

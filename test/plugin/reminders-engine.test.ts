@@ -262,6 +262,8 @@ describe("tickReminders", () => {
       text: "Call Jane",
       when: iso(-3 * MIN + DAY),
       repeat: "daily",
+      notes: "",
+      project: null,
       notified: false,
       done: false,
       createdAt: NOW.toISOString(),
@@ -283,13 +285,12 @@ describe("tickReminders", () => {
     expect(plugin.settings.reminders).toHaveLength(2);
   });
 
-  it("QUIRK: the next occurrence drops the reminder's notes and project link", async () => {
+  it("the next occurrence keeps the reminder's notes and project link", async () => {
     const { plugin } = await makeLoadedPlugin({
       data: { reminders: [reminder({ repeat: "daily", notes: "agenda", project: "Cadence/Projects/Apollo.md" })] },
     });
     plugin.tickReminders();
-    expect(plugin.settings.reminders[1]).not.toHaveProperty("notes");
-    expect(plugin.settings.reminders[1]).not.toHaveProperty("project");
+    expect(plugin.settings.reminders[1]).toMatchObject({ notes: "agenda", project: "Cadence/Projects/Apollo.md" });
   });
 
   it("QUIRK: a series missed for days catches up one occurrence per tick", async () => {

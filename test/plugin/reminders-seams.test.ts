@@ -74,7 +74,7 @@ describe("advanceReminder", () => {
     const next = advanceReminder(reminder({ repeat: "daily" }), new Date(T + 5 * MIN));
     expect(next).toEqual({
       id: expect.stringMatching(/^rem_/), text: "Call Jane", when: new Date(T - MIN + DAY).toISOString(), repeat: "daily",
-      notified: false, done: false, createdAt: new Date(T + 5 * MIN).toISOString(),
+      notes: "", project: null, notified: false, done: false, createdAt: new Date(T + 5 * MIN).toISOString(),
     });
   });
 
@@ -87,10 +87,9 @@ describe("advanceReminder", () => {
     expect(advanceReminder(reminder({ repeat: "monthly" }), NOW)).toBeNull();
   });
 
-  it("QUIRK: drops notes and project", () => {
+  it("keeps notes and project", () => {
     const next = advanceReminder(reminder({ repeat: "daily", notes: "n", project: "P.md" }), NOW);
-    expect(next).not.toHaveProperty("notes");
-    expect(next).not.toHaveProperty("project");
+    expect(next).toMatchObject({ notes: "n", project: "P.md" });
   });
 
   it("QUIRK: an overdue occurrence can still be in the past", () => {
