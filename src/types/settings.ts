@@ -42,4 +42,6 @@ export interface AppViewSettings extends DailyNoteSettings {
   pageLayouts?: Record<string, string>;
   /** Kanban group-by field, keyed by entity key. */
   pageKanbanGroupBy?: Record<string, string>;
+  /** ISO code for currency fields; detail forms show it as the placeholder. */
+  currency?: string;
 }
