@@ -66,6 +66,11 @@ Members that are Obsidian's `View` contract and have no logic stay on the class:
 | `../settings/setting-tab.ts` | `CadenceSettingTab`, `renderModulesSettings`, `renderReminderSettings`, `renderAppSettings` and `renderCloudSyncSettings`, plus the pure `MODULE_TOGGLES`, `ensureModules`, `shouldRequestPermission`, `notificationPermissionDesc`, `completedReminderCount`, `openReminders`, `TASK_SYSTEM_OPTIONS`, `taskNotesStatus`, `CURRENCY_OPTIONS`, `weekStartsOnFromOption`, `defaultTabOptions` and `defaultTabValue` |
 | `../settings/custom-pages.ts` | `renderCustomPagesSettings`, plus the pure `SECTION_OPTIONS`, `LAYOUT_OPTIONS`, `ICON_OPTIONS`, `sectionLabel`, `customPageLayoutLabel`, `customPageRows`, `customPageEntityKey`, `customEntityLabel`, `addCustomPage` and `deleteCustomPage` |
 | `../settings/entity-properties.ts` | `renderEntityPropertiesSettings` and `FolderSuggestModal`, plus the pure `entityPickerLabel`, `entityPickerOptions`, `isPermanentlyLocked`, `isFieldLocked`, `snapshotCustomEntities`, `copyPropertyShape`, `syncSharedProperties`, `fieldKeySuggestions`, `filterKeySuggestions`, `sanitizeFieldKey`, `parseEnumOptions`, `fieldTypeOptions`, `optionsCellKind`, `sourceState`, `folderSource`, `folderBadge`, `vaultFolderPaths`, `filterFolders`, `nextPropertyKey`, `moveField` and `applyPropertyEdit` |
+| `../plugin/host.ts` | `PluginHost`, the plugin's seam, plus `MetadataTypeManager` and `AppWithMetadataTypes` |
+| `../plugin/reminders-engine.ts` | `addReminder`, `updateReminder`, `deleteReminder`, `snoozeReminder`, `completeReminder`, `tickReminders` and `fireReminder`, plus the pure `newReminder`, `isDue`, `dueReminders`, `advanceReminder`, `snoozePatch` and `COMPLETE_PATCH` |
+| `../plugin/settings.ts` | `loadSettings`, `saveSettings` and `registerCustomPropertyTypes`, plus the pure `CORE_ENTITY_KEYS`, `PROPERTY_TYPE_ENTITIES`, `fillSettingDefaults`, `customEntityNames`, `reconstructEntities` and `propertyTypeFor` |
+| `../plugin/contact-project-sync.ts` | `syncContactProjectRelationships` and `handleProjectDeletion`, plus the pure `extractEntitiesFromValue`, `isContactField`, `isProjectField`, `noteLinks`, `collectValidLinks`, `autoCreateName`, `projectLinkValue`, `writeProjectLinks`, `addProjectLink`, `removeProjectLink` and `contactProjectsPlan` |
+| `../constants/settings.ts` | `DEFAULT_SETTINGS` and `CURRENCY_OPTIONS` (`setting-tab.ts` re-exports it) |
 
 Use one file per major surface (`home.ts`, `today.ts`, `planner.ts`, `inbox.ts`, `entity-list.ts`, …), as in the map's module layout. Named exports only.
 
@@ -98,6 +103,19 @@ Components that several surfaces share live in `components/` ([#11](https://gith
 The section DOM stays in one function per section, as in #14. The per-row DOM of the property table stays in `renderEntityPropertiesSettings`. The inline folder picker is now the named `FolderSuggestModal(app, folders, onChoose)`.
 
 The tests drive the tab through `test/helpers/setting-tab.ts` (`makeSettingTab`, `settingRows`, `settingByName`, `snapshotEntities`/`restoreEntities`) and the mock's `Setting`, whose toggle, dropdown, text and button components fire their handlers with `await component.change(value)` or `await button.click()`. `ENTITIES` is shared module state, so restore it after each test.
+
+## The plugin
+
+`CadencePlugin`'s logic ([#22](https://github.com/deanjstone/obsidian-cadence/issues/22)) follows the view seam, adapted the way the setting tab was, for a class that is neither a view nor a one-caller tab:
+
+1. **The class stays in `src/legacy/cadence.js` and keeps one-line delegates.** Unlike the setting tab, the plugin has many callers (`onload`, the app view, the setting tab, the modals), all of which call `plugin.x()`. So the methods move out and the class keeps `addReminder(partial) { return addReminder(this, partial); }` for each, until the plugin-entry ticket ([#23](https://github.com/deanjstone/obsidian-cadence/issues/23)). `_fireReminder` becomes `fireReminder` (rule 5). `onload`, `onunload`, `openApp`, `openQuickCapture` and `refreshOpenViews` stay on the class for #23.
+2. **The host is `PluginHost`** (`src/plugin/host.ts`): `app`, `settings` (a `PluginSettings`), `_syncInProgress`, `loadData`, `saveData`, `saveSettings`, `refreshOpenViews`, `updateReminder` and `_fireReminder`. Calls between moved functions go through it (`snoozeReminder` calls `plugin.updateReminder`, `tickReminders` calls `plugin._fireReminder`), so a spy on the class still sees them, as rule 2 has views do.
+3. **The plain data:**
+   - **Reminders** take the clock: `dueReminders(reminders, now)` and `advanceReminder(reminder, now)` (the next occurrence, built on `nextRepeat`), `newReminder(partial, now)` and `snoozePatch(ms, now)`. The ticker fires and marks each due reminder, then appends the next occurrences.
+   - **Settings load** is a shallow merge over `DEFAULT_SETTINGS` (`src/constants/settings.ts`), then `fillSettingDefaults(settings, defaults)` and `reconstructEntities(settings, entities)`. Like `applyPropertyEdit`, `reconstructEntities` edits the registry it is given (`ENTITIES` in production), so a test passes a plain one.
+   - **The sync** reads each note as a `SyncNote` (`{ entityKey, basename, frontmatter }`). `noteLinks` and `collectValidLinks` give the contact–project pairs a note backs, and `contactProjectsPlan`, `addProjectLink`, `removeProjectLink` and `writeProjectLinks` give the `project` value to write. The surface keeps the vault reads, `createEntity`, `processFrontMatter` and the notices. The one `extractEntitiesFromValue` replaces the two inline copies.
+
+The tests build the plugin with `test/helpers/plugin.ts` (`makePlugin`, `makeLoadedPlugin`, `fakeNotification`). The sync tests run `onload`, then fire its handlers with the mock's `app.metadataCache.trigger('changed', file)` and `app.vault.trigger('delete', file)`, and read the frontmatter back (`fileManager.processed` logs each write). `ENTITIES` is shared module state, so restore it after each test with `snapshotEntities`/`restoreEntities`.
 
 ## How a view ticket applies the loop
 

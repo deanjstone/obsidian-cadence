@@ -3,7 +3,8 @@ import type { CrossSectionConfig, WidgetConfig } from './modals';
 import type { Reminder } from './reminders';
 
 /* The subset of plugin settings the extracted helpers read. The full
-   settings object is still defined by DEFAULT_SETTINGS in the legacy file. */
+   settings object is PluginSettings, with its defaults in DEFAULT_SETTINGS
+   (src/constants/settings.ts). */
 export interface DailyNoteSettings {
   dailyNoteFolder?: string;
   tasksHeading: string;
@@ -65,4 +66,32 @@ export interface SettingTabSettings extends AppViewSettings {
   cadenceApiToken: string;
   /** Every entity's field schema, keyed by entity key; copied into ENTITIES on load. */
   customEntities?: Record<string, EntityField[]>;
+}
+
+/* Everything the plugin persists: DEFAULT_SETTINGS merged with the saved
+   data (loadSettings in src/plugin/settings.ts). Saved data is not
+   validated, so unknown keys survive the merge. */
+export interface PluginSettings extends SettingTabSettings {
+  dailyNoteFormat: string;
+  journalHeading: string;
+  tasksHeading: string;
+  taskManagementSystem: string;
+  weekStartsOn: number;
+  defaultTab: string;
+  openOnStartup: boolean;
+  collapsedGroups: Record<string, boolean>;
+  currency: string;
+  cadenceAppDark: boolean;
+  taskProjectLinks: Record<string, string>;
+  modules: Record<string, boolean>;
+  desktopNotifications: boolean;
+  reminders: Reminder[];
+  customPages: CustomPage[];
+  pageLayouts: Record<string, string>;
+  pageKanbanGroupBy: Record<string, string>;
+  crossSections: CrossSectionConfig[];
+  projectDashboardWidgets: WidgetConfig[];
+  crmDashboardWidgets: WidgetConfig[];
+  prmDashboardWidgets: WidgetConfig[];
+  customEntities: Record<string, EntityField[]>;
 }

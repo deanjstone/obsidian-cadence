@@ -2467,6 +2467,143 @@ var CadenceImportModal = class extends import_obsidian11.Modal {
 // src/settings/setting-tab.ts
 var import_obsidian14 = require("obsidian");
 
+// src/constants/settings.ts
+var DEFAULT_SETTINGS = {
+  dailyNoteFolder: "daily",
+  dailyNoteFormat: "YYYY-MM-DD",
+  journalHeading: "## Journal",
+  tasksHeading: "## Today",
+  taskManagementSystem: "native",
+  weekStartsOn: 1,
+  defaultTab: "home",
+  openOnStartup: true,
+  collapsedGroups: {},
+  currency: "USD",
+  cadenceAppDark: false,
+  taskProjectLinks: {},
+  modules: {
+    crm: true,
+    prm: false,
+    planner: true,
+    projects: true
+  },
+  desktopNotifications: true,
+  reminders: [],
+  customPages: [],
+  pageLayouts: {},
+  pageKanbanGroupBy: {},
+  crossSections: [],
+  cadenceApiUrl: "",
+  cadenceApiToken: "",
+  projectDashboardWidgets: [],
+  crmDashboardWidgets: [],
+  prmDashboardWidgets: [],
+  customEntities: {
+    project: [
+      { key: "name", label: "Name", primary: true, type: "text" },
+      { key: "status", label: "Status", type: "enum", options: ["active", "on_hold", "backlog", "done", "cancelled"] },
+      { key: "priority", label: "Priority", type: "enum", options: ["low", "medium", "high"] },
+      { key: "owner", label: "Owner", type: "multitext", suggestionSource: "folder:Cadence/Contacts" },
+      { key: "started", label: "Started", type: "date" },
+      { key: "due", label: "Due", type: "date" },
+      { key: "tags", label: "Tags", type: "tags" }
+    ],
+    contact: [
+      { key: "name", label: "Name", primary: true, type: "text" },
+      { key: "email", label: "Email", type: "multitext", isList: true, suggestionSource: "none" },
+      { key: "phone", label: "Phone", isList: true, type: "multitext", suggestionSource: "none" },
+      { key: "company", label: "Company", isList: true, type: "multitext", suggestionSource: "folder:Cadence/Companies" },
+      { key: "role", label: "Role", isList: true, type: "multitext" },
+      { key: "project", label: "Project", type: "multitext", suggestionSource: "folder:Cadence/Projects" },
+      { key: "lastContact", label: "Last contact", type: "date" },
+      { key: "tags", label: "Tags", type: "tags" }
+    ],
+    deal: [
+      { key: "title", label: "Title", primary: true, type: "text" },
+      { key: "stage", label: "Stage", type: "enum", options: ["Lead", "Qualified", "Proposal", "Negotiation", "Won", "Lost"] },
+      { key: "value", label: "Value", type: "currency" },
+      { key: "company", label: "Company", type: "multitext", suggestionSource: "folder:Cadence/Companies" },
+      { key: "contact", label: "Contact", type: "multitext", suggestionSource: "folder:Cadence/Contacts" },
+      { key: "closeBy", label: "Close by", type: "date" },
+      { key: "project", label: "Project", type: "multitext", suggestionSource: "folder:Cadence/Projects" },
+      { key: "owner", label: "Owner", type: "multitext", suggestionSource: "folder:Cadence/Contacts" }
+    ],
+    company: [
+      { key: "name", label: "Name", primary: true, type: "text" },
+      { key: "domain", label: "Domain", isList: true, type: "multitext" },
+      { key: "industry", label: "Industry", isList: true, type: "multitext" },
+      { key: "size", label: "Size", type: "text" },
+      { key: "owner", label: "Owner", type: "multitext", suggestionSource: "folder:Cadence/Contacts" },
+      { key: "tags", label: "Tags", type: "tags" }
+    ],
+    activity: [
+      { key: "subject", label: "Subject", primary: true, type: "text" },
+      { key: "type", label: "Type", type: "enum", options: ["Call", "Email", "Meeting", "Note", "Task"] },
+      { key: "when", label: "When", type: "date" },
+      { key: "with", label: "With", type: "multitext", suggestionSource: "folder:Cadence/Contacts" },
+      { key: "company", label: "Company", type: "multitext", suggestionSource: "folder:Cadence/Companies" },
+      { key: "project", label: "Project", type: "multitext", suggestionSource: "folder:Cadence/Projects" }
+    ],
+    partner: [
+      { key: "name", label: "Name", primary: true },
+      { key: "tier", label: "Tier", type: "enum", options: ["Gold", "Silver", "Bronze", "Standard"] },
+      { key: "status", label: "Status", type: "enum", options: ["Active", "Onboarding", "Inactive", "Churned"] },
+      { key: "owner", label: "Owner", type: "multitext", suggestionSource: "folder:Cadence/Contacts" },
+      { key: "region", label: "Region" }
+    ],
+    registration: [
+      { key: "title", label: "Title", primary: true },
+      { key: "partner", label: "Partner" },
+      { key: "status", label: "Status", type: "enum", options: ["Submitted", "Approved", "Rejected", "Expired"] },
+      { key: "value", label: "Value", type: "currency" },
+      { key: "submitted", label: "Submitted", type: "date" },
+      { key: "expires", label: "Expires", type: "date" }
+    ],
+    commission: [
+      { key: "reference", label: "Ref", primary: true },
+      { key: "partner", label: "Partner" },
+      { key: "amount", label: "Amount", type: "currency" },
+      { key: "status", label: "Status", type: "enum", options: ["Pending", "Earned", "Paid", "Disputed"] },
+      { key: "period", label: "Period" },
+      { key: "paidOn", label: "Paid on", type: "date" }
+    ],
+    lead: [
+      { key: "name", label: "Name", primary: true },
+      { key: "company", label: "Company", type: "multitext", suggestionSource: "folder:Cadence/Companies" },
+      { key: "source", label: "Source" },
+      { key: "status", label: "Status", type: "enum", options: ["New", "Contacted", "Qualified", "Disqualified", "Converted"] },
+      { key: "assigned", label: "Assigned" }
+    ],
+    certification: [
+      { key: "name", label: "Name", primary: true },
+      { key: "partner", label: "Partner" },
+      { key: "level", label: "Level" },
+      { key: "issued", label: "Issued", type: "date" },
+      { key: "expires", label: "Expires", type: "date" }
+    ],
+    sequence: [
+      { key: "name", label: "Name", primary: true },
+      { key: "audience", label: "Audience" },
+      { key: "steps", label: "Steps", type: "number" },
+      { key: "active", label: "Active", type: "number" },
+      { key: "status", label: "Status", type: "enum", options: ["Draft", "Active", "Paused", "Archived"] }
+    ]
+  }
+};
+var CURRENCY_OPTIONS = [
+  { code: "USD", label: "USD \u2014 US Dollar" },
+  { code: "EUR", label: "EUR \u2014 Euro" },
+  { code: "GBP", label: "GBP \u2014 British Pound" },
+  { code: "ZAR", label: "ZAR \u2014 South African Rand" },
+  { code: "AUD", label: "AUD \u2014 Australian Dollar" },
+  { code: "CAD", label: "CAD \u2014 Canadian Dollar" },
+  { code: "CHF", label: "CHF \u2014 Swiss Franc" },
+  { code: "JPY", label: "JPY \u2014 Japanese Yen" },
+  { code: "INR", label: "INR \u2014 Indian Rupee" },
+  { code: "BRL", label: "BRL \u2014 Brazilian Real" },
+  { code: "AED", label: "AED \u2014 UAE Dirham" }
+];
+
 // src/settings/custom-pages.ts
 var import_obsidian12 = require("obsidian");
 var SECTION_OPTIONS = [
@@ -3371,19 +3508,6 @@ function taskNotesStatus(active) {
     color: "#c0392b"
   };
 }
-var CURRENCY_OPTIONS = [
-  { code: "USD", label: "USD \u2014 US Dollar" },
-  { code: "EUR", label: "EUR \u2014 Euro" },
-  { code: "GBP", label: "GBP \u2014 British Pound" },
-  { code: "ZAR", label: "ZAR \u2014 South African Rand" },
-  { code: "AUD", label: "AUD \u2014 Australian Dollar" },
-  { code: "CAD", label: "CAD \u2014 Canadian Dollar" },
-  { code: "CHF", label: "CHF \u2014 Swiss Franc" },
-  { code: "JPY", label: "JPY \u2014 Japanese Yen" },
-  { code: "INR", label: "INR \u2014 Indian Rupee" },
-  { code: "BRL", label: "BRL \u2014 Brazilian Real" },
-  { code: "AED", label: "AED \u2014 UAE Dirham" }
-];
 function weekStartsOnFromOption(value) {
   return Number(value) === 0 ? 0 : 1;
 }
@@ -3484,8 +3608,542 @@ function renderCloudSyncSettings(tab, containerEl) {
   });
 }
 
-// src/views/app-view.ts
+// src/plugin/reminders-engine.ts
 var import_obsidian15 = require("obsidian");
+function newReminder(partial, now) {
+  return {
+    id: reminderId(),
+    text: partial.text,
+    when: partial.when || null,
+    repeat: partial.repeat || "none",
+    notes: partial.notes || "",
+    project: partial.project || null,
+    // file path of linked project, if any
+    notified: false,
+    done: false,
+    createdAt: now.toISOString()
+  };
+}
+function isDue(r, now) {
+  if (r.done || r.notified) return false;
+  if (!r.when) return false;
+  const w = new Date(r.when).getTime();
+  return !(isNaN(w) || w > now);
+}
+function dueReminders(reminders, now) {
+  return reminders.filter((r) => isDue(r, now));
+}
+function advanceReminder(r, now) {
+  const next = nextRepeat(new Date(r.when), r.repeat);
+  if (!next) return null;
+  return {
+    id: reminderId(),
+    text: r.text,
+    when: next.toISOString(),
+    repeat: r.repeat,
+    notified: false,
+    done: false,
+    createdAt: now.toISOString()
+  };
+}
+function snoozePatch(ms, now) {
+  const target = new Date(now + ms);
+  return {
+    when: target.toISOString(),
+    notified: false
+  };
+}
+var COMPLETE_PATCH = { done: true, notified: true };
+async function addReminder(plugin, partial) {
+  const r = newReminder(partial, /* @__PURE__ */ new Date());
+  if (!Array.isArray(plugin.settings.reminders)) plugin.settings.reminders = [];
+  plugin.settings.reminders.push(r);
+  await plugin.saveSettings();
+  plugin.refreshOpenViews();
+  return r;
+}
+async function updateReminder(plugin, id, patch) {
+  const i = (plugin.settings.reminders || []).findIndex((r) => r.id === id);
+  if (i < 0) return null;
+  plugin.settings.reminders[i] = Object.assign({}, plugin.settings.reminders[i], patch);
+  await plugin.saveSettings();
+  plugin.refreshOpenViews();
+  return plugin.settings.reminders[i];
+}
+async function deleteReminder(plugin, id) {
+  plugin.settings.reminders = (plugin.settings.reminders || []).filter((r) => r.id !== id);
+  await plugin.saveSettings();
+  plugin.refreshOpenViews();
+}
+async function snoozeReminder(plugin, id, ms) {
+  return plugin.updateReminder(id, snoozePatch(ms, Date.now()));
+}
+async function completeReminder(plugin, id) {
+  return plugin.updateReminder(id, { ...COMPLETE_PATCH });
+}
+function tickReminders(plugin) {
+  if (!Array.isArray(plugin.settings.reminders)) return;
+  const due = dueReminders(plugin.settings.reminders, Date.now());
+  const additions = [];
+  for (const r of due) {
+    plugin._fireReminder(r);
+    r.notified = true;
+    const next = advanceReminder(r, /* @__PURE__ */ new Date());
+    if (next) additions.push(next);
+  }
+  if (additions.length) plugin.settings.reminders.push(...additions);
+  if (due.length) {
+    plugin.saveSettings().then(() => plugin.refreshOpenViews());
+  }
+}
+function fireReminder(plugin, r) {
+  new import_obsidian15.Notice(`\u23F0  ${r.text}`, 8e3);
+  if (plugin.settings.desktopNotifications && typeof Notification !== "undefined") {
+    try {
+      if (Notification.permission === "granted") {
+        new Notification("Cadence reminder", { body: r.text });
+      }
+    } catch (_) {
+    }
+  }
+}
+
+// src/plugin/settings.ts
+var CORE_ENTITY_KEYS2 = ["contact", "company", "partner", "registration", "commission", "lead", "certification", "activity", "sequence", "project", "deal"];
+var PROPERTY_TYPE_ENTITIES = ["project", "deal", "contact", "company", "activity"];
+function fillSettingDefaults(settings, defaults) {
+  if (!settings.customEntities) {
+    settings.customEntities = {};
+  }
+  for (const [entityKey, defaultFields] of Object.entries(defaults.customEntities)) {
+    if (!settings.customEntities[entityKey] || settings.customEntities[entityKey].length === 0) {
+      settings.customEntities[entityKey] = JSON.parse(JSON.stringify(defaultFields));
+    }
+  }
+  if (!settings.projectDashboardWidgets || settings.projectDashboardWidgets.length === 0) {
+    settings.projectDashboardWidgets = [
+      { id: "w1", title: "Projects by Status", groupBy: "status", style: "donut" },
+      { id: "w2", title: "Projects by Priority", groupBy: "priority", style: "bar" }
+    ];
+  }
+  if (!settings.crmDashboardWidgets || settings.crmDashboardWidgets.length === 0) {
+    settings.crmDashboardWidgets = [
+      { id: "c1", title: "Deals by Stage", groupBy: "stage", style: "donut" },
+      { id: "c2", title: "Deals by Owner", groupBy: "owner", style: "bar" }
+    ];
+  }
+  if (!settings.prmDashboardWidgets || settings.prmDashboardWidgets.length === 0) {
+    settings.prmDashboardWidgets = [
+      { id: "p1", title: "Partners by Tier", groupBy: "tier", style: "donut" },
+      { id: "p2", title: "Partners by Status", groupBy: "status", style: "bar" }
+    ];
+  }
+}
+function customEntityNames(entityKey, customPage) {
+  let label, plural;
+  if (customPage) {
+    plural = customPage.label;
+    if (plural.endsWith("s") && plural.length > 1) {
+      label = plural.substring(0, plural.length - 1);
+    } else if (plural.endsWith("S") && plural.length > 1) {
+      label = plural.substring(0, plural.length - 1);
+    } else {
+      label = plural;
+    }
+  } else {
+    label = entityKey === entityKey.toUpperCase() ? entityKey : entityKey.charAt(0).toUpperCase() + entityKey.slice(1);
+    plural = label + "s";
+  }
+  return { label, plural };
+}
+function reconstructEntities(settings, entities) {
+  const activeCustomEntityKeys = (settings.customPages || []).map((p) => p.entityKey);
+  for (const entityKey of Object.keys(settings.customEntities)) {
+    if (!CORE_ENTITY_KEYS2.includes(entityKey) && !activeCustomEntityKeys.includes(entityKey)) {
+      delete settings.customEntities[entityKey];
+      if (entities[entityKey]) {
+        delete entities[entityKey];
+      }
+    }
+  }
+  if (settings.customEntities) {
+    for (const [entityKey, customFields] of Object.entries(settings.customEntities)) {
+      if (entities[entityKey]) {
+        entities[entityKey].fields = customFields;
+      } else {
+        const customPages = settings.customPages || [];
+        const customPage = customPages.find((p) => p.entityKey === entityKey);
+        const { label, plural } = customEntityNames(entityKey, customPage);
+        entities[entityKey] = {
+          folder: `Cadence/${plural}`,
+          label,
+          plural,
+          fields: customFields,
+          columns: [customFields[0]?.key || "name"]
+        };
+      }
+    }
+  }
+  for (const [entityKey, def] of Object.entries(entities)) {
+    if (entityKey === "activity") continue;
+    const hasType = def.fields.some((f) => f.key === "type");
+    if (!hasType) {
+      def.fields.push({
+        key: "type",
+        label: "Type",
+        type: "text"
+      });
+    }
+    if (settings.customEntities[entityKey]) {
+      const hasSetType = settings.customEntities[entityKey].some((f) => f.key === "type");
+      if (!hasSetType) {
+        settings.customEntities[entityKey].push({
+          key: "type",
+          label: "Type",
+          type: "text"
+        });
+      }
+    }
+  }
+}
+function propertyTypeFor(f) {
+  if (f.primary) return "text";
+  const ftype = f.type || "text";
+  let obsType = "text";
+  if (ftype === "date") obsType = "date";
+  else if (ftype === "number" || ftype === "currency") obsType = "number";
+  else if (ftype === "tags") obsType = "tags";
+  else if (ftype === "multitext") obsType = "multitext";
+  else if (f.isList) obsType = "multitext";
+  return obsType;
+}
+async function loadSettings(plugin) {
+  const loadedData = await plugin.loadData() || {};
+  plugin.settings = Object.assign({}, DEFAULT_SETTINGS, loadedData);
+  fillSettingDefaults(plugin.settings, DEFAULT_SETTINGS);
+  setCurrentCurrency(plugin.settings.currency || "USD");
+  reconstructEntities(plugin.settings, ENTITIES);
+}
+async function saveSettings(plugin) {
+  await plugin.saveData(plugin.settings);
+  setCurrentCurrency(plugin.settings.currency || "USD");
+}
+function registerCustomPropertyTypes(plugin) {
+  try {
+    const manager = plugin.app.metadataTypeManager;
+    if (manager && typeof manager.setType === "function") {
+      manager.setType("type", "multitext");
+      for (const key of PROPERTY_TYPE_ENTITIES) {
+        const def = ENTITIES[key];
+        if (!def || !def.fields) continue;
+        for (const f of def.fields) {
+          manager.setType(f.key, propertyTypeFor(f));
+        }
+      }
+    }
+  } catch (e) {
+    console.warn("Cadence: Failed to register property types", e);
+  }
+}
+
+// src/plugin/contact-project-sync.ts
+var import_obsidian16 = require("obsidian");
+function extractEntitiesFromValue(value) {
+  if (value == null) return [];
+  const results = [];
+  const processStr = (str) => {
+    str = String(str).trim();
+    if (!str) return;
+    if (str.includes("[[")) {
+      const regex = /\[\[(.*?)\]\]/g;
+      let match;
+      while ((match = regex.exec(str)) !== null) {
+        let target = match[1].trim();
+        if (target.includes("|")) {
+          target = target.split("|")[0].trim();
+        }
+        if (target) results.push(target);
+      }
+    } else if (str.includes(",")) {
+      str.split(",").forEach((s) => {
+        const item = s.trim();
+        if (item) results.push(item);
+      });
+    } else {
+      results.push(str);
+    }
+  };
+  if (Array.isArray(value)) {
+    value.forEach((val) => processStr(val));
+  } else {
+    processStr(value);
+  }
+  return results;
+}
+function isContactField(key, entityKey, entities) {
+  if (["owner", "contact", "contacts", "with", "assigned"].includes(key.toLowerCase())) return true;
+  if (entityKey && entities[entityKey]) {
+    const fdef = entities[entityKey].fields.find((field) => field.key === key);
+    if (fdef) {
+      const sug = fdef.suggestionSource || getFieldSuggestionSource(fdef);
+      if (sug === "contact" || sug === "folder:Cadence/Contacts") return true;
+    }
+  }
+  return false;
+}
+function isProjectField(key, entityKey, entities) {
+  if (["project", "projects", "related"].includes(key.toLowerCase())) return true;
+  if (entityKey && entities[entityKey]) {
+    const fdef = entities[entityKey].fields.find((field) => field.key === key);
+    if (fdef) {
+      const sug = fdef.suggestionSource || getFieldSuggestionSource(fdef);
+      if (sug === "project" || sug === "folder:Cadence/Projects") return true;
+    }
+  }
+  return false;
+}
+function noteLinks(note, contactNames, projectNames, entities) {
+  const foundContacts = /* @__PURE__ */ new Set();
+  const foundProjects = /* @__PURE__ */ new Set();
+  if (note.entityKey === "contact") {
+    foundContacts.add(note.basename.toLowerCase());
+  } else if (note.entityKey === "project") {
+    foundProjects.add(note.basename.toLowerCase());
+  }
+  for (const [key, val] of Object.entries(note.frontmatter)) {
+    if (key === "type") continue;
+    const extracted = extractEntitiesFromValue(val);
+    for (const name of extracted) {
+      if (!name) continue;
+      const nameLower = name.toLowerCase();
+      if (isContactField(key, note.entityKey, entities) || contactNames.has(nameLower)) {
+        foundContacts.add(nameLower);
+      }
+      if (isProjectField(key, note.entityKey, entities) || projectNames.has(nameLower)) {
+        foundProjects.add(nameLower);
+      }
+    }
+  }
+  return { contacts: foundContacts, projects: foundProjects };
+}
+function collectValidLinks(notes, contactNames, projectNames, entities) {
+  const validLinks = /* @__PURE__ */ new Set();
+  for (const note of notes) {
+    if (note.entityKey === "contact") continue;
+    const { contacts, projects } = noteLinks(note, contactNames, projectNames, entities);
+    if (contacts.size > 0 && projects.size > 0) {
+      for (const c of contacts) {
+        for (const p of projects) {
+          validLinks.add(`${c}|${p}`);
+        }
+      }
+    }
+  }
+  return validLinks;
+}
+function autoCreateName(nameLower, basenames) {
+  return basenames.find((b) => b.toLowerCase() === nameLower) || nameLower.charAt(0).toUpperCase() + nameLower.slice(1);
+}
+function projectLinkValue(names) {
+  if (names.length === 0) return null;
+  if (names.length === 1) return `[[${names[0]}]]`;
+  return names.map((p) => `[[${p}]]`);
+}
+function writeProjectLinks(fm, names) {
+  const value = projectLinkValue(names);
+  if (value === null) {
+    delete fm.project;
+  } else {
+    fm.project = value;
+  }
+}
+function addProjectLink(current, projectName) {
+  if (current.some((p) => p.toLowerCase() === projectName.toLowerCase())) return current;
+  return [...current, projectName];
+}
+function removeProjectLink(current, projectName) {
+  return current.filter((p) => p.toLowerCase() !== projectName.toLowerCase());
+}
+function contactProjectsPlan(existing, target) {
+  const existingLower = existing.map((p) => p.toLowerCase());
+  const targetLower = target.map((p) => p.toLowerCase());
+  const needsUpdate = existingLower.some((p) => !targetLower.includes(p)) || targetLower.some((p) => !existingLower.includes(p));
+  if (!needsUpdate) return null;
+  return {
+    names: target,
+    added: target.filter((p) => !existing.some((ep) => ep.toLowerCase() === p.toLowerCase())),
+    removed: existing.filter((ep) => !target.some((p) => p.toLowerCase() === ep.toLowerCase()))
+  };
+}
+async function syncContactProjectRelationships(plugin, changedFile) {
+  if (plugin._syncInProgress) return;
+  if (!changedFile || !changedFile.path.toLowerCase().endsWith(".md")) return;
+  if (!plugin.app.vault.getAbstractFileByPath(changedFile.path)) return;
+  try {
+    plugin._syncInProgress = true;
+    const contactFiles = listEntityFiles(plugin.app, "contact");
+    const projectFiles = listEntityFiles(plugin.app, "project");
+    const contactMap = /* @__PURE__ */ new Map();
+    for (const f of contactFiles) {
+      contactMap.set(f.basename.toLowerCase(), f);
+    }
+    const projectMap = /* @__PURE__ */ new Map();
+    for (const f of projectFiles) {
+      projectMap.set(f.basename.toLowerCase(), f);
+    }
+    const frontmatterOf = (f) => (plugin.app.metadataCache.getFileCache(f) || {}).frontmatter || {};
+    const autoCreate = async (entityKey, nameLower, allFiles, map) => {
+      try {
+        const originalName = autoCreateName(nameLower, allFiles.map((f) => f.basename));
+        const file = await createEntity(plugin.app, entityKey, originalName);
+        map.set(nameLower, file);
+        new import_obsidian16.Notice(`Fiche ${entityKey === "contact" ? "contact" : "projet"} cr\xE9\xE9e automatiquement pour "${originalName}".`);
+      } catch (e) {
+        console.error(`Cadence: Failed to auto-create ${entityKey} ${nameLower}`, e);
+      }
+    };
+    const changedEntityKey = entityKeyFromFile(plugin.app, changedFile);
+    if (changedEntityKey === "contact") {
+      const currentProjectsOfContact = new Set(
+        extractEntitiesFromValue(frontmatterOf(changedFile).project).map((p) => p.toLowerCase())
+      );
+      for (const p of currentProjectsOfContact) {
+        if (!projectMap.has(p)) {
+          await autoCreate("project", p, plugin.app.vault.getMarkdownFiles(), projectMap);
+        }
+      }
+    } else if (changedEntityKey === "project") {
+      const projectLower = changedFile.basename.toLowerCase();
+      const projectFm = frontmatterOf(changedFile);
+      const projectContacts = [];
+      for (const [key, val] of Object.entries(projectFm)) {
+        if (key === "type") continue;
+        if (isContactField(key, "project", ENTITIES)) {
+          projectContacts.push(...extractEntitiesFromValue(val));
+        }
+      }
+      const currentContactsOfProject = new Set(projectContacts.map((c) => c.toLowerCase()));
+      for (const c of currentContactsOfProject) {
+        if (!contactMap.has(c)) {
+          await autoCreate("contact", c, plugin.app.vault.getMarkdownFiles(), contactMap);
+        }
+      }
+      for (const [contactLower, contactFile] of contactMap.entries()) {
+        const contactProjects = extractEntitiesFromValue(frontmatterOf(contactFile).project);
+        const listsProject = contactProjects.some((p) => p.toLowerCase() === projectLower);
+        const projectListsContact = currentContactsOfProject.has(contactLower);
+        if (projectListsContact && !listsProject) {
+          await plugin.app.fileManager.processFrontMatter(contactFile, (cfm) => {
+            const currentProjects = extractEntitiesFromValue(cfm.project);
+            if (!currentProjects.some((p) => p.toLowerCase() === projectLower)) {
+              writeProjectLinks(cfm, addProjectLink(currentProjects, changedFile.basename));
+            }
+          });
+          new import_obsidian16.Notice(`Lien automatique : Projet "${changedFile.basename}" associ\xE9 au contact "${contactFile.basename}".`);
+        } else if (!projectListsContact && listsProject) {
+          let hasOtherSource = false;
+          const allFiles = plugin.app.vault.getMarkdownFiles();
+          for (const f of allFiles) {
+            if (f.path === changedFile.path || f.path === contactFile.path) continue;
+            const cache = plugin.app.metadataCache.getFileCache(f);
+            if (!cache || !cache.frontmatter) continue;
+            const note = { entityKey: entityKeyFromFile(plugin.app, f), basename: f.basename, frontmatter: cache.frontmatter };
+            const { contacts, projects } = noteLinks(note, contactMap, projectMap, ENTITIES);
+            if (contacts.has(contactLower) && projects.has(projectLower)) {
+              hasOtherSource = true;
+              break;
+            }
+          }
+          if (!hasOtherSource) {
+            await plugin.app.fileManager.processFrontMatter(contactFile, (cfm) => {
+              writeProjectLinks(cfm, removeProjectLink(extractEntitiesFromValue(cfm.project), projectLower));
+            });
+            new import_obsidian16.Notice(`Lien automatique : Projet "${changedFile.basename}" dissoci\xE9 du contact "${contactFile.basename}".`);
+          }
+        }
+      }
+    } else {
+      const allFiles = plugin.app.vault.getMarkdownFiles();
+      const notes = [];
+      for (const f of allFiles) {
+        const entityKey = entityKeyFromFile(plugin.app, f);
+        if (entityKey === "contact") continue;
+        const cache = plugin.app.metadataCache.getFileCache(f);
+        if (!cache || !cache.frontmatter) continue;
+        notes.push({ entityKey, basename: f.basename, frontmatter: cache.frontmatter });
+      }
+      const validLinks = collectValidLinks(notes, contactMap, projectMap, ENTITIES);
+      for (const link of validLinks) {
+        const [c, p] = link.split("|");
+        if (!contactMap.get(c)) await autoCreate("contact", c, allFiles, contactMap);
+        if (!projectMap.get(p)) await autoCreate("project", p, allFiles, projectMap);
+      }
+      for (const [contactLower, contactFile] of contactMap.entries()) {
+        const existingProjects = extractEntitiesFromValue(frontmatterOf(contactFile).project);
+        const projectNamesToLink = /* @__PURE__ */ new Set();
+        for (const link of validLinks) {
+          const [c, p] = link.split("|");
+          if (c === contactLower) {
+            const pFile = projectMap.get(p);
+            if (pFile) {
+              projectNamesToLink.add(pFile.basename);
+            }
+          }
+        }
+        const plan = contactProjectsPlan(existingProjects, Array.from(projectNamesToLink));
+        if (plan) {
+          await plugin.app.fileManager.processFrontMatter(contactFile, (cfm) => {
+            writeProjectLinks(cfm, plan.names);
+          });
+          if (plan.added.length > 0) {
+            new import_obsidian16.Notice(`Lien automatique : Projet "${plan.added.join(", ")}" associ\xE9 \xE0 "${contactFile.basename}".`);
+          }
+          if (plan.removed.length > 0) {
+            new import_obsidian16.Notice(`Lien automatique : Projet "${plan.removed.join(", ")}" dissoci\xE9 de "${contactFile.basename}".`);
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.error("Cadence: Error in syncContactProjectRelationships", e);
+  } finally {
+    plugin._syncInProgress = false;
+  }
+}
+async function handleProjectDeletion(plugin, file) {
+  if (plugin._syncInProgress) return;
+  if (!file || !file.path || !file.path.toLowerCase().endsWith(".md")) return;
+  const projectFolder = ENTITIES.project ? ENTITIES.project.folder : "Cadence/Projects";
+  if (!file.path.startsWith(projectFolder + "/")) return;
+  const projectName = file.basename;
+  if (!projectName) return;
+  try {
+    plugin._syncInProgress = true;
+    const contactFiles = listEntityFiles(plugin.app, "contact");
+    for (const contactFile of contactFiles) {
+      const contactCache = plugin.app.metadataCache.getFileCache(contactFile) || {};
+      const contactFm = contactCache.frontmatter || {};
+      const existingProjectsVal = contactFm.project;
+      if (!existingProjectsVal) continue;
+      const existingProjectNames = extractEntitiesFromValue(existingProjectsVal);
+      const hasProject = existingProjectNames.some((p) => p.toLowerCase() === projectName.toLowerCase());
+      if (hasProject) {
+        const remainingProjects = removeProjectLink(existingProjectNames, projectName);
+        await plugin.app.fileManager.processFrontMatter(contactFile, (cfm) => {
+          writeProjectLinks(cfm, remainingProjects);
+        });
+        new import_obsidian16.Notice(`Lien automatique : Projet "${projectName}" supprim\xE9 du contact "${contactFile.basename}".`);
+      }
+    }
+  } catch (e) {
+    console.error("Cadence: Error in handleProjectDeletion", e);
+  } finally {
+    plugin._syncInProgress = false;
+  }
+}
+
+// src/views/app-view.ts
+var import_obsidian17 = require("obsidian");
 
 // src/views/nav.ts
 function migrateModeId(id, settings) {
@@ -3715,7 +4373,7 @@ async function renderAppView(view) {
     const topbar = root.createDiv({ cls: "cad-app-topbar" });
     const burger = topbar.createEl("button", { cls: "cad-mobile-burger" });
     try {
-      (0, import_obsidian15.setIcon)(burger, "menu");
+      (0, import_obsidian17.setIcon)(burger, "menu");
     } catch (_) {
     }
     burger.title = "Show nav";
@@ -3727,7 +4385,7 @@ async function renderAppView(view) {
     const dark = !!view.plugin.settings.cadenceAppDark;
     const themeBtn = topRight.createEl("button", { cls: "cad-topbar-icon-btn" });
     try {
-      (0, import_obsidian15.setIcon)(themeBtn, dark ? "sun" : "moon");
+      (0, import_obsidian17.setIcon)(themeBtn, dark ? "sun" : "moon");
     } catch (_) {
     }
     themeBtn.title = dark ? "Cadence: switch to light" : "Cadence: switch to dark";
@@ -3747,7 +4405,7 @@ async function renderAppView(view) {
         const head = groupEl.createDiv({ cls: "cad-nav-group-head" });
         const chev = head.createSpan({ cls: "cad-nav-group-chev" });
         try {
-          (0, import_obsidian15.setIcon)(chev, isCollapsed ? "chevron-right" : "chevron-down");
+          (0, import_obsidian17.setIcon)(chev, isCollapsed ? "chevron-right" : "chevron-down");
         } catch (_) {
         }
         head.createSpan({ cls: "cad-nav-group-label", text: group.label.toUpperCase() });
@@ -3761,7 +4419,7 @@ async function renderAppView(view) {
           });
           const ic = item.createSpan({ cls: "cad-app-nav-icon" });
           try {
-            (0, import_obsidian15.setIcon)(ic, s.icon);
+            (0, import_obsidian17.setIcon)(ic, s.icon);
           } catch (_) {
           }
           item.createSpan({ cls: "cad-app-nav-label", text: s.label });
@@ -3827,7 +4485,7 @@ function renderComingSoon(view, root, surface2) {
   wrap.createDiv({ cls: "cad-soon-desc", text: surface2.desc });
   const ic = wrap.createDiv({ cls: "cad-soon-icon" });
   try {
-    (0, import_obsidian15.setIcon)(ic, surface2.icon);
+    (0, import_obsidian17.setIcon)(ic, surface2.icon);
   } catch (_) {
   }
   const meta = wrap.createDiv({ cls: "cad-soon-meta" });
@@ -3848,7 +4506,7 @@ async function openSettingsTab(view, root) {
   const wrap = root.createDiv({ cls: "cad-soon-wrap" });
   const ic = wrap.createDiv({ cls: "cad-soon-icon" });
   try {
-    (0, import_obsidian15.setIcon)(ic, "settings-2");
+    (0, import_obsidian17.setIcon)(ic, "settings-2");
   } catch (_) {
   }
   wrap.createDiv({ cls: "cad-eyebrow", text: "CADENCE" });
@@ -3886,7 +4544,7 @@ async function createEntityFromPrompt(view, entityKey, defaults = {}) {
           if (!targetFile) {
             try {
               await createEntity(view.app, link.creationSource, link.name);
-              new import_obsidian15.Notice(`Created new ${link.label}: ${link.name}`);
+              new import_obsidian17.Notice(`Created new ${link.label}: ${link.name}`);
             } catch (e) {
               console.warn(`Failed to auto-create ${link.creationSource}`, e);
             }
@@ -3900,11 +4558,11 @@ async function createEntityFromPrompt(view, entityKey, defaults = {}) {
             });
           });
         }
-        new import_obsidian15.Notice(`Created ${def.label}: ${file.basename}
+        new import_obsidian17.Notice(`Created ${def.label}: ${file.basename}
 Saved to ${file.path}`, 4e3);
         await view.openEntityDetail(entityKey, file);
       } catch (e) {
-        new import_obsidian15.Notice(`Cadence: failed to create ${def.label} \u2014 ${e.message}`);
+        new import_obsidian17.Notice(`Cadence: failed to create ${def.label} \u2014 ${e.message}`);
       }
     }
   }).open();
@@ -3944,7 +4602,7 @@ function planEntityLinks(def, defaults, values) {
 }
 
 // src/views/home.ts
-var import_obsidian16 = require("obsidian");
+var import_obsidian18 = require("obsidian");
 
 // src/utils/task-lines.ts
 var TASK_PREFIX = /^\s*-\s\[(x|X| )\]\s/;
@@ -4067,7 +4725,7 @@ async function renderBriefing(view, root) {
     card.createDiv({ cls: "cad-briefing-empty", text: "Nothing flagged. Make today count." });
     return;
   }
-  const { shown, hiddenCount } = visibleBriefing(items, !!(import_obsidian16.Platform && import_obsidian16.Platform.isMobile));
+  const { shown, hiddenCount } = visibleBriefing(items, !!(import_obsidian18.Platform && import_obsidian18.Platform.isMobile));
   const list = card.createDiv({ cls: "cad-briefing-list" });
   shown.forEach((it) => {
     const row = list.createDiv({ cls: `cad-briefing-row cad-tone-${it.tone || "emerald"}` });
@@ -4406,7 +5064,7 @@ async function homeTodayCard(view, parent) {
         ev.preventDefault();
         ev.stopPropagation();
         const f = view.app.vault.getAbstractFileByPath(linkedProject);
-        if (f && f instanceof import_obsidian16.TFile) view.openEntityDetail("project", f);
+        if (f && f instanceof import_obsidian18.TFile) view.openEntityDetail("project", f);
       });
     }
     if (settings.taskManagementSystem !== "tasknotes") {
@@ -4452,7 +5110,7 @@ async function homeWeekCard(view, parent) {
     for (let i = 0; i < 7; i++) {
       const d = addDays(weekStart, i);
       const f = view.app.vault.getAbstractFileByPath(dailyNotePath(settings, d));
-      if (f && f instanceof import_obsidian16.TFile) {
+      if (f && f instanceof import_obsidian18.TFile) {
         const c = await view.app.vault.read(f);
         const p = parseSections(c, settings);
         const counts = countTaskLines(p.tasks);
@@ -4685,7 +5343,7 @@ async function homeActivitiesCard(view, parent) {
 }
 
 // src/views/inbox.ts
-var import_obsidian17 = require("obsidian");
+var import_obsidian19 = require("obsidian");
 function overdueCount(reminders, now) {
   const open = (reminders || []).filter((r) => !r.done);
   return open.filter((r) => r.when && new Date(r.when).getTime() <= now).length;
@@ -4856,7 +5514,7 @@ function renderInboxRow(view, parent, r, bucket) {
       ev.preventDefault();
       ev.stopPropagation();
       const file = view.app.vault.getAbstractFileByPath(r.project);
-      if (file && file instanceof import_obsidian17.TFile) view.openEntityDetail("project", file);
+      if (file && file instanceof import_obsidian19.TFile) view.openEntityDetail("project", file);
     });
   }
   const preview = notesPreview(r.notes);
@@ -4902,7 +5560,7 @@ function renderInboxRow(view, parent, r, bucket) {
 }
 
 // src/views/today.ts
-var import_obsidian18 = require("obsidian");
+var import_obsidian20 = require("obsidian");
 async function quickAddTodayTask(view) {
   if (view.plugin.settings.taskManagementSystem === "tasknotes") {
     const commandId = "tasknotes:create-new-task";
@@ -4922,7 +5580,7 @@ async function quickAddTodayTask(view) {
   const file = await ensureDailyNote(view.app, view.plugin.settings);
   const content = await view.app.vault.read(file);
   await view.app.vault.modify(file, appendDailyTask(content, view.plugin.settings, text));
-  new import_obsidian18.Notice("Added to today");
+  new import_obsidian20.Notice("Added to today");
 }
 function todaySummary(tasksList, greet) {
   const open = tasksList.filter((l) => / \[ \] /.test(l)).length;
@@ -5009,7 +5667,7 @@ async function renderTodayPane(view, root) {
           ev.preventDefault();
           ev.stopPropagation();
           const file = view.app.vault.getAbstractFileByPath(linkedProject);
-          if (file && file instanceof import_obsidian18.TFile) view.openEntityDetail("project", file);
+          if (file && file instanceof import_obsidian20.TFile) view.openEntityDetail("project", file);
         });
       }
       if (view.plugin.settings.taskManagementSystem !== "tasknotes") {
@@ -5060,7 +5718,7 @@ async function renderTodayPane(view, root) {
     customWrap.style.gridTemplateColumns = "repeat(auto-fit, minmax(320px, 1fr))";
     customWrap.style.gap = "16px";
     const flashSaved = () => {
-      new import_obsidian18.Notice("Section saved");
+      new import_obsidian20.Notice("Section saved");
     };
     otherKeys.forEach((rawKey) => {
       view._renderDynamicH2Section(customWrap, view.todayFile, allSections, rawKey, flashSaved);
@@ -5108,7 +5766,7 @@ async function saveTodayJournal(view, body) {
 }
 
 // src/views/calendar.ts
-var import_obsidian19 = require("obsidian");
+var import_obsidian21 = require("obsidian");
 function plannerWeekTitle(days) {
   const startStr = days[0].toLocaleDateString(void 0, { month: "long", day: "numeric" });
   const endStr = days[6].toLocaleDateString(void 0, { month: "long", day: "numeric", year: "numeric" });
@@ -5176,7 +5834,7 @@ async function renderPlannerPane(view, root) {
     dayData = await Promise.all(days.map(async (d) => {
       const path = dailyNotePath(settings, d);
       const file = view.app.vault.getAbstractFileByPath(path);
-      if (!file || !(file instanceof import_obsidian19.TFile)) {
+      if (!file || !(file instanceof import_obsidian21.TFile)) {
         return { date: d, path, exists: false, tasks: [] };
       }
       const content = await view.app.vault.read(file);
@@ -5251,10 +5909,10 @@ async function togglePlannerTask(view, day, idx, checked) {
 }
 
 // src/views/entity-list.ts
-var import_obsidian21 = require("obsidian");
+var import_obsidian23 = require("obsidian");
 
 // src/views/kanban.ts
-var import_obsidian20 = require("obsidian");
+var import_obsidian22 = require("obsidian");
 function unwrapLink(value) {
   return String(value).replace(/^\[\[|\]\]$/g, "").trim();
 }
@@ -5378,20 +6036,20 @@ async function renderEntityKanban(view, root, entityKey, groupBy, groups) {
       const fromStage = ev.dataTransfer.getData("text/cadence-stage");
       if (!path || fromStage === stage) return;
       const file = view.app.vault.getAbstractFileByPath(path);
-      if (!file || !(file instanceof import_obsidian20.TFile)) return;
+      if (!file || !(file instanceof import_obsidian22.TFile)) return;
       try {
         await view.app.fileManager.processFrontMatter(file, (fm) => {
           fm[groupBy] = groupBy === "stage" ? [stage] : stage;
         });
-        new import_obsidian20.Notice(`Moved to ${stage}`);
+        new import_obsidian22.Notice(`Moved to ${stage}`);
       } catch (e) {
-        new import_obsidian20.Notice(`Failed to move: ${e.message}`);
+        new import_obsidian22.Notice(`Failed to move: ${e.message}`);
       }
     });
     if (!items.length) {
       list.createDiv({ cls: "cad-empty", text: "\u2014" });
     } else {
-      const isMobile = !!(import_obsidian20.Platform && import_obsidian20.Platform.isMobile);
+      const isMobile = !!(import_obsidian22.Platform && import_obsidian22.Platform.isMobile);
       items.forEach((e) => {
         const card = list.createDiv({ cls: "cad-kanban-card" });
         card.dataset.path = e.file.path;
@@ -5643,7 +6301,7 @@ async function renderEntityList(view, root, entityKey, opts = {}) {
       btn2.style.borderRadius = "4px";
       btn2.style.cursor = "pointer";
       try {
-        (0, import_obsidian21.setIcon)(btn2, l.icon);
+        (0, import_obsidian23.setIcon)(btn2, l.icon);
       } catch (_) {
       }
       btn2.title = l.title;
@@ -5830,20 +6488,20 @@ async function renderEntityList(view, root, entityKey, opts = {}) {
           const fromStage = ev.dataTransfer.getData("text/cadence-stage");
           if (!path || fromStage === stage) return;
           const file = view.app.vault.getAbstractFileByPath(path);
-          if (!file || !(file instanceof import_obsidian21.TFile)) return;
+          if (!file || !(file instanceof import_obsidian23.TFile)) return;
           try {
             await view.app.fileManager.processFrontMatter(file, (fm) => {
               fm[groupBy] = kanbanDropValue(def.fields.find((fd) => fd.key === groupBy), stage);
             });
-            new import_obsidian21.Notice(`Moved to ${stage}`);
+            new import_obsidian23.Notice(`Moved to ${stage}`);
           } catch (e) {
-            new import_obsidian21.Notice(`Failed to move: ${e.message}`);
+            new import_obsidian23.Notice(`Failed to move: ${e.message}`);
           }
         });
         if (!items.length) {
           list.createDiv({ cls: "cad-empty", text: "\u2014" });
         } else {
-          const isMobile = !!(import_obsidian21.Platform && import_obsidian21.Platform.isMobile);
+          const isMobile = !!(import_obsidian23.Platform && import_obsidian23.Platform.isMobile);
           items.forEach((e) => {
             const card = list.createDiv({ cls: "cad-kanban-card" });
             card.dataset.path = e.file.path;
@@ -5985,7 +6643,7 @@ async function renderEntityList(view, root, entityKey, opts = {}) {
 }
 
 // src/views/entity-detail.ts
-var import_obsidian22 = require("obsidian");
+var import_obsidian24 = require("obsidian");
 
 // src/utils/field-edit.ts
 function coerceFieldEdit(def, key, raw) {
@@ -6203,10 +6861,10 @@ async function renderEntityDetail(view, root, entityKey, file) {
         setTimeout(async () => {
           try {
             await view.app.vault.trash(file, true);
-            new import_obsidian22.Notice(`Deleted ${def.label}: ${file.basename}`);
+            new import_obsidian24.Notice(`Deleted ${def.label}: ${file.basename}`);
             view.closeEntityDetail();
           } catch (e) {
-            new import_obsidian22.Notice(`Delete failed: ${e.message}`);
+            new import_obsidian24.Notice(`Delete failed: ${e.message}`);
           }
         }, 50);
       }
@@ -6226,7 +6884,7 @@ async function renderEntityDetail(view, root, entityKey, file) {
       await view.app.fileManager.processFrontMatter(file, (frontmatter) => applyFieldEdit(frontmatter, key, value));
       flashSaved();
     } catch (e) {
-      new import_obsidian22.Notice(`Save failed: ${e.message}`);
+      new import_obsidian24.Notice(`Save failed: ${e.message}`);
     }
   };
   const debouncedWrite = (key, val) => {
@@ -6445,7 +7103,7 @@ async function renderEntityDetail(view, root, entityKey, file) {
               try {
                 const creation = chipCreation(suggestionSource, targetEntityKey, ENTITIES);
                 await createEntity(view.app, creation.source, name);
-                new import_obsidian22.Notice(`Created new ${creation.label}: ${name}`);
+                new import_obsidian24.Notice(`Created new ${creation.label}: ${name}`);
               } catch (e) {
                 console.warn(`Failed to auto-create ${targetEntityKey || suggestionSource}`, e);
               }
@@ -6515,7 +7173,7 @@ async function renderEntityDetail(view, root, entityKey, file) {
 }
 
 // src/views/company-detail.ts
-var import_obsidian23 = require("obsidian");
+var import_obsidian25 = require("obsidian");
 function companyDetailTitle(fm, basename) {
   return fm.name || basename;
 }
@@ -6558,10 +7216,10 @@ async function renderCompanyDetail(view, root, file) {
         setTimeout(async () => {
           try {
             await view.app.vault.trash(file, true);
-            new import_obsidian23.Notice(`Deleted company: ${file.basename}`);
+            new import_obsidian25.Notice(`Deleted company: ${file.basename}`);
             view.closeEntityDetail();
           } catch (e) {
-            new import_obsidian23.Notice(`Delete failed: ${e.message}`);
+            new import_obsidian25.Notice(`Delete failed: ${e.message}`);
           }
         }, 50);
       }
@@ -6728,7 +7386,7 @@ async function renderCompanyDetail(view, root, file) {
             try {
               const creation = chipCreation(suggestionSource, targetEntityKey, ENTITIES);
               await createEntity(view.app, creation.source, name);
-              new import_obsidian23.Notice(`Created new ${creation.label}: ${name}`);
+              new import_obsidian25.Notice(`Created new ${creation.label}: ${name}`);
             } catch (e) {
               console.warn(`Failed to auto-create ${targetEntityKey || suggestionSource}`, e);
             }
@@ -6816,7 +7474,7 @@ async function renderCompanyDetail(view, root, file) {
 }
 
 // src/views/projects-dashboard.ts
-var import_obsidian24 = require("obsidian");
+var import_obsidian26 = require("obsidian");
 
 // src/views/components/charts.ts
 var CHART_COLORS = ["#38bdf8", "#34d399", "#f43f5e", "#a855f7", "#f97316", "#06b6d4", "#eab308"];
@@ -7145,21 +7803,21 @@ async function renderProjectsDashboard(view, root) {
       const fromStage = ev.dataTransfer.getData("text/cadence-stage-status");
       if (!acceptsDrop(path, fromStage, status)) return;
       const file = view.app.vault.getAbstractFileByPath(path);
-      if (!file || !(file instanceof import_obsidian24.TFile)) return;
+      if (!file || !(file instanceof import_obsidian26.TFile)) return;
       try {
         await view.app.fileManager.processFrontMatter(file, (fm) => {
           fm["status"] = status;
         });
-        new import_obsidian24.Notice(`Project status set to ${status}`);
+        new import_obsidian26.Notice(`Project status set to ${status}`);
         view.render();
       } catch (e) {
-        new import_obsidian24.Notice(`Failed to change status: ${e.message}`);
+        new import_obsidian26.Notice(`Failed to change status: ${e.message}`);
       }
     });
     if (!items.length) {
       list.createDiv({ cls: "cad-empty", text: "No projects", attr: { style: "text-align: center; color: var(--text-faint); margin-top: 32px;" } });
     } else {
-      const isMobile = !!(import_obsidian24.Platform && import_obsidian24.Platform.isMobile);
+      const isMobile = !!(import_obsidian26.Platform && import_obsidian26.Platform.isMobile);
       items.forEach((e) => {
         const row = list.createDiv({ cls: "cad-dash-row", attr: { style: "display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; background: var(--background-secondary); border-radius: 6px; cursor: pointer; border: 1px solid var(--border-color);" } });
         const nameEl = row.createDiv({ attr: { style: "font-weight: 500; font-size: 0.9em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px;" } });
@@ -7232,21 +7890,21 @@ async function renderProjectsDashboard(view, root) {
         const fromStage = ev.dataTransfer.getData("text/cadence-stage");
         if (!acceptsDrop(path, fromStage, prio)) return;
         const file = view.app.vault.getAbstractFileByPath(path);
-        if (!file || !(file instanceof import_obsidian24.TFile)) return;
+        if (!file || !(file instanceof import_obsidian26.TFile)) return;
         try {
           await view.app.fileManager.processFrontMatter(file, (fm) => {
             fm["priority"] = prio;
           });
-          new import_obsidian24.Notice(`Project priority set to ${prio}`);
+          new import_obsidian26.Notice(`Project priority set to ${prio}`);
           view.render();
         } catch (e) {
-          new import_obsidian24.Notice(`Failed to change priority: ${e.message}`);
+          new import_obsidian26.Notice(`Failed to change priority: ${e.message}`);
         }
       });
       if (!items.length) {
         list.createDiv({ cls: "cad-empty", text: "No projects", attr: { style: "text-align: center; color: var(--text-faint); margin-top: 32px;" } });
       } else {
-        const isMobile = !!(import_obsidian24.Platform && import_obsidian24.Platform.isMobile);
+        const isMobile = !!(import_obsidian26.Platform && import_obsidian26.Platform.isMobile);
         items.forEach((e) => {
           const row = list.createDiv({ cls: "cad-dash-row", attr: { style: "display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; background: var(--background-secondary); border-radius: 6px; cursor: pointer; border: 1px solid var(--border-color);" } });
           const nameEl = row.createDiv({ attr: { style: "font-weight: 500; font-size: 0.9em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px;" } });
@@ -7406,7 +8064,7 @@ async function renderProjectsView(view, root) {
 }
 
 // src/views/templates.ts
-var import_obsidian25 = require("obsidian");
+var import_obsidian27 = require("obsidian");
 async function renderTemplatesDashboard(view, root) {
   root.addClass("cadence-dashboard");
   root.addClass("cadence-projects");
@@ -7419,7 +8077,7 @@ async function renderTemplatesDashboard(view, root) {
     await ensureFolderSync(view.app, templatesFolder);
     const dailyTemplatePath = `${templatesFolder}/daily.md`;
     const dailyTFile = view.app.vault.getAbstractFileByPath(dailyTemplatePath);
-    const exists = !!(dailyTFile && dailyTFile instanceof import_obsidian25.TFile);
+    const exists = !!(dailyTFile && dailyTFile instanceof import_obsidian27.TFile);
     const card = grid.createDiv({
       cls: "cad-proj-card cad-template-tile"
     });
@@ -7428,7 +8086,7 @@ async function renderTemplatesDashboard(view, root) {
     const infoWrap = head.createDiv({ attr: { style: "display: flex; align-items: center; gap: 12px;" } });
     const iconSpan = infoWrap.createSpan({ cls: "cad-template-tile-icon" });
     try {
-      (0, import_obsidian25.setIcon)(iconSpan, "sun");
+      (0, import_obsidian27.setIcon)(iconSpan, "sun");
     } catch (_) {
       iconSpan.setText("\u2600\uFE0F");
     }
@@ -7469,7 +8127,7 @@ async function renderTemplatesDashboard(view, root) {
       resetBtn.addEventListener("click", async (e) => {
         e.stopPropagation();
         await view.app.vault.create(dailyTemplatePath, DAILY_TEMPLATE_CONTENT);
-        new import_obsidian25.Notice("Daily Note template successfully enabled.");
+        new import_obsidian27.Notice("Daily Note template successfully enabled.");
         view.render();
       });
     }
@@ -7485,7 +8143,7 @@ async function renderTemplatesDashboard(view, root) {
     const pathsToTry = templatePathCandidates(templatesFolder, entityKey, def);
     for (const p of pathsToTry) {
       const tFile = view.app.vault.getAbstractFileByPath(p);
-      if (tFile && tFile instanceof import_obsidian25.TFile) {
+      if (tFile && tFile instanceof import_obsidian27.TFile) {
         exists = true;
         foundPath = p;
         break;
@@ -7499,7 +8157,7 @@ async function renderTemplatesDashboard(view, root) {
     const infoWrap = head.createDiv({ attr: { style: "display: flex; align-items: center; gap: 12px;" } });
     const iconSpan = infoWrap.createSpan({ cls: "cad-template-tile-icon" });
     try {
-      (0, import_obsidian25.setIcon)(iconSpan, def.icon || "file-text");
+      (0, import_obsidian27.setIcon)(iconSpan, def.icon || "file-text");
     } catch (_) {
       iconSpan.setText("\u{1F4DD}");
     }
@@ -7548,13 +8206,13 @@ async function renderTemplatesDashboard(view, root) {
       const templateContent = defaultTemplateContent(entityKey);
       const targetPath = `${templatesFolder}/${entityKey}.md`;
       let tFile = view.app.vault.getAbstractFileByPath(targetPath);
-      if (tFile && tFile instanceof import_obsidian25.TFile) {
+      if (tFile && tFile instanceof import_obsidian27.TFile) {
         if (!confirm(`Are you sure you want to reset the template for ${def.label}? Your visual changes will be overwritten.`)) return;
         await view.app.vault.modify(tFile, templateContent);
-        new import_obsidian25.Notice(`Template reset for ${def.label}.`);
+        new import_obsidian27.Notice(`Template reset for ${def.label}.`);
       } else {
         await view.app.vault.create(targetPath, templateContent);
-        new import_obsidian25.Notice(`Template successfully enabled for ${def.label}.`);
+        new import_obsidian27.Notice(`Template successfully enabled for ${def.label}.`);
       }
       view.render();
     });
@@ -7599,10 +8257,10 @@ async function renderTemplateDetail(view, root, entityKey, file) {
     if (!confirm(`Delete this custom template? Cadence will fall back to using the default structure.`)) return;
     try {
       await view.app.vault.trash(file, true);
-      new import_obsidian25.Notice(`Custom template deleted.`);
+      new import_obsidian27.Notice(`Custom template deleted.`);
       view.closeEntityDetail();
     } catch (e) {
-      new import_obsidian25.Notice(`Error: ${e.message}`);
+      new import_obsidian27.Notice(`Error: ${e.message}`);
     }
   });
   const cols = root.createDiv({ cls: "cad-pd-cols" });
@@ -7622,7 +8280,7 @@ async function renderTemplateDetail(view, root, entityKey, file) {
     const curContent = await view.app.vault.read(file);
     const nextContent = appendTemplateSection(curContent, cleanTitle, tag, defaultBody);
     await view.app.vault.modify(file, nextContent);
-    new import_obsidian25.Notice(`Section "${cleanTitle}" added to template.`);
+    new import_obsidian27.Notice(`Section "${cleanTitle}" added to template.`);
     await view._propagateTemplateSectionAdd(entityKey, cleanTitle, tag, defaultBody);
     view.render();
   };
@@ -7740,7 +8398,7 @@ function renderTemplateSectionWithDelete(view, parent, file, sections, rawKey, f
   const grip = ctrlRow.createDiv({ attr: { style: "cursor: grab; display: flex; align-items: center; justify-content: center; color: var(--text-muted); opacity: 0.7; padding: 2px 4px;" } });
   grip.title = "Drag card to reorder";
   try {
-    (0, import_obsidian25.setIcon)(grip, "grip-vertical");
+    (0, import_obsidian27.setIcon)(grip, "grip-vertical");
   } catch (_) {
   }
   const delBtn = ctrlRow.createEl("button", { text: "\xD7", attr: { style: "color: var(--text-error); padding: 0 4px; font-weight: bold; background: transparent; border: none; font-size: 1.25em; cursor: pointer;" } });
@@ -7754,7 +8412,7 @@ function renderTemplateSectionWithDelete(view, parent, file, sections, rawKey, f
     if (nextContent !== null) {
       await view.app.vault.modify(file, nextContent);
       await view._propagateTemplateSectionDelete(entityKey, rawKey);
-      new import_obsidian25.Notice(`Section "${cleanLabel}" removed.`);
+      new import_obsidian27.Notice(`Section "${cleanLabel}" removed.`);
       view.render();
     }
   });
@@ -8125,7 +8783,7 @@ async function renderCrmDashboard(view, root) {
 }
 
 // src/views/reports.ts
-var import_obsidian26 = require("obsidian");
+var import_obsidian28 = require("obsidian");
 var DAY_MS2 = 864e5;
 function reportBar(value, max) {
   const ratio = value / max;
@@ -8594,7 +9252,7 @@ async function renderProductivity(view, root) {
   const notes = /* @__PURE__ */ new Map();
   for (const d of productivityDates(now, settings.weekStartsOn)) {
     const f = view.app.vault.getAbstractFileByPath(dailyNotePath(settings, d));
-    if (f && f instanceof import_obsidian26.TFile) notes.set(ymd(d), await view.app.vault.read(f));
+    if (f && f instanceof import_obsidian28.TFile) notes.set(ymd(d), await view.app.vault.read(f));
   }
   const report = productivityReport(notes, now, settings);
   view._renderPageHeader(root, "Productivity", "Last 30 days \xB7 across your daily notes");
@@ -9129,7 +9787,7 @@ async function renderTeam(view, root) {
 }
 
 // src/views/project-detail.ts
-var import_obsidian27 = require("obsidian");
+var import_obsidian29 = require("obsidian");
 function projectDetailTitle(fm, basename) {
   return fm.name || basename;
 }
@@ -9289,10 +9947,10 @@ async function renderProjectDetail(view, root, file) {
         setTimeout(async () => {
           try {
             await view.app.vault.trash(file, true);
-            new import_obsidian27.Notice(`Deleted project: ${file.basename}`);
+            new import_obsidian29.Notice(`Deleted project: ${file.basename}`);
             view.closeEntityDetail();
           } catch (e) {
-            new import_obsidian27.Notice(`Delete failed: ${e.message}`);
+            new import_obsidian29.Notice(`Delete failed: ${e.message}`);
           }
         }, 50);
       }
@@ -9470,7 +10128,7 @@ async function renderProjectDetail(view, root, file) {
             try {
               const creation = chipCreation(suggestionSource, targetEntityKey, ENTITIES);
               await createEntity(view.app, creation.source, name);
-              new import_obsidian27.Notice(`Created new ${creation.label}: ${name}`);
+              new import_obsidian29.Notice(`Created new ${creation.label}: ${name}`);
             } catch (e) {
               console.warn(`Failed to auto-create ${targetEntityKey || suggestionSource}`, e);
             }
@@ -9741,7 +10399,7 @@ function renderTaskSection(view, parent, file, tasks, flashSaved, rawKey = "Task
           await view._commitTasks(file, items, flashSaved, true, rawKey);
           const taskText = titleInp.value.trim();
           if (!taskText) {
-            new import_obsidian27.Notice("Add a task title first.");
+            new import_obsidian29.Notice("Add a task title first.");
             titleInp.focus();
             return;
           }
@@ -9796,12 +10454,12 @@ async function saveProjectFrontmatter(view, file, patch, flashSaved) {
     await view.app.fileManager.processFrontMatter(file, (fm) => writeProjectFrontmatter(fm, patch));
     if (typeof flashSaved === "function") flashSaved();
   } catch (e) {
-    new import_obsidian27.Notice(`Save failed: ${e.message}`);
+    new import_obsidian29.Notice(`Save failed: ${e.message}`);
   }
 }
 
 // src/views/task-links.ts
-var import_obsidian28 = require("obsidian");
+var import_obsidian30 = require("obsidian");
 function taskLinkKey(dailyPath, text) {
   return `${dailyPath}::${(text || "").trim()}`;
 }
@@ -9823,14 +10481,14 @@ async function setTaskProjectLink(view, dailyPath, text, projectPath) {
 function openTaskProjectPicker(view, dailyPath, text, currentLink) {
   const projectFiles = listEntityFiles(view.app, "project");
   if (!projectFiles.length) {
-    new import_obsidian28.Notice("No projects yet. Create one in Planner \u2192 Projects first.");
+    new import_obsidian30.Notice("No projects yet. Create one in Planner \u2192 Projects first.");
     return;
   }
   const projects = projectFiles.map((f) => ({
     file: f,
     name: projectNameFromPath(view.app, f.path)
   }));
-  const picker = new class extends import_obsidian28.SuggestModal {
+  const picker = new class extends import_obsidian30.SuggestModal {
     constructor(app, projs, hasLink) {
       super(app);
       this.projs = projs;
@@ -9907,12 +10565,12 @@ async function propagateTaskComplete(view, text, done, source) {
   }
   for (const path of targets.projectPaths) {
     const file = view.app.vault.getAbstractFileByPath(path);
-    if (!file || !(file instanceof import_obsidian28.TFile)) continue;
+    if (!file || !(file instanceof import_obsidian30.TFile)) continue;
     await view._tickProjectTaskByText(file, targets.text, !!done);
   }
   for (const path of targets.dailyPaths) {
     const file = view.app.vault.getAbstractFileByPath(path);
-    if (!file || !(file instanceof import_obsidian28.TFile)) continue;
+    if (!file || !(file instanceof import_obsidian30.TFile)) continue;
     await view._tickDailyNoteTaskByText(file, targets.text, !!done);
   }
 }
@@ -10094,7 +10752,7 @@ function getEntityFiles(view, entityKey) {
 }
 
 // src/views/components/sections.ts
-var import_obsidian29 = require("obsidian");
+var import_obsidian31 = require("obsidian");
 function linksTo(val, name) {
   if (val == null) return false;
   const cleanName = name.trim().toLowerCase();
@@ -10142,7 +10800,7 @@ function renderMarkdownTextCard(view, parent, file, sectionKey, label, initialVa
   const openBtn = head.createEl("button", { cls: "cad-btn cad-btn-sm", attr: { style: "margin-left: auto; padding: 4px 6px; display: inline-flex; align-items: center; justify-content: center; border-radius: 4px; border: 1px solid var(--border-color); background: transparent; cursor: pointer;" } });
   openBtn.title = "Open this note natively to edit with full Live Preview & Autocomplete";
   try {
-    (0, import_obsidian29.setIcon)(openBtn, "file-text");
+    (0, import_obsidian31.setIcon)(openBtn, "file-text");
   } catch (_) {
   }
   openBtn.addEventListener("click", (ev) => {
@@ -10155,7 +10813,7 @@ function renderMarkdownTextCard(view, parent, file, sectionKey, label, initialVa
     previewDiv.empty();
     const rawText = initialValue || "";
     try {
-      import_obsidian29.MarkdownRenderer.renderMarkdown(rawText, previewDiv, file.path, view);
+      import_obsidian31.MarkdownRenderer.renderMarkdown(rawText, previewDiv, file.path, view);
       previewDiv.querySelectorAll("a.internal-link").forEach((a) => {
         const href = a.getAttribute("data-href") || a.getAttribute("href");
         if (href) {
@@ -10299,7 +10957,7 @@ function renderSingleCrossSection(view, parent, targetEntity, linkField, viewTyp
     const board = secWrap.createDiv({ cls: "cad-kanban-board" });
     const groupField = def.fields.find((f) => f.key === "stage" || f.key === "status" || f.key === "type" || f.type === "enum") || def.fields[1];
     const columns = groupField.options || ["To Do", "In Progress", "Done"];
-    const isMobile = !!(import_obsidian29.Platform && import_obsidian29.Platform.isMobile);
+    const isMobile = !!(import_obsidian31.Platform && import_obsidian31.Platform.isMobile);
     columns.forEach((colName) => {
       const items = filteredList.filter((e) => {
         const val = entityValue(e, groupField.key, def);
@@ -10335,7 +10993,7 @@ function renderSingleCrossSection(view, parent, targetEntity, linkField, viewTyp
         const fromStage = ev.dataTransfer.getData("text/cadence-stage");
         if (!path || fromStage === colName) return;
         const file = view.app.vault.getAbstractFileByPath(path);
-        if (!file || !(file instanceof import_obsidian29.TFile)) return;
+        if (!file || !(file instanceof import_obsidian31.TFile)) return;
         try {
           await view.app.fileManager.processFrontMatter(file, (fm) => {
             const isList = groupField.type === "multitext" || groupField.type === "tags" || groupField.isList === true;
@@ -10346,10 +11004,10 @@ function renderSingleCrossSection(view, parent, targetEntity, linkField, viewTyp
               fm[groupField.key] = isLink ? `[[${colName}]]` : colName;
             }
           });
-          new import_obsidian29.Notice(`Moved to ${colName}`);
+          new import_obsidian31.Notice(`Moved to ${colName}`);
           view.render();
         } catch (e) {
-          new import_obsidian29.Notice(`Failed to move: ${e.message}`);
+          new import_obsidian31.Notice(`Failed to move: ${e.message}`);
         }
       });
       if (!items.length) {
@@ -10510,7 +11168,7 @@ function renderDynamicH2Section(view, parent, file, sections, rawKey, flashSaved
         const vBtn = viewSwitch.createEl("button", { attr: { style: `padding: 4px 6px; display: inline-flex; align-items: center; justify-content: center; border-radius: 4px; cursor: pointer; border: 1px solid var(--border-color); background: ${v === viewType ? "var(--interactive-accent)" : "transparent"}; color: ${v === viewType ? "var(--text-on-accent)" : "var(--text-muted)"};` } });
         vBtn.title = title;
         try {
-          (0, import_obsidian29.setIcon)(vBtn, icon);
+          (0, import_obsidian31.setIcon)(vBtn, icon);
         } catch (_) {
         }
         if (v !== viewType) {
@@ -10571,128 +11229,6 @@ function renderDynamicH2Section(view, parent, file, sections, rawKey, flashSaved
 }
 
 // src/legacy/cadence.js
-var DEFAULT_SETTINGS = {
-  dailyNoteFolder: "daily",
-  dailyNoteFormat: "YYYY-MM-DD",
-  journalHeading: "## Journal",
-  tasksHeading: "## Today",
-  taskManagementSystem: "native",
-  weekStartsOn: 1,
-  defaultTab: "home",
-  openOnStartup: true,
-  collapsedGroups: {},
-  currency: "USD",
-  cadenceAppDark: false,
-  taskProjectLinks: {},
-  modules: {
-    crm: true,
-    prm: false,
-    planner: true,
-    projects: true
-  },
-  desktopNotifications: true,
-  reminders: [],
-  customPages: [],
-  pageLayouts: {},
-  pageKanbanGroupBy: {},
-  crossSections: [],
-  cadenceApiUrl: "",
-  cadenceApiToken: "",
-  projectDashboardWidgets: [],
-  crmDashboardWidgets: [],
-  prmDashboardWidgets: [],
-  customEntities: {
-    project: [
-      { key: "name", label: "Name", primary: true, type: "text" },
-      { key: "status", label: "Status", type: "enum", options: ["active", "on_hold", "backlog", "done", "cancelled"] },
-      { key: "priority", label: "Priority", type: "enum", options: ["low", "medium", "high"] },
-      { key: "owner", label: "Owner", type: "multitext", suggestionSource: "folder:Cadence/Contacts" },
-      { key: "started", label: "Started", type: "date" },
-      { key: "due", label: "Due", type: "date" },
-      { key: "tags", label: "Tags", type: "tags" }
-    ],
-    contact: [
-      { key: "name", label: "Name", primary: true, type: "text" },
-      { key: "email", label: "Email", type: "multitext", isList: true, suggestionSource: "none" },
-      { key: "phone", label: "Phone", isList: true, type: "multitext", suggestionSource: "none" },
-      { key: "company", label: "Company", isList: true, type: "multitext", suggestionSource: "folder:Cadence/Companies" },
-      { key: "role", label: "Role", isList: true, type: "multitext" },
-      { key: "project", label: "Project", type: "multitext", suggestionSource: "folder:Cadence/Projects" },
-      { key: "lastContact", label: "Last contact", type: "date" },
-      { key: "tags", label: "Tags", type: "tags" }
-    ],
-    deal: [
-      { key: "title", label: "Title", primary: true, type: "text" },
-      { key: "stage", label: "Stage", type: "enum", options: ["Lead", "Qualified", "Proposal", "Negotiation", "Won", "Lost"] },
-      { key: "value", label: "Value", type: "currency" },
-      { key: "company", label: "Company", type: "multitext", suggestionSource: "folder:Cadence/Companies" },
-      { key: "contact", label: "Contact", type: "multitext", suggestionSource: "folder:Cadence/Contacts" },
-      { key: "closeBy", label: "Close by", type: "date" },
-      { key: "project", label: "Project", type: "multitext", suggestionSource: "folder:Cadence/Projects" },
-      { key: "owner", label: "Owner", type: "multitext", suggestionSource: "folder:Cadence/Contacts" }
-    ],
-    company: [
-      { key: "name", label: "Name", primary: true, type: "text" },
-      { key: "domain", label: "Domain", isList: true, type: "multitext" },
-      { key: "industry", label: "Industry", isList: true, type: "multitext" },
-      { key: "size", label: "Size", type: "text" },
-      { key: "owner", label: "Owner", type: "multitext", suggestionSource: "folder:Cadence/Contacts" },
-      { key: "tags", label: "Tags", type: "tags" }
-    ],
-    activity: [
-      { key: "subject", label: "Subject", primary: true, type: "text" },
-      { key: "type", label: "Type", type: "enum", options: ["Call", "Email", "Meeting", "Note", "Task"] },
-      { key: "when", label: "When", type: "date" },
-      { key: "with", label: "With", type: "multitext", suggestionSource: "folder:Cadence/Contacts" },
-      { key: "company", label: "Company", type: "multitext", suggestionSource: "folder:Cadence/Companies" },
-      { key: "project", label: "Project", type: "multitext", suggestionSource: "folder:Cadence/Projects" }
-    ],
-    partner: [
-      { key: "name", label: "Name", primary: true },
-      { key: "tier", label: "Tier", type: "enum", options: ["Gold", "Silver", "Bronze", "Standard"] },
-      { key: "status", label: "Status", type: "enum", options: ["Active", "Onboarding", "Inactive", "Churned"] },
-      { key: "owner", label: "Owner", type: "multitext", suggestionSource: "folder:Cadence/Contacts" },
-      { key: "region", label: "Region" }
-    ],
-    registration: [
-      { key: "title", label: "Title", primary: true },
-      { key: "partner", label: "Partner" },
-      { key: "status", label: "Status", type: "enum", options: ["Submitted", "Approved", "Rejected", "Expired"] },
-      { key: "value", label: "Value", type: "currency" },
-      { key: "submitted", label: "Submitted", type: "date" },
-      { key: "expires", label: "Expires", type: "date" }
-    ],
-    commission: [
-      { key: "reference", label: "Ref", primary: true },
-      { key: "partner", label: "Partner" },
-      { key: "amount", label: "Amount", type: "currency" },
-      { key: "status", label: "Status", type: "enum", options: ["Pending", "Earned", "Paid", "Disputed"] },
-      { key: "period", label: "Period" },
-      { key: "paidOn", label: "Paid on", type: "date" }
-    ],
-    lead: [
-      { key: "name", label: "Name", primary: true },
-      { key: "company", label: "Company", type: "multitext", suggestionSource: "folder:Cadence/Companies" },
-      { key: "source", label: "Source" },
-      { key: "status", label: "Status", type: "enum", options: ["New", "Contacted", "Qualified", "Disqualified", "Converted"] },
-      { key: "assigned", label: "Assigned" }
-    ],
-    certification: [
-      { key: "name", label: "Name", primary: true },
-      { key: "partner", label: "Partner" },
-      { key: "level", label: "Level" },
-      { key: "issued", label: "Issued", type: "date" },
-      { key: "expires", label: "Expires", type: "date" }
-    ],
-    sequence: [
-      { key: "name", label: "Name", primary: true },
-      { key: "audience", label: "Audience" },
-      { key: "steps", label: "Steps", type: "number" },
-      { key: "active", label: "Active", type: "number" },
-      { key: "status", label: "Status", type: "enum", options: ["Draft", "Active", "Paused", "Archived"] }
-    ]
-  }
-};
 var CadenceAppView = class extends obsidian.ItemView {
   constructor(leaf, plugin) {
     super(leaf);
@@ -11163,47 +11699,20 @@ var CadencePlugin = class extends obsidian.Plugin {
     }).open();
   }
   /* ── Reminders CRUD ── */
-  async addReminder(partial) {
-    const r = {
-      id: reminderId(),
-      text: partial.text,
-      when: partial.when || null,
-      repeat: partial.repeat || "none",
-      notes: partial.notes || "",
-      project: partial.project || null,
-      // file path of linked project, if any
-      notified: false,
-      done: false,
-      createdAt: (/* @__PURE__ */ new Date()).toISOString()
-    };
-    if (!Array.isArray(this.settings.reminders)) this.settings.reminders = [];
-    this.settings.reminders.push(r);
-    await this.saveSettings();
-    this.refreshOpenViews();
-    return r;
+  addReminder(partial) {
+    return addReminder(this, partial);
   }
-  async updateReminder(id, patch) {
-    const i = (this.settings.reminders || []).findIndex((r) => r.id === id);
-    if (i < 0) return null;
-    this.settings.reminders[i] = Object.assign({}, this.settings.reminders[i], patch);
-    await this.saveSettings();
-    this.refreshOpenViews();
-    return this.settings.reminders[i];
+  updateReminder(id, patch) {
+    return updateReminder(this, id, patch);
   }
-  async deleteReminder(id) {
-    this.settings.reminders = (this.settings.reminders || []).filter((r) => r.id !== id);
-    await this.saveSettings();
-    this.refreshOpenViews();
+  deleteReminder(id) {
+    return deleteReminder(this, id);
   }
-  async snoozeReminder(id, ms) {
-    const target = new Date(Date.now() + ms);
-    return this.updateReminder(id, {
-      when: target.toISOString(),
-      notified: false
-    });
+  snoozeReminder(id, ms) {
+    return snoozeReminder(this, id, ms);
   }
-  async completeReminder(id) {
-    return this.updateReminder(id, { done: true, notified: true });
+  completeReminder(id) {
+    return completeReminder(this, id);
   }
   refreshOpenViews() {
     this.app.workspace.getLeavesOfType(VIEW_TYPE_CADENCE_APP).forEach((leaf) => {
@@ -11212,46 +11721,10 @@ var CadencePlugin = class extends obsidian.Plugin {
   }
   /* ── Reminder ticker ── */
   tickReminders() {
-    if (!Array.isArray(this.settings.reminders)) return;
-    const now = Date.now();
-    let dirty = false;
-    const additions = [];
-    for (const r of this.settings.reminders) {
-      if (r.done || r.notified) continue;
-      if (!r.when) continue;
-      const w = new Date(r.when).getTime();
-      if (isNaN(w) || w > now) continue;
-      this._fireReminder(r);
-      r.notified = true;
-      dirty = true;
-      const next = nextRepeat(new Date(r.when), r.repeat);
-      if (next) {
-        additions.push({
-          id: reminderId(),
-          text: r.text,
-          when: next.toISOString(),
-          repeat: r.repeat,
-          notified: false,
-          done: false,
-          createdAt: (/* @__PURE__ */ new Date()).toISOString()
-        });
-      }
-    }
-    if (additions.length) this.settings.reminders.push(...additions);
-    if (dirty) {
-      this.saveSettings().then(() => this.refreshOpenViews());
-    }
+    return tickReminders(this);
   }
   _fireReminder(r) {
-    new obsidian.Notice(`\u23F0  ${r.text}`, 8e3);
-    if (this.settings.desktopNotifications && typeof Notification !== "undefined") {
-      try {
-        if (Notification.permission === "granted") {
-          new Notification("Cadence reminder", { body: r.text });
-        }
-      } catch (_) {
-      }
-    }
+    return fireReminder(this, r);
   }
   async openApp(mode = null) {
     let leaf = this.app.workspace.getLeavesOfType(VIEW_TYPE_CADENCE_APP)[0];
@@ -11270,504 +11743,19 @@ var CadencePlugin = class extends obsidian.Plugin {
     this.app.workspace.detachLeavesOfType(VIEW_TYPE_CADENCE_APP);
   }
   registerCustomPropertyTypes() {
-    try {
-      if (this.app.metadataTypeManager && typeof this.app.metadataTypeManager.setType === "function") {
-        this.app.metadataTypeManager.setType("type", "multitext");
-        const customKeys = ["project", "deal", "contact", "company", "activity"];
-        for (const key of customKeys) {
-          const def = ENTITIES[key];
-          if (!def || !def.fields) continue;
-          for (const f of def.fields) {
-            if (f.primary) {
-              this.app.metadataTypeManager.setType(f.key, "text");
-              continue;
-            }
-            const ftype = f.type || "text";
-            let obsType = "text";
-            if (ftype === "date") obsType = "date";
-            else if (ftype === "number" || ftype === "currency") obsType = "number";
-            else if (ftype === "tags") obsType = "tags";
-            else if (ftype === "multitext") obsType = "multitext";
-            else if (f.isList) obsType = "multitext";
-            this.app.metadataTypeManager.setType(f.key, obsType);
-          }
-        }
-      }
-    } catch (e) {
-      console.warn("Cadence: Failed to register property types", e);
-    }
+    return registerCustomPropertyTypes(this);
   }
-  async loadSettings() {
-    const loadedData = await this.loadData() || {};
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, loadedData);
-    if (!this.settings.customEntities) {
-      this.settings.customEntities = {};
-    }
-    for (const [entityKey, defaultFields] of Object.entries(DEFAULT_SETTINGS.customEntities)) {
-      if (!this.settings.customEntities[entityKey] || this.settings.customEntities[entityKey].length === 0) {
-        this.settings.customEntities[entityKey] = JSON.parse(JSON.stringify(defaultFields));
-      }
-    }
-    setCurrentCurrency(this.settings.currency || "USD");
-    if (!this.settings.projectDashboardWidgets || this.settings.projectDashboardWidgets.length === 0) {
-      this.settings.projectDashboardWidgets = [
-        { id: "w1", title: "Projects by Status", groupBy: "status", style: "donut" },
-        { id: "w2", title: "Projects by Priority", groupBy: "priority", style: "bar" }
-      ];
-    }
-    if (!this.settings.crmDashboardWidgets || this.settings.crmDashboardWidgets.length === 0) {
-      this.settings.crmDashboardWidgets = [
-        { id: "c1", title: "Deals by Stage", groupBy: "stage", style: "donut" },
-        { id: "c2", title: "Deals by Owner", groupBy: "owner", style: "bar" }
-      ];
-    }
-    if (!this.settings.prmDashboardWidgets || this.settings.prmDashboardWidgets.length === 0) {
-      this.settings.prmDashboardWidgets = [
-        { id: "p1", title: "Partners by Tier", groupBy: "tier", style: "donut" },
-        { id: "p2", title: "Partners by Status", groupBy: "status", style: "bar" }
-      ];
-    }
-    const coreEntityKeys = ["contact", "company", "partner", "registration", "commission", "lead", "certification", "activity", "sequence", "project", "deal"];
-    const activeCustomEntityKeys = (this.settings.customPages || []).map((p) => p.entityKey);
-    for (const entityKey of Object.keys(this.settings.customEntities)) {
-      if (!coreEntityKeys.includes(entityKey) && !activeCustomEntityKeys.includes(entityKey)) {
-        delete this.settings.customEntities[entityKey];
-        if (ENTITIES[entityKey]) {
-          delete ENTITIES[entityKey];
-        }
-      }
-    }
-    if (this.settings.customEntities) {
-      for (const [entityKey, customFields] of Object.entries(this.settings.customEntities)) {
-        if (ENTITIES[entityKey]) {
-          ENTITIES[entityKey].fields = customFields;
-        } else {
-          const customPages = this.settings.customPages || [];
-          const customPage = customPages.find((p) => p.entityKey === entityKey);
-          let label, plural;
-          if (customPage) {
-            plural = customPage.label;
-            if (plural.endsWith("s") && plural.length > 1) {
-              label = plural.substring(0, plural.length - 1);
-            } else if (plural.endsWith("S") && plural.length > 1) {
-              label = plural.substring(0, plural.length - 1);
-            } else {
-              label = plural;
-            }
-          } else {
-            label = entityKey === entityKey.toUpperCase() ? entityKey : entityKey.charAt(0).toUpperCase() + entityKey.slice(1);
-            plural = label + "s";
-          }
-          ENTITIES[entityKey] = {
-            folder: `Cadence/${plural}`,
-            label,
-            plural,
-            fields: customFields,
-            columns: [customFields[0]?.key || "name"]
-          };
-        }
-      }
-    }
-    for (const [entityKey, def] of Object.entries(ENTITIES)) {
-      if (entityKey === "activity") continue;
-      const hasType = def.fields.some((f) => f.key === "type");
-      if (!hasType) {
-        def.fields.push({
-          key: "type",
-          label: "Type",
-          type: "text"
-        });
-      }
-      if (this.settings.customEntities[entityKey]) {
-        const hasSetType = this.settings.customEntities[entityKey].some((f) => f.key === "type");
-        if (!hasSetType) {
-          this.settings.customEntities[entityKey].push({
-            key: "type",
-            label: "Type",
-            type: "text"
-          });
-        }
-      }
-    }
+  loadSettings() {
+    return loadSettings(this);
   }
-  async syncContactProjectRelationships(changedFile) {
-    if (this._syncInProgress) return;
-    if (!changedFile || !changedFile.path.toLowerCase().endsWith(".md")) return;
-    if (!this.app.vault.getAbstractFileByPath(changedFile.path)) return;
-    try {
-      this._syncInProgress = true;
-      const contactFiles = listEntityFiles(this.app, "contact");
-      const projectFiles = listEntityFiles(this.app, "project");
-      const contactMap = /* @__PURE__ */ new Map();
-      for (const f of contactFiles) {
-        contactMap.set(f.basename.toLowerCase(), f);
-      }
-      const projectMap = /* @__PURE__ */ new Map();
-      for (const f of projectFiles) {
-        projectMap.set(f.basename.toLowerCase(), f);
-      }
-      const extractEntitiesFromValue = (value) => {
-        if (value == null) return [];
-        const results = [];
-        const processStr = (str) => {
-          str = String(str).trim();
-          if (!str) return;
-          if (str.includes("[[")) {
-            const regex = /\[\[(.*?)\]\]/g;
-            let match;
-            while ((match = regex.exec(str)) !== null) {
-              let target = match[1].trim();
-              if (target.includes("|")) {
-                target = target.split("|")[0].trim();
-              }
-              if (target) results.push(target);
-            }
-          } else if (str.includes(",")) {
-            str.split(",").forEach((s) => {
-              const item = s.trim();
-              if (item) results.push(item);
-            });
-          } else {
-            results.push(str);
-          }
-        };
-        if (Array.isArray(value)) {
-          value.forEach((val) => processStr(val));
-        } else {
-          processStr(value);
-        }
-        return results;
-      };
-      const isContactField = (key, ek) => {
-        if (["owner", "contact", "contacts", "with", "assigned"].includes(key.toLowerCase())) return true;
-        if (ek && ENTITIES[ek]) {
-          const fdef = ENTITIES[ek].fields.find((field) => field.key === key);
-          if (fdef) {
-            const sug = fdef.suggestionSource || getFieldSuggestionSource(fdef);
-            if (sug === "contact" || sug === "folder:Cadence/Contacts") return true;
-          }
-        }
-        return false;
-      };
-      const isProjectField = (key, ek) => {
-        if (["project", "projects", "related"].includes(key.toLowerCase())) return true;
-        if (ek && ENTITIES[ek]) {
-          const fdef = ENTITIES[ek].fields.find((field) => field.key === key);
-          if (fdef) {
-            const sug = fdef.suggestionSource || getFieldSuggestionSource(fdef);
-            if (sug === "project" || sug === "folder:Cadence/Projects") return true;
-          }
-        }
-        return false;
-      };
-      const changedEntityKey = entityKeyFromFile(this.app, changedFile);
-      if (changedEntityKey === "contact") {
-        const contactLower = changedFile.basename.toLowerCase();
-        const contactCache = this.app.metadataCache.getFileCache(changedFile) || {};
-        const contactFm = contactCache.frontmatter || {};
-        const existingProjectsVal = contactFm.project;
-        const currentProjectsOfContact = new Set(
-          extractEntitiesFromValue(existingProjectsVal).map((p) => p.toLowerCase())
-        );
-        for (const p of currentProjectsOfContact) {
-          if (!projectMap.has(p)) {
-            try {
-              const allFiles = this.app.vault.getMarkdownFiles();
-              const originalName = allFiles.find((f) => f.basename.toLowerCase() === p)?.basename || p.charAt(0).toUpperCase() + p.slice(1);
-              const projectFile = await createEntity(this.app, "project", originalName);
-              projectMap.set(p, projectFile);
-              new obsidian.Notice(`Fiche projet cr\xE9\xE9e automatiquement pour "${originalName}".`);
-            } catch (e) {
-              console.error(`Cadence: Failed to auto-create project ${p}`, e);
-            }
-          }
-        }
-      } else if (changedEntityKey === "project") {
-        const projectLower = changedFile.basename.toLowerCase();
-        const projectCache = this.app.metadataCache.getFileCache(changedFile) || {};
-        const projectFm = projectCache.frontmatter || {};
-        const projectContacts = [];
-        for (const [key, val] of Object.entries(projectFm)) {
-          if (key === "type") continue;
-          if (isContactField(key, "project")) {
-            projectContacts.push(...extractEntitiesFromValue(val));
-          }
-        }
-        const currentContactsOfProject = new Set(projectContacts.map((c) => c.toLowerCase()));
-        for (const c of currentContactsOfProject) {
-          if (!contactMap.has(c)) {
-            try {
-              const allFiles = this.app.vault.getMarkdownFiles();
-              const originalName = allFiles.find((f) => f.basename.toLowerCase() === c)?.basename || c.charAt(0).toUpperCase() + c.slice(1);
-              const contactFile = await createEntity(this.app, "contact", originalName);
-              contactMap.set(c, contactFile);
-              new obsidian.Notice(`Fiche contact cr\xE9\xE9e automatiquement pour "${originalName}".`);
-            } catch (e) {
-              console.error(`Cadence: Failed to auto-create contact ${c}`, e);
-            }
-          }
-        }
-        for (const [contactLower, contactFile] of contactMap.entries()) {
-          const contactCache = this.app.metadataCache.getFileCache(contactFile) || {};
-          const contactFm = contactCache.frontmatter || {};
-          const existingProjectsVal = contactFm.project;
-          const contactProjects = extractEntitiesFromValue(existingProjectsVal);
-          const listsProject = contactProjects.some((p) => p.toLowerCase() === projectLower);
-          const projectListsContact = currentContactsOfProject.has(contactLower);
-          if (projectListsContact && !listsProject) {
-            await this.app.fileManager.processFrontMatter(contactFile, (cfm) => {
-              const currentProjects = extractEntitiesFromValue(cfm.project);
-              if (!currentProjects.some((p) => p.toLowerCase() === projectLower)) {
-                currentProjects.push(changedFile.basename);
-                if (currentProjects.length === 1) {
-                  cfm.project = `[[${currentProjects[0]}]]`;
-                } else {
-                  cfm.project = currentProjects.map((p) => `[[${p}]]`);
-                }
-              }
-            });
-            new obsidian.Notice(`Lien automatique : Projet "${changedFile.basename}" associ\xE9 au contact "${contactFile.basename}".`);
-          } else if (!projectListsContact && listsProject) {
-            let hasOtherSource = false;
-            const allFiles = this.app.vault.getMarkdownFiles();
-            for (const f of allFiles) {
-              if (f.path === changedFile.path || f.path === contactFile.path) continue;
-              const cache = this.app.metadataCache.getFileCache(f);
-              if (!cache || !cache.frontmatter) continue;
-              const fm = cache.frontmatter;
-              const fEntityKey = entityKeyFromFile(this.app, f);
-              const foundContacts = /* @__PURE__ */ new Set();
-              const foundProjects = /* @__PURE__ */ new Set();
-              if (fEntityKey === "contact") {
-                foundContacts.add(f.basename.toLowerCase());
-              } else if (fEntityKey === "project") {
-                foundProjects.add(f.basename.toLowerCase());
-              }
-              for (const [key, val] of Object.entries(fm)) {
-                if (key === "type") continue;
-                const extracted = extractEntitiesFromValue(val);
-                for (const name of extracted) {
-                  if (!name) continue;
-                  const nameLower = name.toLowerCase();
-                  if (isContactField(key, fEntityKey) || contactMap.has(nameLower)) {
-                    foundContacts.add(nameLower);
-                  }
-                  if (isProjectField(key, fEntityKey) || projectMap.has(nameLower)) {
-                    foundProjects.add(nameLower);
-                  }
-                }
-              }
-              if (foundContacts.has(contactLower) && foundProjects.has(projectLower)) {
-                hasOtherSource = true;
-                break;
-              }
-            }
-            if (!hasOtherSource) {
-              await this.app.fileManager.processFrontMatter(contactFile, (cfm) => {
-                const currentProjects = extractEntitiesFromValue(cfm.project);
-                const newProjects = currentProjects.filter((p) => p.toLowerCase() !== projectLower);
-                if (newProjects.length === 0) {
-                  delete cfm.project;
-                } else if (newProjects.length === 1) {
-                  cfm.project = `[[${newProjects[0]}]]`;
-                } else {
-                  cfm.project = newProjects.map((p) => `[[${p}]]`);
-                }
-              });
-              new obsidian.Notice(`Lien automatique : Projet "${changedFile.basename}" dissoci\xE9 du contact "${contactFile.basename}".`);
-            }
-          }
-        }
-      } else {
-        const validLinks = /* @__PURE__ */ new Set();
-        const allFiles = this.app.vault.getMarkdownFiles();
-        for (const f of allFiles) {
-          const fEntityKey = entityKeyFromFile(this.app, f);
-          if (fEntityKey === "contact") continue;
-          const cache = this.app.metadataCache.getFileCache(f);
-          if (!cache || !cache.frontmatter) continue;
-          const fm = cache.frontmatter;
-          const foundContacts = /* @__PURE__ */ new Set();
-          const foundProjects = /* @__PURE__ */ new Set();
-          if (fEntityKey === "project") {
-            foundProjects.add(f.basename.toLowerCase());
-          }
-          for (const [key, val] of Object.entries(fm)) {
-            if (key === "type") continue;
-            const extracted = extractEntitiesFromValue(val);
-            for (const name of extracted) {
-              if (!name) continue;
-              const nameLower = name.toLowerCase();
-              if (isContactField(key, fEntityKey) || contactMap.has(nameLower)) {
-                foundContacts.add(nameLower);
-              }
-              if (isProjectField(key, fEntityKey) || projectMap.has(nameLower)) {
-                foundProjects.add(nameLower);
-              }
-            }
-          }
-          if (foundContacts.size > 0 && foundProjects.size > 0) {
-            for (const c of foundContacts) {
-              for (const p of foundProjects) {
-                validLinks.add(`${c}|${p}`);
-              }
-            }
-          }
-        }
-        for (const link of validLinks) {
-          const [c, p] = link.split("|");
-          let contactFile = contactMap.get(c);
-          if (!contactFile) {
-            try {
-              const originalName = allFiles.find((f) => f.basename.toLowerCase() === c)?.basename || c.charAt(0).toUpperCase() + c.slice(1);
-              contactFile = await createEntity(this.app, "contact", originalName);
-              contactMap.set(c, contactFile);
-              new obsidian.Notice(`Fiche contact cr\xE9\xE9e automatiquement pour "${originalName}".`);
-            } catch (e) {
-              console.error(`Cadence: Failed to auto-create contact ${c}`, e);
-            }
-          }
-          let projectFile = projectMap.get(p);
-          if (!projectFile) {
-            try {
-              const originalName = allFiles.find((f) => f.basename.toLowerCase() === p)?.basename || p.charAt(0).toUpperCase() + p.slice(1);
-              projectFile = await createEntity(this.app, "project", originalName);
-              projectMap.set(p, projectFile);
-              new obsidian.Notice(`Fiche projet cr\xE9\xE9e automatiquement pour "${originalName}".`);
-            } catch (e) {
-              console.error(`Cadence: Failed to auto-create project ${p}`, e);
-            }
-          }
-        }
-        for (const [contactLower, contactFile] of contactMap.entries()) {
-          const contactCache = this.app.metadataCache.getFileCache(contactFile) || {};
-          const contactFm = contactCache.frontmatter || {};
-          const existingProjectsVal = contactFm.project;
-          const existingProjects = extractEntitiesFromValue(existingProjectsVal);
-          const projectNamesToLink = /* @__PURE__ */ new Set();
-          for (const link of validLinks) {
-            const [c, p] = link.split("|");
-            if (c === contactLower) {
-              const pFile = projectMap.get(p);
-              if (pFile) {
-                projectNamesToLink.add(pFile.basename);
-              }
-            }
-          }
-          const existingLower = existingProjects.map((p) => p.toLowerCase());
-          const targetLower = Array.from(projectNamesToLink).map((p) => p.toLowerCase());
-          let needsUpdate = false;
-          for (const p of existingLower) {
-            if (!targetLower.includes(p)) {
-              needsUpdate = true;
-              break;
-            }
-          }
-          for (const p of targetLower) {
-            if (!existingLower.includes(p)) {
-              needsUpdate = true;
-              break;
-            }
-          }
-          if (needsUpdate) {
-            const sortedProjects = Array.from(projectNamesToLink);
-            const formattedVal = sortedProjects.length === 0 ? null : sortedProjects.length === 1 ? `[[${sortedProjects[0]}]]` : sortedProjects.map((p) => `[[${p}]]`);
-            await this.app.fileManager.processFrontMatter(contactFile, (cfm) => {
-              if (formattedVal === null) {
-                delete cfm.project;
-              } else {
-                cfm.project = formattedVal;
-              }
-            });
-            const added = sortedProjects.filter((p) => !existingProjects.some((ep) => ep.toLowerCase() === p.toLowerCase()));
-            const removed = existingProjects.filter((ep) => !sortedProjects.some((p) => p.toLowerCase() === ep.toLowerCase()));
-            if (added.length > 0) {
-              new obsidian.Notice(`Lien automatique : Projet "${added.join(", ")}" associ\xE9 \xE0 "${contactFile.basename}".`);
-            }
-            if (removed.length > 0) {
-              new obsidian.Notice(`Lien automatique : Projet "${removed.join(", ")}" dissoci\xE9 de "${contactFile.basename}".`);
-            }
-          }
-        }
-      }
-    } catch (e) {
-      console.error("Cadence: Error in syncContactProjectRelationships", e);
-    } finally {
-      this._syncInProgress = false;
-    }
+  syncContactProjectRelationships(changedFile) {
+    return syncContactProjectRelationships(this, changedFile);
   }
-  async handleProjectDeletion(file) {
-    if (this._syncInProgress) return;
-    if (!file || !file.path || !file.path.toLowerCase().endsWith(".md")) return;
-    const projectFolder = ENTITIES.project ? ENTITIES.project.folder : "Cadence/Projects";
-    if (!file.path.startsWith(projectFolder + "/")) return;
-    const projectName = file.basename;
-    if (!projectName) return;
-    try {
-      this._syncInProgress = true;
-      const contactFiles = listEntityFiles(this.app, "contact");
-      const extractEntitiesFromValue = (value) => {
-        if (value == null) return [];
-        const results = [];
-        const processStr = (str) => {
-          str = String(str).trim();
-          if (!str) return;
-          if (str.includes("[[")) {
-            const regex = /\[\[(.*?)\]\]/g;
-            let match;
-            while ((match = regex.exec(str)) !== null) {
-              let target = match[1].trim();
-              if (target.includes("|")) {
-                target = target.split("|")[0].trim();
-              }
-              if (target) results.push(target);
-            }
-          } else if (str.includes(",")) {
-            str.split(",").forEach((s) => {
-              const item = s.trim();
-              if (item) results.push(item);
-            });
-          } else {
-            results.push(str);
-          }
-        };
-        if (Array.isArray(value)) {
-          value.forEach((val) => processStr(val));
-        } else {
-          processStr(value);
-        }
-        return results;
-      };
-      for (const contactFile of contactFiles) {
-        const contactCache = this.app.metadataCache.getFileCache(contactFile) || {};
-        const contactFm = contactCache.frontmatter || {};
-        const existingProjectsVal = contactFm.project;
-        if (!existingProjectsVal) continue;
-        const existingProjectNames = extractEntitiesFromValue(existingProjectsVal);
-        const hasProject = existingProjectNames.some((p) => p.toLowerCase() === projectName.toLowerCase());
-        if (hasProject) {
-          const remainingProjects = existingProjectNames.filter((p) => p.toLowerCase() !== projectName.toLowerCase());
-          await this.app.fileManager.processFrontMatter(contactFile, (cfm) => {
-            if (remainingProjects.length === 0) {
-              delete cfm.project;
-            } else if (remainingProjects.length === 1) {
-              cfm.project = `[[${remainingProjects[0]}]]`;
-            } else {
-              cfm.project = remainingProjects.map((p) => `[[${p}]]`);
-            }
-          });
-          new obsidian.Notice(`Lien automatique : Projet "${projectName}" supprim\xE9 du contact "${contactFile.basename}".`);
-        }
-      }
-    } catch (e) {
-      console.error("Cadence: Error in handleProjectDeletion", e);
-    } finally {
-      this._syncInProgress = false;
-    }
+  handleProjectDeletion(file) {
+    return handleProjectDeletion(this, file);
   }
-  async saveSettings() {
-    await this.saveData(this.settings);
-    setCurrentCurrency(this.settings.currency || "USD");
+  saveSettings() {
+    return saveSettings(this);
   }
 };
 
