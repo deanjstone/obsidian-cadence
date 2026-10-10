@@ -34,3 +34,25 @@ export interface ChartSectionConfig {
   groupField: string;
   style: ChartStyle | string;
 }
+
+/** Quick-capture onSubmit payload. `when` is null for an inbox capture. */
+export interface CaptureResult {
+  text: string;
+  /** ISO timestamp. */
+  when: string | null;
+  // TODO: confirm shape — read from a <select>, so any string the DOM holds.
+  repeat: string;
+}
+
+/* Fields the reminder edit modal hands to addReminder / updateReminder.
+   `when` and `notified` are omitted when the time input is unparseable or
+   (for `notified`) unchanged. */
+export interface ReminderPatch {
+  text: string;
+  notes: string;
+  repeat: string;
+  /** Vault path of the linked project. */
+  project: string | null;
+  when?: string | null;
+  notified?: boolean;
+}

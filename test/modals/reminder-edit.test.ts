@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createMockApp, Notice, type App, type FakeElement } from "../mocks/obsidian";
 import { buttonByText, contentOf, optionValues } from "../helpers/dom";
 import { projectWebsite } from "../fixtures/vault";
-import { CadenceReminderEditModal } from "../../src/legacy/cadence.js";
+import { CadenceReminderEditModal } from "../../src/modals/reminder-edit";
 
 /* Characterization tests for the reminder edit modal: new vs edit rendering,
    the project field, and the fields handed to plugin.addReminder /

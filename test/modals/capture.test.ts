@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createMockApp, type App, type FakeElement } from "../mocks/obsidian";
 import { buttonByText, contentOf, optionValues } from "../helpers/dom";
-import { CadenceCaptureModal } from "../../src/legacy/cadence.js";
+import { CadenceCaptureModal } from "../../src/modals/capture";
 
 /* Characterization tests for the quick-capture modal: constructor defaults,
    the default and quick-pick reminder times, the "Remind me" toggle, and the

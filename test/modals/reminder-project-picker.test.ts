@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createMockApp, FakeElement, Notice, SuggestModal, type App } from "../mocks/obsidian";
 import { buttonByText, contentOf } from "../helpers/dom";
 import { projectTagged, projectWebsite } from "../fixtures/vault";
-import { CadenceReminderEditModal } from "../../src/legacy/cadence.js";
+import { CadenceReminderEditModal } from "../../src/modals/reminder-edit";
 
 /* Characterization tests for the reminder edit modal's project picker
    (_openReminderProjectPicker): the empty-vault notice, the suggestion
@@ -33,7 +33,7 @@ afterEach(() => {
 const archived = { path: "Cadence/Projects/2025/Archive sweep.md", frontmatter: { type: "project" } };
 
 function openModal(reminder: Record<string, unknown> = { id: "r1", text: "Call", project: null }) {
-  const modal: Any = new CadenceReminderEditModal(app, {}, reminder);
+  const modal: Any = new CadenceReminderEditModal(app, {} as Any, reminder);
   modal.open();
   const content = contentOf(modal);
   const projectField = content.findAll("div").find((d) => d.classes.includes("cad-rem-project-field")) as FakeElement;
