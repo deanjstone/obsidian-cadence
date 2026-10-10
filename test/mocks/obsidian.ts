@@ -312,6 +312,8 @@ declare global {
 export interface FakeEvent {
   type: string;
   key?: string;
+  metaKey?: boolean;
+  ctrlKey?: boolean;
   defaultPrevented: boolean;
   preventDefault(): void;
 }
@@ -327,11 +329,15 @@ export class FakeElement {
   type = '';
   placeholder = '';
   title = '';
+  checked = false;
+  rows = 0;
   focusCount = 0;
   selectCount = 0;
+  /** Every value assigned through the setter, in order (not createEl's). */
+  readonly valueWrites: string[] = [];
   private ownValue = '';
   /* <select> only: undefined = browser default (first option), null = none. */
-  private selected: FakeElement | null | undefined = undefined;
+  private selectedOption: FakeElement | null | undefined = undefined;
   private readonly listeners = new Map<string, Array<(event: FakeEvent) => void>>();
 
   constructor(tagName: string) {
@@ -342,20 +348,41 @@ export class FakeElement {
     return this.children.filter((c) => c.tagName === 'option');
   }
 
+  get lastChild(): FakeElement | null {
+    return this.children[this.children.length - 1] ?? null;
+  }
+
+  /* <option> only: reads and sets its parent <select>'s selection. */
+  get selected(): boolean {
+    const select = this.parent;
+    if (!select || select.tagName !== 'select' || select.selectedOption === null) return false;
+    const options = select.options;
+    const current = select.selectedOption && options.includes(select.selectedOption) ? select.selectedOption : options[0];
+    return current === this;
+  }
+
+  set selected(selected: boolean) {
+    const select = this.parent;
+    if (!select || select.tagName !== 'select') return;
+    if (selected) select.selectedOption = this;
+    else if (select.selectedOption === this) select.selectedOption = undefined;
+  }
+
   get value(): string {
     if (this.tagName !== 'select') return this.ownValue;
     const options = this.options;
-    if (this.selected === null) return '';
-    if (this.selected === undefined || !options.includes(this.selected)) return options[0]?.value ?? '';
-    return this.selected.value;
+    if (this.selectedOption === null) return '';
+    if (this.selectedOption === undefined || !options.includes(this.selectedOption)) return options[0]?.value ?? '';
+    return this.selectedOption.value;
   }
 
   set value(value: string) {
+    this.valueWrites.push(String(value));
     if (this.tagName !== 'select') {
       this.ownValue = String(value);
       return;
     }
-    this.selected = this.options.find((o) => o.value === String(value)) ?? null;
+    this.selectedOption = this.options.find((o) => o.value === String(value)) ?? null;
   }
 
   createEl(tag: string, o?: DomElementInfo | string, callback?: (el: FakeElement) => void): FakeElement {
@@ -383,7 +410,7 @@ export class FakeElement {
     for (const child of this.children) child.parent = null;
     this.children.length = 0;
     this.text = '';
-    this.selected = undefined;
+    this.selectedOption = undefined;
   }
 
   addClass(...classes: string[]) {
@@ -408,8 +435,14 @@ export class FakeElement {
     this.listeners.set(type, list);
   }
 
+  /* Real DOM Event objects (e.g. `new Event('change')`) are routed by type. */
+  dispatchEvent(event: { type: string }): boolean {
+    this.trigger(event.type);
+    return true;
+  }
+
   /** Fire `type` at this element's listeners; returns the event. */
-  trigger(type: string, init: { key?: string } = {}): FakeEvent {
+  trigger(type: string, init: { key?: string; metaKey?: boolean; ctrlKey?: boolean } = {}): FakeEvent {
     const event: FakeEvent = {
       type,
       ...init,
