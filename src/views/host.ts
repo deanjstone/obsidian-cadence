@@ -159,9 +159,13 @@ export interface AppViewHost {
   /** Flagged: no call site; characterized and kept. */
   renderEntityKanban(root: HTMLElement, entityKey: string, groupBy: string, groups: string[]): Promise<void>;
 
+  /* ── Entity and company detail (src/views/entity-detail.ts, src/views/company-detail.ts) ── */
+  renderEntityDetail(root: HTMLElement, entityKey: string, file: TFile): Promise<void>;
+  renderCompanyDetail(root: HTMLElement, file: TFile): Promise<void>;
+
   /* ── Called by the shell, owned by later view tickets ── */
   renderProjectsDashboard(root: HTMLElement): Promise<void>;
-  renderEntityDetail(root: HTMLElement, entityKey: string, file: TFile): Promise<void>;
+  renderProjectDetail(root: HTMLElement, file: TFile): Promise<void>;
   renderTemplateDetail(root: HTMLElement, entityKey: string, file: TFile): Promise<void>;
   renderDashboard(root: HTMLElement): Promise<void>;
   renderPRMAnalytics(root: HTMLElement): Promise<void>;
