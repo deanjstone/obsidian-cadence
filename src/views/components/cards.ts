@@ -21,6 +21,14 @@ export interface DashCardRow {
   file?: TFile;
 }
 
+/** A stat card: label, value, optional sub line and accent. */
+export interface StatCard {
+  label: string;
+  value: string | number;
+  sub: string;
+  accent: string;
+}
+
 export function dashCardSection(view: AppViewHost, parent: HTMLElement, title: string, rows: DashCardRow[] | null | undefined, emptyMsg?: string): void {
   const card = parent.createDiv({ cls: 'cad-dash-card' });
   card.createDiv({ cls: 'cad-dash-card-head' }).createDiv({ cls: 'cad-dash-card-title', text: title });

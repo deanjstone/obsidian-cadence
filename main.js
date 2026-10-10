@@ -6884,8 +6884,7 @@ function filesUsingTemplateSection(notes, sectionKey) {
   return notes.filter((n) => sectionInUse(n.content, sectionKey)).map((n) => n.file);
 }
 
-// src/views/crm-dashboard.ts
-var DAY_MS = 864e5;
+// src/utils/deals.ts
 function dealValue(entity, def) {
   return Number(entityValue(entity, "value", def)) || 0;
 }
@@ -6908,6 +6907,9 @@ function crmSummary(deals, def) {
     avgDeal: won.length === 0 ? 0 : wonValue / won.length
   };
 }
+
+// src/views/crm-dashboard.ts
+var DAY_MS = 864e5;
 function crmStatCards(summary) {
   const { open, won, lost, winRate, avgDeal } = summary;
   return [
@@ -7104,63 +7106,39 @@ async function renderCrmDashboard(view, root) {
 
 // src/views/reports.ts
 var import_obsidian23 = require("obsidian");
-async function renderReportPipeline(view, root) {
-  root.addClass("cadence-report");
-  const def = ENTITIES.deal;
-  const deals = listEntities(view.app, "deal");
-  const open = deals.filter((e) => !["Won", "Lost"].includes(String(entityValue(e, "stage", def))));
-  const won = deals.filter((e) => String(entityValue(e, "stage", def)) === "Won");
-  const lost = deals.filter((e) => String(entityValue(e, "stage", def)) === "Lost");
-  const dealValue2 = (e) => Number(entityValue(e, "value", def)) || 0;
-  const sumVal = (arr) => arr.reduce((s, e) => s + dealValue2(e), 0);
-  const winRate = won.length + lost.length === 0 ? 0 : Math.round(won.length / (won.length + lost.length) * 100);
-  const stageConfidence = { "Lead": 0.1, "Qualified": 0.25, "Proposal": 0.5, "Negotiation": 0.75 };
-  const weighted = open.reduce((s, e) => s + dealValue2(e) * (stageConfidence[String(entityValue(e, "stage", def))] || 0), 0);
-  view._renderPageHeader(root, "Pipeline report", "Coverage, forecast and aging across all deals");
-  const grid = root.createDiv({ cls: "cad-stat-grid" });
-  const stat = (label, value, sub, accent) => {
-    const c = grid.createDiv({ cls: "cad-stat-card" });
-    if (accent) c.dataset.accent = accent;
-    c.createDiv({ cls: "cad-stat-label", text: label });
-    c.createDiv({ cls: "cad-stat-value", text: String(value) });
-    if (sub) c.createDiv({ cls: "cad-stat-sub", text: sub });
+var DAY_MS2 = 864e5;
+function reportBar(value, max) {
+  const ratio = value / max;
+  return {
+    height: `${value / max * 100}%`,
+    band: value === 0 ? "empty" : ratio < 0.34 ? "low" : ratio < 0.67 ? "mid" : "high"
   };
-  stat("OPEN", open.length, fmtValue(sumVal(open), "currency"), "sky");
-  stat("WEIGHTED", fmtValue(weighted, "currency"), "forecast on open", "mint");
-  stat("WON", won.length, fmtValue(sumVal(won), "currency"), "emerald");
-  stat("LOST", lost.length, fmtValue(sumVal(lost), "currency"), "rose");
-  stat("WIN RATE", `${winRate}%`, `${won.length}/${won.length + lost.length} closed`, "warn");
-  root.createDiv({ cls: "cad-section-label-lg", text: "BY STAGE" });
-  const tableWrap = root.createDiv({ cls: "cad-table-wrap" });
-  const table = tableWrap.createEl("table", { cls: "cad-table" });
-  const trh = table.createEl("thead").createEl("tr");
-  ["Stage", "Count", "Value"].forEach((h) => trh.createEl("th", { text: h }));
-  const tbody = table.createEl("tbody");
-  getDealStages().forEach((stage) => {
-    const items = deals.filter((e) => String(entityValue(e, "stage", def)) === stage);
-    const tr = tbody.createEl("tr");
-    tr.createEl("td", { text: stage });
-    tr.createEl("td", { text: String(items.length) });
-    tr.createEl("td", { text: fmtValue(sumVal(items), "currency") });
-  });
-  const cols = root.createDiv({ cls: "cad-dash-cols" });
-  const left = cols.createDiv({ cls: "cad-dash-col" });
-  const right = cols.createDiv({ cls: "cad-dash-col" });
+}
+function entityTitle(entity, key, def) {
+  return entityValue(entity, key, def) || entity.basename;
+}
+function stageOf(entity, def) {
+  return String(entityValue(entity, "stage", def));
+}
+function ownerRows(byOwner, size, limit, meta) {
+  return [...byOwner.entries()].sort((a, b) => size(b[1]) - size(a[1])).slice(0, limit).map(([owner, data]) => ({
+    title: owner,
+    titleEntityKey: owner === "(unassigned)" ? null : "contact",
+    meta: meta(data)
+  }));
+}
+var STAGE_CONFIDENCE = { "Lead": 0.1, "Qualified": 0.25, "Proposal": 0.5, "Negotiation": 0.75 };
+function pipelineReport(deals, def, stages, now) {
+  const { open, won, lost, openValue, wonValue, lostValue, winRate } = crmSummary(deals, def);
+  const weighted = open.reduce((s, e) => s + dealValue(e, def) * (STAGE_CONFIDENCE[stageOf(e, def)] || 0), 0);
   const byOwner = /* @__PURE__ */ new Map();
   open.forEach((e) => {
     const owner = String(entityValue(e, "owner", def) || "(unassigned)");
     if (!byOwner.has(owner)) byOwner.set(owner, { count: 0, value: 0 });
     const o = byOwner.get(owner);
     o.count++;
-    o.value += dealValue2(e);
+    o.value += dealValue(e, def);
   });
-  const ownerRows = [...byOwner.entries()].sort((a, b) => b[1].value - a[1].value).slice(0, 8).map(([owner, data]) => ({
-    title: owner,
-    titleEntityKey: owner === "(unassigned)" ? null : "contact",
-    meta: `${data.count} deal${data.count === 1 ? "" : "s"} \xB7 ${fmtValue(data.value, "currency")}`
-  }));
-  view._dashCardSection(left, `OPEN PIPELINE BY OWNER \xB7 top ${Math.min(8, byOwner.size)}`, ownerRows, "No open deals to attribute.");
-  const now = Date.now();
   const cohorts = [
     { label: "0\u20137 DAYS", cutoff: 7, count: 0, value: 0, accent: "emerald" },
     { label: "8\u201330 DAYS", cutoff: 30, count: 0, value: 0, accent: "mint" },
@@ -7169,69 +7147,63 @@ async function renderReportPipeline(view, root) {
   ];
   open.forEach((e) => {
     const mtime = e.file && e.file.stat ? e.file.stat.mtime : now;
-    const days = (now - mtime) / 864e5;
+    const days = (now - mtime) / DAY_MS2;
     for (const c of cohorts) {
       if (days <= c.cutoff) {
         c.count++;
-        c.value += dealValue2(e);
+        c.value += dealValue(e, def);
         break;
       }
     }
   });
-  const agingCard = right.createDiv({ cls: "cad-dash-card" });
-  agingCard.createDiv({ cls: "cad-dash-card-head" }).createDiv({ cls: "cad-dash-card-title", text: "AGING \xB7 OPEN DEALS BY LAST EDIT" });
-  const agingBody = agingCard.createDiv({ cls: "cad-dash-card-body cad-mini-stat-row" });
-  cohorts.forEach((c) => {
-    const mini = agingBody.createDiv({ cls: "cad-mini-stat" });
-    mini.dataset.accent = c.accent;
-    mini.createDiv({ cls: "cad-mini-stat-value", text: String(c.count) });
-    mini.createDiv({ cls: "cad-mini-stat-label", text: c.label });
-    const sub = mini.createDiv({ cls: "cad-stat-sub" });
-    sub.style.marginTop = "4px";
-    sub.setText(fmtValue(c.value, "currency"));
-  });
-  const staleCutoff = now - 30 * 864e5;
+  const staleCutoff = now - 30 * DAY_MS2;
   const stale = open.filter((e) => e.file && e.file.stat && e.file.stat.mtime < staleCutoff).sort((a, b) => (a.file.stat.mtime || 0) - (b.file.stat.mtime || 0)).slice(0, 5).map((e) => ({
-    title: entityValue(e, "title", def) || e.basename,
-    meta: `${entityValue(e, "stage", def) || "\u2014"} \xB7 ${Math.round((now - e.file.stat.mtime) / 864e5)}d quiet \xB7 ${fmtValue(dealValue2(e), "currency")}`,
+    title: entityTitle(e, "title", def),
+    meta: `${entityValue(e, "stage", def) || "\u2014"} \xB7 ${Math.round((now - e.file.stat.mtime) / DAY_MS2)}d quiet \xB7 ${fmtValue(dealValue(e, def), "currency")}`,
     file: e.file
   }));
-  view._dashCardSection(right, "STALE \xB7 30+ DAYS NO EDITS", stale, "No deals over 30 days quiet \u2014 nice.");
-}
-async function renderReportSales(view, root) {
-  root.addClass("cadence-report");
-  const def = ENTITIES.deal;
-  const deals = listEntities(view.app, "deal");
-  const won = deals.filter((e) => String(entityValue(e, "stage", def)) === "Won");
-  const lost = deals.filter((e) => String(entityValue(e, "stage", def)) === "Lost");
-  const dealValue2 = (e) => Number(entityValue(e, "value", def)) || 0;
-  const sumVal = (arr) => arr.reduce((s, e) => s + dealValue2(e), 0);
-  view._renderPageHeader(root, "Sales report", "Closed-won and lost \xB7 performance over time");
-  const grid = root.createDiv({ cls: "cad-stat-grid" });
-  const stat = (label, value, sub, accent) => {
-    const c = grid.createDiv({ cls: "cad-stat-card" });
-    if (accent) c.dataset.accent = accent;
-    c.createDiv({ cls: "cad-stat-label", text: label });
-    c.createDiv({ cls: "cad-stat-value", text: String(value) });
-    if (sub) c.createDiv({ cls: "cad-stat-sub", text: sub });
+  return {
+    open,
+    won,
+    lost,
+    weighted,
+    winRate,
+    stats: [
+      { label: "OPEN", value: open.length, sub: fmtValue(openValue, "currency"), accent: "sky" },
+      { label: "WEIGHTED", value: fmtValue(weighted, "currency"), sub: "forecast on open", accent: "mint" },
+      { label: "WON", value: won.length, sub: fmtValue(wonValue, "currency"), accent: "emerald" },
+      { label: "LOST", value: lost.length, sub: fmtValue(lostValue, "currency"), accent: "rose" },
+      { label: "WIN RATE", value: `${winRate}%`, sub: `${won.length}/${won.length + lost.length} closed`, accent: "warn" }
+    ],
+    byStage: stages.map((stage) => {
+      const items = deals.filter((e) => stageOf(e, def) === stage);
+      return { stage, count: items.length, value: sumValues(items, def) };
+    }),
+    owners: ownerRows(
+      byOwner,
+      (o) => o.value,
+      8,
+      (o) => `${o.count} deal${o.count === 1 ? "" : "s"} \xB7 ${fmtValue(o.value, "currency")}`
+    ),
+    cohorts: cohorts.map(({ label, count, value, accent }) => ({
+      label,
+      value: String(count),
+      accent,
+      sub: fmtValue(value, "currency"),
+      count,
+      total: value
+    })),
+    stale
   };
-  stat("REVENUE", fmtValue(sumVal(won), "currency"), `${won.length} deals`, "emerald");
-  stat("LOST", fmtValue(sumVal(lost), "currency"), `${lost.length} deals`, "rose");
-  const total = sumVal(won) + sumVal(lost);
-  const captureRate = total === 0 ? 0 : Math.round(sumVal(won) / total * 100);
-  stat("CAPTURE", `${captureRate}%`, "of closed value", "mint");
-  const avg = won.length === 0 ? 0 : sumVal(won) / won.length;
-  stat("AVG DEAL", fmtValue(avg, "currency"), "won deals", "sky");
-  const now = /* @__PURE__ */ new Date();
+}
+function salesReport(deals, def, now) {
+  const { won, lost, wonValue, lostValue, avgDeal } = crmSummary(deals, def);
+  const total = wonValue + lostValue;
+  const captureRate = total === 0 ? 0 : Math.round(wonValue / total * 100);
   const months = [];
   for (let i = 5; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    months.push({
-      date: d,
-      label: d.toLocaleDateString(void 0, { month: "short" }),
-      revenue: 0,
-      count: 0
-    });
+    months.push({ date: d, label: d.toLocaleDateString(void 0, { month: "short" }), revenue: 0, count: 0 });
   }
   won.forEach((e) => {
     const t = e.file && e.file.stat ? e.file.stat.mtime : null;
@@ -7239,63 +7211,49 @@ async function renderReportSales(view, root) {
     const d = new Date(t);
     const idx = months.findIndex((m) => m.date.getFullYear() === d.getFullYear() && m.date.getMonth() === d.getMonth());
     if (idx >= 0) {
-      months[idx].revenue += dealValue2(e);
+      months[idx].revenue += dealValue(e, def);
       months[idx].count++;
     }
   });
   const maxRev = Math.max(1, ...months.map((m) => m.revenue));
-  root.createDiv({ cls: "cad-section-label-lg", text: "REVENUE \u2014 LAST 6 MONTHS" });
-  const chart = root.createDiv({ cls: "cad-bar-chart cad-bar-chart-tall" });
-  months.forEach((m) => {
-    const col = chart.createDiv({ cls: "cad-bar-col" });
-    const bar = col.createDiv({ cls: "cad-bar" });
-    bar.style.height = `${m.revenue / maxRev * 100}%`;
-    const ratio = m.revenue / maxRev;
-    bar.dataset.band = m.revenue === 0 ? "empty" : ratio < 0.34 ? "low" : ratio < 0.67 ? "mid" : "high";
-    bar.title = `${m.label} \u2014 ${fmtValue(m.revenue, "currency")} \xB7 ${m.count} deals`;
-    col.createDiv({ cls: "cad-bar-label", text: m.label });
-  });
-  const cols = root.createDiv({ cls: "cad-dash-cols" });
-  const left = cols.createDiv({ cls: "cad-dash-col" });
-  const right = cols.createDiv({ cls: "cad-dash-col" });
-  const topWins = [...won].sort((a, b) => dealValue2(b) - dealValue2(a)).slice(0, 6).map((e) => {
-    const companyVal = entityValue(e, "company", def) || "\u2014";
-    const valStr = fmtValue(dealValue2(e), "currency");
-    return {
-      title: entityValue(e, "title", def) || e.basename,
-      metaParts: [
-        { text: companyVal, entityKey: "company" },
-        { text: ` \xB7 ${valStr}` }
-      ],
-      file: e.file
-    };
-  });
-  view._dashCardSection(left, "TOP WINS \xB7 top 6", topWins, "No wins logged yet \u2014 close one and tag it Won.");
   const byOwner = /* @__PURE__ */ new Map();
   won.forEach((e) => {
     const owner = String(entityValue(e, "owner", def) || "(unassigned)");
     if (!byOwner.has(owner)) byOwner.set(owner, { count: 0, revenue: 0 });
     const o = byOwner.get(owner);
     o.count++;
-    o.revenue += dealValue2(e);
+    o.revenue += dealValue(e, def);
   });
-  const ownerRows = [...byOwner.entries()].sort((a, b) => b[1].revenue - a[1].revenue).slice(0, 6).map(([owner, data]) => ({
-    title: owner,
-    titleEntityKey: owner === "(unassigned)" ? null : "contact",
-    meta: `${data.count} won \xB7 ${fmtValue(data.revenue, "currency")}`
-  }));
-  view._dashCardSection(right, "OWNER LEADERBOARD \xB7 top 6 by revenue", ownerRows, "No revenue attributed to owners yet.");
+  return {
+    won,
+    lost,
+    captureRate,
+    stats: [
+      { label: "REVENUE", value: fmtValue(wonValue, "currency"), sub: `${won.length} deals`, accent: "emerald" },
+      { label: "LOST", value: fmtValue(lostValue, "currency"), sub: `${lost.length} deals`, accent: "rose" },
+      { label: "CAPTURE", value: `${captureRate}%`, sub: "of closed value", accent: "mint" },
+      { label: "AVG DEAL", value: fmtValue(avgDeal, "currency"), sub: "won deals", accent: "sky" }
+    ],
+    months,
+    bars: months.map((m) => ({
+      label: m.label,
+      title: `${m.label} \u2014 ${fmtValue(m.revenue, "currency")} \xB7 ${m.count} deals`,
+      ...reportBar(m.revenue, maxRev)
+    })),
+    topWins: [...won].sort((a, b) => dealValue(b, def) - dealValue(a, def)).slice(0, 6).map((e) => ({
+      title: entityTitle(e, "title", def),
+      metaParts: [
+        { text: entityValue(e, "company", def) || "\u2014", entityKey: "company" },
+        { text: ` \xB7 ${fmtValue(dealValue(e, def), "currency")}` }
+      ],
+      file: e.file
+    })),
+    owners: ownerRows(byOwner, (o) => o.revenue, 6, (o) => `${o.count} won \xB7 ${fmtValue(o.revenue, "currency")}`)
+  };
 }
-async function renderReportPartners(view, root) {
-  root.addClass("cadence-report");
-  const dealDef = ENTITIES.deal;
-  const partnerDef = ENTITIES.partner;
-  const certDef = ENTITIES.certification;
-  const deals = listEntities(view.app, "deal");
-  const partners = listEntities(view.app, "partner");
-  const certs = listEntities(view.app, "certification");
-  const dealValue2 = (e) => Number(entityValue(e, "value", dealDef)) || 0;
-  view._renderPageHeader(root, "Partners report", "Partner-sourced revenue, tier mix, certification health");
+var TIER_ACCENT = { "Gold": "warn", "Silver": "sky", "Bronze": "rose", "Standard": "mint" };
+function partnersReport(deals, partners, certs, now, defs = { deal: ENTITIES.deal, partner: ENTITIES.partner, certification: ENTITIES.certification }) {
+  const { deal: dealDef, partner: partnerDef, certification: certDef } = defs;
   const byPartner = /* @__PURE__ */ new Map();
   deals.forEach((e) => {
     const p = entityValue(e, "partner", dealDef) || "(direct)";
@@ -7303,112 +7261,63 @@ async function renderReportPartners(view, root) {
     byPartner.get(p).push(e);
   });
   const partnerSourced = deals.filter((e) => entityValue(e, "partner", dealDef));
-  const partnerWon = partnerSourced.filter((e) => String(entityValue(e, "stage", dealDef)) === "Won");
-  const grid = root.createDiv({ cls: "cad-stat-grid" });
-  const stat = (label, value, sub, accent) => {
-    const c = grid.createDiv({ cls: "cad-stat-card" });
-    if (accent) c.dataset.accent = accent;
-    c.createDiv({ cls: "cad-stat-label", text: label });
-    c.createDiv({ cls: "cad-stat-value", text: String(value) });
-    if (sub) c.createDiv({ cls: "cad-stat-sub", text: sub });
-  };
-  stat("PARTNERS", partners.length, "on the books", "sky");
-  stat("PARTNER DEALS", partnerSourced.length, fmtValue(partnerSourced.reduce((s, e) => s + dealValue2(e), 0), "currency"), "mint");
-  stat("PARTNER REV", fmtValue(partnerWon.reduce((s, e) => s + dealValue2(e), 0), "currency"), `${partnerWon.length} won`, "emerald");
-  stat("UNIQUE SOURCES", byPartner.size, "including direct", "warn");
+  const partnerWon = partnerSourced.filter((e) => stageOf(e, dealDef) === "Won");
   const tierMap = /* @__PURE__ */ new Map();
   partners.forEach((p) => {
     const t = String(entityValue(p, "tier", partnerDef) || "Untiered");
     if (!tierMap.has(t)) tierMap.set(t, 0);
     tierMap.set(t, tierMap.get(t) + 1);
   });
-  if (tierMap.size) {
-    root.createDiv({ cls: "cad-section-label-lg", text: "PARTNERS BY TIER" });
-    const tierCard = root.createDiv({ cls: "cad-dash-card" });
-    tierCard.style.margin = "0 36px 18px 36px";
-    const tierBody = tierCard.createDiv({ cls: "cad-dash-card-body cad-mini-stat-row" });
-    const tierAccent = { "Gold": "warn", "Silver": "sky", "Bronze": "rose", "Standard": "mint" };
-    [...tierMap.entries()].sort((a, b) => b[1] - a[1]).forEach(([tier, count]) => {
-      const mini = tierBody.createDiv({ cls: "cad-mini-stat" });
-      mini.dataset.accent = tierAccent[tier] || "sky";
-      mini.createDiv({ cls: "cad-mini-stat-value", text: String(count) });
-      mini.createDiv({ cls: "cad-mini-stat-label", text: tier.toUpperCase() });
-    });
-  }
-  const cols = root.createDiv({ cls: "cad-dash-cols" });
-  const left = cols.createDiv({ cls: "cad-dash-col" });
-  const right = cols.createDiv({ cls: "cad-dash-col" });
-  const dealsByPartnerCard = left.createDiv({ cls: "cad-dash-card" });
-  dealsByPartnerCard.createDiv({ cls: "cad-dash-card-head" }).createDiv({ cls: "cad-dash-card-title", text: "DEALS BY PARTNER" });
-  const dbpBody = dealsByPartnerCard.createDiv({ cls: "cad-dash-card-body" });
-  if (!byPartner.size) {
-    dbpBody.createDiv({ cls: "cad-empty", text: "No deals attributed to partners yet." });
-  } else {
-    [...byPartner.entries()].sort((a, b) => b[1].length - a[1].length).slice(0, 10).forEach(([p, items]) => {
-      const v = items.reduce((s, e) => s + dealValue2(e), 0);
-      const row = dbpBody.createDiv({ cls: "cad-dash-row" });
-      const titleDiv = row.createDiv({ cls: "cad-dash-row-title" });
-      if (p && p !== "(direct)") {
-        view._renderEntityLinks(titleDiv, p, "partner");
-      } else {
-        titleDiv.setText(p || "");
-      }
-      row.createDiv({ cls: "cad-dash-row-meta", text: `${items.length} deal${items.length === 1 ? "" : "s"} \xB7 ${fmtValue(v, "currency")}` });
-    });
-  }
-  const now = Date.now();
-  const horizon = now + 90 * 864e5;
-  const upcomingCerts = certs.map((e) => {
+  const horizon = now + 90 * DAY_MS2;
+  const upcoming = certs.map((e) => {
     const exp = entityValue(e, "expires", certDef);
     if (!exp) return null;
     const d = new Date(exp);
     if (isNaN(d.getTime())) return null;
     return { entity: e, date: d };
-  }).filter((x) => x && x.date.getTime() >= now && x.date.getTime() <= horizon).sort((a, b) => a.date - b.date).slice(0, 8).map((x) => {
-    const partnerVal = entityValue(x.entity, "partner", certDef) || "\u2014";
-    const expVal = ` \xB7 expires ${fmtValue(x.date, "date")}`;
-    return {
-      title: entityValue(x.entity, "name", certDef) || x.entity.basename,
+  }).filter((x) => x && x.date.getTime() >= now && x.date.getTime() <= horizon).sort((a, b) => a.date - b.date).slice(0, 8);
+  return {
+    partnerSourced,
+    partnerWon,
+    stats: [
+      { label: "PARTNERS", value: partners.length, sub: "on the books", accent: "sky" },
+      { label: "PARTNER DEALS", value: partnerSourced.length, sub: fmtValue(sumValues(partnerSourced, dealDef), "currency"), accent: "mint" },
+      { label: "PARTNER REV", value: fmtValue(sumValues(partnerWon, dealDef), "currency"), sub: `${partnerWon.length} won`, accent: "emerald" },
+      { label: "UNIQUE SOURCES", value: byPartner.size, sub: "including direct", accent: "warn" }
+    ],
+    tiers: [...tierMap.entries()].sort((a, b) => b[1] - a[1]).map(([tier, count]) => ({ label: tier.toUpperCase(), value: String(count), accent: TIER_ACCENT[tier] || "sky" })),
+    sources: [...byPartner.entries()].sort((a, b) => b[1].length - a[1].length).slice(0, 10).map(([partner, items]) => ({
+      partner,
+      count: items.length,
+      meta: `${items.length} deal${items.length === 1 ? "" : "s"} \xB7 ${fmtValue(sumValues(items, dealDef), "currency")}`
+    })),
+    certs: upcoming.map((x) => ({
+      title: entityTitle(x.entity, "name", certDef),
       metaParts: [
-        { text: partnerVal, entityKey: "partner" },
-        { text: expVal }
+        { text: entityValue(x.entity, "partner", certDef) || "\u2014", entityKey: "partner" },
+        { text: ` \xB7 expires ${fmtValue(x.date, "date")}` }
       ],
       file: x.entity.file
-    };
-  });
-  view._dashCardSection(right, "CERTS EXPIRING \xB7 NEXT 90 DAYS", upcomingCerts, "No certifications expiring in the next 90 days.");
+    }))
+  };
 }
-async function renderReportActivity(view, root) {
-  root.addClass("cadence-report");
-  const def = ENTITIES.activity;
-  const acts = listEntities(view.app, "activity");
-  view._renderPageHeader(root, "Activity report", "Calls, meetings, emails and notes \u2014 mix and momentum");
+var ACTIVITY_ACCENTS = ["sky", "mint", "warn", "rose"];
+function activityReport(activities, def, now, weekStartsOn) {
   const counts = /* @__PURE__ */ new Map();
-  acts.forEach((e) => {
+  activities.forEach((e) => {
     const t = String(entityValue(e, "type", def) || "unspecified");
     counts.set(t, (counts.get(t) || 0) + 1);
   });
-  const grid = root.createDiv({ cls: "cad-stat-grid" });
-  const stat = (label, value, sub, accent) => {
-    const c = grid.createDiv({ cls: "cad-stat-card" });
-    if (accent) c.dataset.accent = accent;
-    c.createDiv({ cls: "cad-stat-label", text: label });
-    c.createDiv({ cls: "cad-stat-value", text: String(value) });
-    if (sub) c.createDiv({ cls: "cad-stat-sub", text: sub });
-  };
-  stat("TOTAL", acts.length, "all activities", "emerald");
-  const accents = ["sky", "mint", "warn", "rose"];
+  const stats = [{ label: "TOTAL", value: activities.length, sub: "all activities", accent: "emerald" }];
   let i = 0;
-  counts.forEach((v, k) => stat(k.toUpperCase(), v, "", accents[i++ % accents.length]));
-  const now = /* @__PURE__ */ new Date();
-  const weekStart = startOfWeek(now, view.plugin.settings.weekStartsOn);
+  counts.forEach((v, k) => stats.push({ label: k.toUpperCase(), value: v, sub: "", accent: ACTIVITY_ACCENTS[i++ % ACTIVITY_ACCENTS.length] }));
+  const weekStart = startOfWeek(now, weekStartsOn);
   const weeks = [];
   for (let w = 7; w >= 0; w--) {
     const ws = addDays(weekStart, -w * 7);
-    const we = addDays(ws, 7);
-    weeks.push({ start: ws, end: we, count: 0, label: ws.toLocaleDateString(void 0, { month: "short", day: "numeric" }) });
+    weeks.push({ start: ws, end: addDays(ws, 7), count: 0, label: ws.toLocaleDateString(void 0, { month: "short", day: "numeric" }) });
   }
-  acts.forEach((e) => {
+  activities.forEach((e) => {
     const when = entityValue(e, "when", def);
     if (!when) return;
     const t = new Date(when).getTime();
@@ -7417,71 +7326,58 @@ async function renderReportActivity(view, root) {
     if (idx >= 0) weeks[idx].count++;
   });
   const maxWeek = Math.max(1, ...weeks.map((w) => w.count));
-  root.createDiv({ cls: "cad-section-label-lg", text: "ACTIVITY \u2014 LAST 8 WEEKS" });
-  const chart = root.createDiv({ cls: "cad-bar-chart cad-bar-chart-tall" });
-  weeks.forEach((w) => {
-    const col = chart.createDiv({ cls: "cad-bar-col" });
-    const bar = col.createDiv({ cls: "cad-bar" });
-    bar.style.height = `${w.count / maxWeek * 100}%`;
-    const ratio = w.count / maxWeek;
-    bar.dataset.band = w.count === 0 ? "empty" : ratio < 0.34 ? "low" : ratio < 0.67 ? "mid" : "high";
-    bar.title = `Week of ${w.label} \u2014 ${w.count} activities`;
-    col.createDiv({ cls: "cad-bar-label", text: w.label });
-  });
-  const cols = root.createDiv({ cls: "cad-dash-cols" });
-  const left = cols.createDiv({ cls: "cad-dash-col" });
-  const right = cols.createDiv({ cls: "cad-dash-col" });
   const contactCounts = /* @__PURE__ */ new Map();
-  acts.forEach((e) => {
+  activities.forEach((e) => {
     const w = String(entityValue(e, "with", def) || "").trim();
     if (!w) return;
     contactCounts.set(w, (contactCounts.get(w) || 0) + 1);
   });
-  const topContactRows = [...contactCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([who, count]) => ({
-    title: who,
-    titleEntityKey: "contact",
-    meta: `${count} activit${count === 1 ? "y" : "ies"}`
-  }));
-  view._dashCardSection(left, "TOP CONTACTS \xB7 by activity count", topContactRows, "No activities tagged with a contact yet.");
-  const recent = [...acts].sort((a, b) => {
-    const da = new Date(entityValue(a, "when", def) || 0).getTime();
-    const db = new Date(entityValue(b, "when", def) || 0).getTime();
-    return db - da;
-  }).slice(0, 10).map((e) => {
-    const typeVal = entityValue(e, "type", def) || "\u2014";
-    const withVal = entityValue(e, "with", def) || "\u2014";
-    const dateVal = fmtValue(entityValue(e, "when", def), "date");
-    return {
-      title: entityValue(e, "subject", def) || e.basename,
+  return {
+    stats,
+    weeks,
+    bars: weeks.map((w) => ({ label: w.label, title: `Week of ${w.label} \u2014 ${w.count} activities`, ...reportBar(w.count, maxWeek) })),
+    topContacts: [...contactCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([who, count]) => ({ title: who, titleEntityKey: "contact", meta: `${count} activit${count === 1 ? "y" : "ies"}` })),
+    recent: [...activities].sort((a, b) => {
+      const da = new Date(entityValue(a, "when", def) || 0).getTime();
+      const db = new Date(entityValue(b, "when", def) || 0).getTime();
+      return db - da;
+    }).slice(0, 10).map((e) => ({
+      title: entityTitle(e, "subject", def),
       metaParts: [
-        { text: typeVal },
+        { text: entityValue(e, "type", def) || "\u2014" },
         { text: " \xB7 " },
-        { text: withVal, entityKey: "contact" },
-        { text: ` \xB7 ${dateVal}` }
+        { text: entityValue(e, "with", def) || "\u2014", entityKey: "contact" },
+        { text: ` \xB7 ${fmtValue(entityValue(e, "when", def), "date")}` }
       ],
       file: e.file
-    };
-  });
-  view._dashCardSection(right, "RECENT ACTIVITY \xB7 last 10", recent, "No activities yet \u2014 log one under CRM > Activities.");
+    }))
+  };
 }
-async function renderProductivity(view, root) {
-  root.addClass("cadence-report");
-  const settings = view.plugin.settings;
-  const today = startOfDay(/* @__PURE__ */ new Date());
+var WEEKDAY_ACCENTS = ["emerald", "mint", "sky", "warn", "rose", "mint", "sky"];
+var OPEN_TASK = / \[ \] /;
+var DONE_TASK = / \[(x|X)\] /;
+function productivityDates(now, weekStartsOn) {
+  const today = startOfDay(now);
+  const first = addDays(startOfWeek(today, weekStartsOn), -11 * 7);
+  const dates = [];
+  for (let d = first; d.getTime() <= today.getTime(); d = addDays(d, 1)) dates.push(d);
+  return dates;
+}
+function productivityReport(notes, now, settings) {
+  const today = startOfDay(now);
   const days = Array.from({ length: 30 }, (_, i) => addDays(today, -i));
   let totalOpen = 0, totalDone = 0, totalJournalChars = 0;
   let activeDays = 0;
   let streak = 0, streakBroken = false;
   const perDay = [];
   for (const d of days) {
-    const f = view.app.vault.getAbstractFileByPath(dailyNotePath(settings, d));
+    const c = notes.get(ymd(d));
     let open = 0, done = 0, jChars = 0, hasNote = false;
-    if (f && f instanceof import_obsidian23.TFile) {
+    if (c !== void 0) {
       hasNote = true;
-      const c = await view.app.vault.read(f);
       const p = parseSections(c, settings);
-      open = p.tasks.filter((l) => / \[ \] /.test(l)).length;
-      done = p.tasks.filter((l) => / \[(x|X)\] /.test(l)).length;
+      open = p.tasks.filter((l) => OPEN_TASK.test(l)).length;
+      done = p.tasks.filter((l) => DONE_TASK.test(l)).length;
       jChars = (p.journal || "").length;
     }
     perDay.push({ date: d, open, done, jChars, hasNote });
@@ -7495,67 +7391,27 @@ async function renderProductivity(view, root) {
     }
   }
   const completion = totalOpen + totalDone === 0 ? 0 : Math.round(totalDone / (totalOpen + totalDone) * 100);
-  view._renderPageHeader(root, "Productivity", "Last 30 days \xB7 across your daily notes");
-  const grid = root.createDiv({ cls: "cad-stat-grid" });
-  const stat = (label, value, sub, accent) => {
-    const c = grid.createDiv({ cls: "cad-stat-card" });
-    if (accent) c.dataset.accent = accent;
-    c.createDiv({ cls: "cad-stat-label", text: label });
-    c.createDiv({ cls: "cad-stat-value", text: String(value) });
-    if (sub) c.createDiv({ cls: "cad-stat-sub", text: sub });
-  };
-  stat("COMPLETION", `${completion}%`, `${totalDone}/${totalOpen + totalDone} tasks`, "emerald");
-  stat("STREAK", `${streak}d`, "consecutive active days", "mint");
-  stat("ACTIVE", `${activeDays}/30`, "days with a note", "sky");
-  stat("JOURNAL", totalJournalChars.toLocaleString(), "characters written", "warn");
-  root.createDiv({ cls: "cad-section-label-lg", text: "TASKS DONE \u2014 LAST 14 DAYS" });
   const last14 = perDay.slice(0, 14).reverse();
   const max = Math.max(1, ...last14.map((p) => p.done));
-  const chart = root.createDiv({ cls: "cad-bar-chart" });
-  last14.forEach((p) => {
-    const col = chart.createDiv({ cls: "cad-bar-col" });
-    const bar = col.createDiv({ cls: "cad-bar" });
-    bar.style.height = `${p.done / max * 100}%`;
-    const ratio = p.done / max;
-    bar.dataset.band = p.done === 0 ? "empty" : ratio < 0.34 ? "low" : ratio < 0.67 ? "mid" : "high";
-    const lbl = col.createDiv({ cls: "cad-bar-label", text: String(p.date.getDate()) });
-    bar.title = `${p.date.toLocaleDateString()} \u2014 ${p.done} done, ${p.open} open`;
-    void lbl;
-  });
-  const weekStart = startOfWeek(today, view.plugin.settings.weekStartsOn);
+  const weekStart = startOfWeek(today, settings.weekStartsOn);
   const weeks = [];
   for (let w = 11; w >= 0; w--) {
     const ws = addDays(weekStart, -w * 7);
-    const we = addDays(ws, 7);
-    let wd = 0, wo = 0, anyNote = false;
+    let wd = 0, wo = 0;
     for (let i = 0; i < 7; i++) {
       const d = addDays(ws, i);
       if (d.getTime() > today.getTime()) break;
-      const f = view.app.vault.getAbstractFileByPath(dailyNotePath(settings, d));
-      if (f && f instanceof import_obsidian23.TFile) {
-        anyNote = true;
-        const c = await view.app.vault.read(f);
-        const p = parseSections(c, settings);
-        p.tasks.forEach((l) => {
-          if (/ \[(x|X)\] /.test(l)) wd++;
-          else if (/ \[ \] /.test(l)) wo++;
+      const c = notes.get(ymd(d));
+      if (c !== void 0) {
+        parseSections(c, settings).tasks.forEach((l) => {
+          if (DONE_TASK.test(l)) wd++;
+          else if (OPEN_TASK.test(l)) wo++;
         });
       }
     }
-    weeks.push({ start: ws, done: wd, open: wo, any: anyNote, label: ws.toLocaleDateString(void 0, { month: "short", day: "numeric" }) });
+    weeks.push({ done: wd, open: wo, label: ws.toLocaleDateString(void 0, { month: "short", day: "numeric" }) });
   }
   const maxWeek = Math.max(1, ...weeks.map((w) => w.done));
-  root.createDiv({ cls: "cad-section-label-lg", text: "COMPLETION TREND \u2014 LAST 12 WEEKS" });
-  const wkChart = root.createDiv({ cls: "cad-bar-chart cad-bar-chart-tall" });
-  weeks.forEach((w) => {
-    const col = wkChart.createDiv({ cls: "cad-bar-col" });
-    const bar = col.createDiv({ cls: "cad-bar" });
-    bar.style.height = `${w.done / maxWeek * 100}%`;
-    const ratio = w.done / maxWeek;
-    bar.dataset.band = w.done === 0 ? "empty" : ratio < 0.34 ? "low" : ratio < 0.67 ? "mid" : "high";
-    bar.title = `Week of ${w.label} \u2014 ${w.done} done, ${w.open} open`;
-    col.createDiv({ cls: "cad-bar-label", text: w.label });
-  });
   const wsOn = settings.weekStartsOn;
   const dayBuckets = Array.from({ length: 7 }, () => ({ done: 0, open: 0 }));
   perDay.forEach((p) => {
@@ -7564,22 +7420,173 @@ async function renderProductivity(view, root) {
     dayBuckets[idx].open += p.open;
   });
   const dayLabels = wsOn === 1 ? ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"] : ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
+  return {
+    totalOpen,
+    totalDone,
+    journalChars: totalJournalChars,
+    activeDays,
+    streak,
+    completion,
+    stats: [
+      { label: "COMPLETION", value: `${completion}%`, sub: `${totalDone}/${totalOpen + totalDone} tasks`, accent: "emerald" },
+      { label: "STREAK", value: `${streak}d`, sub: "consecutive active days", accent: "mint" },
+      { label: "ACTIVE", value: `${activeDays}/30`, sub: "days with a note", accent: "sky" },
+      { label: "JOURNAL", value: totalJournalChars.toLocaleString(), sub: "characters written", accent: "warn" }
+    ],
+    days: last14.map((p) => ({
+      label: String(p.date.getDate()),
+      title: `${p.date.toLocaleDateString()} \u2014 ${p.done} done, ${p.open} open`,
+      ...reportBar(p.done, max)
+    })),
+    weeks: weeks.map((w) => ({ label: w.label, title: `Week of ${w.label} \u2014 ${w.done} done, ${w.open} open`, ...reportBar(w.done, maxWeek) })),
+    weekdays: dayBuckets.map((b, i) => {
+      const total = b.done + b.open;
+      const pct = total === 0 ? 0 : Math.round(b.done / total * 100);
+      return { label: dayLabels[i], value: total === 0 ? "\u2014" : `${pct}%`, accent: WEEKDAY_ACCENTS[i], sub: total === 0 ? "no data" : `${b.done}/${total}` };
+    })
+  };
+}
+function drawStats(root, cards) {
+  const grid = root.createDiv({ cls: "cad-stat-grid" });
+  const stat = (label, value, sub, accent) => {
+    const c = grid.createDiv({ cls: "cad-stat-card" });
+    if (accent) c.dataset.accent = accent;
+    c.createDiv({ cls: "cad-stat-label", text: label });
+    c.createDiv({ cls: "cad-stat-value", text: String(value) });
+    if (sub) c.createDiv({ cls: "cad-stat-sub", text: sub });
+  };
+  cards.forEach((card) => stat(card.label, card.value, card.sub, card.accent));
+}
+function drawBars(chart, bars) {
+  bars.forEach((b) => {
+    const col = chart.createDiv({ cls: "cad-bar-col" });
+    const bar = col.createDiv({ cls: "cad-bar" });
+    bar.style.height = b.height;
+    bar.dataset.band = b.band;
+    bar.title = b.title;
+    col.createDiv({ cls: "cad-bar-label", text: b.label });
+  });
+}
+function drawMiniStats(body, minis) {
+  minis.forEach((m) => {
+    const mini = body.createDiv({ cls: "cad-mini-stat" });
+    mini.dataset.accent = m.accent;
+    mini.createDiv({ cls: "cad-mini-stat-value", text: m.value });
+    mini.createDiv({ cls: "cad-mini-stat-label", text: m.label });
+    if (m.sub !== void 0) {
+      const sub = mini.createDiv({ cls: "cad-stat-sub" });
+      sub.style.marginTop = "4px";
+      sub.setText(m.sub);
+    }
+  });
+}
+function twoColumns(root) {
+  const cols = root.createDiv({ cls: "cad-dash-cols" });
+  return { left: cols.createDiv({ cls: "cad-dash-col" }), right: cols.createDiv({ cls: "cad-dash-col" }) };
+}
+async function renderReportPipeline(view, root) {
+  root.addClass("cadence-report");
+  const def = ENTITIES.deal;
+  const report = pipelineReport(listEntities(view.app, "deal"), def, getDealStages(), Date.now());
+  view._renderPageHeader(root, "Pipeline report", "Coverage, forecast and aging across all deals");
+  drawStats(root, report.stats);
+  root.createDiv({ cls: "cad-section-label-lg", text: "BY STAGE" });
+  const tableWrap = root.createDiv({ cls: "cad-table-wrap" });
+  const table = tableWrap.createEl("table", { cls: "cad-table" });
+  const trh = table.createEl("thead").createEl("tr");
+  ["Stage", "Count", "Value"].forEach((h) => trh.createEl("th", { text: h }));
+  const tbody = table.createEl("tbody");
+  report.byStage.forEach(({ stage, count, value }) => {
+    const tr = tbody.createEl("tr");
+    tr.createEl("td", { text: stage });
+    tr.createEl("td", { text: String(count) });
+    tr.createEl("td", { text: fmtValue(value, "currency") });
+  });
+  const { left, right } = twoColumns(root);
+  view._dashCardSection(left, `OPEN PIPELINE BY OWNER \xB7 top ${report.owners.length}`, report.owners, "No open deals to attribute.");
+  const agingCard = right.createDiv({ cls: "cad-dash-card" });
+  agingCard.createDiv({ cls: "cad-dash-card-head" }).createDiv({ cls: "cad-dash-card-title", text: "AGING \xB7 OPEN DEALS BY LAST EDIT" });
+  drawMiniStats(agingCard.createDiv({ cls: "cad-dash-card-body cad-mini-stat-row" }), report.cohorts);
+  view._dashCardSection(right, "STALE \xB7 30+ DAYS NO EDITS", report.stale, "No deals over 30 days quiet \u2014 nice.");
+}
+async function renderReportSales(view, root) {
+  root.addClass("cadence-report");
+  const report = salesReport(listEntities(view.app, "deal"), ENTITIES.deal, /* @__PURE__ */ new Date());
+  view._renderPageHeader(root, "Sales report", "Closed-won and lost \xB7 performance over time");
+  drawStats(root, report.stats);
+  root.createDiv({ cls: "cad-section-label-lg", text: "REVENUE \u2014 LAST 6 MONTHS" });
+  drawBars(root.createDiv({ cls: "cad-bar-chart cad-bar-chart-tall" }), report.bars);
+  const { left, right } = twoColumns(root);
+  view._dashCardSection(left, "TOP WINS \xB7 top 6", report.topWins, "No wins logged yet \u2014 close one and tag it Won.");
+  view._dashCardSection(right, "OWNER LEADERBOARD \xB7 top 6 by revenue", report.owners, "No revenue attributed to owners yet.");
+}
+async function renderReportPartners(view, root) {
+  root.addClass("cadence-report");
+  const report = partnersReport(
+    listEntities(view.app, "deal"),
+    listEntities(view.app, "partner"),
+    listEntities(view.app, "certification"),
+    Date.now()
+  );
+  view._renderPageHeader(root, "Partners report", "Partner-sourced revenue, tier mix, certification health");
+  drawStats(root, report.stats);
+  if (report.tiers.length) {
+    root.createDiv({ cls: "cad-section-label-lg", text: "PARTNERS BY TIER" });
+    const tierCard = root.createDiv({ cls: "cad-dash-card" });
+    tierCard.style.margin = "0 36px 18px 36px";
+    drawMiniStats(tierCard.createDiv({ cls: "cad-dash-card-body cad-mini-stat-row" }), report.tiers);
+  }
+  const { left, right } = twoColumns(root);
+  const dealsByPartnerCard = left.createDiv({ cls: "cad-dash-card" });
+  dealsByPartnerCard.createDiv({ cls: "cad-dash-card-head" }).createDiv({ cls: "cad-dash-card-title", text: "DEALS BY PARTNER" });
+  const dbpBody = dealsByPartnerCard.createDiv({ cls: "cad-dash-card-body" });
+  if (!report.sources.length) {
+    dbpBody.createDiv({ cls: "cad-empty", text: "No deals attributed to partners yet." });
+  } else {
+    report.sources.forEach(({ partner: p, meta }) => {
+      const row = dbpBody.createDiv({ cls: "cad-dash-row" });
+      const titleDiv = row.createDiv({ cls: "cad-dash-row-title" });
+      if (p && p !== "(direct)") {
+        view._renderEntityLinks(titleDiv, p, "partner");
+      } else {
+        titleDiv.setText(p || "");
+      }
+      row.createDiv({ cls: "cad-dash-row-meta", text: meta });
+    });
+  }
+  view._dashCardSection(right, "CERTS EXPIRING \xB7 NEXT 90 DAYS", report.certs, "No certifications expiring in the next 90 days.");
+}
+async function renderReportActivity(view, root) {
+  root.addClass("cadence-report");
+  const report = activityReport(listEntities(view.app, "activity"), ENTITIES.activity, /* @__PURE__ */ new Date(), view.plugin.settings.weekStartsOn);
+  view._renderPageHeader(root, "Activity report", "Calls, meetings, emails and notes \u2014 mix and momentum");
+  drawStats(root, report.stats);
+  root.createDiv({ cls: "cad-section-label-lg", text: "ACTIVITY \u2014 LAST 8 WEEKS" });
+  drawBars(root.createDiv({ cls: "cad-bar-chart cad-bar-chart-tall" }), report.bars);
+  const { left, right } = twoColumns(root);
+  view._dashCardSection(left, "TOP CONTACTS \xB7 by activity count", report.topContacts, "No activities tagged with a contact yet.");
+  view._dashCardSection(right, "RECENT ACTIVITY \xB7 last 10", report.recent, "No activities yet \u2014 log one under CRM > Activities.");
+}
+async function renderProductivity(view, root) {
+  root.addClass("cadence-report");
+  const settings = view.plugin.settings;
+  const now = /* @__PURE__ */ new Date();
+  const notes = /* @__PURE__ */ new Map();
+  for (const d of productivityDates(now, settings.weekStartsOn)) {
+    const f = view.app.vault.getAbstractFileByPath(dailyNotePath(settings, d));
+    if (f && f instanceof import_obsidian23.TFile) notes.set(ymd(d), await view.app.vault.read(f));
+  }
+  const report = productivityReport(notes, now, settings);
+  view._renderPageHeader(root, "Productivity", "Last 30 days \xB7 across your daily notes");
+  drawStats(root, report.stats);
+  root.createDiv({ cls: "cad-section-label-lg", text: "TASKS DONE \u2014 LAST 14 DAYS" });
+  drawBars(root.createDiv({ cls: "cad-bar-chart" }), report.days);
+  root.createDiv({ cls: "cad-section-label-lg", text: "COMPLETION TREND \u2014 LAST 12 WEEKS" });
+  drawBars(root.createDiv({ cls: "cad-bar-chart cad-bar-chart-tall" }), report.weeks);
   root.createDiv({ cls: "cad-section-label-lg", text: "COMPLETION BY WEEKDAY \xB7 LAST 30 DAYS" });
   const dayCard = root.createDiv({ cls: "cad-dash-card" });
   dayCard.style.margin = "0 36px 24px 36px";
-  const dayBody = dayCard.createDiv({ cls: "cad-dash-card-body cad-mini-stat-row" });
-  const dayAccents = ["emerald", "mint", "sky", "warn", "rose", "mint", "sky"];
-  dayBuckets.forEach((b, i) => {
-    const total = b.done + b.open;
-    const pct = total === 0 ? 0 : Math.round(b.done / total * 100);
-    const mini = dayBody.createDiv({ cls: "cad-mini-stat" });
-    mini.dataset.accent = dayAccents[i];
-    mini.createDiv({ cls: "cad-mini-stat-value", text: total === 0 ? "\u2014" : `${pct}%` });
-    mini.createDiv({ cls: "cad-mini-stat-label", text: dayLabels[i] });
-    const sub = mini.createDiv({ cls: "cad-stat-sub" });
-    sub.style.marginTop = "4px";
-    sub.setText(total === 0 ? "no data" : `${b.done}/${total}`);
-  });
+  drawMiniStats(dayCard.createDiv({ cls: "cad-dash-card-body cad-mini-stat-row" }), report.weekdays);
 }
 
 // src/views/project-detail.ts
