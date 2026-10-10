@@ -1,5 +1,6 @@
 import type { Entity, EntityDef, Frontmatter } from '../../types/entities';
 import type { ChartStyle, WidgetConfig } from '../../types/modals';
+import type { AppViewSettings } from '../../types/settings';
 import { entityValue } from '../../utils/entities';
 import type { AppViewHost } from '../host';
 
@@ -30,8 +31,8 @@ function toChartData(counts: Record<string, number>): ChartDatum[] {
 /* A dashboard widget's data: entities counted by the widget's groupBy
    field, read through entityValue. Wiki-link brackets are stripped. Each
    item of a list value counts once and blank items are skipped. A blank
-   scalar counts as 'Unspecified'. The Projects, CRM and PRM dashboards
-   each inline this loop; #17 and #20 swap this function in. */
+   scalar counts as 'Unspecified'. The Projects and CRM dashboards use it
+   (#17); the PRM dashboard still inlines the same loop until #20. */
 export function chartData(entities: Entity[], widget: Pick<WidgetConfig, 'groupBy'>, def: EntityDef): ChartDatum[] {
   const fieldKey = widget.groupBy;
   const counts: Record<string, number> = {};
@@ -49,6 +50,28 @@ export function chartData(entities: Entity[], widget: Pick<WidgetConfig, 'groupB
     }
   });
   return toChartData(counts);
+}
+
+/* The settings key holding each dashboard's custom chart widgets. */
+export type DashboardWidgetsKey = 'projectDashboardWidgets' | 'crmDashboardWidgets';
+
+/* The chart styles a dashboard widget's style select offers, in order. */
+export const WIDGET_STYLE_OPTIONS: ReadonlyArray<{ value: ChartStyle; label: string }> = [
+  { value: 'donut', label: '🍩 Donut' },
+  { value: 'bar', label: '📊 Bar' },
+  { value: 'kpi', label: '🗃️ KPI Cards' },
+  { value: 'list', label: '📋 List' },
+];
+
+/* A dashboard's widgets: the user's list from settings. There are no
+   default widgets, so a missing list is empty. */
+export function dashboardWidgets(settings: Pick<AppViewSettings, DashboardWidgetsKey>, key: DashboardWidgetsKey): WidgetConfig[] {
+  return settings[key] || [];
+}
+
+/* The widget list with every widget of this id removed. */
+export function removeWidget(widgets: WidgetConfig[] | undefined, id: string): WidgetConfig[] {
+  return (widgets || []).filter(item => item.id !== id);
 }
 
 /* A #chart- H2 section's data: entities counted by the raw frontmatter

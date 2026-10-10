@@ -2,21 +2,157 @@ import { Notice, Platform, TFile } from 'obsidian';
 import { ENTITIES } from '../constants/entities';
 import { CadenceImportModal } from '../modals/import-modal';
 import { CadenceWidgetCreateModal } from '../modals/widget-create';
-import { entityValue, getEnumOptions, listEntities, listEntityFiles, readEntity, readProjectMeta } from '../utils/entities';
-import { fmtValue, pctBand } from '../utils/format';
-import type { Entity, ProjectMeta } from '../types/entities';
+import type { EntityDef, Entity, ProjectMeta } from '../types/entities';
 import type { WidgetConfig } from '../types/modals';
+import { entityValue, getEnumOptions, listEntities, listEntityFiles, readEntity, readProjectMeta } from '../utils/entities';
+import { fmtValue } from '../utils/format';
+import { WIDGET_STYLE_OPTIONS, chartData, dashboardWidgets, removeWidget } from './components/charts';
 import type { AppViewHost } from './host';
-
-/* A project on the card grid: its entity and its milestone progress. */
-interface ProjectCardData {
-  entity: Entity;
-  meta: ProjectMeta;
-}
 
 /* The Projects dashboard (projects.dashboard): status cards, the priority
    board with drag and drop, and the custom chart widgets. Also the older
    card grid, renderProjectsView, which has no call site. */
+
+/* A project on the card grid: its entity and its milestone progress. */
+export interface ProjectCardData {
+  entity: Entity;
+  meta: ProjectMeta;
+}
+
+/* ── Pure seams: plain data in, plain data out ── */
+
+export const PROJECT_STATUSES = ['active', 'on_hold', 'backlog', 'done', 'cancelled'];
+export const PROJECT_PRIORITIES = ['low', 'medium', 'high'];
+
+const STATUS_ACCENTS: Record<string, string> = {
+  active: 'emerald',
+  done: 'mint',
+  cancelled: 'rose',
+  backlog: 'purple',
+  on_hold: 'warn',
+  'on-hold': 'warn'
+};
+const FALLBACK_ACCENTS = ['sky', 'emerald', 'rose', 'purple', 'warn', 'mint'];
+const PRIORITY_ACCENTS: Record<string, string> = {
+  low: 'sky',
+  medium: 'warn',
+  high: 'rose'
+};
+
+/** One status or priority card on the dashboard. */
+export interface DashboardColumn {
+  /** The option, as written to frontmatter on a drop. */
+  value: string;
+  label: string;
+  accent: string;
+  items: Entity[];
+}
+
+/* A field's options from the def, or the fallback when the field is
+   missing or has no options list. Unlike getEnumOptions, an empty list
+   is kept, so it gives no cards. */
+export function dashboardOptions(def: EntityDef, key: string, fallback: string[]): string[] {
+  const field = def.fields.find(f => f.key === key) || { options: fallback };
+  return field.options || fallback;
+}
+
+/* A status card's accent: its known colour (only the first '-' is read
+   as '_'), else the fallback cycle by position. */
+export function statusAccent(status: string, index: number): string {
+  return STATUS_ACCENTS[status.toLowerCase().replace('-', '_')] || FALLBACK_ACCENTS[index % FALLBACK_ACCENTS.length];
+}
+
+export function priorityAccent(priority: string): string {
+  return PRIORITY_ACCENTS[priority.toLowerCase()] || 'sky';
+}
+
+/* The projects whose field matches the option, ignoring case. A blank or
+   off-list value matches no option. */
+function projectsWith(projects: Entity[], def: EntityDef, key: string, option: string): Entity[] {
+  return projects.filter(p => String(entityValue(p, key, def)).toLowerCase() === option.toLowerCase());
+}
+
+/* The dashboard's numbers: the total, one card per status option and one
+   per priority option. A project counts in the total even when no card
+   matches its status. */
+export function projectsSummary(projects: Entity[], def: EntityDef): { total: number; statuses: DashboardColumn[]; priorities: DashboardColumn[] } {
+  return {
+    total: projects.length,
+    statuses: dashboardOptions(def, 'status', PROJECT_STATUSES).map((status, index) => ({
+      value: status,
+      label: `${status.replace(/_/g, ' ').toUpperCase()} PROJECTS`,
+      accent: statusAccent(status, index),
+      items: projectsWith(projects, def, 'status', status),
+    })),
+    priorities: dashboardOptions(def, 'priority', PROJECT_PRIORITIES).map((prio) => ({
+      value: prio,
+      label: `${prio.toUpperCase()} PRIORITY`,
+      accent: priorityAccent(prio),
+      items: projectsWith(projects, def, 'priority', prio),
+    })),
+  };
+}
+
+/* A dashboard row's name: the name field (entityValue falls back to the
+   basename). */
+export function projectRowName(entity: Entity, def: EntityDef): string {
+  return (entityValue(entity, 'name', def) || entity.basename) as string;
+}
+
+/* A dashboard row's pill (priority on a status card, status on a priority
+   card), or null when the value is blank. */
+export function dashRowPill(value: unknown): { cls: string; text: string } | null {
+  if (!value) return null;
+  return {
+    cls: `cad-pill cad-pill-${String(value).toLowerCase().replace(/\s+/g, '_')}`,
+    text: String(value).replace(/_/g, ' ')
+  };
+}
+
+/* Whether a card takes a drop: a path is needed, and a row dropped back
+   on its own card is ignored. */
+export function acceptsDrop(path: string, fromStage: string, stage: string): boolean {
+  return !(!path || fromStage === stage);
+}
+
+/* The status key a card grid groups by: lower case, spaces as '_'. */
+function statusKey(status: string): string {
+  return status.toLowerCase().replace(/\s+/g, '_');
+}
+
+/* The card grid's groups, in status option order, empty groups dropped.
+   A blank status takes the first option, and an unknown one goes in the
+   first group. */
+export function projectsViewGroups(
+  projects: ProjectCardData[], statusOptions: string[], def: EntityDef,
+): Array<{ label: string; items: ProjectCardData[] }> {
+  const groups: Record<string, ProjectCardData[]> = {};
+  statusOptions.forEach(opt => {
+    groups[statusKey(opt)] = [];
+  });
+  projects.forEach((p) => {
+    const status = statusKey(String(entityValue(p.entity, 'status', def) || (statusOptions[0] || 'active')));
+    const key = groups[status] ? status : Object.keys(groups)[0];
+    if (key) groups[key].push(p);
+  });
+  const order = statusOptions.map(statusKey);
+  return order
+    .filter((key) => groups[key] && groups[key].length)
+    .map((key) => ({
+      label: (statusOptions.find(opt => statusKey(opt) === key) || key).toUpperCase(),
+      items: groups[key],
+    }));
+}
+
+/* A grid card's pills: the status (default 'active', spaces as '-') and
+   the priority when set. */
+export function projectCardPills(entity: Entity, def: EntityDef): Array<{ cls: string; text: string }> {
+  const status = String(entityValue(entity, 'status', def) || 'active');
+  const priority = String(entityValue(entity, 'priority', def) || '');
+  const pills = [{ cls: `cad-pill cad-pill-${status.toLowerCase().replace(/\s+/g, '-')}`, text: status }];
+  if (priority) pills.push({ cls: `cad-pill cad-pill-prio-${priority.toLowerCase()}`, text: priority });
+  return pills;
+}
 
 export async function renderProjectsDashboard(view: AppViewHost, root: HTMLElement): Promise<void> {
   root.addClass('cadence-dashboard');
@@ -37,8 +173,7 @@ export async function renderProjectsDashboard(view: AppViewHost, root: HTMLEleme
   });
 
   // ─── Stats strip ───────────────────────────────────
-  const statusField = def.fields.find(f => f.key === 'status') || { options: ['active', 'on_hold', 'backlog', 'done', 'cancelled'] };
-  const statuses = statusField.options || ['active', 'on_hold', 'backlog', 'done', 'cancelled'];
+  const summary = projectsSummary(allProjects, def);
 
   const grid = root.createDiv({ cls: 'cad-stat-grid', attr: { style: 'padding-bottom: 24px;' } });
 
@@ -46,24 +181,11 @@ export async function renderProjectsDashboard(view: AppViewHost, root: HTMLEleme
   const totalCard = grid.createDiv({ cls: 'cad-stat-card', attr: { style: 'padding: 20px; display: flex; flex-direction: column; justify-content: center; min-height: 280px; margin: 0; position: relative;' } });
   totalCard.dataset.accent = 'sky';
   totalCard.createDiv({ cls: 'cad-stat-label', text: 'TOTAL PROJECTS', attr: { style: 'font-weight: 700; letter-spacing: 0.12em;' } });
-  totalCard.createDiv({ cls: 'cad-stat-value', text: String(allProjects.length), attr: { style: 'font-size: 3rem; font-weight: 800; margin-top: 12px; line-height: 1;' } });
+  totalCard.createDiv({ cls: 'cad-stat-value', text: String(summary.total), attr: { style: 'font-size: 3rem; font-weight: 800; margin-top: 12px; line-height: 1;' } });
   totalCard.createDiv({ cls: 'cad-stat-sub', text: 'Across all active and custom statuses', attr: { style: 'margin-top: 12px; font-size: 0.85em; color: var(--text-muted);' } });
 
   // 2. Dynamic status cards
-  const statusAccents: Record<string, string> = {
-    active: 'emerald',
-    done: 'mint',
-    cancelled: 'rose',
-    backlog: 'purple',
-    on_hold: 'warn',
-    'on-hold': 'warn'
-  };
-  const fallbackAccents = ['sky', 'emerald', 'rose', 'purple', 'warn', 'mint'];
-
-  statuses.forEach((status, index) => {
-    const items = allProjects.filter(p => String(entityValue(p, 'status', def)).toLowerCase() === status.toLowerCase());
-    const accent = statusAccents[status.toLowerCase().replace('-', '_')] || fallbackAccents[index % fallbackAccents.length];
-
+  summary.statuses.forEach(({ value: status, label, accent, items }) => {
     const colCard = grid.createDiv({ cls: 'cad-stat-card', attr: { style: 'padding: 20px; display: flex; flex-direction: column; min-height: 280px; margin: 0; position: relative;' } });
     colCard.dataset.accent = accent;
     colCard.dataset.stage = status; // For drag & drop target
@@ -71,9 +193,9 @@ export async function renderProjectsDashboard(view: AppViewHost, root: HTMLEleme
     // Header info
     colCard.createDiv({
       cls: 'cad-stat-label',
-      text: `${status.replace(/_/g, ' ').toUpperCase()} PROJECTS`,
+      text: label,
       attr: { style: 'font-weight: 700; letter-spacing: 0.12em;' }
-});
+    });
     colCard.createDiv({ cls: 'cad-stat-value',
       text: String(items.length), attr: { style: 'font-size: 2.25rem; font-weight: 800; margin-top: 4px;' } });
 
@@ -96,7 +218,7 @@ export async function renderProjectsDashboard(view: AppViewHost, root: HTMLEleme
       colCard.style.boxShadow = '';
       const path = ev.dataTransfer!.getData('text/cadence-entity');
       const fromStage = ev.dataTransfer!.getData('text/cadence-stage-status');
-      if (!path || fromStage === status) return;
+      if (!acceptsDrop(path, fromStage, status)) return;
       const file = view.app.vault.getAbstractFileByPath(path);
       if (!file || !(file instanceof TFile)) return;
       try {
@@ -120,15 +242,12 @@ export async function renderProjectsDashboard(view: AppViewHost, root: HTMLEleme
 
         // Left content: Project Name
         const nameEl = row.createDiv({ attr: { style: 'font-weight: 500; font-size: 0.9em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px;' } });
-        nameEl.setText((entityValue(e, 'name', def) || e.basename) as string);
+        nameEl.setText(projectRowName(e, def));
 
         // Right content: Priority Pill
-        const priorityVal = entityValue(e, 'priority', def);
-        if (priorityVal) {
-          const pill = row.createDiv({
-            cls: `cad-pill cad-pill-${String(priorityVal).toLowerCase().replace(/\s+/g, '_')}`,
-            text: String(priorityVal).replace(/_/g, ' ')
-          });
+        const pillData = dashRowPill(entityValue(e, 'priority', def));
+        if (pillData) {
+          const pill = row.createDiv(pillData);
           pill.style.fontSize = '0.7em';
           pill.style.padding = '1px 6px';
         }
@@ -165,19 +284,7 @@ export async function renderProjectsDashboard(view: AppViewHost, root: HTMLEleme
   const renderBoard = () => {
     boardWrap.empty();
 
-    const priorityField = def.fields.find(field => field.key === 'priority') || { options: ['low', 'medium', 'high'] };
-    const priorities = priorityField.options || ['low', 'medium', 'high'];
-
-    const priorityAccents: Record<string, string> = {
-      low: 'sky',
-      medium: 'warn',
-      high: 'rose'
-    };
-
-    priorities.forEach((prio) => {
-      const items = allProjects.filter(p => String(entityValue(p, 'priority', def)).toLowerCase() === prio.toLowerCase());
-      const accent = priorityAccents[prio.toLowerCase()] || 'sky';
-
+    summary.priorities.forEach(({ value: prio, label, accent, items }) => {
       // Large Priority Stat Card Stack
       const colCard = boardWrap.createDiv({ cls: 'cad-stat-card', attr: { style: 'padding: 20px; display: flex; flex-direction: column; min-height: 280px; margin: 0; position: relative;' } });
       colCard.dataset.accent = accent;
@@ -186,9 +293,9 @@ export async function renderProjectsDashboard(view: AppViewHost, root: HTMLEleme
       // Header info
       colCard.createDiv({
         cls: 'cad-stat-label',
-        text: `${prio.toUpperCase()} PRIORITY`,
+        text: label,
         attr: { style: 'font-weight: 700; letter-spacing: 0.12em;' }
-});
+      });
       colCard.createDiv({ cls: 'cad-stat-value',
         text: String(items.length), attr: { style: 'font-size: 2.25rem; font-weight: 800; margin-top: 4px;' } });
 
@@ -211,7 +318,7 @@ export async function renderProjectsDashboard(view: AppViewHost, root: HTMLEleme
         colCard.style.boxShadow = '';
         const path = ev.dataTransfer!.getData('text/cadence-entity');
         const fromStage = ev.dataTransfer!.getData('text/cadence-stage');
-        if (!path || fromStage === prio) return;
+        if (!acceptsDrop(path, fromStage, prio)) return;
         const file = view.app.vault.getAbstractFileByPath(path);
         if (!file || !(file instanceof TFile)) return;
         try {
@@ -235,15 +342,12 @@ export async function renderProjectsDashboard(view: AppViewHost, root: HTMLEleme
 
           // Left content: Project Name
           const nameEl = row.createDiv({ attr: { style: 'font-weight: 500; font-size: 0.9em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px;' } });
-          nameEl.setText((entityValue(e, 'name', def) || e.basename) as string);
+          nameEl.setText(projectRowName(e, def));
 
           // Right content: Status Pill
-          const statusVal = entityValue(e, 'status', def);
-          if (statusVal) {
-            const pill = row.createDiv({
-              cls: `cad-pill cad-pill-${String(statusVal).toLowerCase().replace(/\s+/g, '_')}`,
-              text: String(statusVal).replace(/_/g, ' ')
-            });
+          const pillData = dashRowPill(entityValue(e, 'status', def));
+          if (pillData) {
+            const pill = row.createDiv(pillData);
             pill.style.fontSize = '0.7em';
             pill.style.padding = '1px 6px';
           }
@@ -276,7 +380,7 @@ export async function renderProjectsDashboard(view: AppViewHost, root: HTMLEleme
 
   // ─── Custom Widgets / Charts Section ────────────────
   const analyticsHeader = root.createDiv({ attr: { style: 'display: flex; justify-content: space-between; align-items: center; padding: 24px 32px 8px 32px; margin-bottom: 16px;' } });
-  const labelEl = analyticsHeader.createEl('span', { cls: 'cad-section-label-lg',
+  analyticsHeader.createEl('span', { cls: 'cad-section-label-lg',
     text: 'ANALYTICS & CHARTS', attr: { style: 'padding: 0; margin: 0; display: inline-block;' } });
 
   const addWidgetBtn = analyticsHeader.createEl('button', { cls: 'cad-btn primary', text: '+ Add Custom Chart' });
@@ -286,19 +390,18 @@ export async function renderProjectsDashboard(view: AppViewHost, root: HTMLEleme
   const renderWidgets = () => {
     widgetsGrid.empty();
 
-    const widgets = view.plugin.settings.projectDashboardWidgets || [];
+    const widgets = dashboardWidgets(view.plugin.settings, 'projectDashboardWidgets');
     if (widgets.length === 0) {
       const emptyWrap = widgetsGrid.createDiv({ attr: { style: 'grid-column: 1 / -1; text-align: center; padding: 32px; background: var(--background-secondary); border-radius: 8px; border: 1px dashed var(--border-color);' } });
       emptyWrap.createDiv({ text: 'No custom charts added yet. Click "+ Add Custom Chart" to create one!', attr: { style: 'color: var(--text-muted); font-size: 0.95em;' } });
       return;
     }
 
-    widgets.forEach((w: WidgetConfig) => {
+    widgets.forEach((w) => {
       const card = widgetsGrid.createDiv({ cls: 'cad-dash-card', attr: { style: 'margin: 0; display: flex; flex-direction: column;' } });
 
       // Card Head
       const head = card.createDiv({ cls: 'cad-dash-card-head', attr: { style: 'display: flex; justify-content: space-between; align-items: center; padding: 10px 14px;' } });
-      const fieldKey = w.groupBy;
 
       head.createDiv({ cls: 'cad-dash-card-title', text: w.title.toUpperCase(), attr: { style: 'font-weight: 700; font-size: 0.75rem; letter-spacing: 0.12em;' } });
 
@@ -315,12 +418,7 @@ export async function renderProjectsDashboard(view: AppViewHost, root: HTMLEleme
       styleSelect.style.border = '1px solid var(--border-color)';
       styleSelect.style.borderRadius = '4px';
 
-      [
-        { value: 'donut', label: '🍩 Donut' },
-        { value: 'bar', label: '📊 Bar' },
-        { value: 'kpi', label: '🗃️ KPI Cards' },
-        { value: 'list', label: '📋 List' }
-      ].forEach(opt => {
+      WIDGET_STYLE_OPTIONS.forEach(opt => {
         const o = styleSelect.createEl('option', { value: opt.value, text: opt.label });
         if (w.style === opt.value) o.selected = true;
       });
@@ -336,41 +434,21 @@ export async function renderProjectsDashboard(view: AppViewHost, root: HTMLEleme
         text: '×', attr: { style: 'color: var(--text-error); padding: 2px 8px; font-weight: bold; border-color: var(--text-error); font-size: 1.1em; height: auto; border-radius: 4px; background: transparent;' } });
       delBtn.addEventListener('click', async () => {
         if (!confirm(`Delete chart "${w.title}"?`)) return;
-        view.plugin.settings.projectDashboardWidgets = (view.plugin.settings.projectDashboardWidgets || []).filter((item: WidgetConfig) => item.id !== w.id);
+        view.plugin.settings.projectDashboardWidgets = removeWidget(view.plugin.settings.projectDashboardWidgets, w.id);
         await view.plugin.saveSettings();
         view.render();
       });
 
       const body = card.createDiv({ cls: 'cad-dash-card-body', attr: { style: 'flex: 1; min-height: 180px; display: flex; flex-direction: column; justify-content: center; padding: 14px;' } });
 
-      // Calculate chart data for this widget
-      const counts: Record<string, number> = {};
-      allProjects.forEach(p => {
-        let val = entityValue(p, fieldKey, def);
-        if (Array.isArray(val)) {
-          val.forEach(v => {
-            const clean = String(v).replace(/^\[\[|\]\]$/g, '').trim();
-            if (clean) counts[clean] = (counts[clean] || 0) + 1;
-          });
-        } else {
-          const clean = String(val || '').replace(/^\[\[|\]\]$/g, '').trim();
-          const label = clean || 'Unspecified';
-          counts[label] = (counts[label] || 0) + 1;
-        }
-      });
-
-      const chartData = Object.entries(counts)
-        .map(([label, count]) => ({ label, count }))
-        .sort((a, b) => b.count - a.count);
-
       // Draw chart directly into a fresh div — no innerHTML.
-      view._drawChart(body.createDiv(), w.style, chartData);
+      view._drawChart(body.createDiv(), w.style, chartData(allProjects, w, def));
     });
   };
 
   // Add custom widget builder listener
   addWidgetBtn.addEventListener('click', () => {
-    new CadenceWidgetCreateModal(view.app, async (newWidget) => {
+    new CadenceWidgetCreateModal(view.app, async (newWidget: WidgetConfig) => {
       if (!view.plugin.settings.projectDashboardWidgets) {
         view.plugin.settings.projectDashboardWidgets = [];
       }
@@ -411,80 +489,17 @@ export async function renderProjectsView(view: AppViewHost, root: HTMLElement): 
   }));
 
   // Group by status
-  const statusOptions = getEnumOptions('project', 'status', ['active', 'on_hold', 'backlog', 'done', 'cancelled']);
-  const groups: Record<string, ProjectCardData[]> = {};
-  statusOptions.forEach(opt => {
-    groups[opt.toLowerCase().replace(/\s+/g, '_')] = [];
-  });
-  projects.forEach((p) => {
-    const status = String(entityValue(p.entity, 'status', def) || (statusOptions[0] || 'active')).toLowerCase().replace(/\s+/g, '_');
-    const key = groups[status] ? status : Object.keys(groups)[0];
-    if (key) groups[key].push(p);
-  });
-
-  const grid = root.createDiv({ cls: 'cad-proj-grid' });
-  const renderCard = (p: ProjectCardData) => {
-    const card = grid.createDiv({ cls: 'cad-proj-card' });
-    const head = card.createDiv({ cls: 'cad-proj-card-head' });
-    const title = head.createEl('a', { cls: 'cad-proj-title', text: (entityValue(p.entity, 'name', def) as string) || p.entity.basename });
-    title.addEventListener('click', (ev) => { ev.preventDefault(); view.openEntityDetail('project', p.entity.file); });
-    const status = String(entityValue(p.entity, 'status', def) || 'active');
-    const priority = String(entityValue(p.entity, 'priority', def) || '');
-    const pillRow = head.createDiv({ cls: 'cad-proj-pills' });
-    pillRow.createSpan({ cls: `cad-pill cad-pill-${status.toLowerCase().replace(/\s+/g, '-')}`, text: status });
-    if (priority) pillRow.createSpan({ cls: `cad-pill cad-pill-prio-${priority.toLowerCase()}`, text: priority });
-
-    const metaRow = card.createDiv({ cls: 'cad-proj-meta' });
-    const owner = entityValue(p.entity, 'owner', def);
-    const due = entityValue(p.entity, 'due', def);
-    if (owner) view._renderOwnerLinks(metaRow, owner);
-    if (due) metaRow.createSpan({ text: `Due: ${fmtValue(due, 'date')}` });
-
-    // Progress
-    const progWrap = card.createDiv({ cls: 'cad-proj-progress-wrap' });
-    progWrap.dataset.pctBand = pctBand(p.meta.percent);
-    const progLabel = progWrap.createDiv({ cls: 'cad-proj-progress-label' });
-    progLabel.createSpan({ text: `${p.meta.done}/${p.meta.total} milestones` });
-    progLabel.createSpan({ cls: 'cad-proj-progress-pct', text: `${p.meta.percent}%` });
-    const bar = progWrap.createDiv({ cls: 'cad-proj-progress-bar' });
-    const fill = bar.createDiv({ cls: 'cad-proj-progress-fill' });
-    fill.style.width = `${p.meta.percent}%`;
-
-    // Next milestone
-    if (p.meta.next) {
-      const nextRow = card.createDiv({ cls: 'cad-proj-next' });
-      nextRow.createSpan({ cls: 'cad-proj-next-label', text: 'NEXT · ' });
-      nextRow.createSpan({ cls: 'cad-proj-next-date', text: fmtValue(p.meta.next.date, 'date') });
-      if (p.meta.next.title) nextRow.createSpan({ text: ` — ${p.meta.next.title}` });
-    }
-  };
-
-  const renderSection = (label: string, list: ProjectCardData[]) => {
-    if (!list.length) return;
+  const statusOptions = getEnumOptions('project', 'status', PROJECT_STATUSES);
+  projectsViewGroups(projects, statusOptions, def).forEach(({ label, items }) => {
     root.createDiv({ cls: 'cad-section-label-lg', text: label });
-    list.forEach(renderCard);
-  };
-
-  // We render section labels by intercepting renderCard placement
-  // Reset grid: render in groups
-  grid.remove();
-  const order = statusOptions.map(opt => opt.toLowerCase().replace(/\s+/g, '_'));
-  order.forEach((key) => {
-    const list = groups[key];
-    if (!list || !list.length) return;
-    const origOpt = statusOptions.find(opt => opt.toLowerCase().replace(/\s+/g, '_') === key) || key;
-    root.createDiv({ cls: 'cad-section-label-lg', text: origOpt.toUpperCase() });
     const section = root.createDiv({ cls: 'cad-proj-grid' });
-    list.forEach((p: ProjectCardData) => {
+    items.forEach((p) => {
       const card = section.createDiv({ cls: 'cad-proj-card' });
       const head = card.createDiv({ cls: 'cad-proj-card-head' });
-      const title = head.createEl('a', { cls: 'cad-proj-title', text: (entityValue(p.entity, 'name', def) as string) || p.entity.basename });
+      const title = head.createEl('a', { cls: 'cad-proj-title', text: projectRowName(p.entity, def) });
       title.addEventListener('click', (ev) => { ev.preventDefault(); view.openEntityDetail('project', p.entity.file); });
-      const status = String(entityValue(p.entity, 'status', def) || 'active');
-      const priority = String(entityValue(p.entity, 'priority', def) || '');
       const pillRow = head.createDiv({ cls: 'cad-proj-pills' });
-      pillRow.createSpan({ cls: `cad-pill cad-pill-${status.toLowerCase().replace(/\s+/g, '-')}`, text: status });
-      if (priority) pillRow.createSpan({ cls: `cad-pill cad-pill-prio-${priority.toLowerCase()}`, text: priority });
+      projectCardPills(p.entity, def).forEach((pill) => pillRow.createSpan(pill));
 
       const metaRow = card.createDiv({ cls: 'cad-proj-meta' });
       const owner = entityValue(p.entity, 'owner', def);
