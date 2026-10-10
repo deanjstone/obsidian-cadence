@@ -184,6 +184,17 @@ describe("_renderTemplateSectionWithDelete: × delete", () => {
     ]);
   });
 
+  it("warns, naming the one note, when a single note has content", async () => {
+    const confirm = vi.fn(() => false);
+    vi.stubGlobal("confirm", confirm);
+    const { draw } = setup([note("Ann", "## Bio #notes\nLikes tea\n")]);
+    delButton(draw("Bio #notes")).trigger("click");
+    await flush();
+    expect(confirm.mock.calls).toEqual([
+      ['Warning: The section "Bio" has active content in the following files:\nAnn\n\nAre you sure you want to delete it from the template?'],
+    ]);
+  });
+
   it("removes the section from the template up to the next H2, propagates, notices and re-renders", async () => {
     vi.stubGlobal("confirm", vi.fn(() => true));
     const { draw, view, read, rendered } = setup();
@@ -297,6 +308,11 @@ describe("_getFilesUsingTemplateSection", () => {
     expect(await view._getFilesUsingTemplateSection("contact", "Notes #notes")).toEqual([
       file(`${C}/A.md`), file(`${C}/B.md`), file(`${C}/C.md`),
     ]);
+  });
+
+  it("only a body that starts with a placeholder is skipped; one later in the body still counts", async () => {
+    const { view, file } = setup([note("A", "## Notes\nReal notes\n_Enter your notes here..._\n"), note("B", "## Notes\n_Enter your notes here..._ and more\n")]);
+    expect(await view._getFilesUsingTemplateSection("contact", "Notes")).toEqual([file(`${C}/A.md`)]);
   });
 
   it("returns nothing for an unknown entity key", async () => {
