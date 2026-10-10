@@ -108,6 +108,19 @@ describe("renderProjectsView", () => {
     expect(body(root).map((c) => c.text || c.children.length)).toEqual(["ACTIVE", 1]);
   });
 
+  it("a blank status takes the first option even when an 'active' option exists", async () => {
+    const field = ENTITIES.project.fields.find((f) => f.key === "status")!;
+    const saved = field.options;
+    field.options = ["Parked", "active"];
+    try {
+      const { view, root } = setup([project("Blank", { name: "Blank" }), project("Live", { name: "Live", status: "active" })]);
+      await view.renderProjectsView(root);
+      expect(body(root).map((c) => c.text || c.children.map((x) => x.children[0].children[0].text))).toEqual(["PARKED", ["Blank"], "ACTIVE", ["Live"]]);
+    } finally {
+      field.options = saved;
+    }
+  });
+
   it("follows the def's status options for the groups and labels", async () => {
     const field = ENTITIES.project.fields.find((f) => f.key === "status")!;
     const saved = field.options;

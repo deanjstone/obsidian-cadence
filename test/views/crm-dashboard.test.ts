@@ -225,6 +225,17 @@ describe("renderDashboard: deal and activity cards", () => {
     expect(section(sections, "STALE DEALS")[2].map((r: Any) => r.title)).toEqual(["S25", "S24", "S23", "S22", "S21"]);
   });
 
+  it("stale deals: exactly 14 days or 13.5 days quiet is not stale, and days quiet round to the nearest day", async () => {
+    const files = [
+      deal("Exact", { title: "Exact", stage: "Lead" }, NOW - 14 * DAY),
+      deal("Recent", { title: "Recent", stage: "Lead" }, NOW - 13.5 * DAY),
+      deal("Old", { title: "Old", stage: "Lead" }, NOW - 20.6 * DAY),
+    ];
+    const { view, root, sections } = setup(files);
+    await view.renderDashboard(root);
+    expect(section(sections, "STALE DEALS")[2].map((r: Any) => r.meta)).toEqual([`Lead · 21d quiet · ${cur(0)}`]);
+  });
+
   it("recent activity: newest first by when, undated last, with the total in the title", async () => {
     const { view, root, sections, file } = setup(ALL);
     await view.renderDashboard(root);
@@ -314,6 +325,18 @@ describe("renderDashboard: custom chart widgets", () => {
         { label: "Lead", count: 1 },
       ]],
       [true, "kpi", [{ label: "Unspecified", count: 6 }, { label: "Acme Corp", count: 1 }, { label: "Globex", count: 1 }]],
+    ]);
+  });
+
+  it("reads the groupBy through entityValue with the deal def: 'title' falls back to the basename, 'type' to 'deal'", async () => {
+    const files = [deal("A", { stage: "Lead" }), deal("B", { title: "Bee" })];
+    const { view, root, charts } = setup(files, {
+      crmDashboardWidgets: [{ ...W1, groupBy: "title" }, { ...W1, id: "w.t", groupBy: "type" }],
+    });
+    await view.renderDashboard(root);
+    expect(charts.mock.calls.map((c) => c[2])).toEqual([
+      [{ label: "A", count: 1 }, { label: "Bee", count: 1 }],
+      [{ label: "deal", count: 2 }],
     ]);
   });
 
