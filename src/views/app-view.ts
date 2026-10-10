@@ -1,11 +1,13 @@
 import { Notice, setIcon, type TAbstractFile, type TFile } from 'obsidian';
 import { ENTITIES } from '../constants/entities';
 import { BUILT_SURFACES, SURFACE_BY_ID, type NavSurface } from '../constants/nav';
+import type { EntityDef } from '../types/entities';
 import { CadenceEntityCreateModal } from '../modals/entity-create';
 import { CadencePromptModal } from '../modals/prompt';
 import { dailyNotePath, startOfDay, weekDates } from '../utils/dates';
 import { createEntity, entityKeyFromFile, getFieldSuggestionSource } from '../utils/entities';
 import type { AppViewHost, AppViewPlugin, PromptOptions } from './host';
+import { routeFor } from './nav';
 
 /* Workspace.getActiveLeaf() and App.setting are not in the public
    obsidian.d.ts this repo builds against. */
@@ -257,45 +259,16 @@ export async function renderAppView(view: AppViewHost): Promise<void> {
       }
     }
 
-    const route: Record<string, () => Promise<void>> = {
-      'home': () => view.renderHome(content),
-      'planner.inbox': () => view.renderInbox(content),
-      'planner.today': () => view.renderTodayPane(content),
-      'planner.calendar': () => view.renderPlannerPane(content),
-      'projects.dashboard': () => view.renderProjectsDashboard(content),
-      'projects.projects': () => view.renderEntityList(content, 'project'),
-      'crm.dashboard': () => view.renderDashboard(content),
-      'crm.pipeline': () => view.renderEntityList(content, 'deal'),
-      'crm.contacts': () => view.renderEntityList(content, 'contact'),
-      'crm.companies': () => view.renderEntityList(content, 'company'),
-      'crm.activities': () => view.renderEntityList(content, 'activity'),
-      'prm.partners': () => view.renderEntityList(content, 'partner'),
-      'prm.registrations': () => view.renderEntityList(content, 'registration'),
-      'prm.commissions': () => view.renderEntityList(content, 'commission'),
-      'prm.leads': () => view.renderEntityList(content, 'lead'),
-      'prm.certifications': () => view.renderEntityList(content, 'certification'),
-      'prm.analytics': () => view.renderPRMAnalytics(content),
-      'workflow.sequences': () => view.renderEntityList(content, 'sequence'),
-      'reports.pipeline': () => view.renderReportPipeline(content),
-      'reports.sales': () => view.renderReportSales(content),
-      'reports.partners': () => view.renderReportPartners(content),
-      'reports.activity': () => view.renderReportActivity(content),
-      'reports.graph': () => view.renderReportGraph(content),
-      'reports.productivity': () => view.renderProductivity(content),
-      'team': () => view.renderTeam(content),
-      'templates': () => view.renderTemplatesDashboard(content),
-      'settings': () => view.openSettingsTab(content),
-    };
-    if (route[view.mode]) {
-      await route[view.mode]();
+    const route = routeFor(view.mode, view.plugin.settings.customPages || []);
+    if (route.kind === 'surface') {
+      await view[route.method](content);
+    } else if (route.kind === 'entityList') {
+      await view.renderEntityList(content, route.entityKey);
+    } else if (route.kind === 'inherited') {
+      // QUIRK (kept): legacy called the inherited member of its route-table object.
+      await ({} as Record<string, () => unknown>)[route.name]();
     } else {
-      const customPages = view.plugin.settings.customPages || [];
-      const custom = customPages.find(p => p.id === view.mode);
-      if (custom) {
-        await view.renderEntityList(content, custom.entityKey);
-      } else {
-        view.renderComingSoon(content, active);
-      }
+      view.renderComingSoon(content, active);
     }
   } finally {
     view._isRendering = false;
@@ -371,46 +344,15 @@ export async function createEntityFromPrompt(
       if (!result) return;
       try {
         const file = await createEntity(view.app, entityKey, result.name);
-        // Patch frontmatter with whatever else the user filled in (skip primary key — already set by template).
-        const primaryKey = def.fields[0].key;
-        const extras = Object.assign({}, defaults, result.values);
-        delete extras[primaryKey];
-
-        for (const f of def.fields) {
-          const suggestionSource = getFieldSuggestionSource(f);
-          if (suggestionSource !== 'none' && suggestionSource !== 'tags' && suggestionSource !== 'history') {
-            const key = f.key;
-            if (extras[key]) {
-              const rawVal = extras[key];
-              const parts = Array.isArray(rawVal) ? rawVal.map(String) : String(rawVal).split(',');
-              const names = parts.map(n => n.replace(/^\[\[|\]\]$/g, '').trim()).filter(Boolean);
-              extras[key] = names.map(n => `[[${n}]]`);
-
-              const creationSource = suggestionSource === 'history' ? 'folder:Cadence/Shared' : suggestionSource;
-              let targetEntityKey = ENTITIES[suggestionSource] ? suggestionSource : null;
-              if (suggestionSource.startsWith('folder:')) {
-                const customFolderPath = suggestionSource.slice('folder:'.length);
-                const normalizedPath = customFolderPath.replace(/\/+$/, '').toLowerCase();
-                for (const [ek, edef] of Object.entries(ENTITIES)) {
-                  if (edef && edef.folder && edef.folder.replace(/\/+$/, '').toLowerCase() === normalizedPath) {
-                    targetEntityKey = ek;
-                    break;
-                  }
-                }
-              }
-
-              for (const name of names) {
-                const targetFile = view.app.vault.getMarkdownFiles().find(tf => tf.basename.toLowerCase() === name.toLowerCase());
-                if (!targetFile) {
-                  try {
-                    await createEntity(view.app, creationSource, name);
-                    const label = targetEntityKey ? ENTITIES[targetEntityKey].label : 'Note';
-                    new Notice(`Created new ${label}: ${name}`);
-                  } catch (e) {
-                    console.warn(`Failed to auto-create ${creationSource}`, e);
-                  }
-                }
-              }
+        const { extras, links } = planEntityLinks(def, defaults, result.values);
+        for (const link of links) {
+          const targetFile = view.app.vault.getMarkdownFiles().find(tf => tf.basename.toLowerCase() === link.name.toLowerCase());
+          if (!targetFile) {
+            try {
+              await createEntity(view.app, link.creationSource, link.name);
+              new Notice(`Created new ${link.label}: ${link.name}`);
+            } catch (e) {
+              console.warn(`Failed to auto-create ${link.creationSource}`, e);
             }
           }
         }
@@ -430,4 +372,59 @@ export async function createEntityFromPrompt(
       }
     },
   }).open();
+}
+
+/* A note a new entity links to, auto-created if no note has that name. */
+export interface EntityLink {
+  name: string;
+  /** Entity key or `folder:<path>`, as createEntity() takes it. */
+  creationSource: string;
+  /** Entity label for the notice, or 'Note'. */
+  label: string;
+}
+
+/* The frontmatter patch for a note created from the entity-create modal,
+   and the notes it links to, in field order. Defaults are overlaid by the
+   modal's values and the primary key is dropped (the template sets it).
+   Every field with an entity or folder suggestion source becomes a list of
+   wiki-links. */
+export function planEntityLinks(
+  def: EntityDef, defaults: Record<string, unknown>, values: Record<string, unknown>,
+): { extras: Record<string, unknown>; links: EntityLink[] } {
+  // Patch frontmatter with whatever else the user filled in (skip primary key — already set by template).
+  const primaryKey = def.fields[0].key;
+  const extras: Record<string, unknown> = Object.assign({}, defaults, values);
+  delete extras[primaryKey];
+  const links: EntityLink[] = [];
+
+  for (const f of def.fields) {
+    const suggestionSource = getFieldSuggestionSource(f);
+    if (suggestionSource !== 'none' && suggestionSource !== 'tags' && suggestionSource !== 'history') {
+      const key = f.key;
+      if (extras[key]) {
+        const rawVal = extras[key];
+        const parts = Array.isArray(rawVal) ? rawVal.map(String) : String(rawVal).split(',');
+        // QUIRK (kept): brackets are stripped before trimming, so " [[Bob]]" becomes "[[Bob".
+        const names = parts.map(n => n.replace(/^\[\[|\]\]$/g, '').trim()).filter(Boolean);
+        extras[key] = names.map(n => `[[${n}]]`);
+
+        // QUIRK (kept): 'history' is excluded above, so this always picks suggestionSource.
+        const creationSource = suggestionSource === 'history' ? 'folder:Cadence/Shared' : suggestionSource;
+        let targetEntityKey = ENTITIES[suggestionSource] ? suggestionSource : null;
+        if (suggestionSource.startsWith('folder:')) {
+          const customFolderPath = suggestionSource.slice('folder:'.length);
+          const normalizedPath = customFolderPath.replace(/\/+$/, '').toLowerCase();
+          for (const [ek, edef] of Object.entries(ENTITIES)) {
+            if (edef && edef.folder && edef.folder.replace(/\/+$/, '').toLowerCase() === normalizedPath) {
+              targetEntityKey = ek;
+              break;
+            }
+          }
+        }
+        const label = targetEntityKey ? ENTITIES[targetEntityKey].label : 'Note';
+        for (const name of names) links.push({ name, creationSource, label });
+      }
+    }
+  }
+  return { extras, links };
 }

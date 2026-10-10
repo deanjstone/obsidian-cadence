@@ -2460,6 +2460,119 @@ var CadenceImportModal = class extends import_obsidian11.Modal {
 
 // src/views/app-view.ts
 var import_obsidian12 = require("obsidian");
+
+// src/views/nav.ts
+function migrateModeId(id, settings) {
+  if (id === "today") return "planner.today";
+  if (id === "planner") return "planner.calendar";
+  const customPages = settings.customPages || [];
+  if (customPages.some((p) => p.id === id)) return id;
+  return SURFACE_BY_ID[id] ? id : "home";
+}
+function resolveSurface(id, settings) {
+  const customPages = settings.customPages || [];
+  const custom = customPages.find((p) => p.id === id);
+  if (custom) {
+    return {
+      id: custom.id,
+      label: custom.label,
+      icon: custom.icon || "file-text",
+      desc: `Custom page displaying ${custom.entityKey} entity.`
+    };
+  }
+  return SURFACE_BY_ID[id] || SURFACE_BY_ID["home"];
+}
+function visibleNavGroups(settings) {
+  const mods = settings.modules || { crm: true, prm: true, planner: true, projects: true };
+  const groups = JSON.parse(JSON.stringify(NAV_GROUPS));
+  const customPages = settings.customPages || [];
+  customPages.forEach((p) => {
+    const g = groups.find((group) => group.id === p.sectionId);
+    if (g) {
+      g.items.push({
+        id: p.id,
+        label: p.label,
+        icon: p.icon || "file-text",
+        module: p.module || p.sectionId,
+        desc: `Custom page displaying ${p.entityKey} entity.`
+      });
+    }
+  });
+  return groups.map((g) => {
+    if (g.module && mods[g.module] === false) return null;
+    const items = g.items.filter((it) => !it.module || mods[it.module] !== false);
+    if (!items.length) return null;
+    return Object.assign({}, g, { items });
+  }).filter(Boolean);
+}
+function modeUsesEntityFolder(path) {
+  if (!path) return false;
+  return path.startsWith("Cadence/");
+}
+var surface = (method) => ({ kind: "surface", method });
+var entityList = (entityKey) => ({ kind: "entityList", entityKey });
+var SURFACE_ROUTES = {
+  "home": surface("renderHome"),
+  "planner.inbox": surface("renderInbox"),
+  "planner.today": surface("renderTodayPane"),
+  "planner.calendar": surface("renderPlannerPane"),
+  "projects.dashboard": surface("renderProjectsDashboard"),
+  "projects.projects": entityList("project"),
+  "crm.dashboard": surface("renderDashboard"),
+  "crm.pipeline": entityList("deal"),
+  "crm.contacts": entityList("contact"),
+  "crm.companies": entityList("company"),
+  "crm.activities": entityList("activity"),
+  "prm.partners": entityList("partner"),
+  "prm.registrations": entityList("registration"),
+  "prm.commissions": entityList("commission"),
+  "prm.leads": entityList("lead"),
+  "prm.certifications": entityList("certification"),
+  "prm.analytics": surface("renderPRMAnalytics"),
+  "workflow.sequences": entityList("sequence"),
+  "reports.pipeline": surface("renderReportPipeline"),
+  "reports.sales": surface("renderReportSales"),
+  "reports.partners": surface("renderReportPartners"),
+  "reports.activity": surface("renderReportActivity"),
+  "reports.graph": surface("renderReportGraph"),
+  "reports.productivity": surface("renderProductivity"),
+  "team": surface("renderTeam"),
+  "templates": surface("renderTemplatesDashboard"),
+  "settings": surface("openSettingsTab")
+};
+function routeFor(mode, customPages) {
+  if (SURFACE_ROUTES[mode]) {
+    return Object.prototype.hasOwnProperty.call(SURFACE_ROUTES, mode) ? SURFACE_ROUTES[mode] : { kind: "inherited", name: mode };
+  }
+  const custom = customPages.find((p) => p.id === mode);
+  if (custom) return entityList(custom.entityKey);
+  return { kind: "comingSoon" };
+}
+function toggleMobileNav(view, force) {
+  const root = view.containerEl.children[1];
+  view.mobileNavOpen = typeof force === "boolean" ? force : !view.mobileNavOpen;
+  if (root) root.toggleClass("cad-mobile-nav-open", view.mobileNavOpen);
+}
+async function toggleCadenceDark(view) {
+  view.plugin.settings.cadenceAppDark = !view.plugin.settings.cadenceAppDark;
+  await view.plugin.saveSettings();
+  view.render();
+}
+async function setMode(view, m) {
+  view.mode = view._migrateModeId(m);
+  view.detailFile = null;
+  view.detailEntityKey = null;
+  await view.render();
+}
+async function toggleGroup(view, groupId) {
+  const collapsed = view.plugin.settings.collapsedGroups || {};
+  collapsed[groupId] = !collapsed[groupId];
+  view.plugin.settings.collapsedGroups = collapsed;
+  await view.plugin.saveSettings();
+  await view.render();
+}
+
+// src/views/app-view.ts
 function initAppViewState(view, plugin) {
   view.plugin = plugin;
   const raw = plugin.settings.defaultTab || "planner.today";
@@ -2662,45 +2775,15 @@ async function renderAppView(view) {
         }
       }
     }
-    const route = {
-      "home": () => view.renderHome(content),
-      "planner.inbox": () => view.renderInbox(content),
-      "planner.today": () => view.renderTodayPane(content),
-      "planner.calendar": () => view.renderPlannerPane(content),
-      "projects.dashboard": () => view.renderProjectsDashboard(content),
-      "projects.projects": () => view.renderEntityList(content, "project"),
-      "crm.dashboard": () => view.renderDashboard(content),
-      "crm.pipeline": () => view.renderEntityList(content, "deal"),
-      "crm.contacts": () => view.renderEntityList(content, "contact"),
-      "crm.companies": () => view.renderEntityList(content, "company"),
-      "crm.activities": () => view.renderEntityList(content, "activity"),
-      "prm.partners": () => view.renderEntityList(content, "partner"),
-      "prm.registrations": () => view.renderEntityList(content, "registration"),
-      "prm.commissions": () => view.renderEntityList(content, "commission"),
-      "prm.leads": () => view.renderEntityList(content, "lead"),
-      "prm.certifications": () => view.renderEntityList(content, "certification"),
-      "prm.analytics": () => view.renderPRMAnalytics(content),
-      "workflow.sequences": () => view.renderEntityList(content, "sequence"),
-      "reports.pipeline": () => view.renderReportPipeline(content),
-      "reports.sales": () => view.renderReportSales(content),
-      "reports.partners": () => view.renderReportPartners(content),
-      "reports.activity": () => view.renderReportActivity(content),
-      "reports.graph": () => view.renderReportGraph(content),
-      "reports.productivity": () => view.renderProductivity(content),
-      "team": () => view.renderTeam(content),
-      "templates": () => view.renderTemplatesDashboard(content),
-      "settings": () => view.openSettingsTab(content)
-    };
-    if (route[view.mode]) {
-      await route[view.mode]();
+    const route = routeFor(view.mode, view.plugin.settings.customPages || []);
+    if (route.kind === "surface") {
+      await view[route.method](content);
+    } else if (route.kind === "entityList") {
+      await view.renderEntityList(content, route.entityKey);
+    } else if (route.kind === "inherited") {
+      await {}[route.name]();
     } else {
-      const customPages = view.plugin.settings.customPages || [];
-      const custom = customPages.find((p) => p.id === view.mode);
-      if (custom) {
-        await view.renderEntityList(content, custom.entityKey);
-      } else {
-        view.renderComingSoon(content, active);
-      }
+      view.renderComingSoon(content, active);
     }
   } finally {
     view._isRendering = false;
@@ -2710,15 +2793,15 @@ async function renderAppView(view) {
     }
   }
 }
-function renderComingSoon(view, root, surface) {
+function renderComingSoon(view, root, surface2) {
   root.addClass("cadence-soon");
   const wrap = root.createDiv({ cls: "cad-soon-wrap" });
   wrap.createDiv({ cls: "cad-eyebrow", text: "COMING SOON" });
-  wrap.createDiv({ cls: "cad-soon-title", text: surface.label });
-  wrap.createDiv({ cls: "cad-soon-desc", text: surface.desc });
+  wrap.createDiv({ cls: "cad-soon-title", text: surface2.label });
+  wrap.createDiv({ cls: "cad-soon-desc", text: surface2.desc });
   const ic = wrap.createDiv({ cls: "cad-soon-icon" });
   try {
-    (0, import_obsidian12.setIcon)(ic, surface.icon);
+    (0, import_obsidian12.setIcon)(ic, surface2.icon);
   } catch (_) {
   }
   const meta = wrap.createDiv({ cls: "cad-soon-meta" });
@@ -2771,42 +2854,15 @@ async function createEntityFromPrompt(view, entityKey, defaults = {}) {
       if (!result) return;
       try {
         const file = await createEntity(view.app, entityKey, result.name);
-        const primaryKey = def.fields[0].key;
-        const extras = Object.assign({}, defaults, result.values);
-        delete extras[primaryKey];
-        for (const f of def.fields) {
-          const suggestionSource = getFieldSuggestionSource(f);
-          if (suggestionSource !== "none" && suggestionSource !== "tags" && suggestionSource !== "history") {
-            const key = f.key;
-            if (extras[key]) {
-              const rawVal = extras[key];
-              const parts = Array.isArray(rawVal) ? rawVal.map(String) : String(rawVal).split(",");
-              const names = parts.map((n) => n.replace(/^\[\[|\]\]$/g, "").trim()).filter(Boolean);
-              extras[key] = names.map((n) => `[[${n}]]`);
-              const creationSource = suggestionSource === "history" ? "folder:Cadence/Shared" : suggestionSource;
-              let targetEntityKey = ENTITIES[suggestionSource] ? suggestionSource : null;
-              if (suggestionSource.startsWith("folder:")) {
-                const customFolderPath = suggestionSource.slice("folder:".length);
-                const normalizedPath = customFolderPath.replace(/\/+$/, "").toLowerCase();
-                for (const [ek, edef] of Object.entries(ENTITIES)) {
-                  if (edef && edef.folder && edef.folder.replace(/\/+$/, "").toLowerCase() === normalizedPath) {
-                    targetEntityKey = ek;
-                    break;
-                  }
-                }
-              }
-              for (const name of names) {
-                const targetFile = view.app.vault.getMarkdownFiles().find((tf) => tf.basename.toLowerCase() === name.toLowerCase());
-                if (!targetFile) {
-                  try {
-                    await createEntity(view.app, creationSource, name);
-                    const label = targetEntityKey ? ENTITIES[targetEntityKey].label : "Note";
-                    new import_obsidian12.Notice(`Created new ${label}: ${name}`);
-                  } catch (e) {
-                    console.warn(`Failed to auto-create ${creationSource}`, e);
-                  }
-                }
-              }
+        const { extras, links } = planEntityLinks(def, defaults, result.values);
+        for (const link of links) {
+          const targetFile = view.app.vault.getMarkdownFiles().find((tf) => tf.basename.toLowerCase() === link.name.toLowerCase());
+          if (!targetFile) {
+            try {
+              await createEntity(view.app, link.creationSource, link.name);
+              new import_obsidian12.Notice(`Created new ${link.label}: ${link.name}`);
+            } catch (e) {
+              console.warn(`Failed to auto-create ${link.creationSource}`, e);
             }
           }
         }
@@ -2827,77 +2883,38 @@ Saved to ${file.path}`, 4e3);
     }
   }).open();
 }
-
-// src/views/nav.ts
-function migrateModeId(id, settings) {
-  if (id === "today") return "planner.today";
-  if (id === "planner") return "planner.calendar";
-  const customPages = settings.customPages || [];
-  if (customPages.some((p) => p.id === id)) return id;
-  return SURFACE_BY_ID[id] ? id : "home";
-}
-function resolveSurface(id, settings) {
-  const customPages = settings.customPages || [];
-  const custom = customPages.find((p) => p.id === id);
-  if (custom) {
-    return {
-      id: custom.id,
-      label: custom.label,
-      icon: custom.icon || "file-text",
-      desc: `Custom page displaying ${custom.entityKey} entity.`
-    };
-  }
-  return SURFACE_BY_ID[id] || SURFACE_BY_ID["home"];
-}
-function visibleNavGroups(settings) {
-  const mods = settings.modules || { crm: true, prm: true, planner: true, projects: true };
-  const groups = JSON.parse(JSON.stringify(NAV_GROUPS));
-  const customPages = settings.customPages || [];
-  customPages.forEach((p) => {
-    const g = groups.find((group) => group.id === p.sectionId);
-    if (g) {
-      g.items.push({
-        id: p.id,
-        label: p.label,
-        icon: p.icon || "file-text",
-        module: p.module || p.sectionId,
-        desc: `Custom page displaying ${p.entityKey} entity.`
-      });
+function planEntityLinks(def, defaults, values) {
+  const primaryKey = def.fields[0].key;
+  const extras = Object.assign({}, defaults, values);
+  delete extras[primaryKey];
+  const links = [];
+  for (const f of def.fields) {
+    const suggestionSource = getFieldSuggestionSource(f);
+    if (suggestionSource !== "none" && suggestionSource !== "tags" && suggestionSource !== "history") {
+      const key = f.key;
+      if (extras[key]) {
+        const rawVal = extras[key];
+        const parts = Array.isArray(rawVal) ? rawVal.map(String) : String(rawVal).split(",");
+        const names = parts.map((n) => n.replace(/^\[\[|\]\]$/g, "").trim()).filter(Boolean);
+        extras[key] = names.map((n) => `[[${n}]]`);
+        const creationSource = suggestionSource === "history" ? "folder:Cadence/Shared" : suggestionSource;
+        let targetEntityKey = ENTITIES[suggestionSource] ? suggestionSource : null;
+        if (suggestionSource.startsWith("folder:")) {
+          const customFolderPath = suggestionSource.slice("folder:".length);
+          const normalizedPath = customFolderPath.replace(/\/+$/, "").toLowerCase();
+          for (const [ek, edef] of Object.entries(ENTITIES)) {
+            if (edef && edef.folder && edef.folder.replace(/\/+$/, "").toLowerCase() === normalizedPath) {
+              targetEntityKey = ek;
+              break;
+            }
+          }
+        }
+        const label = targetEntityKey ? ENTITIES[targetEntityKey].label : "Note";
+        for (const name of names) links.push({ name, creationSource, label });
+      }
     }
-  });
-  return groups.map((g) => {
-    if (g.module && mods[g.module] === false) return null;
-    const items = g.items.filter((it) => !it.module || mods[it.module] !== false);
-    if (!items.length) return null;
-    return Object.assign({}, g, { items });
-  }).filter(Boolean);
-}
-function modeUsesEntityFolder(path) {
-  if (!path) return false;
-  return path.startsWith("Cadence/");
-}
-function toggleMobileNav(view, force) {
-  const root = view.containerEl.children[1];
-  view.mobileNavOpen = typeof force === "boolean" ? force : !view.mobileNavOpen;
-  if (root) root.toggleClass("cad-mobile-nav-open", view.mobileNavOpen);
-}
-async function toggleCadenceDark(view) {
-  view.plugin.settings.cadenceAppDark = !view.plugin.settings.cadenceAppDark;
-  await view.plugin.saveSettings();
-  view.render();
-}
-async function setMode(view, m) {
-  view.mode = view._migrateModeId(m);
-  view.detailFile = null;
-  view.detailEntityKey = null;
-  await view.render();
-}
-async function toggleGroup(view, groupId) {
-  const collapsed = view.plugin.settings.collapsedGroups || {};
-  collapsed[groupId] = !collapsed[groupId];
-  view.plugin.settings.collapsedGroups = collapsed;
-  await view.plugin.saveSettings();
-  await view.render();
+  }
+  return { extras, links };
 }
 
 // src/legacy/cadence.js
@@ -3191,8 +3208,8 @@ var CadenceAppView = class extends obsidian.ItemView {
   render() {
     return renderAppView(this);
   }
-  renderComingSoon(root, surface) {
-    return renderComingSoon(this, root, surface);
+  renderComingSoon(root, surface2) {
+    return renderComingSoon(this, root, surface2);
   }
   /* ── Generic page header ────────────────── */
   _renderPageHeader(root, title, subtitle, actions) {
