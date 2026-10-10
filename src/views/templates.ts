@@ -280,6 +280,10 @@ export async function renderTemplateDetail(view: AppViewHost, root: HTMLElement,
     if (!cleanTitle) return;
     const curContent = await view.app.vault.read(file);
     const nextContent = appendTemplateSection(curContent, cleanTitle, tag, defaultBody);
+    if (nextContent === null) {
+      new Notice(`Section "${cleanTitle}" is already in this template.`);
+      return;
+    }
     await view.app.vault.modify(file, nextContent);
     new Notice(`Section "${cleanTitle}" added to template.`);
     await view._propagateTemplateSectionAdd(entityKey, cleanTitle as string, tag, defaultBody);
@@ -424,14 +428,17 @@ export function renderTemplateSectionWithDelete(
   delBtn.title = `Remove section "${cleanLabel}" from template`;
   delBtn.addEventListener('click', async (ev) => {
     ev.stopPropagation();
-    const usedFiles = await view._getFilesUsingTemplateSection(entityKey, rawKey);
+    /* A daily-template delete changes the template only: daily notes are
+       never rewritten (owner decision on #43), so there is nothing to warn about. */
+    const propagates = entityKey !== 'daily';
+    const usedFiles = propagates ? await view._getFilesUsingTemplateSection(entityKey, rawKey) : [];
     if (!confirm(deleteSectionMessage(cleanLabel, usedFiles.map(f => f.basename)))) return;
 
     const curContent = await view.app.vault.read(file);
     const nextContent = removeTemplateSection(curContent, rawKey);
     if (nextContent !== null) {
       await view.app.vault.modify(file, nextContent);
-      await view._propagateTemplateSectionDelete(entityKey, rawKey);
+      if (propagates) await view._propagateTemplateSectionDelete(entityKey, rawKey);
       new Notice(`Section "${cleanLabel}" removed.`);
       view.render();
     }
@@ -527,9 +534,12 @@ export function templateHeader(cleanTitle: string, tag: string): string {
   return `## ${cleanTitle} ${tag}`.trim();
 }
 
-/* Append a section to a template. Flagged: it does not check for an
-   existing section of the same name. */
-export function appendTemplateSection(content: string, cleanTitle: string, tag: string, defaultBody = ''): string {
+/* Append a section to a template. null when the template already has a
+   section of that name (any tag, any case), so a block is never added twice. */
+export function appendTemplateSection(content: string, cleanTitle: string, tag: string, defaultBody = ''): string | null {
+  const name = cleanTitle.trim().toLowerCase();
+  const exists = Object.keys(parseH2Sections(content)).some(k => parseHeaderKey(k).cleanLabel.toLowerCase() === name);
+  if (exists) return null;
   return appendSection(content, templateHeader(cleanTitle, tag), defaultBody);
 }
 
@@ -599,9 +609,8 @@ export function removeTemplateSection(content: string, rawKey: string): string |
 
 /* Move the dragged H2 section (heading to the next H2) to just before the
    target section. null when the keys are the same or either is not an H2
-   in the content.
-   Flagged: the block moves as-is, so a last section with no trailing blank
-   line runs into the heading after it. */
+   in the content. A block with no trailing blank line (a last section)
+   gets one, so it never runs into the heading after it. */
 export function moveTemplateSection(content: string, draggedRawKey: string, targetRawKey: string): string | null {
   if (draggedRawKey === targetRawKey) return null;
   const lines = content.split('\n');
@@ -616,6 +625,7 @@ export function moveTemplateSection(content: string, draggedRawKey: string, targ
   const end = draggedIdx + 1 < h2Indices.length ? h2Indices[draggedIdx + 1] : lines.length;
   const draggedBlock = lines.slice(start, end);
   lines.splice(start, draggedBlock.length);
+  if (draggedBlock[draggedBlock.length - 1] !== '') draggedBlock.push('');
 
   const h2IndicesNew = lines.map((l, i) => (/^##\s/.test(l) ? i : -1)).filter(i => i >= 0);
   const targetIdxNew = h2IndicesNew.findIndex(i => keyAt(lines, i) === targetRawKey);

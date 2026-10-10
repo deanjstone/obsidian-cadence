@@ -10327,7 +10327,7 @@ async function renderTemplatesDashboard(view, root) {
     resetBtn.addEventListener("click", async (e) => {
       e.stopPropagation();
       const templateContent = defaultTemplateContent(entityKey);
-      const targetPath = `${templatesFolder}/${entityKey}.md`;
+      const targetPath = foundPath ?? `${templatesFolder}/${entityKey}.md`;
       let tFile = view.app.vault.getAbstractFileByPath(targetPath);
       if (tFile && tFile instanceof import_obsidian29.TFile) {
         if (!confirm(`Are you sure you want to reset the template for ${def.label}? Your visual changes will be overwritten.`)) return;
@@ -10400,8 +10400,13 @@ async function renderTemplateDetail(view, root, entityKey, file) {
   toolbar.createDiv({ text: "\u2795 ADD BLOCK TO TEMPLATE", attr: { style: "font-weight: 700; font-size: 0.75rem; letter-spacing: 0.15em; color: var(--text-muted);" } });
   const btnRow = toolbar.createDiv({ attr: { style: "display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;" } });
   const addSectionHelper = async (cleanTitle, tag, defaultBody = "") => {
+    if (!cleanTitle) return;
     const curContent = await view.app.vault.read(file);
     const nextContent = appendTemplateSection(curContent, cleanTitle, tag, defaultBody);
+    if (nextContent === null) {
+      new import_obsidian29.Notice(`Section "${cleanTitle}" is already in this template.`);
+      return;
+    }
     await view.app.vault.modify(file, nextContent);
     new import_obsidian29.Notice(`Section "${cleanTitle}" added to template.`);
     await view._propagateTemplateSectionAdd(entityKey, cleanTitle, tag, defaultBody);
@@ -10476,7 +10481,7 @@ async function renderTemplateDetail(view, root, entityKey, file) {
   });
 }
 function renderTemplateSectionWithDelete(view, parent, file, sections, rawKey, flashSaved, allRawKeys) {
-  const entityKey = file.basename;
+  const entityKey = templateEntityKey(file.basename);
   const { cleanLabel, tag } = parseHeaderKey(rawKey);
   const wrap = parent.createDiv({ attr: { style: "position: relative; margin-bottom: 12px; transition: transform 0.2s ease;" } });
   wrap.draggable = true;
@@ -10528,13 +10533,14 @@ function renderTemplateSectionWithDelete(view, parent, file, sections, rawKey, f
   delBtn.title = `Remove section "${cleanLabel}" from template`;
   delBtn.addEventListener("click", async (ev) => {
     ev.stopPropagation();
-    const usedFiles = await view._getFilesUsingTemplateSection(entityKey, rawKey);
+    const propagates = entityKey !== "daily";
+    const usedFiles = propagates ? await view._getFilesUsingTemplateSection(entityKey, rawKey) : [];
     if (!confirm(deleteSectionMessage(cleanLabel, usedFiles.map((f) => f.basename)))) return;
     const curContent = await view.app.vault.read(file);
     const nextContent = removeTemplateSection(curContent, rawKey);
     if (nextContent !== null) {
       await view.app.vault.modify(file, nextContent);
-      await view._propagateTemplateSectionDelete(entityKey, rawKey);
+      if (propagates) await view._propagateTemplateSectionDelete(entityKey, rawKey);
       new import_obsidian29.Notice(`Section "${cleanLabel}" removed.`);
       view.render();
     }
@@ -10574,6 +10580,12 @@ function templatePathCandidates(folder, entityKey, def) {
     `${folder}/${def.plural.toLowerCase()}.md`
   ];
 }
+function templateEntityKey(basename) {
+  const name = basename.toLowerCase();
+  if (name === "daily") return "daily";
+  const match = Object.entries(ENTITIES).find(([key, def]) => [key, def.label, def.plural].some((n) => n.toLowerCase() === name));
+  return match ? match[0] : basename;
+}
 function templateBadge(exists) {
   return {
     cls: exists ? "cad-pill cad-pill-active" : "cad-pill cad-pill-backlog",
@@ -10599,10 +10611,14 @@ function templateHeader(cleanTitle, tag) {
   return `## ${cleanTitle} ${tag}`.trim();
 }
 function appendTemplateSection(content, cleanTitle, tag, defaultBody = "") {
+  const name = cleanTitle.trim().toLowerCase();
+  const exists = Object.keys(parseH2Sections(content)).some((k) => parseHeaderKey(k).cleanLabel.toLowerCase() === name);
+  if (exists) return null;
   return appendSection(content, templateHeader(cleanTitle, tag), defaultBody);
 }
-function sameLabel(key, cleanLabel) {
-  return parseHeaderKey(key).cleanLabel.toLowerCase() === cleanLabel.toLowerCase();
+function sameSection(key, other) {
+  const { cleanLabel, tag } = parseHeaderKey(key);
+  return cleanLabel.toLowerCase() === other.cleanLabel.toLowerCase() && tag.toLowerCase() === other.tag.toLowerCase();
 }
 function spliceSection(lines, idx) {
   let endIdx = lines.length;
@@ -10612,29 +10628,32 @@ function spliceSection(lines, idx) {
       break;
     }
   }
+  if (endIdx === lines.length && idx > 0 && lines[idx - 1] !== "" && lines[endIdx - 1] === "") endIdx--;
   lines.splice(idx, endIdx - idx);
 }
 function propagateSectionAdd(content, section) {
+  if (!section.cleanTitle?.trim()) return null;
   const sections = parseH2Sections(content);
-  const exists = Object.keys(sections).some((k) => sameLabel(k, section.cleanTitle));
+  const target = parseHeaderKey(templateHeader(section.cleanTitle, section.tag).replace(/^##\s+/, ""));
+  const exists = Object.keys(sections).some((k) => sameSection(k, target));
   if (exists) return null;
   return appendSection(content, templateHeader(section.cleanTitle, section.tag), section.defaultBody ?? "");
 }
 function propagateSectionDelete(content, sectionKey) {
-  const { cleanLabel } = parseHeaderKey(sectionKey);
+  const target = parseHeaderKey(sectionKey);
   const lines = content.split("\n");
-  const idx = lines.findIndex((l) => {
-    if (!/^##\s/.test(l)) return false;
-    const key = l.trim().replace(/^##\s+/, "");
-    return sameLabel(key, cleanLabel);
-  });
-  if (idx === -1) return null;
-  spliceSection(lines, idx);
-  return lines.join("\n");
+  let removed = false;
+  for (let idx = lines.length - 1; idx >= 0; idx--) {
+    if (!/^##\s/.test(lines[idx])) continue;
+    if (!sameSection(lines[idx].trim().replace(/^##\s+/, ""), target)) continue;
+    spliceSection(lines, idx);
+    removed = true;
+  }
+  return removed ? lines.join("\n") : null;
 }
 function removeTemplateSection(content, rawKey) {
   const lines = content.split("\n");
-  const idx = lines.findIndex((l) => l.trim().replace(/^##\s+/, "") === rawKey);
+  const idx = lines.findIndex((l) => /^##\s/.test(l) && l.replace(/^##\s+/, "").trim() === rawKey);
   if (idx === -1) return null;
   spliceSection(lines, idx);
   return lines.join("\n");
@@ -10651,6 +10670,7 @@ function moveTemplateSection(content, draggedRawKey, targetRawKey) {
   const end = draggedIdx + 1 < h2Indices.length ? h2Indices[draggedIdx + 1] : lines.length;
   const draggedBlock = lines.slice(start, end);
   lines.splice(start, draggedBlock.length);
+  if (draggedBlock[draggedBlock.length - 1] !== "") draggedBlock.push("");
   const h2IndicesNew = lines.map((l, i) => /^##\s/.test(l) ? i : -1).filter((i) => i >= 0);
   const targetIdxNew = h2IndicesNew.findIndex((i) => keyAt(lines, i) === targetRawKey);
   lines.splice(h2IndicesNew[targetIdxNew], 0, ...draggedBlock);
@@ -10667,19 +10687,27 @@ Are you sure you want to delete it from the template?`;
 }
 var TEMPLATE_PLACEHOLDERS = [
   "_Enter your notes here...",
+  "_Context and general notes",
   "_Company description",
   "_Background, interests",
   "_The outcome we want",
   "- [ ] First task",
   "- [ ] First milestone"
 ];
+var TEMPLATE_PLACEHOLDER_PATTERNS = [
+  /^- \[ \] \d{4}-\d{2}-\d{2} — First milestone/,
+  /^- \[ \]\s*(\n|$)/
+];
+function isPlaceholderBody(body) {
+  return TEMPLATE_PLACEHOLDERS.some((p) => body.startsWith(p)) || TEMPLATE_PLACEHOLDER_PATTERNS.some((p) => p.test(body));
+}
 function sectionInUse(content, sectionKey) {
-  const { cleanLabel } = parseHeaderKey(sectionKey);
+  const target = parseHeaderKey(sectionKey);
   const sections = parseH2Sections(content);
-  const matchingKey = Object.keys(sections).find((k) => sameLabel(k, cleanLabel));
-  if (!matchingKey) return false;
-  const body = (sections[matchingKey] || "").trim();
-  return !!body && !TEMPLATE_PLACEHOLDERS.some((p) => body.startsWith(p));
+  return Object.keys(sections).filter((k) => sameSection(k, target)).some((k) => {
+    const body = (sections[k] || "").trim();
+    return !!body && !isPlaceholderBody(body);
+  });
 }
 function filesUsingTemplateSection(notes, sectionKey) {
   return notes.filter((n) => sectionInUse(n.content, sectionKey)).map((n) => n.file);

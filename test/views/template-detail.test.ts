@@ -218,12 +218,19 @@ describe("renderTemplateDetail: adding blocks", () => {
     expect(propagate.mock.calls).toEqual([["contact", "Plan", "#milestones", "- [ ] 2026-10-08 — First milestone in template"]]);
   });
 
-  it("does not check the template for an existing section of the same name", async () => {
-    const { prompts, read } = await addBlock("📝 Text Area");
-    prompts[0].onSubmit("Bio");
-    await flush();
-    const content = await read(`${T}/contact.md`);
-    expect(content.match(/^## Bio #notes$/gm)).toHaveLength(2);
+  it("refuses a block whose name the template already has (any tag, any case): writes, propagates and re-renders nothing", async () => {
+    for (const [button, title] of [["📝 Text Area", "Bio"], ["📋 Task List", "bio"], ["📝 Text Area", "TASKS"]]) {
+      const { prompts, propagate, read, app, rendered } = await addBlock(button);
+      prompts[0].onSubmit(title);
+      await flush();
+      expect(await read(`${T}/contact.md`)).toBe(CONTACT_TEMPLATE);
+      expect(app.vault.modified).toEqual([]);
+      expect(Notice.messages).toEqual([`Section "${title}" is already in this template.`]);
+      expect(propagate).not.toHaveBeenCalled();
+      expect(rendered).not.toHaveBeenCalled();
+      vi.restoreAllMocks();
+      Notice.messages.length = 0;
+    }
   });
 
   it("trims the template's trailing whitespace before appending", async () => {

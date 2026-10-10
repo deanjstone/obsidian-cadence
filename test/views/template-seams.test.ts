@@ -112,9 +112,15 @@ describe("appending a section", () => {
     expect(replaceSection("# x\n", "## A", "b")).toBe(appendSection("# x\n", "## A", "b"));
   });
 
-  it("appendTemplateSection: appends even when the template has the section already", () => {
-    expect(appendTemplateSection(NOTE, "Bio", "#notes", "_x_")).toBe(NOTE.trimEnd() + "\n\n## Bio #notes\n_x_\n");
+  it("appendTemplateSection: appends a new section", () => {
+    expect(appendTemplateSection(NOTE, "Ideas", "#notes", "_x_")).toBe(NOTE.trimEnd() + "\n\n## Ideas #notes\n_x_\n");
     expect(appendTemplateSection("# x", "Deals", "#cross-deal-contact-table")).toBe("# x\n\n## Deals #cross-deal-contact-table\n\n");
+  });
+
+  it("appendTemplateSection: null when the template already has a section of that name, whatever its tag or case", () => {
+    expect(appendTemplateSection(NOTE, "Bio", "#notes", "_x_")).toBeNull();
+    expect(appendTemplateSection(NOTE, "bio", "#tasks")).toBeNull();
+    expect(appendTemplateSection(NOTE, "LINKS", "")).toBeNull();
   });
 });
 
@@ -209,8 +215,9 @@ describe("moveTemplateSection", () => {
     );
   });
 
-  it("QUIRK: a last section without a trailing blank line runs into the next heading", () => {
-    expect(moveTemplateSection("## A\na\n\n## B\nb", "B", "A")).toBe("## B\nb\n## A\na\n");
+  it("a moved section without a trailing blank line gets one, so it never runs into the next heading", () => {
+    expect(moveTemplateSection("## A\na\n\n## B\nb", "B", "A")).toBe("## B\nb\n\n## A\na\n");
+    expect(moveTemplateSection("## A\na\n## B\nb\n## C\nc\n", "B", "A")).toBe("## B\nb\n\n## A\na\n## C\nc\n");
   });
 
   it("returns null for the same key, or a key that is not an H2", () => {

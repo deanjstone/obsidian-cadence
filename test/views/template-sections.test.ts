@@ -139,14 +139,17 @@ describe("_renderTemplateSectionWithDelete: drag to reorder", () => {
     );
   });
 
-  it("QUIRK: moving the last section up keeps its (missing) trailing blank line, so it runs into the next heading", async () => {
-    const { draw, read } = setup([], {});
-    const wrap = draw("Tasks #tasks");
-    wrap.trigger("drop", { dataTransfer: dataTransfer({ "text/cadence-template-section": "Links #cross-deal-contact-table" }) });
+  it("moving the last section up keeps a blank line before the next heading, even when the file has no final newline", async () => {
+    const { draw, read } = setup([{ path: `${T}/lead.md`, body: "# {{name}}\n\n## Bio #notes\n_bio_\n\n## Links #cross-deal-lead-table\n- x" }]);
+    const contact = draw("Tasks #tasks");
+    contact.trigger("drop", { dataTransfer: dataTransfer({ "text/cadence-template-section": "Links #cross-deal-contact-table" }) });
+    const lead = draw("Bio #notes", `${T}/lead.md`);
+    lead.trigger("drop", { dataTransfer: dataTransfer({ "text/cadence-template-section": "Links #cross-deal-lead-table" }) });
     await flush();
     expect(await read(`${T}/contact.md`)).toBe(
       "---\ntype: contact\n---\n\n# {{name}}\n\n## Bio #notes\n_bio_\n\n## Links #cross-deal-contact-table\n\n## Tasks #tasks\n- [ ] a\n",
     );
+    expect(await read(`${T}/lead.md`)).toBe("# {{name}}\n\n## Links #cross-deal-lead-table\n- x\n\n## Bio #notes\n_bio_\n");
   });
 
   it("ignores a drop of itself, of nothing, or of a key not in the file", async () => {
@@ -260,9 +263,10 @@ describe("_renderTemplateSectionWithDelete: × delete", () => {
     }
   });
 
-  it("deleting from the daily template removes the section from every daily note", async () => {
-    vi.stubGlobal("confirm", vi.fn(() => true));
-    const { draw, read } = setup(
+  it("deleting from the daily template changes the template only, never a daily note, and asks plainly", async () => {
+    const confirm = vi.fn((_message: string) => true);
+    vi.stubGlobal("confirm", confirm);
+    const { draw, read, app, view } = setup(
       [
         { path: `${T}/daily.md`, body: "# {{date}}\n\n## Today\n- [ ] \n\n## Journal\n\n" },
         note("2026-10-07", "# d\n\n## Today\n- [x] shipped\n\n## Journal\nok\n", "Days"),
@@ -270,9 +274,14 @@ describe("_renderTemplateSectionWithDelete: × delete", () => {
       ],
       { dailyNoteFolder: "Days" },
     );
+    const propagate = vi.spyOn(view, "_propagateTemplateSectionDelete");
     delButton(draw("Today", `${T}/daily.md`)).trigger("click");
     await flush();
-    expect(await read("Days/2026-10-07.md")).toBe("# d\n\n## Journal\nok\n");
+    expect(confirm.mock.calls).toEqual([['Remove the section "Today" from this template?']]);
+    expect(app.vault.modified).toEqual([`${T}/daily.md`]);
+    expect(await read(`${T}/daily.md`)).toBe("# {{date}}\n\n## Journal\n\n");
+    expect(propagate).not.toHaveBeenCalled();
+    expect(await read("Days/2026-10-07.md")).toBe("# d\n\n## Today\n- [x] shipped\n\n## Journal\nok\n");
     expect(await read("Days/2026/2026-10-08.md")).toBe("# d\n\n## Journal\nfine\n");
   });
 });
