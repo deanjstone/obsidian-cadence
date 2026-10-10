@@ -5,7 +5,7 @@ import type { Entity, EntityKey, TaskNotesTask } from '../types/entities';
 import type { ChartStyle } from '../types/modals';
 import type { Reminder, ReminderBucket } from '../types/reminders';
 import type { AppViewSettings } from '../types/settings';
-import type { DailySections, Milestone, TaskItem } from '../utils/parsing';
+import type { DailySections, Milestone, MilestoneInput, TaskItem } from '../utils/parsing';
 import type { DashCardRow } from './components/cards';
 import type { PlannerDay } from './calendar';
 import type { ChartDatum } from './components/charts';
@@ -163,9 +163,25 @@ export interface AppViewHost {
   renderEntityDetail(root: HTMLElement, entityKey: string, file: TFile): Promise<void>;
   renderCompanyDetail(root: HTMLElement, file: TFile): Promise<void>;
 
+  /* ── Project detail and its checklist sections (src/views/project-detail.ts) ── */
+  renderProjectDetail(root: HTMLElement, file: TFile): Promise<void>;
+  /** Called by _renderDynamicH2Section for a milestones section. */
+  _renderMilestoneSection(
+    parent: HTMLElement, file: TFile, milestones: Milestone[], flashSaved?: FlashSaved, rawKey?: string,
+  ): void;
+  /** Rewrite a milestones section; re-renders the view unless skipRender. */
+  _commitMilestones(file: TFile, items: MilestoneInput[], flashSaved?: FlashSaved, skipRender?: boolean, rawKey?: string): Promise<void>;
+  /** Called by _renderDynamicH2Section for a tasks section. */
+  _renderTaskSection(parent: HTMLElement, file: TFile, tasks: TaskItem[], flashSaved?: FlashSaved, rawKey?: string): void;
+  /** Rewrite a tasks section; re-renders the view unless skipRender. */
+  _commitTasks(
+    file: TFile, items: Array<Partial<TaskItem>>, flashSaved?: FlashSaved, skipRender?: boolean, rawKey?: string,
+  ): Promise<void>;
+  /** Write a frontmatter patch to a project note, then flash Saved; a failure notices. */
+  _writeProjectFrontmatter(file: TFile, patch: Record<string, unknown>, flashSaved?: FlashSaved): Promise<void>;
+
   /* ── Called by the shell, owned by later view tickets ── */
   renderProjectsDashboard(root: HTMLElement): Promise<void>;
-  renderProjectDetail(root: HTMLElement, file: TFile): Promise<void>;
   renderTemplateDetail(root: HTMLElement, entityKey: string, file: TFile): Promise<void>;
   renderDashboard(root: HTMLElement): Promise<void>;
   renderPRMAnalytics(root: HTMLElement): Promise<void>;
@@ -177,12 +193,6 @@ export interface AppViewHost {
   renderProductivity(root: HTMLElement): Promise<void>;
   renderTeam(root: HTMLElement): Promise<void>;
   renderTemplatesDashboard(root: HTMLElement): Promise<void>;
-
-  /* ── Called by the shared components, owned by later view tickets ── */
-  _renderTaskSection(parent: HTMLElement, file: TFile, tasks: TaskItem[], flashSaved?: FlashSaved, rawKey?: string): void;
-  _renderMilestoneSection(
-    parent: HTMLElement, file: TFile, milestones: Milestone[], flashSaved?: FlashSaved, rawKey?: string,
-  ): void;
 }
 
 /* Where a ticked task came from, for _propagateTaskComplete. A daily note

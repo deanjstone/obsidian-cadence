@@ -19,6 +19,8 @@ export type FlashSaved = () => void;
 export interface ProjectTextSectionDef {
   key: string;
   label: string;
+  /** Passed by the project page's standard sections; the card doesn't read it. */
+  rows?: number;
   placeholder?: string;
 }
 
