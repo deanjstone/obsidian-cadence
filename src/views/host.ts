@@ -187,8 +187,21 @@ export interface AppViewHost {
   /** The CRM dashboard; the moved function is renderCrmDashboard. */
   renderDashboard(root: HTMLElement): Promise<void>;
 
+  /* ── Templates (src/views/templates.ts) ── */
+  renderTemplatesDashboard(root: HTMLElement): Promise<void>;
+  /** The template builder; with no file it closes the detail. */
+  renderTemplateDetail(root: HTMLElement, entityKey: string, file: TFile | null): Promise<void>;
+  /** Flagged: allRawKeys is never read, and the propagation key is file.basename. */
+  _renderTemplateSectionWithDelete(
+    parent: HTMLElement, file: TFile, sections: Record<string, string>, rawKey: string, flashSaved?: FlashSaved,
+    allRawKeys?: string[],
+  ): void;
+  /** The entity's notes whose same-named section has non-placeholder content. */
+  _getFilesUsingTemplateSection(entityKey: EntityKey | 'daily', rawKey: string): Promise<TFile[]>;
+  _propagateTemplateSectionAdd(entityKey: EntityKey | 'daily', cleanTitle: string, tag: string, defaultBody?: string): Promise<void>;
+  _propagateTemplateSectionDelete(entityKey: EntityKey | 'daily', rawKey: string): Promise<void>;
+
   /* ── Called by the shell, owned by later view tickets ── */
-  renderTemplateDetail(root: HTMLElement, entityKey: string, file: TFile): Promise<void>;
   renderPRMAnalytics(root: HTMLElement): Promise<void>;
   renderReportPipeline(root: HTMLElement): Promise<void>;
   renderReportSales(root: HTMLElement): Promise<void>;
@@ -197,7 +210,6 @@ export interface AppViewHost {
   renderReportGraph(root: HTMLElement): Promise<void>;
   renderProductivity(root: HTMLElement): Promise<void>;
   renderTeam(root: HTMLElement): Promise<void>;
-  renderTemplatesDashboard(root: HTMLElement): Promise<void>;
 }
 
 /* Where a ticked task came from, for _propagateTaskComplete. A daily note

@@ -364,15 +364,18 @@ function parseSections(content, settings) {
   }
   return { tasks, journal: journal.replace(/\s+$/, ""), raw: content };
 }
+function appendSection(content, heading, body) {
+  return content.replace(/\s*$/, "") + `
+
+${heading}
+${body}
+`;
+}
 function replaceSection(content, heading, newBody) {
   const lines = content.split("\n");
   const headIdx = lines.findIndex((l) => l.trim() === heading);
   if (headIdx === -1) {
-    return content.replace(/\s*$/, "") + `
-
-${heading}
-${newBody}
-`;
+    return appendSection(content, heading, newBody);
   }
   let endIdx = lines.length;
   for (let i = headIdx + 1; i < lines.length; i++) {
@@ -764,34 +767,37 @@ async function ensureDefaultTemplates(app) {
     const targetPath = `${templatesFolder}/${entityKey}.md`;
     let tFile = app.vault.getAbstractFileByPath(targetPath);
     if (!tFile) {
-      let templateContent = entityTemplate(entityKey, "{{name}}");
-      if (entityKey === "project") {
-        templateContent = projectTemplate("{{name}}");
-      } else if (entityKey === "company") {
-        templateContent += "\n## Description #notes\n_Company description and profile..._\n\n## Contacts #cross-contact-company-table\n\n## Deals #cross-deal-company-kanban\n";
-      } else if (entityKey === "contact") {
-        templateContent += "\n## Bio #notes\n_Background, interests, and how we met..._\n\n## Tasks #tasks\n- [ ] Follow up in 2 weeks\n";
-      } else {
-        templateContent += "\n## Notes #notes\n_Context and general notes..._\n";
-      }
-      await app.vault.create(targetPath, templateContent);
+      await app.vault.create(targetPath, defaultTemplateContent(entityKey));
     }
   }
   const dailyTargetPath = `${templatesFolder}/daily.md`;
   let dailyTFile = app.vault.getAbstractFileByPath(dailyTargetPath);
   if (!dailyTFile) {
-    const dailyTemplateContent = [
-      "# {{date}}",
-      "",
-      "## Today",
-      "- [ ] ",
-      "",
-      "## Journal",
-      "",
-      ""
-    ].join("\n");
-    await app.vault.create(dailyTargetPath, dailyTemplateContent);
+    await app.vault.create(dailyTargetPath, DAILY_TEMPLATE_CONTENT);
   }
+}
+var DAILY_TEMPLATE_CONTENT = [
+  "# {{date}}",
+  "",
+  "## Today",
+  "- [ ] ",
+  "",
+  "## Journal",
+  "",
+  ""
+].join("\n");
+function defaultTemplateContent(entityKey) {
+  let templateContent = entityTemplate(entityKey, "{{name}}");
+  if (entityKey === "project") {
+    templateContent = projectTemplate("{{name}}");
+  } else if (entityKey === "company") {
+    templateContent += "\n## Description #notes\n_Company description and profile..._\n\n## Contacts #cross-contact-company-table\n\n## Deals #cross-deal-company-kanban\n";
+  } else if (entityKey === "contact") {
+    templateContent += "\n## Bio #notes\n_Background, interests, and how we met..._\n\n## Tasks #tasks\n- [ ] Follow up in 2 weeks\n";
+  } else {
+    templateContent += "\n## Notes #notes\n_Context and general notes..._\n";
+  }
+  return templateContent;
 }
 function entityTemplate(entityKey, name) {
   if (entityKey === "project") return projectTemplate(name);
@@ -6379,6 +6385,505 @@ async function renderProjectsView(view, root) {
   });
 }
 
+// src/views/templates.ts
+var import_obsidian22 = require("obsidian");
+async function renderTemplatesDashboard(view, root) {
+  root.addClass("cadence-dashboard");
+  root.addClass("cadence-projects");
+  view._renderPageHeader(root, "Templates Dashboard", "Manage and visually edit the templates for your entities");
+  const grid = root.createDiv({
+    cls: "cad-proj-grid"
+  });
+  {
+    const templatesFolder = "Cadence/Templates";
+    await ensureFolderSync(view.app, templatesFolder);
+    const dailyTemplatePath = `${templatesFolder}/daily.md`;
+    const dailyTFile = view.app.vault.getAbstractFileByPath(dailyTemplatePath);
+    const exists = !!(dailyTFile && dailyTFile instanceof import_obsidian22.TFile);
+    const card = grid.createDiv({
+      cls: "cad-proj-card cad-template-tile"
+    });
+    card.dataset.entity = "daily";
+    const head = card.createDiv({ attr: { style: "display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;" } });
+    const infoWrap = head.createDiv({ attr: { style: "display: flex; align-items: center; gap: 12px;" } });
+    const iconSpan = infoWrap.createSpan({ cls: "cad-template-tile-icon" });
+    try {
+      (0, import_obsidian22.setIcon)(iconSpan, "sun");
+    } catch (_) {
+      iconSpan.setText("\u2600\uFE0F");
+    }
+    const titleInfo = infoWrap.createDiv();
+    titleInfo.createDiv({ text: "PLANNER", attr: { style: "font-weight: 700; font-size: 0.7rem; letter-spacing: 0.12em; color: var(--text-muted);" } });
+    titleInfo.createEl("h3", { text: "Daily Note", attr: { style: "margin: 2px 0 0 0; font-size: 1.15em; font-weight: 700;" } });
+    const badge = head.createSpan(templateBadge(exists));
+    badge.style.fontSize = "0.7em";
+    badge.style.padding = "3px 8px";
+    card.createDiv({
+      text: `Target Folder: ${view.plugin.settings.dailyNoteFolder || "daily"}/`,
+      attr: { style: "font-size: 0.8em; font-family: monospace; color: var(--text-muted); background: var(--background-secondary); padding: 4px 8px; border-radius: 4px; margin-bottom: 12px; border: 1px solid var(--background-modifier-border);" }
+    });
+    const desc = card.createDiv({ text: `Defines properties and sections layout for each new daily note created in the planner.`, attr: { style: "font-size: 0.85em; color: var(--text-muted); margin-bottom: 18px; flex: 1; line-height: 1.4;" } });
+    const actions = card.createDiv({ attr: { style: "display: flex; gap: 8px; justify-content: flex-end; border-top: 1px solid var(--border-color); padding-top: 14px; margin-top: auto;" } });
+    if (exists) {
+      const editBtn = actions.createEl("button", { cls: "cad-btn primary", text: "Visual Editor" });
+      editBtn.style.padding = "5px 12px";
+      editBtn.style.height = "auto";
+      editBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        view.openTemplateDetail("daily", dailyTFile);
+      });
+      const openBtn = actions.createEl("button", { cls: "cad-btn", text: "Raw Note \u{1F4DD}" });
+      openBtn.style.padding = "5px 12px";
+      openBtn.style.height = "auto";
+      openBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        view.app.workspace.openLinkText(dailyTemplatePath, "", false);
+      });
+    } else {
+      const resetBtn = actions.createEl("button", {
+        cls: "cad-btn primary",
+        text: "Enable Custom"
+      });
+      resetBtn.style.padding = "5px 12px";
+      resetBtn.style.height = "auto";
+      resetBtn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        await view.app.vault.create(dailyTemplatePath, DAILY_TEMPLATE_CONTENT);
+        new import_obsidian22.Notice("Daily Note template successfully enabled.");
+        view.render();
+      });
+    }
+    card.addEventListener("click", () => {
+      if (exists) view.openTemplateDetail("daily", dailyTFile);
+    });
+  }
+  for (const [entityKey, def] of Object.entries(ENTITIES)) {
+    const templatesFolder = "Cadence/Templates";
+    await ensureFolderSync(view.app, templatesFolder);
+    let foundPath = null;
+    let exists = false;
+    const pathsToTry = templatePathCandidates(templatesFolder, entityKey, def);
+    for (const p of pathsToTry) {
+      const tFile = view.app.vault.getAbstractFileByPath(p);
+      if (tFile && tFile instanceof import_obsidian22.TFile) {
+        exists = true;
+        foundPath = p;
+        break;
+      }
+    }
+    const card = grid.createDiv({
+      cls: "cad-proj-card cad-template-tile"
+    });
+    card.dataset.entity = entityKey;
+    const head = card.createDiv({ attr: { style: "display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;" } });
+    const infoWrap = head.createDiv({ attr: { style: "display: flex; align-items: center; gap: 12px;" } });
+    const iconSpan = infoWrap.createSpan({ cls: "cad-template-tile-icon" });
+    try {
+      (0, import_obsidian22.setIcon)(iconSpan, def.icon || "file-text");
+    } catch (_) {
+      iconSpan.setText("\u{1F4DD}");
+    }
+    const titleInfo = infoWrap.createDiv();
+    titleInfo.createDiv({ text: def.label.toUpperCase(), attr: { style: "font-weight: 700; font-size: 0.7rem; letter-spacing: 0.12em; color: var(--text-muted);" } });
+    titleInfo.createEl("h3", { text: def.plural, attr: { style: "margin: 2px 0 0 0; font-size: 1.15em; font-weight: 700;" } });
+    const badge = head.createSpan(templateBadge(exists));
+    badge.style.fontSize = "0.7em";
+    badge.style.padding = "3px 8px";
+    card.createDiv({
+      text: `Target Folder: ${def.folder}/`,
+      attr: { style: "font-size: 0.8em; font-family: monospace; color: var(--text-muted); background: var(--background-secondary); padding: 4px 8px; border-radius: 4px; margin-bottom: 12px; border: 1px solid var(--background-modifier-border);" }
+    });
+    const desc = card.createDiv({
+      text: `Defines properties and sections layout for each new ${def.label.toLowerCase()} item created.`,
+      attr: { style: "font-size: 0.85em; color: var(--text-muted); margin-bottom: 18px; flex: 1; line-height: 1.4;" }
+    });
+    const actions = card.createDiv({ attr: { style: "display: flex; gap: 8px; justify-content: flex-end; border-top: 1px solid var(--border-color); padding-top: 14px; margin-top: auto;" } });
+    if (exists) {
+      const editBtn = actions.createEl("button", { cls: "cad-btn primary", text: "Visual Editor" });
+      editBtn.style.padding = "5px 12px";
+      editBtn.style.height = "auto";
+      editBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const tFile = view.app.vault.getAbstractFileByPath(foundPath);
+        if (tFile) view.openTemplateDetail(entityKey, tFile);
+      });
+      const openBtn = actions.createEl("button", { cls: "cad-btn", text: "Raw Note \u{1F4DD}" });
+      openBtn.style.padding = "5px 12px";
+      openBtn.style.height = "auto";
+      openBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const tFile = view.app.vault.getAbstractFileByPath(foundPath);
+        if (tFile) view.app.workspace.openLinkText(tFile.path, "", false);
+      });
+    }
+    const resetBtn = actions.createEl("button", {
+      cls: "cad-btn",
+      text: exists ? "Reset to Default" : "Enable Custom"
+    });
+    resetBtn.style.padding = "5px 12px";
+    resetBtn.style.height = "auto";
+    if (!exists) resetBtn.classList.add("primary");
+    resetBtn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      const templateContent = defaultTemplateContent(entityKey);
+      const targetPath = `${templatesFolder}/${entityKey}.md`;
+      let tFile = view.app.vault.getAbstractFileByPath(targetPath);
+      if (tFile && tFile instanceof import_obsidian22.TFile) {
+        if (!confirm(`Are you sure you want to reset the template for ${def.label}? Your visual changes will be overwritten.`)) return;
+        await view.app.vault.modify(tFile, templateContent);
+        new import_obsidian22.Notice(`Template reset for ${def.label}.`);
+      } else {
+        await view.app.vault.create(targetPath, templateContent);
+        new import_obsidian22.Notice(`Template successfully enabled for ${def.label}.`);
+      }
+      view.render();
+    });
+    card.addEventListener("click", () => {
+      const tFile = foundPath ? view.app.vault.getAbstractFileByPath(foundPath) : null;
+      if (tFile) {
+        view.openTemplateDetail(entityKey, tFile);
+      }
+    });
+  }
+}
+async function renderTemplateDetail(view, root, entityKey, file) {
+  root.addClass("cadence-project-detail");
+  const def = templateDetailDef(entityKey);
+  if (!file) {
+    view.closeEntityDetail();
+    return;
+  }
+  const content = await view.app.vault.read(file);
+  const sections = parseH2Sections(content);
+  const sectionKeys = Object.keys(sections);
+  const head = root.createDiv({ cls: "cad-detail-header" });
+  const headLeft = head.createDiv({ cls: "cad-detail-header-left" });
+  const back = headLeft.createEl("button", { cls: "cad-btn cad-detail-back", text: "\u2190 Templates" });
+  back.addEventListener("click", () => view.closeEntityDetail());
+  const breadcrumb = headLeft.createDiv({ cls: "cad-detail-breadcrumb" });
+  breadcrumb.createSpan({ cls: "cad-eyebrow", text: "TEMPLATE BUILDER" });
+  breadcrumb.createSpan({ cls: "cad-detail-title", text: def.label });
+  breadcrumb.createDiv({ cls: "cad-detail-path", text: file.path });
+  const headRight = head.createDiv({ cls: "cad-detail-header-right" });
+  const savedBadge = headRight.createSpan({ cls: "cad-detail-saved", text: "" });
+  const flashSaved = () => {
+    savedBadge.setText("Saved");
+    savedBadge.addClass("show");
+    clearTimeout(savedBadge._t);
+    savedBadge._t = setTimeout(() => savedBadge.removeClass("show"), 1400);
+  };
+  const openNote = headRight.createEl("button", { cls: "cad-btn", text: "View Raw Note \u{1F4DD}" });
+  openNote.addEventListener("click", () => view.app.workspace.openLinkText(file.path, "", false));
+  const deleteBtn = headRight.createEl("button", { cls: "cad-btn cad-btn-danger", text: "Delete" });
+  deleteBtn.addEventListener("click", async () => {
+    if (!confirm(`Delete this custom template? Cadence will fall back to using the default structure.`)) return;
+    try {
+      await view.app.vault.trash(file, true);
+      new import_obsidian22.Notice(`Custom template deleted.`);
+      view.closeEntityDetail();
+    } catch (e) {
+      new import_obsidian22.Notice(`Error: ${e.message}`);
+    }
+  });
+  const cols = root.createDiv({ cls: "cad-pd-cols" });
+  const left = cols.createDiv({ cls: "cad-pd-col" });
+  const right = cols.createDiv({ cls: "cad-pd-col" });
+  const { left: leftKeys, right: rightKeys } = splitSectionColumns(sectionKeys);
+  leftKeys.forEach((rawKey) => {
+    view._renderTemplateSectionWithDelete(left, file, sections, rawKey, flashSaved);
+  });
+  rightKeys.forEach((rawKey) => {
+    view._renderTemplateSectionWithDelete(right, file, sections, rawKey, flashSaved);
+  });
+  const toolbar = root.createDiv({ attr: { style: "margin-top: 32px; margin-bottom: 48px; display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 24px; border-top: 1px solid var(--border-color);" } });
+  toolbar.createDiv({ text: "\u2795 ADD BLOCK TO TEMPLATE", attr: { style: "font-weight: 700; font-size: 0.75rem; letter-spacing: 0.15em; color: var(--text-muted);" } });
+  const btnRow = toolbar.createDiv({ attr: { style: "display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;" } });
+  const addSectionHelper = async (cleanTitle, tag, defaultBody = "") => {
+    const curContent = await view.app.vault.read(file);
+    const nextContent = appendTemplateSection(curContent, cleanTitle, tag, defaultBody);
+    await view.app.vault.modify(file, nextContent);
+    new import_obsidian22.Notice(`Section "${cleanTitle}" added to template.`);
+    await view._propagateTemplateSectionAdd(entityKey, cleanTitle, tag, defaultBody);
+    view.render();
+  };
+  const addTextBtn = btnRow.createEl("button", { cls: "cad-btn", text: "\u{1F4DD} Text Area" });
+  addTextBtn.addEventListener("click", () => {
+    new CadencePromptModal(view.app, {
+      title: "New Text Section",
+      placeholder: "Enter text section title:",
+      defaultValue: "Notes",
+      cta: "Add Block",
+      onSubmit: (title) => {
+        addSectionHelper(title, "#notes", "_Enter your notes here..._");
+      }
+    }).open();
+  });
+  const addTasksBtn = btnRow.createEl("button", { cls: "cad-btn", text: "\u{1F4CB} Task List" });
+  addTasksBtn.addEventListener("click", () => {
+    new CadencePromptModal(view.app, {
+      title: "New Task List Block",
+      placeholder: "Enter task list section title:",
+      defaultValue: "Tasks",
+      cta: "Add Block",
+      onSubmit: (title) => {
+        addSectionHelper(title, "#tasks", "- [ ] First task in template");
+      }
+    }).open();
+  });
+  const addMilestonesBtn = btnRow.createEl("button", { cls: "cad-btn", text: "\u{1F4C5} Milestones / Timeline" });
+  addMilestonesBtn.addEventListener("click", () => {
+    new CadencePromptModal(view.app, {
+      title: "New Milestones Block",
+      placeholder: "Enter milestones section title:",
+      defaultValue: "Milestones",
+      cta: "Add Block",
+      onSubmit: (title) => {
+        const today = ymd(/* @__PURE__ */ new Date());
+        addSectionHelper(title, "#milestones", `- [ ] ${today} \u2014 First milestone in template`);
+      }
+    }).open();
+  });
+  const addCrossBtn = btnRow.createEl("button", { cls: "cad-btn", text: "\u{1F517} Cross-Linked Data" });
+  addCrossBtn.addEventListener("click", () => {
+    new CadenceCrossSectionModal(view.app, entityKey, async (config) => {
+      const block = crossSectionBlock(config);
+      new CadencePromptModal(view.app, {
+        title: "New Cross-Linked Section",
+        placeholder: "Enter section title:",
+        defaultValue: block.title,
+        cta: "Add Block",
+        onSubmit: (title) => {
+          addSectionHelper(title, block.tag, "");
+        }
+      }).open();
+    }).open();
+  });
+  const addChartBtn = btnRow.createEl("button", { cls: "cad-btn", text: "\u{1F4CA} Analytics Chart" });
+  addChartBtn.addEventListener("click", () => {
+    new CadenceChartSectionModal(view.app, entityKey, (config) => {
+      const block = chartSectionBlock(config);
+      new CadencePromptModal(view.app, {
+        title: "New Analytics Chart",
+        placeholder: "Enter chart section title:",
+        defaultValue: block.title,
+        cta: "Add Chart",
+        onSubmit: (title) => {
+          addSectionHelper(title, block.tag, "");
+        }
+      }).open();
+    }).open();
+  });
+}
+function renderTemplateSectionWithDelete(view, parent, file, sections, rawKey, flashSaved, allRawKeys) {
+  const entityKey = file.basename;
+  const { cleanLabel, tag } = parseHeaderKey(rawKey);
+  const wrap = parent.createDiv({ attr: { style: "position: relative; margin-bottom: 12px; transition: transform 0.2s ease;" } });
+  wrap.draggable = true;
+  wrap.addEventListener("dragstart", (ev) => {
+    wrap.style.opacity = "0.5";
+    ev.dataTransfer.effectAllowed = "move";
+    ev.dataTransfer.setData("text/cadence-template-section", rawKey);
+  });
+  wrap.addEventListener("dragend", () => {
+    wrap.style.opacity = "1";
+    wrap.removeClass("drag-over");
+  });
+  wrap.addEventListener("dragover", (ev) => {
+    ev.preventDefault();
+    ev.dataTransfer.dropEffect = "move";
+    wrap.addClass("drag-over");
+    wrap.style.border = "2px dashed var(--interactive-accent)";
+    wrap.style.borderRadius = "6px";
+  });
+  wrap.addEventListener("dragleave", () => {
+    wrap.removeClass("drag-over");
+    wrap.style.border = "none";
+    wrap.style.borderRadius = "0";
+  });
+  wrap.addEventListener("drop", async (ev) => {
+    ev.preventDefault();
+    wrap.removeClass("drag-over");
+    wrap.style.border = "none";
+    wrap.style.borderRadius = "0";
+    const draggedRawKey = ev.dataTransfer.getData("text/cadence-template-section");
+    if (!draggedRawKey || draggedRawKey === rawKey) return;
+    const curContent = await view.app.vault.read(file);
+    const nextContent = moveTemplateSection(curContent, draggedRawKey, rawKey);
+    if (nextContent === null) return;
+    await view.app.vault.modify(file, nextContent);
+    view.render();
+  });
+  view._renderDynamicH2Section(wrap, file, sections, rawKey, flashSaved);
+  const cardHead = wrap.querySelector(".cad-pd-card-head");
+  if (!cardHead) return;
+  const ctrlRow = cardHead.createDiv({ attr: { style: "display: flex; align-items: center; gap: 8px; margin-left: 8px; flex-shrink: 0;" } });
+  const grip = ctrlRow.createDiv({ attr: { style: "cursor: grab; display: flex; align-items: center; justify-content: center; color: var(--text-muted); opacity: 0.7; padding: 2px 4px;" } });
+  grip.title = "Drag card to reorder";
+  try {
+    (0, import_obsidian22.setIcon)(grip, "grip-vertical");
+  } catch (_) {
+  }
+  const delBtn = ctrlRow.createEl("button", { text: "\xD7", attr: { style: "color: var(--text-error); padding: 0 4px; font-weight: bold; background: transparent; border: none; font-size: 1.25em; cursor: pointer;" } });
+  delBtn.title = `Remove section "${cleanLabel}" from template`;
+  delBtn.addEventListener("click", async (ev) => {
+    ev.stopPropagation();
+    const usedFiles = await view._getFilesUsingTemplateSection(entityKey, rawKey);
+    if (!confirm(deleteSectionMessage(cleanLabel, usedFiles.map((f) => f.basename)))) return;
+    const curContent = await view.app.vault.read(file);
+    const nextContent = removeTemplateSection(curContent, rawKey);
+    if (nextContent !== null) {
+      await view.app.vault.modify(file, nextContent);
+      await view._propagateTemplateSectionDelete(entityKey, rawKey);
+      new import_obsidian22.Notice(`Section "${cleanLabel}" removed.`);
+      view.render();
+    }
+  });
+}
+async function getFilesUsingTemplateSection(view, entityKey, rawKey) {
+  const files = view._getEntityFiles(entityKey);
+  const notes = [];
+  for (const file of files) {
+    notes.push({ file, content: await view.app.vault.read(file) });
+  }
+  return filesUsingTemplateSection(notes, rawKey);
+}
+async function propagateTemplateSectionAdd(view, entityKey, cleanTitle, tag, defaultBody = "") {
+  const files = view._getEntityFiles(entityKey);
+  for (const file of files) {
+    const content = await view.app.vault.read(file);
+    const nextContent = propagateSectionAdd(content, { cleanTitle, tag, defaultBody });
+    if (nextContent !== null) await view.app.vault.modify(file, nextContent);
+  }
+}
+async function propagateTemplateSectionDelete(view, entityKey, rawKey) {
+  const files = view._getEntityFiles(entityKey);
+  for (const file of files) {
+    const content = await view.app.vault.read(file);
+    const nextContent = propagateSectionDelete(content, rawKey);
+    if (nextContent !== null) await view.app.vault.modify(file, nextContent);
+  }
+}
+function templatePathCandidates(folder, entityKey, def) {
+  return [
+    `${folder}/${entityKey}.md`,
+    `${folder}/${def.label}.md`,
+    `${folder}/${def.plural}.md`,
+    `${folder}/${entityKey.toLowerCase()}.md`,
+    `${folder}/${def.label.toLowerCase()}.md`,
+    `${folder}/${def.plural.toLowerCase()}.md`
+  ];
+}
+function templateBadge(exists) {
+  return {
+    cls: exists ? "cad-pill cad-pill-active" : "cad-pill cad-pill-backlog",
+    text: exists ? "Active Template" : "Default"
+  };
+}
+function templateDetailDef(entityKey) {
+  return ENTITIES[entityKey] || { label: "Daily Note", plural: "Daily Notes", fields: [] };
+}
+function crossSectionBlock(config) {
+  return {
+    tag: `#cross-${config.targetEntity}-${config.linkField}-${config.viewType}`,
+    title: `Related ${ENTITIES[config.targetEntity]?.plural || "Links"}`
+  };
+}
+function chartSectionBlock(config) {
+  return {
+    tag: `#chart-${config.targetEntity}-${config.linkField}-${config.groupField}-${config.style}`,
+    title: `${ENTITIES[config.targetEntity]?.plural || config.targetEntity} by ${config.groupField}`
+  };
+}
+function templateHeader(cleanTitle, tag) {
+  return `## ${cleanTitle} ${tag}`.trim();
+}
+function appendTemplateSection(content, cleanTitle, tag, defaultBody = "") {
+  return appendSection(content, templateHeader(cleanTitle, tag), defaultBody);
+}
+function sameLabel(key, cleanLabel) {
+  return parseHeaderKey(key).cleanLabel.toLowerCase() === cleanLabel.toLowerCase();
+}
+function spliceSection(lines, idx) {
+  let endIdx = lines.length;
+  for (let i = idx + 1; i < lines.length; i++) {
+    if (/^##\s/.test(lines[i])) {
+      endIdx = i;
+      break;
+    }
+  }
+  lines.splice(idx, endIdx - idx);
+}
+function propagateSectionAdd(content, section) {
+  const sections = parseH2Sections(content);
+  const exists = Object.keys(sections).some((k) => sameLabel(k, section.cleanTitle));
+  if (exists) return null;
+  return appendSection(content, templateHeader(section.cleanTitle, section.tag), section.defaultBody ?? "");
+}
+function propagateSectionDelete(content, sectionKey) {
+  const { cleanLabel } = parseHeaderKey(sectionKey);
+  const lines = content.split("\n");
+  const idx = lines.findIndex((l) => {
+    if (!/^##\s/.test(l)) return false;
+    const key = l.trim().replace(/^##\s+/, "");
+    return sameLabel(key, cleanLabel);
+  });
+  if (idx === -1) return null;
+  spliceSection(lines, idx);
+  return lines.join("\n");
+}
+function removeTemplateSection(content, rawKey) {
+  const lines = content.split("\n");
+  const idx = lines.findIndex((l) => l.trim().replace(/^##\s+/, "") === rawKey);
+  if (idx === -1) return null;
+  spliceSection(lines, idx);
+  return lines.join("\n");
+}
+function moveTemplateSection(content, draggedRawKey, targetRawKey) {
+  if (draggedRawKey === targetRawKey) return null;
+  const lines = content.split("\n");
+  const keyAt = (ls, i) => ls[i].trim().replace(/^##\s+/, "");
+  const h2Indices = lines.map((l, i) => /^##\s/.test(l) ? i : -1).filter((i) => i >= 0);
+  const draggedIdx = h2Indices.findIndex((i) => keyAt(lines, i) === draggedRawKey);
+  const targetIdx = h2Indices.findIndex((i) => keyAt(lines, i) === targetRawKey);
+  if (draggedIdx === -1 || targetIdx === -1) return null;
+  const start = h2Indices[draggedIdx];
+  const end = draggedIdx + 1 < h2Indices.length ? h2Indices[draggedIdx + 1] : lines.length;
+  const draggedBlock = lines.slice(start, end);
+  lines.splice(start, draggedBlock.length);
+  const h2IndicesNew = lines.map((l, i) => /^##\s/.test(l) ? i : -1).filter((i) => i >= 0);
+  const targetIdxNew = h2IndicesNew.findIndex((i) => keyAt(lines, i) === targetRawKey);
+  lines.splice(h2IndicesNew[targetIdxNew], 0, ...draggedBlock);
+  return lines.join("\n");
+}
+function deleteSectionMessage(cleanLabel, usedNames) {
+  if (usedNames.length > 0) {
+    return `Warning: The section "${cleanLabel}" has active content in the following files:
+${usedNames.join(", ")}
+
+Are you sure you want to delete it from the template?`;
+  }
+  return `Remove the section "${cleanLabel}" from this template?`;
+}
+var TEMPLATE_PLACEHOLDERS = [
+  "_Enter your notes here...",
+  "_Company description",
+  "_Background, interests",
+  "_The outcome we want",
+  "- [ ] First task",
+  "- [ ] First milestone"
+];
+function sectionInUse(content, sectionKey) {
+  const { cleanLabel } = parseHeaderKey(sectionKey);
+  const sections = parseH2Sections(content);
+  const matchingKey = Object.keys(sections).find((k) => sameLabel(k, cleanLabel));
+  if (!matchingKey) return false;
+  const body = (sections[matchingKey] || "").trim();
+  return !!body && !TEMPLATE_PLACEHOLDERS.some((p) => body.startsWith(p));
+}
+function filesUsingTemplateSection(notes, sectionKey) {
+  return notes.filter((n) => sectionInUse(n.content, sectionKey)).map((n) => n.file);
+}
+
 // src/views/crm-dashboard.ts
 var DAY_MS = 864e5;
 function dealValue(entity, def) {
@@ -6598,7 +7103,7 @@ async function renderCrmDashboard(view, root) {
 }
 
 // src/views/project-detail.ts
-var import_obsidian22 = require("obsidian");
+var import_obsidian23 = require("obsidian");
 function projectDetailTitle(fm, basename) {
   return fm.name || basename;
 }
@@ -6758,10 +7263,10 @@ async function renderProjectDetail(view, root, file) {
         setTimeout(async () => {
           try {
             await view.app.vault.trash(file, true);
-            new import_obsidian22.Notice(`Deleted project: ${file.basename}`);
+            new import_obsidian23.Notice(`Deleted project: ${file.basename}`);
             view.closeEntityDetail();
           } catch (e) {
-            new import_obsidian22.Notice(`Delete failed: ${e.message}`);
+            new import_obsidian23.Notice(`Delete failed: ${e.message}`);
           }
         }, 50);
       }
@@ -6939,7 +7444,7 @@ async function renderProjectDetail(view, root, file) {
             try {
               const creation = chipCreation(suggestionSource, targetEntityKey, ENTITIES);
               await createEntity(view.app, creation.source, name);
-              new import_obsidian22.Notice(`Created new ${creation.label}: ${name}`);
+              new import_obsidian23.Notice(`Created new ${creation.label}: ${name}`);
             } catch (e) {
               console.warn(`Failed to auto-create ${targetEntityKey || suggestionSource}`, e);
             }
@@ -7210,7 +7715,7 @@ function renderTaskSection(view, parent, file, tasks, flashSaved, rawKey = "Task
           await view._commitTasks(file, items, flashSaved, true, rawKey);
           const taskText = titleInp.value.trim();
           if (!taskText) {
-            new import_obsidian22.Notice("Add a task title first.");
+            new import_obsidian23.Notice("Add a task title first.");
             titleInp.focus();
             return;
           }
@@ -7265,12 +7770,12 @@ async function saveProjectFrontmatter(view, file, patch, flashSaved) {
     await view.app.fileManager.processFrontMatter(file, (fm) => writeProjectFrontmatter(fm, patch));
     if (typeof flashSaved === "function") flashSaved();
   } catch (e) {
-    new import_obsidian22.Notice(`Save failed: ${e.message}`);
+    new import_obsidian23.Notice(`Save failed: ${e.message}`);
   }
 }
 
 // src/views/task-links.ts
-var import_obsidian23 = require("obsidian");
+var import_obsidian24 = require("obsidian");
 function taskLinkKey(dailyPath, text) {
   return `${dailyPath}::${(text || "").trim()}`;
 }
@@ -7292,14 +7797,14 @@ async function setTaskProjectLink(view, dailyPath, text, projectPath) {
 function openTaskProjectPicker(view, dailyPath, text, currentLink) {
   const projectFiles = listEntityFiles(view.app, "project");
   if (!projectFiles.length) {
-    new import_obsidian23.Notice("No projects yet. Create one in Planner \u2192 Projects first.");
+    new import_obsidian24.Notice("No projects yet. Create one in Planner \u2192 Projects first.");
     return;
   }
   const projects = projectFiles.map((f) => ({
     file: f,
     name: projectNameFromPath(view.app, f.path)
   }));
-  const picker = new class extends import_obsidian23.SuggestModal {
+  const picker = new class extends import_obsidian24.SuggestModal {
     constructor(app, projs, hasLink) {
       super(app);
       this.projs = projs;
@@ -7376,12 +7881,12 @@ async function propagateTaskComplete(view, text, done, source) {
   }
   for (const path of targets.projectPaths) {
     const file = view.app.vault.getAbstractFileByPath(path);
-    if (!file || !(file instanceof import_obsidian23.TFile)) continue;
+    if (!file || !(file instanceof import_obsidian24.TFile)) continue;
     await view._tickProjectTaskByText(file, targets.text, !!done);
   }
   for (const path of targets.dailyPaths) {
     const file = view.app.vault.getAbstractFileByPath(path);
-    if (!file || !(file instanceof import_obsidian23.TFile)) continue;
+    if (!file || !(file instanceof import_obsidian24.TFile)) continue;
     await view._tickDailyNoteTaskByText(file, targets.text, !!done);
   }
 }
@@ -7563,7 +8068,7 @@ function getEntityFiles(view, entityKey) {
 }
 
 // src/views/components/sections.ts
-var import_obsidian24 = require("obsidian");
+var import_obsidian25 = require("obsidian");
 function linksTo(val, name) {
   if (val == null) return false;
   const cleanName = name.trim().toLowerCase();
@@ -7611,7 +8116,7 @@ function renderMarkdownTextCard(view, parent, file, sectionKey, label, initialVa
   const openBtn = head.createEl("button", { cls: "cad-btn cad-btn-sm", attr: { style: "margin-left: auto; padding: 4px 6px; display: inline-flex; align-items: center; justify-content: center; border-radius: 4px; border: 1px solid var(--border-color); background: transparent; cursor: pointer;" } });
   openBtn.title = "Open this note natively to edit with full Live Preview & Autocomplete";
   try {
-    (0, import_obsidian24.setIcon)(openBtn, "file-text");
+    (0, import_obsidian25.setIcon)(openBtn, "file-text");
   } catch (_) {
   }
   openBtn.addEventListener("click", (ev) => {
@@ -7624,7 +8129,7 @@ function renderMarkdownTextCard(view, parent, file, sectionKey, label, initialVa
     previewDiv.empty();
     const rawText = initialValue || "";
     try {
-      import_obsidian24.MarkdownRenderer.renderMarkdown(rawText, previewDiv, file.path, view);
+      import_obsidian25.MarkdownRenderer.renderMarkdown(rawText, previewDiv, file.path, view);
       previewDiv.querySelectorAll("a.internal-link").forEach((a) => {
         const href = a.getAttribute("data-href") || a.getAttribute("href");
         if (href) {
@@ -7768,7 +8273,7 @@ function renderSingleCrossSection(view, parent, targetEntity, linkField, viewTyp
     const board = secWrap.createDiv({ cls: "cad-kanban-board" });
     const groupField = def.fields.find((f) => f.key === "stage" || f.key === "status" || f.key === "type" || f.type === "enum") || def.fields[1];
     const columns = groupField.options || ["To Do", "In Progress", "Done"];
-    const isMobile = !!(import_obsidian24.Platform && import_obsidian24.Platform.isMobile);
+    const isMobile = !!(import_obsidian25.Platform && import_obsidian25.Platform.isMobile);
     columns.forEach((colName) => {
       const items = filteredList.filter((e) => {
         const val = entityValue(e, groupField.key, def);
@@ -7804,7 +8309,7 @@ function renderSingleCrossSection(view, parent, targetEntity, linkField, viewTyp
         const fromStage = ev.dataTransfer.getData("text/cadence-stage");
         if (!path || fromStage === colName) return;
         const file = view.app.vault.getAbstractFileByPath(path);
-        if (!file || !(file instanceof import_obsidian24.TFile)) return;
+        if (!file || !(file instanceof import_obsidian25.TFile)) return;
         try {
           await view.app.fileManager.processFrontMatter(file, (fm) => {
             const isList = groupField.type === "multitext" || groupField.type === "tags" || groupField.isList === true;
@@ -7815,10 +8320,10 @@ function renderSingleCrossSection(view, parent, targetEntity, linkField, viewTyp
               fm[groupField.key] = isLink ? `[[${colName}]]` : colName;
             }
           });
-          new import_obsidian24.Notice(`Moved to ${colName}`);
+          new import_obsidian25.Notice(`Moved to ${colName}`);
           view.render();
         } catch (e) {
-          new import_obsidian24.Notice(`Failed to move: ${e.message}`);
+          new import_obsidian25.Notice(`Failed to move: ${e.message}`);
         }
       });
       if (!items.length) {
@@ -7979,7 +8484,7 @@ function renderDynamicH2Section(view, parent, file, sections, rawKey, flashSaved
         const vBtn = viewSwitch.createEl("button", { attr: { style: `padding: 4px 6px; display: inline-flex; align-items: center; justify-content: center; border-radius: 4px; cursor: pointer; border: 1px solid var(--border-color); background: ${v === viewType ? "var(--interactive-accent)" : "transparent"}; color: ${v === viewType ? "var(--text-on-accent)" : "var(--text-muted)"};` } });
         vBtn.title = title;
         try {
-          (0, import_obsidian24.setIcon)(vBtn, icon);
+          (0, import_obsidian25.setIcon)(vBtn, icon);
         } catch (_) {
         }
         if (v !== viewType) {
@@ -8361,504 +8866,26 @@ var CadenceAppView = class extends obsidian.ItemView {
   _homeActivitiesCard(parent) {
     return homeActivitiesCard(this, parent);
   }
-  async renderTemplatesDashboard(root) {
-    root.addClass("cadence-dashboard");
-    root.addClass("cadence-projects");
-    this._renderPageHeader(root, "Templates Dashboard", "Manage and visually edit the templates for your entities");
-    const grid = root.createDiv({
-      cls: "cad-proj-grid"
-    });
-    {
-      const templatesFolder = "Cadence/Templates";
-      await ensureFolderSync(this.app, templatesFolder);
-      const dailyTemplatePath = `${templatesFolder}/daily.md`;
-      const dailyTFile = this.app.vault.getAbstractFileByPath(dailyTemplatePath);
-      const exists = !!(dailyTFile && dailyTFile instanceof obsidian.TFile);
-      const card = grid.createDiv({
-        cls: "cad-proj-card cad-template-tile"
-      });
-      card.dataset.entity = "daily";
-      const head = card.createDiv({ attr: { style: "display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;" } });
-      const infoWrap = head.createDiv({ attr: { style: "display: flex; align-items: center; gap: 12px;" } });
-      const iconSpan = infoWrap.createSpan({ cls: "cad-template-tile-icon" });
-      try {
-        obsidian.setIcon(iconSpan, "sun");
-      } catch (_) {
-        iconSpan.setText("\u2600\uFE0F");
-      }
-      const titleInfo = infoWrap.createDiv();
-      titleInfo.createDiv({ text: "PLANNER", attr: { style: "font-weight: 700; font-size: 0.7rem; letter-spacing: 0.12em; color: var(--text-muted);" } });
-      titleInfo.createEl("h3", { text: "Daily Note", attr: { style: "margin: 2px 0 0 0; font-size: 1.15em; font-weight: 700;" } });
-      const badge = head.createSpan({
-        cls: exists ? "cad-pill cad-pill-active" : "cad-pill cad-pill-backlog",
-        text: exists ? "Active Template" : "Default"
-      });
-      badge.style.fontSize = "0.7em";
-      badge.style.padding = "3px 8px";
-      card.createDiv({
-        text: `Target Folder: ${this.plugin.settings.dailyNoteFolder || "daily"}/`,
-        attr: { style: "font-size: 0.8em; font-family: monospace; color: var(--text-muted); background: var(--background-secondary); padding: 4px 8px; border-radius: 4px; margin-bottom: 12px; border: 1px solid var(--background-modifier-border);" }
-      });
-      const desc = card.createDiv({ text: `Defines properties and sections layout for each new daily note created in the planner.`, attr: { style: "font-size: 0.85em; color: var(--text-muted); margin-bottom: 18px; flex: 1; line-height: 1.4;" } });
-      const actions = card.createDiv({ attr: { style: "display: flex; gap: 8px; justify-content: flex-end; border-top: 1px solid var(--border-color); padding-top: 14px; margin-top: auto;" } });
-      if (exists) {
-        const editBtn = actions.createEl("button", { cls: "cad-btn primary", text: "Visual Editor" });
-        editBtn.style.padding = "5px 12px";
-        editBtn.style.height = "auto";
-        editBtn.addEventListener("click", (e) => {
-          e.stopPropagation();
-          this.openTemplateDetail("daily", dailyTFile);
-        });
-        const openBtn = actions.createEl("button", { cls: "cad-btn", text: "Raw Note \u{1F4DD}" });
-        openBtn.style.padding = "5px 12px";
-        openBtn.style.height = "auto";
-        openBtn.addEventListener("click", (e) => {
-          e.stopPropagation();
-          this.app.workspace.openLinkText(dailyTemplatePath, "", false);
-        });
-      } else {
-        const resetBtn = actions.createEl("button", {
-          cls: "cad-btn primary",
-          text: "Enable Custom"
-        });
-        resetBtn.style.padding = "5px 12px";
-        resetBtn.style.height = "auto";
-        resetBtn.addEventListener("click", async (e) => {
-          e.stopPropagation();
-          const dailyTemplateContent = [
-            "# {{date}}",
-            "",
-            "## Today",
-            "- [ ] ",
-            "",
-            "## Journal",
-            "",
-            ""
-          ].join("\n");
-          await this.app.vault.create(dailyTemplatePath, dailyTemplateContent);
-          new obsidian.Notice("Daily Note template successfully enabled.");
-          this.render();
-        });
-      }
-      card.addEventListener("click", () => {
-        if (exists) this.openTemplateDetail("daily", dailyTFile);
-      });
-    }
-    for (const [entityKey, def] of Object.entries(ENTITIES)) {
-      const templatesFolder = "Cadence/Templates";
-      await ensureFolderSync(this.app, templatesFolder);
-      let foundPath = null;
-      let exists = false;
-      const pathsToTry = [
-        `${templatesFolder}/${entityKey}.md`,
-        `${templatesFolder}/${def.label}.md`,
-        `${templatesFolder}/${def.plural}.md`,
-        `${templatesFolder}/${entityKey.toLowerCase()}.md`,
-        `${templatesFolder}/${def.label.toLowerCase()}.md`,
-        `${templatesFolder}/${def.plural.toLowerCase()}.md`
-      ];
-      for (const p of pathsToTry) {
-        const tFile = this.app.vault.getAbstractFileByPath(p);
-        if (tFile && tFile instanceof obsidian.TFile) {
-          exists = true;
-          foundPath = p;
-          break;
-        }
-      }
-      const card = grid.createDiv({
-        cls: "cad-proj-card cad-template-tile"
-      });
-      card.dataset.entity = entityKey;
-      const head = card.createDiv({ attr: { style: "display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;" } });
-      const infoWrap = head.createDiv({ attr: { style: "display: flex; align-items: center; gap: 12px;" } });
-      const iconSpan = infoWrap.createSpan({ cls: "cad-template-tile-icon" });
-      try {
-        obsidian.setIcon(iconSpan, def.icon || "file-text");
-      } catch (_) {
-        iconSpan.setText("\u{1F4DD}");
-      }
-      const titleInfo = infoWrap.createDiv();
-      titleInfo.createDiv({ text: def.label.toUpperCase(), attr: { style: "font-weight: 700; font-size: 0.7rem; letter-spacing: 0.12em; color: var(--text-muted);" } });
-      titleInfo.createEl("h3", { text: def.plural, attr: { style: "margin: 2px 0 0 0; font-size: 1.15em; font-weight: 700;" } });
-      const badge = head.createSpan({
-        cls: exists ? "cad-pill cad-pill-active" : "cad-pill cad-pill-backlog",
-        text: exists ? "Active Template" : "Default"
-      });
-      badge.style.fontSize = "0.7em";
-      badge.style.padding = "3px 8px";
-      card.createDiv({
-        text: `Target Folder: ${def.folder}/`,
-        attr: { style: "font-size: 0.8em; font-family: monospace; color: var(--text-muted); background: var(--background-secondary); padding: 4px 8px; border-radius: 4px; margin-bottom: 12px; border: 1px solid var(--background-modifier-border);" }
-      });
-      const desc = card.createDiv({
-        text: `Defines properties and sections layout for each new ${def.label.toLowerCase()} item created.`,
-        attr: { style: "font-size: 0.85em; color: var(--text-muted); margin-bottom: 18px; flex: 1; line-height: 1.4;" }
-      });
-      const actions = card.createDiv({ attr: { style: "display: flex; gap: 8px; justify-content: flex-end; border-top: 1px solid var(--border-color); padding-top: 14px; margin-top: auto;" } });
-      if (exists) {
-        const editBtn = actions.createEl("button", { cls: "cad-btn primary", text: "Visual Editor" });
-        editBtn.style.padding = "5px 12px";
-        editBtn.style.height = "auto";
-        editBtn.addEventListener("click", (e) => {
-          e.stopPropagation();
-          const tFile = this.app.vault.getAbstractFileByPath(foundPath);
-          if (tFile) this.openTemplateDetail(entityKey, tFile);
-        });
-        const openBtn = actions.createEl("button", { cls: "cad-btn", text: "Raw Note \u{1F4DD}" });
-        openBtn.style.padding = "5px 12px";
-        openBtn.style.height = "auto";
-        openBtn.addEventListener("click", (e) => {
-          e.stopPropagation();
-          const tFile = this.app.vault.getAbstractFileByPath(foundPath);
-          if (tFile) this.app.workspace.openLinkText(tFile.path, "", false);
-        });
-      }
-      const resetBtn = actions.createEl("button", {
-        cls: "cad-btn",
-        text: exists ? "Reset to Default" : "Enable Custom"
-      });
-      resetBtn.style.padding = "5px 12px";
-      resetBtn.style.height = "auto";
-      if (!exists) resetBtn.classList.add("primary");
-      resetBtn.addEventListener("click", async (e) => {
-        e.stopPropagation();
-        let templateContent = entityTemplate(entityKey, "{{name}}");
-        if (entityKey === "project") {
-          templateContent = projectTemplate("{{name}}");
-        } else if (entityKey === "company") {
-          templateContent += "\n## Description #notes\n_Company description and profile..._\n\n## Contacts #cross-contact-company-table\n\n## Deals #cross-deal-company-kanban\n";
-        } else if (entityKey === "contact") {
-          templateContent += "\n## Bio #notes\n_Background, interests, and how we met..._\n\n## Tasks #tasks\n- [ ] Follow up in 2 weeks\n";
-        } else {
-          templateContent += "\n## Notes #notes\n_Context and general notes..._\n";
-        }
-        const targetPath = `${templatesFolder}/${entityKey}.md`;
-        let tFile = this.app.vault.getAbstractFileByPath(targetPath);
-        if (tFile && tFile instanceof obsidian.TFile) {
-          if (!confirm(`Are you sure you want to reset the template for ${def.label}? Your visual changes will be overwritten.`)) return;
-          await this.app.vault.modify(tFile, templateContent);
-          new obsidian.Notice(`Template reset for ${def.label}.`);
-        } else {
-          await this.app.vault.create(targetPath, templateContent);
-          new obsidian.Notice(`Template successfully enabled for ${def.label}.`);
-        }
-        this.render();
-      });
-      card.addEventListener("click", () => {
-        const tFile = foundPath ? this.app.vault.getAbstractFileByPath(foundPath) : null;
-        if (tFile) {
-          this.openTemplateDetail(entityKey, tFile);
-        }
-      });
-    }
+  renderTemplatesDashboard(root) {
+    return renderTemplatesDashboard(this, root);
   }
-  /* ── Template Detail builder — same layout as a live fiche ── */
-  async renderTemplateDetail(root, entityKey, file) {
-    root.addClass("cadence-project-detail");
-    const def = ENTITIES[entityKey] || { label: "Daily Note", plural: "Daily Notes", fields: [] };
-    if (!file) {
-      this.closeEntityDetail();
-      return;
-    }
-    const content = await this.app.vault.read(file);
-    const sections = parseH2Sections(content);
-    const sectionKeys = Object.keys(sections);
-    const head = root.createDiv({ cls: "cad-detail-header" });
-    const headLeft = head.createDiv({ cls: "cad-detail-header-left" });
-    const back = headLeft.createEl("button", { cls: "cad-btn cad-detail-back", text: "\u2190 Templates" });
-    back.addEventListener("click", () => this.closeEntityDetail());
-    const breadcrumb = headLeft.createDiv({ cls: "cad-detail-breadcrumb" });
-    breadcrumb.createSpan({ cls: "cad-eyebrow", text: "TEMPLATE BUILDER" });
-    breadcrumb.createSpan({ cls: "cad-detail-title", text: def.label });
-    breadcrumb.createDiv({ cls: "cad-detail-path", text: file.path });
-    const headRight = head.createDiv({ cls: "cad-detail-header-right" });
-    const savedBadge = headRight.createSpan({ cls: "cad-detail-saved", text: "" });
-    const flashSaved = () => {
-      savedBadge.setText("Saved");
-      savedBadge.addClass("show");
-      clearTimeout(savedBadge._t);
-      savedBadge._t = setTimeout(() => savedBadge.removeClass("show"), 1400);
-    };
-    const openNote = headRight.createEl("button", { cls: "cad-btn", text: "View Raw Note \u{1F4DD}" });
-    openNote.addEventListener("click", () => this.app.workspace.openLinkText(file.path, "", false));
-    const deleteBtn = headRight.createEl("button", { cls: "cad-btn cad-btn-danger", text: "Delete" });
-    deleteBtn.addEventListener("click", async () => {
-      if (!confirm(`Delete this custom template? Cadence will fall back to using the default structure.`)) return;
-      try {
-        await this.app.vault.trash(file, true);
-        new obsidian.Notice(`Custom template deleted.`);
-        this.closeEntityDetail();
-      } catch (e) {
-        new obsidian.Notice(`Error: ${e.message}`);
-      }
-    });
-    const cols = root.createDiv({ cls: "cad-pd-cols" });
-    const left = cols.createDiv({ cls: "cad-pd-col" });
-    const right = cols.createDiv({ cls: "cad-pd-col" });
-    const leftKeys = [];
-    const rightKeys = [];
-    sectionKeys.forEach((key, idx) => {
-      if (idx % 2 === 0) {
-        leftKeys.push(key);
-      } else {
-        rightKeys.push(key);
-      }
-    });
-    leftKeys.forEach((rawKey) => {
-      this._renderTemplateSectionWithDelete(left, file, sections, rawKey, flashSaved);
-    });
-    rightKeys.forEach((rawKey) => {
-      this._renderTemplateSectionWithDelete(right, file, sections, rawKey, flashSaved);
-    });
-    const toolbar = root.createDiv({ attr: { style: "margin-top: 32px; margin-bottom: 48px; display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 24px; border-top: 1px solid var(--border-color);" } });
-    toolbar.createDiv({ text: "\u2795 ADD BLOCK TO TEMPLATE", attr: { style: "font-weight: 700; font-size: 0.75rem; letter-spacing: 0.15em; color: var(--text-muted);" } });
-    const btnRow = toolbar.createDiv({ attr: { style: "display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;" } });
-    const addSectionHelper = async (cleanTitle, tag, defaultBody = "") => {
-      const curContent = await this.app.vault.read(file);
-      const header = `## ${cleanTitle} ${tag}`.trim();
-      const nextContent = curContent.replace(/\s*$/, "") + `
-
-${header}
-${defaultBody}
-`;
-      await this.app.vault.modify(file, nextContent);
-      new obsidian.Notice(`Section "${cleanTitle}" added to template.`);
-      await this._propagateTemplateSectionAdd(entityKey, cleanTitle, tag, defaultBody);
-      this.render();
-    };
-    const addTextBtn = btnRow.createEl("button", { cls: "cad-btn", text: "\u{1F4DD} Text Area" });
-    addTextBtn.addEventListener("click", () => {
-      new CadencePromptModal(this.app, {
-        title: "New Text Section",
-        placeholder: "Enter text section title:",
-        defaultValue: "Notes",
-        cta: "Add Block",
-        onSubmit: (title) => {
-          addSectionHelper(title, "#notes", "_Enter your notes here..._");
-        }
-      }).open();
-    });
-    const addTasksBtn = btnRow.createEl("button", { cls: "cad-btn", text: "\u{1F4CB} Task List" });
-    addTasksBtn.addEventListener("click", () => {
-      new CadencePromptModal(this.app, {
-        title: "New Task List Block",
-        placeholder: "Enter task list section title:",
-        defaultValue: "Tasks",
-        cta: "Add Block",
-        onSubmit: (title) => {
-          addSectionHelper(title, "#tasks", "- [ ] First task in template");
-        }
-      }).open();
-    });
-    const addMilestonesBtn = btnRow.createEl("button", { cls: "cad-btn", text: "\u{1F4C5} Milestones / Timeline" });
-    addMilestonesBtn.addEventListener("click", () => {
-      new CadencePromptModal(this.app, {
-        title: "New Milestones Block",
-        placeholder: "Enter milestones section title:",
-        defaultValue: "Milestones",
-        cta: "Add Block",
-        onSubmit: (title) => {
-          const today = ymd(/* @__PURE__ */ new Date());
-          addSectionHelper(title, "#milestones", `- [ ] ${today} \u2014 First milestone in template`);
-        }
-      }).open();
-    });
-    const addCrossBtn = btnRow.createEl("button", { cls: "cad-btn", text: "\u{1F517} Cross-Linked Data" });
-    addCrossBtn.addEventListener("click", () => {
-      new CadenceCrossSectionModal(this.app, entityKey, async (config) => {
-        const defaultTitle = `Related ${ENTITIES[config.targetEntity]?.plural || "Links"}`;
-        new CadencePromptModal(this.app, {
-          title: "New Cross-Linked Section",
-          placeholder: "Enter section title:",
-          defaultValue: defaultTitle,
-          cta: "Add Block",
-          onSubmit: (title) => {
-            const crossTag = `#cross-${config.targetEntity}-${config.linkField}-${config.viewType}`;
-            addSectionHelper(title, crossTag, "");
-          }
-        }).open();
-      }).open();
-    });
-    const addChartBtn = btnRow.createEl("button", { cls: "cad-btn", text: "\u{1F4CA} Analytics Chart" });
-    addChartBtn.addEventListener("click", () => {
-      new CadenceChartSectionModal(this.app, entityKey, (config) => {
-        const chartTag = `#chart-${config.targetEntity}-${config.linkField}-${config.groupField}-${config.style}`;
-        const defaultTitle = `${ENTITIES[config.targetEntity]?.plural || config.targetEntity} by ${config.groupField}`;
-        new CadencePromptModal(this.app, {
-          title: "New Analytics Chart",
-          placeholder: "Enter chart section title:",
-          defaultValue: defaultTitle,
-          cta: "Add Chart",
-          onSubmit: (title) => {
-            addSectionHelper(title, chartTag, "");
-          }
-        }).open();
-      }).open();
-    });
+  renderTemplateDetail(root, entityKey, file) {
+    return renderTemplateDetail(this, root, entityKey, file);
   }
-  /* Helper: render a live H2 section widget inside the template builder,
-     with move (▲▼), view-switcher (for cross/chart), and delete (×) controls */
   _renderTemplateSectionWithDelete(parent, file, sections, rawKey, flashSaved, allRawKeys) {
-    const entityKey = file.basename;
-    const { cleanLabel, tag } = parseHeaderKey(rawKey);
-    const wrap = parent.createDiv({ attr: { style: "position: relative; margin-bottom: 12px; transition: transform 0.2s ease;" } });
-    wrap.draggable = true;
-    wrap.addEventListener("dragstart", (ev) => {
-      wrap.style.opacity = "0.5";
-      ev.dataTransfer.effectAllowed = "move";
-      ev.dataTransfer.setData("text/cadence-template-section", rawKey);
-    });
-    wrap.addEventListener("dragend", () => {
-      wrap.style.opacity = "1";
-      wrap.removeClass("drag-over");
-    });
-    wrap.addEventListener("dragover", (ev) => {
-      ev.preventDefault();
-      ev.dataTransfer.dropEffect = "move";
-      wrap.addClass("drag-over");
-      wrap.style.border = "2px dashed var(--interactive-accent)";
-      wrap.style.borderRadius = "6px";
-    });
-    wrap.addEventListener("dragleave", () => {
-      wrap.removeClass("drag-over");
-      wrap.style.border = "none";
-      wrap.style.borderRadius = "0";
-    });
-    wrap.addEventListener("drop", async (ev) => {
-      ev.preventDefault();
-      wrap.removeClass("drag-over");
-      wrap.style.border = "none";
-      wrap.style.borderRadius = "0";
-      const draggedRawKey = ev.dataTransfer.getData("text/cadence-template-section");
-      if (!draggedRawKey || draggedRawKey === rawKey) return;
-      const curContent = await this.app.vault.read(file);
-      const lines = curContent.split("\n");
-      const h2Indices = lines.map((l, i) => /^##\s/.test(l) ? i : -1).filter((i) => i >= 0);
-      const draggedIdx = h2Indices.findIndex((i) => lines[i].trim().replace(/^##\s+/, "") === draggedRawKey);
-      const targetIdx = h2Indices.findIndex((i) => lines[i].trim().replace(/^##\s+/, "") === rawKey);
-      if (draggedIdx === -1 || targetIdx === -1) return;
-      const getBlock = (hi) => {
-        const start = h2Indices[hi];
-        const end = hi + 1 < h2Indices.length ? h2Indices[hi + 1] : lines.length;
-        return lines.slice(start, end);
-      };
-      const draggedBlock = getBlock(draggedIdx);
-      const startDel = h2Indices[draggedIdx];
-      lines.splice(startDel, draggedBlock.length);
-      const linesTemp = lines.join("\n");
-      const linesArr = linesTemp.split("\n");
-      const h2IndicesNew = linesArr.map((l, i) => /^##\s/.test(l) ? i : -1).filter((i) => i >= 0);
-      const targetIdxNew = h2IndicesNew.findIndex((i) => linesArr[i].trim().replace(/^##\s+/, "") === rawKey);
-      const insertPos = h2IndicesNew[targetIdxNew];
-      linesArr.splice(insertPos, 0, ...draggedBlock);
-      await this.app.vault.modify(file, linesArr.join("\n"));
-      this.render();
-    });
-    this._renderDynamicH2Section(wrap, file, sections, rawKey, flashSaved);
-    const cardHead = wrap.querySelector(".cad-pd-card-head");
-    if (!cardHead) return;
-    const ctrlRow = cardHead.createDiv({ attr: { style: "display: flex; align-items: center; gap: 8px; margin-left: 8px; flex-shrink: 0;" } });
-    const grip = ctrlRow.createDiv({ attr: { style: "cursor: grab; display: flex; align-items: center; justify-content: center; color: var(--text-muted); opacity: 0.7; padding: 2px 4px;" } });
-    grip.title = "Drag card to reorder";
-    try {
-      obsidian.setIcon(grip, "grip-vertical");
-    } catch (_) {
-    }
-    const delBtn = ctrlRow.createEl("button", { text: "\xD7", attr: { style: "color: var(--text-error); padding: 0 4px; font-weight: bold; background: transparent; border: none; font-size: 1.25em; cursor: pointer;" } });
-    delBtn.title = `Remove section "${cleanLabel}" from template`;
-    delBtn.addEventListener("click", async (ev) => {
-      ev.stopPropagation();
-      const usedFiles = await this._getFilesUsingTemplateSection(entityKey, rawKey);
-      if (usedFiles.length > 0) {
-        const fileNames = usedFiles.map((f) => f.basename).join(", ");
-        if (!confirm(`Warning: The section "${cleanLabel}" has active content in the following files:
-${fileNames}
-
-Are you sure you want to delete it from the template?`)) {
-          return;
-        }
-      } else {
-        if (!confirm(`Remove the section "${cleanLabel}" from this template?`)) return;
-      }
-      const curContent = await this.app.vault.read(file);
-      const lines = curContent.split("\n");
-      const idx = lines.findIndex((l) => l.trim().replace(/^##\s+/, "") === rawKey);
-      if (idx !== -1) {
-        let endIdx = lines.length;
-        for (let i = idx + 1; i < lines.length; i++) {
-          if (/^##\s/.test(lines[i])) {
-            endIdx = i;
-            break;
-          }
-        }
-        lines.splice(idx, endIdx - idx);
-        await this.app.vault.modify(file, lines.join("\n"));
-        await this._propagateTemplateSectionDelete(entityKey, rawKey);
-        new obsidian.Notice(`Section "${cleanLabel}" removed.`);
-        this.render();
-      }
-    });
+    return renderTemplateSectionWithDelete(this, parent, file, sections, rawKey, flashSaved, allRawKeys);
   }
   _getEntityFiles(entityKey) {
     return getEntityFiles(this, entityKey);
   }
-  async _getFilesUsingTemplateSection(entityKey, rawKey) {
-    const files = this._getEntityFiles(entityKey);
-    const used = [];
-    const { cleanLabel } = parseHeaderKey(rawKey);
-    for (const file of files) {
-      const content = await this.app.vault.read(file);
-      const sections = parseH2Sections(content);
-      const matchingKey = Object.keys(sections).find((k) => parseHeaderKey(k).cleanLabel.toLowerCase() === cleanLabel.toLowerCase());
-      if (matchingKey) {
-        const body = (sections[matchingKey] || "").trim();
-        if (body && !body.startsWith("_Enter your notes here...") && !body.startsWith("_Company description") && !body.startsWith("_Background, interests") && !body.startsWith("_The outcome we want") && !body.startsWith("- [ ] First task") && !body.startsWith("- [ ] First milestone")) {
-          used.push(file);
-        }
-      }
-    }
-    return used;
+  _getFilesUsingTemplateSection(entityKey, rawKey) {
+    return getFilesUsingTemplateSection(this, entityKey, rawKey);
   }
-  async _propagateTemplateSectionAdd(entityKey, cleanTitle, tag, defaultBody = "") {
-    const files = this._getEntityFiles(entityKey);
-    const header = `## ${cleanTitle} ${tag}`.trim();
-    for (const file of files) {
-      const content = await this.app.vault.read(file);
-      const sections = parseH2Sections(content);
-      const exists = Object.keys(sections).some((k) => parseHeaderKey(k).cleanLabel.toLowerCase() === cleanTitle.toLowerCase());
-      if (!exists) {
-        const nextContent = content.replace(/\s*$/, "") + `
-
-${header}
-${defaultBody}
-`;
-        await this.app.vault.modify(file, nextContent);
-      }
-    }
+  _propagateTemplateSectionAdd(entityKey, cleanTitle, tag, defaultBody) {
+    return propagateTemplateSectionAdd(this, entityKey, cleanTitle, tag, defaultBody);
   }
-  async _propagateTemplateSectionDelete(entityKey, rawKey) {
-    const files = this._getEntityFiles(entityKey);
-    const { cleanLabel } = parseHeaderKey(rawKey);
-    for (const file of files) {
-      const content = await this.app.vault.read(file);
-      const lines = content.split("\n");
-      const idx = lines.findIndex((l) => {
-        if (!/^##\s/.test(l)) return false;
-        const key = l.trim().replace(/^##\s+/, "");
-        return parseHeaderKey(key).cleanLabel.toLowerCase() === cleanLabel.toLowerCase();
-      });
-      if (idx !== -1) {
-        let endIdx = lines.length;
-        for (let i = idx + 1; i < lines.length; i++) {
-          if (/^##\s/.test(lines[i])) {
-            endIdx = i;
-            break;
-          }
-        }
-        lines.splice(idx, endIdx - idx);
-        await this.app.vault.modify(file, lines.join("\n"));
-      }
-    }
+  _propagateTemplateSectionDelete(entityKey, rawKey) {
+    return propagateTemplateSectionDelete(this, entityKey, rawKey);
   }
   /* ── Inbox (Planner reminders + captures) ── */
   renderInbox(root) {

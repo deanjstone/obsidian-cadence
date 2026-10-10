@@ -521,6 +521,11 @@ export class FakeElement {
     return all.filter((e) => (!tag || tag === '*' || e.localName === tag) && (!cls || e.classes.includes(cls)));
   }
 
+  /** The first descendant matching querySelectorAll's selectors, or null. */
+  querySelector(selector: string): FakeElement | null {
+    return this.querySelectorAll(selector)[0] ?? null;
+  }
+
   empty() {
     for (const child of this.children) child.parent = null;
     this.children.length = 0;

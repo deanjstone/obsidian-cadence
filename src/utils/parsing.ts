@@ -198,11 +198,17 @@ export function parseSections(content: string, settings: Pick<DailyNoteSettings,
   return { tasks, journal: journal.replace(/\s+$/, ''), raw: content };
 }
 
+/* Append a section at the end of a note: trailing whitespace is trimmed,
+   then one blank line, the heading, the body and a final newline. */
+export function appendSection(content: string, heading: string, body: string): string {
+  return content.replace(/\s*$/, '') + `\n\n${heading}\n${body}\n`;
+}
+
 export function replaceSection(content: string, heading: string, newBody: string): string {
   const lines = content.split('\n');
   const headIdx = lines.findIndex((l) => l.trim() === heading);
   if (headIdx === -1) {
-    return content.replace(/\s*$/, '') + `\n\n${heading}\n${newBody}\n`;
+    return appendSection(content, heading, newBody);
   }
   let endIdx = lines.length;
   for (let i = headIdx + 1; i < lines.length; i++) {
