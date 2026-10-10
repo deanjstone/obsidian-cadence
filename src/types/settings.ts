@@ -1,3 +1,4 @@
+import type { EntityField } from './entities';
 import type { CrossSectionConfig, WidgetConfig } from './modals';
 import type { Reminder } from './reminders';
 
@@ -20,6 +21,8 @@ export interface CustomPage {
   /** Module toggle that hides the page; defaults to sectionId. */
   module?: string;
   entityKey: string;
+  /** 'table' | 'kanban' | 'cards', chosen when the page is added. */
+  defaultLayout?: string;
 }
 
 /* The settings the app view shell and its moved surfaces read. The daily-note
@@ -50,4 +53,16 @@ export interface AppViewSettings extends DailyNoteSettings {
   crmDashboardWidgets?: WidgetConfig[];
   /** PRM analytics' custom chart widgets. */
   prmDashboardWidgets?: WidgetConfig[];
+}
+
+/* The settings the setting tab reads and writes, on top of the view's. */
+export interface SettingTabSettings extends AppViewSettings {
+  dailyNoteFolder: string;
+  openOnStartup?: boolean;
+  desktopNotifications?: boolean;
+  /** Persisted for the coming-soon cloud sync; unused. */
+  cadenceApiUrl: string;
+  cadenceApiToken: string;
+  /** Every entity's field schema, keyed by entity key; copied into ENTITIES on load. */
+  customEntities?: Record<string, EntityField[]>;
 }

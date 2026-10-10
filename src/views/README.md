@@ -62,6 +62,10 @@ Members that are Obsidian's `View` contract and have no logic stay on the class:
 | `reports.ts` | `renderReportPipeline`, `renderReportSales`, `renderReportPartners`, `renderReportActivity` and `renderProductivity`, plus the pure `pipelineReport`, `salesReport`, `partnersReport`, `activityReport`, `productivityReport`, `productivityDates` and `reportBar` |
 | `report-graph.ts` | `renderReportGraph`, plus the pure `graphNodeType`, `graphNodeRadius`, `graphNodeColor`, `GRAPH_TYPE_COLORS`, `buildEntityGraph`, `layoutGraph`, `toGraphPoint`, `nodeAt`, `zoomAt` and `graphTooltip` |
 | `prm.ts` | `renderPRMAnalytics` and `renderTeam`, plus the pure `prmAnalytics`, `isTeamMember` and `teamListOptions` |
+| `../settings/host.ts` | `SettingTabHost` and `SettingTabPlugin`, the setting tab's seam |
+| `../settings/setting-tab.ts` | `CadenceSettingTab`, `renderModulesSettings`, `renderReminderSettings`, `renderAppSettings` and `renderCloudSyncSettings`, plus the pure `MODULE_TOGGLES`, `ensureModules`, `shouldRequestPermission`, `notificationPermissionDesc`, `completedReminderCount`, `openReminders`, `TASK_SYSTEM_OPTIONS`, `taskNotesStatus`, `CURRENCY_OPTIONS`, `weekStartsOnFromOption`, `defaultTabOptions` and `defaultTabValue` |
+| `../settings/custom-pages.ts` | `renderCustomPagesSettings`, plus the pure `SECTION_OPTIONS`, `LAYOUT_OPTIONS`, `ICON_OPTIONS`, `sectionLabel`, `customPageLayoutLabel`, `customPageRows`, `customPageEntityKey`, `customEntityLabel`, `addCustomPage` and `deleteCustomPage` |
+| `../settings/entity-properties.ts` | `renderEntityPropertiesSettings` and `FolderSuggestModal`, plus the pure `entityPickerLabel`, `entityPickerOptions`, `isPermanentlyLocked`, `isFieldLocked`, `snapshotCustomEntities`, `copyPropertyShape`, `syncSharedProperties`, `fieldKeySuggestions`, `filterKeySuggestions`, `sanitizeFieldKey`, `parseEnumOptions`, `fieldTypeOptions`, `optionsCellKind`, `sourceState`, `folderSource`, `folderBadge`, `vaultFolderPaths`, `filterFolders`, `nextPropertyKey`, `moveField` and `applyPropertyEdit` |
 
 Use one file per major surface (`home.ts`, `today.ts`, `planner.ts`, `inbox.ts`, `entity-list.ts`, …), as in the map's module layout. Named exports only.
 
@@ -82,6 +86,18 @@ The project page ([#16](https://github.com/deanjstone/obsidian-cadence/issues/16
 The list's kanban layout is drawn inside `renderEntityList`, so `entity-list.ts` imports the **pure** kanban helpers from `kanban.ts` (`kanbanGroups`, `kanbanDropValue`, …). It still reaches `getEntityKanbanParams` through `view.x()`, because that takes the view. ([#14](https://github.com/deanjstone/obsidian-cadence/issues/14))
 
 Components that several surfaces share live in `components/` ([#11](https://github.com/deanjstone/obsidian-cadence/issues/11)). Surfaces still reach their DOM functions only through `view._x()`, never by import. A component's **pure** helpers take no `view`, so another component or a surface may import them: `sections.ts` uses `sectionChartData`, and both dashboards ([#17](https://github.com/deanjstone/obsidian-cadence/issues/17)) count their widgets with `chartData` and read and remove them with `dashboardWidgets` and `removeWidget`. The drawing still goes through `view._drawChart`.
+
+## The setting tab
+
+`CadenceSettingTab` ([#21](https://github.com/deanjstone/obsidian-cadence/issues/21)) follows the same seam with three differences, all because it is a `PluginSettingTab` with one caller rather than the app view:
+
+1. **The whole class moved, not just its bodies.** The tab has no cross-surface callers, so there are no delegates to keep. `src/settings/setting-tab.ts` holds the class, `src/legacy/cadence.js` imports it for `addSettingTab`, and the class name stays `CadenceSettingTab`, which the registration-parity snapshot records. `plugin` is a `declare` field, so esbuild emits no class field for it.
+2. **The host is `SettingTabHost`** (`src/settings/host.ts`): `app`, `plugin` (a `SettingTabPlugin` with `settings`, `saveSettings`, `refreshOpenViews` and `registerCustomPropertyTypes`), `containerEl` and `display()`. `display()` draws the `h2`, then calls one `renderXSettings(tab, containerEl)` per section, in order: Modules, Reminders, App, Cloud sync (in `setting-tab.ts`), Custom Navigation Pages (`custom-pages.ts`) and Custom Entity Properties (`entity-properties.ts`). A section redraws the page with `tab.display()`. `setting-tab.ts` imports the two section renderers directly, because they are parts of one surface, not other surfaces.
+3. **Edits change the live registry, not a copy.** The property editor edits `ENTITIES` in place, and each save copies every schema into `settings.customEntities` (`snapshotCustomEntities`). So its seam, `applyPropertyEdit(entities, entityKey, edit)`, mutates the registry it is given and returns `{ ok, migrations, notice, rerender }`. The migrations are data (`{ kind: 'key' | 'type', … }`), which the surface runs in order through `migrateFrontmatterKey` and `migrateFrontmatterType` in `src/utils/entities.ts`. A test passes a plain registry. `addCustomPage(settings, entities, form, now)` and `deleteCustomPage(settings, entities, pageId)` change the settings and the registry the same way. (#15 already took the name `applyFieldEdit`, for the detail views' frontmatter write.)
+
+The section DOM stays in one function per section, as in #14. The per-row DOM of the property table stays in `renderEntityPropertiesSettings`. The inline folder picker is now the named `FolderSuggestModal(app, folders, onChoose)`.
+
+The tests drive the tab through `test/helpers/setting-tab.ts` (`makeSettingTab`, `settingRows`, `settingByName`, `snapshotEntities`/`restoreEntities`) and the mock's `Setting`, whose toggle, dropdown, text and button components fire their handlers with `await component.change(value)` or `await button.click()`. `ENTITIES` is shared module state, so restore it after each test.
 
 ## How a view ticket applies the loop
 
