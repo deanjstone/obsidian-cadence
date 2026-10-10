@@ -1,3 +1,5 @@
+import type { CrossSectionConfig } from './modals';
+
 /* The subset of plugin settings the extracted helpers read. The full
    settings object is still defined by DEFAULT_SETTINGS in the legacy file. */
 export interface DailyNoteSettings {
@@ -19,7 +21,7 @@ export interface CustomPage {
   entityKey: string;
 }
 
-/* The settings the app view shell reads. */
+/* The settings the app view shell and its moved surfaces read. */
 export interface AppViewSettings {
   defaultTab?: string;
   dailyNoteFolder?: string;
@@ -30,4 +32,6 @@ export interface AppViewSettings {
   customPages?: CustomPage[];
   // TODO: confirm shape — only done/when are read by the shell.
   reminders?: Array<{ done?: boolean; when?: string | null }>;
+  /** Settings-driven cross sections on entity detail forms. */
+  crossSections?: CrossSectionConfig[];
 }
