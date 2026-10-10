@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createMockApp, type App, type FakeElement } from "../mocks/obsidian";
 import { buttonByText, contentOf } from "../helpers/dom";
-import { CadencePromptModal } from "../../src/legacy/cadence.js";
+import { CadencePromptModal } from "../../src/modals/prompt";
 
 /* Characterization tests for the prompt modal (replaces window.prompt):
    option defaults, Enter/Escape handling, and onSubmit(null) when closed
@@ -39,7 +39,7 @@ describe("CadencePromptModal", () => {
   });
 
   it("throws when constructed without an options object (flagged)", () => {
-    expect(() => new CadencePromptModal(app)).toThrow(TypeError);
+    expect(() => new (CadencePromptModal as Any)(app)).toThrow(TypeError);
   });
 
   it("renders a heading, a prefilled input and Cancel/CTA buttons, then focuses and selects the input", () => {

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createMockApp, type App } from "../mocks/obsidian";
 import { buttonByText, contentOf } from "../helpers/dom";
-import { CadenceConfirmModal } from "../../src/legacy/cadence.js";
+import { CadenceConfirmModal } from "../../src/modals/confirm";
 
 /* Characterization tests for the confirm modal (replaces window.confirm):
    label defaults, which callback fires for each way out, and that each

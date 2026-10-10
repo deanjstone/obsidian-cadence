@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createMockApp, Notice, type App, type FakeElement } from "../mocks/obsidian";
 import { buttonByText, contentOf, optionTexts, optionValues } from "../helpers/dom";
-import { CadenceWidgetCreateModal } from "../../src/legacy/cadence.js";
+import { CadenceWidgetCreateModal } from "../../src/modals/widget-create";
 
 /* Characterization tests for the dashboard chart-widget modal: the
    two-argument constructor form, the group-by options per entity, the
@@ -26,7 +26,7 @@ function openWidget(entityKey?: unknown) {
   const onSubmit = vi.fn();
   const modal: Any = entityKey === undefined
     ? new CadenceWidgetCreateModal(app, onSubmit)
-    : new CadenceWidgetCreateModal(app, entityKey, onSubmit);
+    : new CadenceWidgetCreateModal(app, entityKey as Any, onSubmit);
   const close = vi.spyOn(modal, "close");
   modal.open();
   const content = contentOf(modal);

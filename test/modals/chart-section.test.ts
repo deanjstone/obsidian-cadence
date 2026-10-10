@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createMockApp, type App, type FakeElement } from "../mocks/obsidian";
 import { buttonByText, contentOf, optionTexts, optionValues } from "../helpers/dom";
 import { ENTITIES } from "../../src/constants/entities";
-import { CadenceChartSectionModal } from "../../src/legacy/cadence.js";
+import { CadenceChartSectionModal } from "../../src/modals/chart-section";
 
 /* Characterization tests for the analytics chart block modal: target and
    field options, the link/group-by defaults it pre-selects, and the
@@ -21,7 +21,7 @@ afterEach(() => {
 
 function openChart(parentEntity: unknown) {
   const onSubmit = vi.fn();
-  const modal: Any = new CadenceChartSectionModal(app, parentEntity, onSubmit);
+  const modal: Any = new CadenceChartSectionModal(app, parentEntity as Any, onSubmit);
   const close = vi.spyOn(modal, "close");
   modal.open();
   const content = contentOf(modal);

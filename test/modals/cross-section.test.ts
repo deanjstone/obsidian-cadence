@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createMockApp, type App, type FakeElement } from "../mocks/obsidian";
 import { buttonByText, contentOf, optionTexts, optionValues } from "../helpers/dom";
 import { ENTITIES } from "../../src/constants/entities";
-import { CadenceCrossSectionModal } from "../../src/legacy/cadence.js";
+import { CadenceCrossSectionModal } from "../../src/modals/cross-section";
 
 /* Characterization tests for the cross-linked section modal: which target
    entities and link fields it offers, how the field list follows the
@@ -21,7 +21,7 @@ afterEach(() => {
 
 function openCrossSection(parentEntity: unknown) {
   const onSubmit = vi.fn();
-  const modal: Any = new CadenceCrossSectionModal(app, parentEntity, onSubmit);
+  const modal: Any = new CadenceCrossSectionModal(app, parentEntity as Any, onSubmit);
   const close = vi.spyOn(modal, "close");
   modal.open();
   const content = contentOf(modal);
