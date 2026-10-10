@@ -1,6 +1,6 @@
 import { Notice } from 'obsidian';
 import type { Reminder } from '../types/reminders';
-import { nextRepeat, reminderId } from '../utils/reminders';
+import { isRepeating, nextRepeat, reminderId } from '../utils/reminders';
 import type { PluginHost } from './host';
 
 /* The reminders engine: CRUD over settings.reminders, the 30-second ticker
@@ -68,6 +68,15 @@ export function advanceReminder(r: Reminder, now: Date): Reminder | null {
   };
 }
 
+/* The occurrence that continues a repeating reminder's series, or null for
+   a one-off. Each occurrence hands its series on once, the first time it
+   fires, is completed or is snoozed (#44): one that is notified, done or
+   already `advanced` has handed it on. */
+export function continueSeries(r: Reminder, now: Date): Reminder | null {
+  if (r.advanced || r.notified || r.done) return null;
+  return advanceReminder(r, now);
+}
+
 /* Snooze moves `when` to now + ms and reopens the reminder: it clears
    `notified` and `done`, so a done reminder fires again (#44). */
 export function snoozePatch(ms: number, now: number): Partial<Reminder> {
@@ -79,8 +88,8 @@ export function snoozePatch(ms: number, now: number): Partial<Reminder> {
   };
 }
 
-/* QUIRK (#22): completing a repeating reminder ends the series, because
-   only the ticker schedules the next occurrence. */
+/* Completing marks the reminder done; completeReminder also continues a
+   repeating series (#44). */
 export const COMPLETE_PATCH: Readonly<Partial<Reminder>> = { done: true, notified: true };
 
 export async function addReminder(plugin: PluginHost, partial: ReminderInput): Promise<Reminder> {
@@ -112,7 +121,14 @@ export async function snoozeReminder(plugin: PluginHost, id: string, ms: number)
 }
 
 export async function completeReminder(plugin: PluginHost, id: string): Promise<Reminder | null> {
-  return plugin.updateReminder(id, { ...COMPLETE_PATCH });
+  const patch: Partial<Reminder> = { ...COMPLETE_PATCH };
+  const r = (plugin.settings.reminders || []).find((x) => x.id === id);
+  if (r && isRepeating(r.repeat)) {
+    const next = continueSeries(r, new Date());
+    if (next) plugin.settings.reminders.push(next);
+    patch.advanced = true;
+  }
+  return plugin.updateReminder(id, patch);
 }
 
 /* ── Reminder ticker ── */
@@ -122,9 +138,10 @@ export function tickReminders(plugin: PluginHost): void {
   const additions: Reminder[] = [];
   for (const r of due) {
     plugin._fireReminder(r);
-    r.notified = true;
-    const next = advanceReminder(r, new Date());
+    const next = continueSeries(r, new Date());
     if (next) additions.push(next);
+    r.notified = true;
+    if (isRepeating(r.repeat)) r.advanced = true;
   }
   if (additions.length) plugin.settings.reminders.push(...additions);
   if (due.length) {

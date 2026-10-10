@@ -183,13 +183,35 @@ describe("snoozeReminder and completeReminder", () => {
     expect(calls).toEqual(["save", "refresh"]);
   });
 
-  it("QUIRK: completing a repeating reminder ends the series (no next occurrence)", async () => {
-    const { plugin } = await makeLoadedPlugin({ data: { reminders: [reminder({ repeat: "daily", when: iso(MIN) })] } });
+  it("completing a repeating reminder schedules the next occurrence, so the series goes on", async () => {
+    const { plugin, calls } = await makeLoadedPlugin({
+      data: { reminders: [reminder({ repeat: "daily", when: iso(MIN), notes: "agenda", project: "Cadence/Projects/Apollo.md" })] },
+    });
     await plugin.completeReminder("rem_a");
+    expect(calls).toEqual(["save", "refresh"]);
+    expect(plugin.settings.reminders[0]).toMatchObject({ done: true, notified: true });
+    expect(plugin.settings.reminders[1]).toMatchObject({
+      text: "Call Jane", when: iso(MIN + DAY), repeat: "daily", notes: "agenda", project: "Cadence/Projects/Apollo.md",
+      notified: false, done: false,
+    });
     vi.setSystemTime(NOW.getTime() + 2 * DAY);
     plugin.tickReminders();
-    expect(plugin.settings.reminders).toHaveLength(1);
-    expect(Notice.messages).toEqual([]);
+    expect(plugin.settings.reminders).toHaveLength(3);
+    expect(Notice.messages).toEqual(["⏰  Call Jane"]);
+  });
+
+  it("completing a repeating reminder that already fired adds no second occurrence", async () => {
+    const { plugin } = await makeLoadedPlugin({ data: { reminders: [reminder({ repeat: "daily" })] } });
+    plugin.tickReminders();
+    expect(plugin.settings.reminders).toHaveLength(2);
+    await plugin.completeReminder("rem_a");
+    expect(plugin.settings.reminders.map((r: Any) => [r.when, r.done])).toEqual([[iso(-MIN), true], [iso(-MIN + DAY), false]]);
+  });
+
+  it("completing an overdue repeating reminder skips to the next future occurrence", async () => {
+    const { plugin } = await makeLoadedPlugin({ data: { reminders: [reminder({ repeat: "weekly", when: iso(-10 * DAY) })] } });
+    await plugin.completeReminder("rem_a");
+    expect(plugin.settings.reminders.map((r: Any) => r.when)).toEqual([iso(-10 * DAY), iso(4 * DAY)]);
   });
 
   it("QUIRK: snoozing a repeating reminder moves the rest of the series with it", async () => {

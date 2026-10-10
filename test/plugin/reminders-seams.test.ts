@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  advanceReminder, COMPLETE_PATCH, dueReminders, isDue, newReminder, snoozePatch,
+  advanceReminder, COMPLETE_PATCH, continueSeries, dueReminders, isDue, newReminder, snoozePatch,
 } from "../../src/plugin/reminders-engine";
 import type { Reminder } from "../../src/types/reminders";
 
@@ -106,6 +106,19 @@ describe("advanceReminder", () => {
   it("returns null for an unscheduled or unparseable reminder", () => {
     expect(advanceReminder(reminder({ repeat: "daily", when: null }), NOW)).toBeNull();
     expect(advanceReminder(reminder({ repeat: "daily", when: "soon" }), NOW)).toBeNull();
+  });
+});
+
+describe("continueSeries", () => {
+  it("is the next occurrence of an open repeating reminder that hasn't handed its series on", () => {
+    expect(continueSeries(reminder({ repeat: "daily" }), NOW)?.when).toBe(new Date(T - MIN + DAY).toISOString());
+  });
+
+  it("is null once the occurrence has fired, been completed or been snoozed, or for a one-off", () => {
+    expect(continueSeries(reminder({ repeat: "daily", notified: true }), NOW)).toBeNull();
+    expect(continueSeries(reminder({ repeat: "daily", done: true }), NOW)).toBeNull();
+    expect(continueSeries(reminder({ repeat: "daily", advanced: true }), NOW)).toBeNull();
+    expect(continueSeries(reminder({ repeat: "none" }), NOW)).toBeNull();
   });
 });
 
