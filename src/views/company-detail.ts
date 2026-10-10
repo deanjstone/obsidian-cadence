@@ -4,12 +4,18 @@ import { CadenceConfirmModal } from '../modals/confirm';
 import { createEntity, listEntities } from '../utils/entities';
 import {
   COMPANY_LIST_KEYS, applyFieldEdit, chipAdd, chipConfig, chipCreation, chipLinkTarget, chipValues, chipWriteValue,
-  dateInputValue, enumCurrent, filterSuggestions, findNoteByName, folderNoteNames, historyValues, isChipField,
+  dateInputValue, enumCurrent, filterSuggestions, findNoteByName, folderNoteNames, historyValues, metaControl, metaInputType,
+  metaInputValue, splitSectionColumns,
 } from '../utils/field-edit';
 import { parseH2Sections } from '../utils/parsing';
 import type { VaultNode } from '../utils/vault';
 import type { EntityDef, EntityField, EntityKey, Frontmatter } from '../types/entities';
 import type { AppViewHost } from './host';
+
+/* The meta-cell and column helpers are shared with the project page, so they
+   live in src/utils/field-edit.ts; re-exported under their #15 names. */
+export { metaControl as companyMetaControl, metaInputType, metaInputValue, splitSectionColumns };
+export type { MetaControl } from '../utils/field-edit';
 
 /* MetadataCache.getTags(), as Obsidian ships it (not in the public obsidian.d.ts). */
 interface TagSource {
@@ -29,47 +35,6 @@ export function companyDetailTitle(fm: Frontmatter, basename: string): unknown {
     that is not an enum. */
 export function companyMetaFields(def: EntityDef): EntityField[] {
   return def.fields.filter(f => !f.primary && !(f.key === 'type' && f.type !== 'enum'));
-}
-
-export type MetaControl = 'chips' | 'enum' | 'input';
-
-/** The cell a field edits with. Chips are checked first, so (flagged) an
-    enum with a suggestion source is a chip input here but a select on the
-    generic form. */
-export function companyMetaControl(f: EntityField): MetaControl {
-  if (isChipField(f)) return 'chips';
-  return (f.type || 'text') === 'enum' ? 'enum' : 'input';
-}
-
-/** An input cell's type: date, number (for number and currency), else text. */
-export function metaInputType(fieldType: string): 'date' | 'number' | 'text' {
-  return fieldType === 'date' ? 'date' : (fieldType === 'number' || fieldType === 'currency' ? 'number' : 'text');
-}
-
-/** What an input cell writes: the text, or a number for number and
-    currency; null (delete) when empty or not numeric.
-    Flagged quirk (kept as-is): an empty number writes 0, because Number('') is 0. */
-export function metaInputValue(fieldType: string, raw: string): string | number | null {
-  let val: string | number | null = raw || null;
-  if (fieldType === 'number' || fieldType === 'currency') {
-    const n = Number(raw);
-    val = isNaN(n) ? null : n;
-  }
-  return val;
-}
-
-/** Sections alternate between the columns: 1st, 3rd, … left; 2nd, 4th, … right. */
-export function splitSectionColumns(keys: string[]): { left: string[]; right: string[] } {
-  const left: string[] = [];
-  const right: string[] = [];
-  keys.forEach((key, idx) => {
-    if (idx % 2 === 0) {
-      left.push(key);
-    } else {
-      right.push(key);
-    }
-  });
-  return { left, right };
 }
 
 /* ── Company DETAIL view: a meta row of autosaving cells over the note's sections ── */
@@ -136,7 +101,7 @@ export async function renderCompanyDetail(view: AppViewHost, root: HTMLElement, 
 
     const current = fm[key];
     // Chips (multitext, tags, or has a suggestion source), else a select or an input
-    const control = companyMetaControl(f);
+    const control = metaControl(f);
 
     if (control === 'chips') {
       const { suggestionSource, isPlainChip, isList, targetEntityKey, customFolderPath } = chipConfig(f, ENTITIES, COMPANY_LIST_KEYS);

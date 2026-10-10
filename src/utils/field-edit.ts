@@ -67,8 +67,8 @@ export function isChipField(f: EntityField): boolean {
 /** Keys the generic detail form edits as a list whatever their type. */
 export const DETAIL_LIST_KEYS = ['tags', 'owner', 'assigned', 'contacts', 'domain', 'industry', 'role', 'with', 'related'];
 
-/** The company page's list keys. Flagged: it lacks `tags` (tags fields are
-    lists by type anyway) and `assigned`. */
+/** The company and project pages' list keys. Flagged: it lacks `tags`
+    (tags fields are lists by type anyway) and `assigned`. */
 export const COMPANY_LIST_KEYS = ['owner', 'contacts', 'domain', 'industry', 'role', 'with', 'related'];
 
 export interface ChipConfig {
@@ -222,4 +222,45 @@ export function chipCreation(
     source: suggestionSource === 'history' ? 'folder:Cadence/Shared' : (targetEntityKey || suggestionSource),
     label: entities[targetEntityKey as string] ? entities[targetEntityKey as string].label : 'Note',
   };
+}
+
+export type MetaControl = 'chips' | 'enum' | 'input';
+
+/** The cell a company or project meta-row field edits with. Chips are
+    checked first, so (flagged) an enum with a suggestion source is a chip
+    input on those pages but a select on the generic form. */
+export function metaControl(f: EntityField): MetaControl {
+  if (isChipField(f)) return 'chips';
+  return (f.type || 'text') === 'enum' ? 'enum' : 'input';
+}
+
+/** An input cell's type: date, number (for number and currency), else text. */
+export function metaInputType(fieldType: string): 'date' | 'number' | 'text' {
+  return fieldType === 'date' ? 'date' : (fieldType === 'number' || fieldType === 'currency' ? 'number' : 'text');
+}
+
+/** What an input cell writes: the text, or a number for number and
+    currency; null (delete) when empty or not numeric.
+    Flagged quirk (kept as-is): an empty number writes 0, because Number('') is 0. */
+export function metaInputValue(fieldType: string, raw: string): string | number | null {
+  let val: string | number | null = raw || null;
+  if (fieldType === 'number' || fieldType === 'currency') {
+    const n = Number(raw);
+    val = isNaN(n) ? null : n;
+  }
+  return val;
+}
+
+/** The detail pages' two columns: sections alternate between them: 1st, 3rd, … left; 2nd, 4th, … right. */
+export function splitSectionColumns(keys: string[]): { left: string[]; right: string[] } {
+  const left: string[] = [];
+  const right: string[] = [];
+  keys.forEach((key, idx) => {
+    if (idx % 2 === 0) {
+      left.push(key);
+    } else {
+      right.push(key);
+    }
+  });
+  return { left, right };
 }
