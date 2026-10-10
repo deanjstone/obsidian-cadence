@@ -1,4 +1,4 @@
-import type { CrossSectionConfig } from './modals';
+import type { CrossSectionConfig, WidgetConfig } from './modals';
 import type { Reminder } from './reminders';
 
 /* The subset of plugin settings the extracted helpers read. The full
@@ -44,4 +44,8 @@ export interface AppViewSettings extends DailyNoteSettings {
   pageKanbanGroupBy?: Record<string, string>;
   /** ISO code for currency fields; detail forms show it as the placeholder. */
   currency?: string;
+  /** The Projects dashboard's custom chart widgets. */
+  projectDashboardWidgets?: WidgetConfig[];
+  /** The CRM dashboard's custom chart widgets. */
+  crmDashboardWidgets?: WidgetConfig[];
 }
