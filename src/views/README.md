@@ -51,10 +51,14 @@ Members that are Obsidian's `View` contract and have no logic stay on the class:
 | `today.ts` | `renderTodayPane`, `toggleTodayTask`, `appendTodayTask`, `saveTodayJournal`, `quickAddTodayTask`, plus the pure `todaySummary`, `taskNotesProjectPath`, `customSectionKeys` and `journalRows` |
 | `calendar.ts` | `renderPlannerPane`, `togglePlannerTask` and the `PlannerDay` type, plus the pure `plannerWeekTitle` and `plannerWeek` |
 | `task-links.ts` | `getTaskProjectLink`, `setTaskProjectLink`, `openTaskProjectPicker`, `propagateTaskComplete`, `tickProjectTaskByText`, `tickDailyNoteTaskByText`, plus the pure `taskLinkKey` and `propagationTargets` |
+| `entity-list.ts` | `renderEntityList` (Pipeline, Contacts, Companies, Activities, Projects, the PRM lists, Sequences, Team and custom pages), plus the pure `listLayout`, `listSubtitle`, `filterableKeys`, `filterOptions`, `listColumns`, `filterEntities`, `sortEntities`, `nextSort`, `primaryField`, `tableCell`, `cardStatusField`, `pillText`, `pillClass`, `cardMetaRows` and `cardLinkEntityKey` |
+| `kanban.ts` | `getEntityKanbanParams` and `renderEntityKanban` (no call site; kept and flagged), plus the pure `unwrapLink`, `kanbanGroupBy`, `kanbanOptions`, `distinctGroups`, `kanbanGroupByFields`, `inKanbanGroup`, `kanbanGroups`, `kanbanValueField`, `kanbanColumnMeta`, `kanbanDropValue` and `kanbanCardLinks` |
 
 Use one file per major surface (`home.ts`, `today.ts`, `planner.ts`, `inbox.ts`, `entity-list.ts`, …), as in the map's module layout. Named exports only.
 
 Pure helpers that several surfaces share live in `src/utils/`, not in a surface file. `src/utils/task-lines.ts` ([#13](https://github.com/deanjstone/obsidian-cadence/issues/13)) is the one implementation of checklist lines and the daily-note and project task rewrites (`toggleDailyTask`, `appendDailyTask`, `replaceJournal`, `tickProjectTasks`, `tickDailyTasks`), used by Home, Today, the Calendar and task propagation. When a helper moves out of a surface into `src/utils/`, the surface re-exports it, so existing imports and tests keep working. `home.ts` does this for `toggleTaskLine`, `countTaskLines` and `taskNotesToday`.
+
+The list's kanban layout is drawn inside `renderEntityList`, so `entity-list.ts` imports the **pure** kanban helpers from `kanban.ts` (`kanbanGroups`, `kanbanDropValue`, …). It still reaches `getEntityKanbanParams` through `view.x()`, because that takes the view. ([#14](https://github.com/deanjstone/obsidian-cadence/issues/14))
 
 Components that several surfaces share live in `components/` ([#11](https://github.com/deanjstone/obsidian-cadence/issues/11)). Surfaces still reach them only through `view._x()`, never by import. A component module may import another component's **pure** helper (`sections.ts` uses `sectionChartData`), because pure helpers take no `view`.
 
