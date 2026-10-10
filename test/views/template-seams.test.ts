@@ -241,10 +241,19 @@ describe("sectionInUse and filesUsingTemplateSection", () => {
     }
   });
 
-  it("QUIRK: the default Notes body, a dated first milestone and an empty task count as content", () => {
-    expect(sectionInUse("## Notes #notes\n_Context and general notes..._\n", "Notes #notes")).toBe(true);
-    expect(sectionInUse("## Plan\n- [ ] 2026-10-08 — First milestone in template\n", "Plan")).toBe(true);
-    expect(sectionInUse("## Tasks\n- [ ] \n", "Tasks")).toBe(true);
+  it("the default Notes body, a dated first milestone and an empty task are placeholders, not content", () => {
+    expect(sectionInUse("## Notes #notes\n_Context and general notes..._\n", "Notes #notes")).toBe(false);
+    expect(sectionInUse("## Plan\n- [ ] 2026-10-08 — First milestone in template\n", "Plan")).toBe(false);
+    expect(sectionInUse("## Plan\n- [ ] 2026-10-08 — First milestone\n", "Plan")).toBe(false);
+    expect(sectionInUse("## Tasks\n- [ ] \n", "Tasks")).toBe(false);
+    expect(sectionInUse("## Tasks\n- [ ]\n", "Tasks")).toBe(false);
+  });
+
+  it("a real task or a renamed milestone is still content", () => {
+    expect(sectionInUse("## Tasks\n- [ ] call Ann\n", "Tasks")).toBe(true);
+    expect(sectionInUse("## Tasks\n- [x] \n", "Tasks")).toBe(true);
+    expect(sectionInUse("## Plan\n- [ ] 2026-10-08 — Launch\n", "Plan")).toBe(true);
+    expect(sectionInUse("## Plan\n- [x] 2026-10-08 — First milestone\n", "Plan")).toBe(true);
   });
 
   it("filesUsingTemplateSection: keeps the given order and returns the files", () => {
@@ -265,14 +274,14 @@ describe("sectionInUse and filesUsingTemplateSection", () => {
     ];
     const keys = ["Notes #notes", "Bio #notes", "Description #notes", "Tasks #tasks", "Brief", "Milestones", "Scope", "Today", "Journal"];
     expect(Object.fromEntries(keys.map((k) => [k, filesUsingTemplateSection(notes, k)]))).toEqual({
-      "Notes #notes": ["partner", "registration", "commission", "lead", "certification", "activity", "sequence", "deal"],
+      "Notes #notes": [],
       "Bio #notes": [],
       "Description #notes": [],
       "Tasks #tasks": ["contact"],
       Brief: [],
-      Milestones: ["project"],
+      Milestones: [],
       Scope: ["project"],
-      Today: ["daily"],
+      Today: [],
       Journal: [],
     });
   });

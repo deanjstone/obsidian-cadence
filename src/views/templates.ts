@@ -185,7 +185,7 @@ export async function renderTemplatesDashboard(view: AppViewHost, root: HTMLElem
       e.stopPropagation();
       const templateContent = defaultTemplateContent(entityKey);
 
-      const targetPath = `${templatesFolder}/${entityKey}.md`;
+      const targetPath = foundPath ?? `${templatesFolder}/${entityKey}.md`;
       let tFile = view.app.vault.getAbstractFileByPath(targetPath);
       if (tFile && tFile instanceof TFile) {
         if (!confirm(`Are you sure you want to reset the template for ${def.label}? Your visual changes will be overwritten.`)) return;
@@ -631,11 +631,11 @@ export function deleteSectionMessage(cleanLabel: string, usedNames: string[]): s
   return `Remove the section "${cleanLabel}" from this template?`;
 }
 
-/* Starter bodies that don't count as content. Flagged: '_Context and
-   general notes..._' (most entities' Notes), a dated first milestone and
-   an empty '- [ ]' task are missing, so untouched notes count as in use. */
+/* Starter bodies that don't count as content, matched at the start of the
+   section body. */
 export const TEMPLATE_PLACEHOLDERS = [
   '_Enter your notes here...',
+  '_Context and general notes',
   '_Company description',
   '_Background, interests',
   '_The outcome we want',
@@ -643,13 +643,25 @@ export const TEMPLATE_PLACEHOLDERS = [
   '- [ ] First milestone',
 ];
 
+/* Starter first lines that need a pattern: a dated first milestone (the
+   project template's and the builder's) and an empty unticked task. */
+const TEMPLATE_PLACEHOLDER_PATTERNS = [
+  /^- \[ \] \d{4}-\d{2}-\d{2} — First milestone/,
+  /^- \[ \]\s*(\n|$)/,
+];
+
+function isPlaceholderBody(body: string): boolean {
+  return TEMPLATE_PLACEHOLDERS.some(p => body.startsWith(p))
+    || TEMPLATE_PLACEHOLDER_PATTERNS.some(p => p.test(body));
+}
+
 /* Does the note have the same section (name and tag) with real content? */
 export function sectionInUse(content: string, sectionKey: string): boolean {
   const target = parseHeaderKey(sectionKey);
   const sections = parseH2Sections(content);
   return Object.keys(sections).filter(k => sameSection(k, target)).some((k) => {
     const body = (sections[k] || '').trim();
-    return !!body && !TEMPLATE_PLACEHOLDERS.some(p => body.startsWith(p));
+    return !!body && !isPlaceholderBody(body);
   });
 }
 

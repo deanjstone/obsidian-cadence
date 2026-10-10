@@ -306,15 +306,14 @@ describe("_getFilesUsingTemplateSection", () => {
     expect(await view._getFilesUsingTemplateSection("contact", "Notes #notes")).toEqual([]);
   });
 
-  it("QUIRK: the default '_Context and general notes..._' and a dated first milestone count as content", async () => {
+  it("the default '_Context and general notes..._', a dated first milestone and an empty task don't count as content", async () => {
     const { view, file } = setup([
       note("A", "## Notes #notes\n_Context and general notes..._\n"),
       note("B", "## Notes #notes\n- [ ] 2026-10-08 — First milestone in template\n"),
+      note("D", "## Notes #notes\n- [ ] \n"),
       note("C", "## Notes #notes\n- [ ] Follow up in 2 weeks\n"),
     ]);
-    expect(await view._getFilesUsingTemplateSection("contact", "Notes #notes")).toEqual([
-      file(`${C}/A.md`), file(`${C}/B.md`), file(`${C}/C.md`),
-    ]);
+    expect(await view._getFilesUsingTemplateSection("contact", "Notes #notes")).toEqual([file(`${C}/C.md`)]);
   });
 
   it("only a body that starts with a placeholder is skipped; one later in the body still counts", async () => {
@@ -327,7 +326,7 @@ describe("_getFilesUsingTemplateSection", () => {
     expect(await view._getFilesUsingTemplateSection("Contacts", "Bio")).toEqual([]);
   });
 
-  it("QUIRK: over notes made fresh from each of the 12 default templates, these untouched sections already count as content", async () => {
+  it("over notes made fresh from each of the 12 default templates, only these untouched sections still count as content", async () => {
     const made = makeAppView();
     await ensureDefaultTemplates(made.app as Any);
     const templates = made.app.vault.getFiles().filter((f) => f.path.startsWith(`${T}/`));
@@ -344,11 +343,11 @@ describe("_getFilesUsingTemplateSection", () => {
         if (files.length) (used[key] ??= []).push(rawKey);
       }
     }
+    /* Not fixed by #43 row 6: contact's starter task and project's Scope,
+       Risks and Stakeholders skeletons (tracked in a follow-up issue). */
     expect(used).toEqual({
-      partner: ["Notes #notes"], registration: ["Notes #notes"], commission: ["Notes #notes"], lead: ["Notes #notes"],
-      certification: ["Notes #notes"], activity: ["Notes #notes"], sequence: ["Notes #notes"], deal: ["Notes #notes"],
       contact: ["Tasks #tasks"],
-      project: ["Scope", "Milestones", "Tasks", "Risks", "Stakeholders"],
+      project: ["Scope", "Risks", "Stakeholders"],
     });
   });
 });
