@@ -238,22 +238,26 @@ describe("_renderTemplateSectionWithDelete: × delete", () => {
     expect(await read(`${C}/Ann.md`)).toBe("# Ann\n\n## Tasks #tasks\n- [ ] call\n");
   });
 
-  it("QUIRK: the template delete matches the first line equal to the raw key, heading or not", async () => {
+  it("the template delete matches only the H2 heading, not a plain line equal to the raw key", async () => {
     vi.stubGlobal("confirm", vi.fn(() => true));
     const body = "# x\nBio #notes\nkeep?\n\n## Tasks #tasks\n- [ ] a\n\n## Bio #notes\n_bio_\n";
     const { draw, read } = setup([{ path: `${T}/lead.md`, body }]);
     delButton(draw("Bio #notes", `${T}/lead.md`)).trigger("click");
     await flush();
-    expect(await read(`${T}/lead.md`)).toBe("# x\n## Tasks #tasks\n- [ ] a\n\n## Bio #notes\n_bio_\n");
+    expect(await read(`${T}/lead.md`)).toBe("# x\nBio #notes\nkeep?\n\n## Tasks #tasks\n- [ ] a\n");
   });
 
-  it("QUIRK: the entity key is the template's basename, so a plural-named template (Contacts.md) never propagates its deletes", async () => {
-    vi.stubGlobal("confirm", vi.fn(() => true));
-    const { draw, read } = setup([{ path: `${T}/Contacts.md`, body: TEMPLATE }, note("Ann", "## Bio #notes\nLikes tea\n")]);
-    delButton(draw("Bio #notes", `${T}/Contacts.md`)).trigger("click");
-    await flush();
-    expect(await read(`${T}/Contacts.md`)).not.toContain("## Bio");
-    expect(await read(`${C}/Ann.md`)).toBe("## Bio #notes\nLikes tea\n");
+  it("a template found at a label or plural path (Contacts.md, Contact.md) resolves to its entity, so its deletes propagate and warn", async () => {
+    for (const name of ["Contacts", "Contact", "contacts"]) {
+      const confirm = vi.fn((_message: string) => true);
+      vi.stubGlobal("confirm", confirm);
+      const { draw, read } = setup([{ path: `${T}/${name}.md`, body: TEMPLATE }, note("Ann", "## Bio #notes\nLikes tea\n")]);
+      delButton(draw("Bio #notes", `${T}/${name}.md`)).trigger("click");
+      await flush();
+      expect(confirm.mock.calls[0][0]).toContain("has active content in the following files:\nAnn");
+      expect(await read(`${T}/${name}.md`)).not.toContain("## Bio");
+      expect(await read(`${C}/Ann.md`)).toBe("");
+    }
   });
 
   it("deleting from the daily template removes the section from every daily note", async () => {

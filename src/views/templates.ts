@@ -357,7 +357,7 @@ export function renderTemplateSectionWithDelete(
   view: AppViewHost, parent: HTMLElement, file: TFile, sections: Record<string, string>, rawKey: string,
   flashSaved?: FlashSaved, allRawKeys?: string[],
 ): void {
-  const entityKey = file.basename;
+  const entityKey = templateEntityKey(file.basename);
   const { cleanLabel, tag } = parseHeaderKey(rawKey);
 
   // Outer wrapper — draggable to support reordering
@@ -482,6 +482,17 @@ export function templatePathCandidates(folder: string, entityKey: string, def: P
   ];
 }
 
+/* The entity a template file is for, from its basename: an entity key,
+   label or plural (any case, as templatePathCandidates finds them), or
+   'daily'. An unknown basename is returned as-is. */
+export function templateEntityKey(basename: string): EntityKey | 'daily' {
+  const name = basename.toLowerCase();
+  if (name === 'daily') return 'daily';
+  const match = Object.entries(ENTITIES).find(([key, def]) =>
+    [key, def.label, def.plural].some(n => n.toLowerCase() === name));
+  return match ? match[0] : basename;
+}
+
 /* A tile's status pill. */
 export function templateBadge(exists: boolean): { cls: string; text: string } {
   return {
@@ -575,12 +586,12 @@ export function propagateSectionDelete(content: string, sectionKey: string): str
   return removed ? lines.join('\n') : null;
 }
 
-/* Remove a section from the template itself, matched by its exact raw key.
-   Flagged: the match is the first line that reads as the key once trimmed
-   and stripped of a leading "## ", heading or not. null = not found. */
+/* Remove a section from the template itself: the first H2 heading whose
+   key (as parseH2Sections reads it) is exactly the raw key, up to the next
+   H2. A plain line with the same text is not a heading. null = not found. */
 export function removeTemplateSection(content: string, rawKey: string): string | null {
   const lines = content.split('\n');
-  const idx = lines.findIndex(l => l.trim().replace(/^##\s+/, '') === rawKey);
+  const idx = lines.findIndex(l => /^##\s/.test(l) && l.replace(/^##\s+/, '').trim() === rawKey);
   if (idx === -1) return null;
   spliceSection(lines, idx);
   return lines.join('\n');

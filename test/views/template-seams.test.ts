@@ -6,7 +6,7 @@ import { DAILY_TEMPLATE_CONTENT, defaultTemplateContent, ensureDefaultTemplates 
 import {
   appendTemplateSection, chartSectionBlock, crossSectionBlock, deleteSectionMessage, filesUsingTemplateSection,
   moveTemplateSection, propagateSectionAdd, propagateSectionDelete, removeTemplateSection, sectionInUse,
-  templateBadge, templateDetailDef, templateHeader, templatePathCandidates, type TemplateNote,
+  templateBadge, templateDetailDef, templateEntityKey, templateHeader, templatePathCandidates, type TemplateNote,
 } from "../../src/views/templates";
 
 /* Direct tests for the Templates surface's plain-data seams: the dashboard's
@@ -35,6 +35,11 @@ describe("dashboard and builder seams", () => {
     expect(templatePathCandidates("X", "myThing", { label: "My Thing", plural: "My Things" })).toEqual([
       "X/myThing.md", "X/My Thing.md", "X/My Things.md", "X/mything.md", "X/my thing.md", "X/my things.md",
     ]);
+  });
+
+  it("templateEntityKey: the entity a template file's basename names (key, label or plural, any case), daily, or the basename", () => {
+    expect(["contact", "Contact", "Contacts", "CONTACTS"].map(templateEntityKey)).toEqual(["contact", "contact", "contact", "contact"]);
+    expect(["deal", "Deals", "daily", "Daily", "Ghost"].map(templateEntityKey)).toEqual(["deal", "deal", "daily", "daily", "Ghost"]);
   });
 
   it("templateBadge: active or default", () => {
@@ -185,8 +190,9 @@ describe("removeTemplateSection", () => {
     expect(removeTemplateSection(NOTE, "bio #notes")).toBeNull();
   });
 
-  it("QUIRK: matches the first line that reads as the key, heading or not", () => {
-    expect(removeTemplateSection("Bio #notes\nkeep?\n## Bio #notes\nx\n", "Bio #notes")).toBe("## Bio #notes\nx\n");
+  it("matches only an H2 heading line, never a plain line with the same text", () => {
+    expect(removeTemplateSection("Bio #notes\nkeep?\n\n## Bio #notes\nx\n", "Bio #notes")).toBe("Bio #notes\nkeep?\n");
+    expect(removeTemplateSection("Bio #notes\n  ## Bio #notes\n### Bio #notes\n", "Bio #notes")).toBeNull();
   });
 });
 
