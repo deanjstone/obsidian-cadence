@@ -46,14 +46,15 @@ export function dueReminders(reminders: Reminder[], now: number): Reminder[] {
   return reminders.filter((r) => isDue(r, now));
 }
 
-/* The next occurrence of a repeating reminder that just fired, one repeat
-   after its own `when` (not after `now`), or null for a one-off. It keeps
-   the reminder's notes and project link.
-   QUIRK (#22): a series missed for several periods catches up one
-   occurrence per tick. */
+/* The next occurrence of a repeating reminder: the first one in its series
+   after `now`, stepping from its own `when` so the time of day holds. A
+   series missed for several periods skips the missed ones (#44). Null for
+   a one-off, an unscheduled or an unparseable reminder. It keeps the
+   reminder's notes and project link. */
 export function advanceReminder(r: Reminder, now: Date): Reminder | null {
-  const next = nextRepeat(new Date(r.when as string), r.repeat);
-  if (!next) return null;
+  let next = nextRepeat(r.when, r.repeat);
+  if (!next || isNaN(next.getTime())) return null;
+  while (next.getTime() <= now.getTime()) next = nextRepeat(next, r.repeat) as Date;
   return {
     id: reminderId(),
     text: r.text,

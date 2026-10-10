@@ -293,17 +293,25 @@ describe("tickReminders", () => {
     expect(plugin.settings.reminders[1]).toMatchObject({ notes: "agenda", project: "Cadence/Projects/Apollo.md" });
   });
 
-  it("QUIRK: a series missed for days catches up one occurrence per tick", async () => {
+  it("a series missed for days fires once, then skips to the next future occurrence", async () => {
     const { plugin } = await makeLoadedPlugin({ data: { reminders: [reminder({ repeat: "daily", when: iso(-3 * DAY) })] } });
     plugin.tickReminders();
     expect(Notice.messages).toHaveLength(1);
     plugin.tickReminders();
     plugin.tickReminders();
     plugin.tickReminders();
-    expect(Notice.messages).toHaveLength(4);
-    expect(plugin.settings.reminders.map((r: Any) => r.when)).toEqual([
-      iso(-3 * DAY), iso(-2 * DAY), iso(-DAY), iso(0), iso(DAY),
-    ]);
+    expect(Notice.messages).toHaveLength(1);
+    expect(plugin.settings.reminders.map((r: Any) => r.when)).toEqual([iso(-3 * DAY), iso(DAY)]);
+  });
+
+  it("a weekly series missed for weeks keeps its time of day and weekday when it skips ahead", async () => {
+    const { plugin } = await makeLoadedPlugin({ data: { reminders: [reminder({ repeat: "weekly", when: iso(-15 * DAY - 5 * MIN) })] } });
+    plugin.tickReminders();
+    expect(plugin.settings.reminders[1].when).toBe(iso(6 * DAY - 5 * MIN));
+    vi.setSystemTime(NOW.getTime() + 6 * DAY - 5 * MIN);
+    plugin.tickReminders();
+    expect(Notice.messages).toHaveLength(2);
+    expect(plugin.settings.reminders[2].when).toBe(iso(13 * DAY - 5 * MIN));
   });
 
   it("runs every 30 seconds once the plugin has loaded", async () => {

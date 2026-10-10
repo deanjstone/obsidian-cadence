@@ -92,9 +92,20 @@ describe("advanceReminder", () => {
     expect(next).toMatchObject({ notes: "n", project: "P.md" });
   });
 
-  it("QUIRK: an overdue occurrence can still be in the past", () => {
+  it("an overdue occurrence skips to the first occurrence after now", () => {
     const next = advanceReminder(reminder({ repeat: "daily", when: new Date(T - 3 * DAY).toISOString() }), NOW)!;
-    expect(isDue(next, T)).toBe(true);
+    expect(isDue(next, T)).toBe(false);
+    expect(next.when).toBe(new Date(T + DAY).toISOString());
+  });
+
+  it("an occurrence landing exactly on now is skipped too, so it never fires twice in a row", () => {
+    expect(advanceReminder(reminder({ repeat: "daily", when: new Date(T - DAY).toISOString() }), NOW)?.when)
+      .toBe(new Date(T + DAY).toISOString());
+  });
+
+  it("returns null for an unscheduled or unparseable reminder", () => {
+    expect(advanceReminder(reminder({ repeat: "daily", when: null }), NOW)).toBeNull();
+    expect(advanceReminder(reminder({ repeat: "daily", when: "soon" }), NOW)).toBeNull();
   });
 });
 
