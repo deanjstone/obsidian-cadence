@@ -10636,4 +10636,4 @@ export { CadencePlugin };
 
 /* Characterization seam: exposed so tests can pin current behaviour before
    extraction into src/. */
-export { CadenceImportModal };
+export { CadenceImportModal, CadenceCaptureModal, CadenceReminderEditModal };
