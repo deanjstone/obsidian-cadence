@@ -201,14 +201,16 @@ export interface AppViewHost {
   _propagateTemplateSectionAdd(entityKey: EntityKey | 'daily', cleanTitle: string, tag: string, defaultBody?: string): Promise<void>;
   _propagateTemplateSectionDelete(entityKey: EntityKey | 'daily', rawKey: string): Promise<void>;
 
-  /* ── Called by the shell, owned by later view tickets ── */
-  renderPRMAnalytics(root: HTMLElement): Promise<void>;
+  /* ── Reports (src/views/reports.ts) ── */
   renderReportPipeline(root: HTMLElement): Promise<void>;
   renderReportSales(root: HTMLElement): Promise<void>;
   renderReportPartners(root: HTMLElement): Promise<void>;
   renderReportActivity(root: HTMLElement): Promise<void>;
-  renderReportGraph(root: HTMLElement): Promise<void>;
   renderProductivity(root: HTMLElement): Promise<void>;
+
+  /* ── Called by the shell, owned by later view tickets ── */
+  renderPRMAnalytics(root: HTMLElement): Promise<void>;
+  renderReportGraph(root: HTMLElement): Promise<void>;
   renderTeam(root: HTMLElement): Promise<void>;
 }
 

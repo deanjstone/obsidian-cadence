@@ -13,7 +13,7 @@ export interface DashMetaPart {
 export interface DashCardRow {
   title?: string;
   /** When set, the title is rendered as links to this entity. */
-  titleEntityKey?: string;
+  titleEntityKey?: string | null;
   /** Used only when metaParts is absent. */
   meta?: string;
   metaParts?: DashMetaPart[];
