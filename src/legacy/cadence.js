@@ -9804,4 +9804,4 @@ class CadencePlugin extends obsidian.Plugin {
   }
 }
 
-export { CadencePlugin };
+export { CadencePlugin, CadenceAppView };
