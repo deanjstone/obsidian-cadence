@@ -42,7 +42,7 @@ Members that are Obsidian's `View` contract and have no logic stay on the class:
 | `host.ts` | `AppViewHost` (the view state and every member a moved surface uses), `AppViewPlugin` and `PromptOptions` |
 | `nav.ts` | `migrateModeId`, `resolveSurface`, `visibleNavGroups`, `modeUsesEntityFolder`, `routeFor` (pure), plus `toggleMobileNav`, `toggleCadenceDark`, `setMode` and `toggleGroup` |
 | `app-view.ts` | `initAppViewState`, `onOpenAppView`, `renderAppView`, the entity-detail open/close functions, `renderComingSoon`, `renderPageHeader`, `openSettingsTab`, `openPrompt`, `createEntityFromPrompt` and the pure `planEntityLinks` |
-| `components/charts.ts` | `drawChart`, `drawChartEmpty`, `drawDonutChart`, `drawBarChart`, `drawKpiGrid`, `drawSimpleList`, plus the pure `chartData`, `sectionChartData`, `donutGeometry`, `barRows` and `kpiCards` |
+| `components/charts.ts` | `drawChart`, `drawChartEmpty`, `drawDonutChart`, `drawBarChart`, `drawKpiGrid`, `drawSimpleList`, plus the pure `chartData`, `sectionChartData`, `donutGeometry`, `barRows`, `kpiCards` and the dashboard widget helpers `dashboardWidgets`, `removeWidget` and `WIDGET_STYLE_OPTIONS` |
 | `components/cards.ts` | `dashCardSection` |
 | `components/entity-table.ts` | `renderEntityLinks`, `renderOwnerLinks`, `renderEntityTable` and `getEntityFiles` |
 | `components/sections.ts` | `renderMarkdownTextCard`, `renderProjectTextSection`, `renderGenericTextSection`, `renderSingleCrossSection`, `renderCrossSections`, `renderDynamicH2Section`, plus the pure `linksTo`, `crossSectionRows` and `dynamicH2Kind` |
@@ -56,6 +56,8 @@ Members that are Obsidian's `View` contract and have no logic stay on the class:
 | `entity-detail.ts` | `renderEntityDetail` (the generic detail form; hands projects and companies to their own views), plus the pure `entityDetailTitle`, `detailFields` and `detailControl` |
 | `company-detail.ts` | `renderCompanyDetail`, plus the pure `companyDetailTitle` and `companyMetaFields`. It re-exports `companyMetaControl` (`metaControl`), `metaInputType`, `metaInputValue` and `splitSectionColumns` from `src/utils/field-edit.ts` |
 | `project-detail.ts` | `renderProjectDetail`, `renderMilestoneSection`, `renderTaskSection`, and the write paths `saveMilestones`, `saveTasks` and `saveProjectFrontmatter`, plus the pure `projectDetailTitle`, `projectPills`, `projectMetaFields`, `writeProjectFrontmatter`, `projectProgress`, `projectTextSection`, `milestoneCardTitle`, `milestoneDateValue`, `milestoneDateFromInput`, `commitMilestones`, `updateItem`, `removeItem`, `addMilestone`, `taskCardTitle`, `taskNotesItems`, `commitTasks`, `addTask`, `taskBell`, `newTaskReminder`, `taskNotePath` and `taskNoteContent` |
+| `projects-dashboard.ts` | `renderProjectsDashboard` and `renderProjectsView` (no call site; kept and flagged), plus the pure `projectsSummary`, `dashboardOptions`, `statusAccent`, `priorityAccent`, `projectRowName`, `dashRowPill`, `acceptsDrop`, `projectsViewGroups` and `projectCardPills` |
+| `crm-dashboard.ts` | `renderCrmDashboard` (the class's `renderDashboard`), plus the pure `dealValue`, `crmSummary`, `crmStatCards`, `pipelineByStage`, `hotDeals`, `staleDeals`, `recentActivities` and `customerBase` |
 
 Use one file per major surface (`home.ts`, `today.ts`, `planner.ts`, `inbox.ts`, `entity-list.ts`, …), as in the map's module layout. Named exports only.
 
@@ -69,7 +71,7 @@ The project page ([#16](https://github.com/deanjstone/obsidian-cadence/issues/16
 
 The list's kanban layout is drawn inside `renderEntityList`, so `entity-list.ts` imports the **pure** kanban helpers from `kanban.ts` (`kanbanGroups`, `kanbanDropValue`, …). It still reaches `getEntityKanbanParams` through `view.x()`, because that takes the view. ([#14](https://github.com/deanjstone/obsidian-cadence/issues/14))
 
-Components that several surfaces share live in `components/` ([#11](https://github.com/deanjstone/obsidian-cadence/issues/11)). Surfaces still reach them only through `view._x()`, never by import. A component module may import another component's **pure** helper (`sections.ts` uses `sectionChartData`), because pure helpers take no `view`.
+Components that several surfaces share live in `components/` ([#11](https://github.com/deanjstone/obsidian-cadence/issues/11)). Surfaces still reach their DOM functions only through `view._x()`, never by import. A component's **pure** helpers take no `view`, so another component or a surface may import them: `sections.ts` uses `sectionChartData`, and both dashboards ([#17](https://github.com/deanjstone/obsidian-cadence/issues/17)) count their widgets with `chartData` and read and remove them with `dashboardWidgets` and `removeWidget`. The drawing still goes through `view._drawChart`.
 
 ## How a view ticket applies the loop
 
@@ -92,5 +94,5 @@ Components that several surfaces share live in `components/` ([#11](https://gith
 - **A markdown write path is a `(content, input) → content` transform.** The surface reads the file, calls the transform and writes the result. When a write is conditional, the transform returns `null` for "no change" (`tickProjectTasks`).
 - **An inline class keeps its own `this`.** `_openTaskProjectPicker` declared `const view = this;` for its inline `SuggestModal` to close over. The moved function drops that line, because `view` is already the parameter, and leaves `this` alone inside the class body. The verbatim check strips the alias line and restores the class's `this` before comparing.
 - **When a moved method's name is taken by its pure seam**, name the moved function after what it does with the view. `_computeBriefing` became `loadBriefing`, because the pure `computeBriefing` is the briefing maths.
-- **A seam whose callers belong to a later ticket** can land unwired, as long as it is tested and its doc comment names the callers that will adopt it. `chartData` is an example: it is the dashboards' counting loop, and the dashboard tickets swap it in.
+- **A seam whose callers belong to a later ticket** can land unwired, as long as it is tested and its doc comment names the callers that will adopt it. `chartData` is an example: it landed with #11 as the dashboards' counting loop. #17 swapped it into the Projects and CRM dashboards, and the PRM dashboard (#20) still inlines the loop. When a ticket swaps an unwired seam in, its PR shows the inline copy and the seam are the same code after esbuild normalisation, and the characterization tests that count through the dashboard stay unchanged.
 - Run `pnpm typecheck && pnpm test && pnpm build`, and check that `git diff --exit-code -- main.js` is clean after the build. The registration-parity smoke test must be green with its snapshot unedited.
