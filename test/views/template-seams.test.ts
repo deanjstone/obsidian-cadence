@@ -1,0 +1,291 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createMockApp } from "../mocks/obsidian";
+import { ENTITIES } from "../../src/constants/entities";
+import { appendSection, replaceSection } from "../../src/utils/parsing";
+import { DAILY_TEMPLATE_CONTENT, defaultTemplateContent, ensureDefaultTemplates } from "../../src/utils/templates";
+import {
+  appendTemplateSection, chartSectionBlock, crossSectionBlock, deleteSectionMessage, filesUsingTemplateSection,
+  moveTemplateSection, propagateSectionAdd, propagateSectionDelete, removeTemplateSection, sectionInUse,
+  templateBadge, templateDetailDef, templateHeader, templatePathCandidates, type TemplateNote,
+} from "../../src/views/templates";
+
+/* Direct tests for the Templates surface's plain-data seams: the dashboard's
+   lookup and badges, the builder's block configs, and the section add,
+   delete, move and in-use transforms, including propagation over a fake
+   vault of several notes. */
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Any = any;
+
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"], now: new Date("2026-10-08T10:00:00Z") });
+});
+afterEach(() => {
+  vi.useRealTimers();
+});
+
+const T = "Cadence/Templates";
+const NOTE = "# Ann\n\n## Bio #notes\nLikes tea\n\n## Tasks #tasks\n- [ ] call\n\n## Links #cross-deal-contact-table\n";
+
+describe("dashboard and builder seams", () => {
+  it("templatePathCandidates: key, label, plural, then each lower-cased", () => {
+    expect(templatePathCandidates(T, "deal", ENTITIES.deal)).toEqual([
+      `${T}/deal.md`, `${T}/Deal.md`, `${T}/Deals.md`, `${T}/deal.md`, `${T}/deal.md`, `${T}/deals.md`,
+    ]);
+    expect(templatePathCandidates("X", "myThing", { label: "My Thing", plural: "My Things" })).toEqual([
+      "X/myThing.md", "X/My Thing.md", "X/My Things.md", "X/mything.md", "X/my thing.md", "X/my things.md",
+    ]);
+  });
+
+  it("templateBadge: active or default", () => {
+    expect(templateBadge(true)).toEqual({ cls: "cad-pill cad-pill-active", text: "Active Template" });
+    expect(templateBadge(false)).toEqual({ cls: "cad-pill cad-pill-backlog", text: "Default" });
+  });
+
+  it("templateDetailDef: the entity's def, or a Daily Note stand-in", () => {
+    expect(templateDetailDef("company")).toBe(ENTITIES.company);
+    expect(templateDetailDef("daily")).toEqual({ label: "Daily Note", plural: "Daily Notes", fields: [] });
+  });
+
+  it("crossSectionBlock: the cross tag and a Related <plural> title, or Related Links", () => {
+    expect(crossSectionBlock({ targetEntity: "deal", linkField: "contact", viewType: "kanban" } as Any)).toEqual({
+      tag: "#cross-deal-contact-kanban", title: "Related Deals",
+    });
+    expect(crossSectionBlock({ targetEntity: "ghost", linkField: "owner", viewType: "table" } as Any).title).toBe("Related Links");
+  });
+
+  it("chartSectionBlock: the chart tag and a '<plural> by <field>' title, or the raw key", () => {
+    expect(chartSectionBlock({ targetEntity: "deal", linkField: "contact", groupField: "stage", style: "donut" } as Any)).toEqual({
+      tag: "#chart-deal-contact-stage-donut", title: "Deals by stage",
+    });
+    expect(chartSectionBlock({ targetEntity: "ghost", linkField: "o", groupField: "kind", style: "bar" } as Any).title).toBe("ghost by kind");
+  });
+
+  it("deleteSectionMessage: names the notes with content, or asks plainly", () => {
+    expect(deleteSectionMessage("Bio", ["Ann", "Bob"])).toBe(
+      'Warning: The section "Bio" has active content in the following files:\nAnn, Bob\n\nAre you sure you want to delete it from the template?',
+    );
+    expect(deleteSectionMessage("Bio", [])).toBe('Remove the section "Bio" from this template?');
+  });
+});
+
+describe("default template content (src/utils/templates.ts)", () => {
+  it("is what ensureDefaultTemplates writes for all 12 templates", async () => {
+    const app = createMockApp();
+    await ensureDefaultTemplates(app as Any);
+    for (const key of Object.keys(ENTITIES)) {
+      expect(await app.vault.read(app.vault.getAbstractFileByPath(`${T}/${key}.md`) as Any)).toBe(defaultTemplateContent(key));
+    }
+    expect(await app.vault.read(app.vault.getAbstractFileByPath(`${T}/daily.md`) as Any)).toBe(DAILY_TEMPLATE_CONTENT);
+    expect(DAILY_TEMPLATE_CONTENT).toBe("# {{date}}\n\n## Today\n- [ ] \n\n## Journal\n\n");
+  });
+
+  it("gives each entity its starter sections", () => {
+    const tails = Object.fromEntries(Object.keys(ENTITIES).map((k) => [k, defaultTemplateContent(k).match(/^## .*$/gm)]));
+    expect(tails).toEqual({
+      contact: ["## Bio #notes", "## Tasks #tasks"],
+      company: ["## Description #notes", "## Contacts #cross-contact-company-table", "## Deals #cross-deal-company-kanban"],
+      partner: ["## Notes #notes"], registration: ["## Notes #notes"], commission: ["## Notes #notes"], lead: ["## Notes #notes"],
+      certification: ["## Notes #notes"], activity: ["## Notes #notes"], sequence: ["## Notes #notes"], deal: ["## Notes #notes"],
+      project: ["## Brief", "## Scope", "## Milestones", "## Tasks", "## Risks", "## Stakeholders", "## Notes"],
+    });
+  });
+});
+
+describe("appending a section", () => {
+  it("templateHeader: '## title tag', with no trailing space for a blank tag", () => {
+    expect(templateHeader("Ideas", "#notes")).toBe("## Ideas #notes");
+    expect(templateHeader("Ideas", "")).toBe("## Ideas");
+  });
+
+  it("appendSection: trims trailing whitespace, then a blank line, heading, body and newline", () => {
+    expect(appendSection("# x\n\n  \n", "## A", "body")).toBe("# x\n\n## A\nbody\n");
+    expect(appendSection("", "## A", "")).toBe("\n\n## A\n\n");
+  });
+
+  it("replaceSection appends with appendSection when the heading is missing", () => {
+    expect(replaceSection("# x\n", "## A", "b")).toBe(appendSection("# x\n", "## A", "b"));
+  });
+
+  it("appendTemplateSection: appends even when the template has the section already", () => {
+    expect(appendTemplateSection(NOTE, "Bio", "#notes", "_x_")).toBe(NOTE.trimEnd() + "\n\n## Bio #notes\n_x_\n");
+    expect(appendTemplateSection("# x", "Deals", "#cross-deal-contact-table")).toBe("# x\n\n## Deals #cross-deal-contact-table\n\n");
+  });
+});
+
+describe("propagateSectionAdd", () => {
+  it("appends the section to a note without it", () => {
+    expect(propagateSectionAdd("# Cy\n", { cleanTitle: "Ideas", tag: "#notes", defaultBody: "_x_" })).toBe("# Cy\n\n## Ideas #notes\n_x_\n");
+  });
+
+  it("defaults the body to empty", () => {
+    expect(propagateSectionAdd("# Cy", { cleanTitle: "Deals", tag: "#cross-deal-contact-table" })).toBe("# Cy\n\n## Deals #cross-deal-contact-table\n\n");
+  });
+
+  it("returns null when the note has a same-named section, whatever its tag or case", () => {
+    for (const heading of ["## Ideas #notes", "## ideas", "## IDEAS #tasks", "##   Ideas   #notes"]) {
+      expect(propagateSectionAdd(`# Cy\n${heading}\nx\n`, { cleanTitle: "Ideas", tag: "#notes" })).toBeNull();
+    }
+  });
+
+  it("an indented or ###-level heading is not a section", () => {
+    expect(propagateSectionAdd("  ## Ideas\n### Ideas\n", { cleanTitle: "Ideas", tag: "" })).toBe("  ## Ideas\n### Ideas\n\n## Ideas\n\n");
+  });
+
+  it("QUIRK: a null title throws once the note has any section, and appends '## null' otherwise", () => {
+    const section = { cleanTitle: null as unknown as string, tag: "#notes" };
+    expect(() => propagateSectionAdd("## Bio\nx\n", section)).toThrow(TypeError);
+    expect(propagateSectionAdd("# Cy\n", section)).toBe("# Cy\n\n## null #notes\n\n");
+  });
+});
+
+describe("propagateSectionDelete", () => {
+  it("removes the same-named section up to the next H2", () => {
+    expect(propagateSectionDelete(NOTE, "Tasks #tasks")).toBe("# Ann\n\n## Bio #notes\nLikes tea\n\n## Links #cross-deal-contact-table\n");
+  });
+
+  it("matches by name only, case-insensitively", () => {
+    expect(propagateSectionDelete(NOTE, "BIO #milestones")).toBe("# Ann\n\n## Tasks #tasks\n- [ ] call\n\n## Links #cross-deal-contact-table\n");
+  });
+
+  it("removes a last section to the end of the note", () => {
+    expect(propagateSectionDelete(NOTE, "Links")).toBe("# Ann\n\n## Bio #notes\nLikes tea\n\n## Tasks #tasks\n- [ ] call\n");
+  });
+
+  it("removes only the first of two same-named sections", () => {
+    expect(propagateSectionDelete("## Bio\none\n## Bio #notes\ntwo\n", "Bio #notes")).toBe("## Bio #notes\ntwo\n");
+  });
+
+  it("returns null when no H2 matches (indented headings and plain lines don't)", () => {
+    expect(propagateSectionDelete("  ## Bio\nBio\n### Bio\n", "Bio")).toBeNull();
+    expect(propagateSectionDelete("", "Bio")).toBeNull();
+  });
+});
+
+describe("removeTemplateSection", () => {
+  it("removes the section with this exact raw key", () => {
+    expect(removeTemplateSection(NOTE, "Bio #notes")).toBe("# Ann\n\n## Tasks #tasks\n- [ ] call\n\n## Links #cross-deal-contact-table\n");
+  });
+
+  it("returns null when the tag or case differs", () => {
+    expect(removeTemplateSection(NOTE, "Bio #tasks")).toBeNull();
+    expect(removeTemplateSection(NOTE, "bio #notes")).toBeNull();
+  });
+
+  it("QUIRK: matches the first line that reads as the key, heading or not", () => {
+    expect(removeTemplateSection("Bio #notes\nkeep?\n## Bio #notes\nx\n", "Bio #notes")).toBe("## Bio #notes\nx\n");
+  });
+});
+
+describe("moveTemplateSection", () => {
+  it("moves a section up, before the target", () => {
+    expect(moveTemplateSection(NOTE, "Tasks #tasks", "Bio #notes")).toBe(
+      "# Ann\n\n## Tasks #tasks\n- [ ] call\n\n## Bio #notes\nLikes tea\n\n## Links #cross-deal-contact-table\n",
+    );
+  });
+
+  it("moves a section down, directly before the target", () => {
+    expect(moveTemplateSection(NOTE, "Bio #notes", "Links #cross-deal-contact-table")).toBe(
+      "# Ann\n\n## Tasks #tasks\n- [ ] call\n\n## Bio #notes\nLikes tea\n\n## Links #cross-deal-contact-table\n",
+    );
+  });
+
+  it("QUIRK: a last section without a trailing blank line runs into the next heading", () => {
+    expect(moveTemplateSection("## A\na\n\n## B\nb", "B", "A")).toBe("## B\nb\n## A\na\n");
+  });
+
+  it("returns null for the same key, or a key that is not an H2", () => {
+    expect(moveTemplateSection(NOTE, "Bio #notes", "Bio #notes")).toBeNull();
+    expect(moveTemplateSection(NOTE, "Ghost", "Bio #notes")).toBeNull();
+    expect(moveTemplateSection(NOTE, "Bio #notes", "Ghost")).toBeNull();
+    expect(moveTemplateSection("Bio\n## Tasks\nx\n", "Bio", "Tasks")).toBeNull();
+  });
+});
+
+describe("sectionInUse and filesUsingTemplateSection", () => {
+  it("sectionInUse: a same-named section (any tag, any case) with non-placeholder content", () => {
+    expect(sectionInUse("## Bio #notes\nLikes tea\n", "Bio #notes")).toBe(true);
+    expect(sectionInUse("## BIO #tasks\nx\n", "bio")).toBe(true);
+    expect(sectionInUse("## Bio\n\n  \n", "Bio")).toBe(false);
+    expect(sectionInUse("## Biography\nx\n", "Bio")).toBe(false);
+    expect(sectionInUse("no sections", "Bio")).toBe(false);
+  });
+
+  it("sectionInUse: placeholder bodies don't count, even with more lines after them", () => {
+    for (const body of [
+      "_Enter your notes here..._", "_Company description and profile..._", "_Background, interests, and how we met..._",
+      "_The outcome we want, why now._", "- [ ] First task in template", "- [ ] First milestone",
+    ]) {
+      expect(sectionInUse(`## Notes\n${body}\nmore\n`, "Notes")).toBe(false);
+    }
+  });
+
+  it("QUIRK: the default Notes body, a dated first milestone and an empty task count as content", () => {
+    expect(sectionInUse("## Notes #notes\n_Context and general notes..._\n", "Notes")).toBe(true);
+    expect(sectionInUse("## Plan\n- [ ] 2026-10-08 — First milestone in template\n", "Plan")).toBe(true);
+    expect(sectionInUse("## Tasks\n- [ ] \n", "Tasks")).toBe(true);
+  });
+
+  it("filesUsingTemplateSection: keeps the given order and returns the files", () => {
+    const notes: Array<TemplateNote<string>> = [
+      { file: "a", content: "## Bio\nx\n" },
+      { file: "b", content: "## Bio\n" },
+      { file: "c", content: "## bio #notes\ny\n" },
+    ];
+    expect(filesUsingTemplateSection(notes, "Bio #notes")).toEqual(["a", "c"]);
+    expect(filesUsingTemplateSection([], "Bio")).toEqual([]);
+  });
+
+  it("over a vault of notes made from the 12 default templates, reports which sections count as used", () => {
+    const notes: Array<TemplateNote<string>> = [
+      ...Object.keys(ENTITIES).map((key) => ({ file: key, content: defaultTemplateContent(key).replaceAll("{{name}}", key) })),
+      { file: "daily", content: DAILY_TEMPLATE_CONTENT },
+    ];
+    const keys = ["Notes #notes", "Bio #notes", "Description #notes", "Tasks #tasks", "Brief", "Milestones", "Scope", "Today", "Journal"];
+    expect(Object.fromEntries(keys.map((k) => [k, filesUsingTemplateSection(notes, k)]))).toEqual({
+      "Notes #notes": ["partner", "registration", "commission", "lead", "certification", "activity", "sequence", "deal"],
+      "Bio #notes": [],
+      "Description #notes": [],
+      "Tasks #tasks": ["contact", "project"],
+      Brief: [],
+      Milestones: ["project"],
+      Scope: ["project"],
+      Today: ["daily"],
+      Journal: [],
+    });
+  });
+});
+
+describe("propagation over a fake vault of several notes", () => {
+  const vault = (): Array<TemplateNote<string>> => [
+    { file: "Ann", content: "# Ann\n\n## Bio #notes\nhi\n\n\n" },
+    { file: "Bob", content: "# Bob\n\n## ideas #tasks\n- [ ] x\n" },
+    { file: "Cy", content: "# Cy\n" },
+    { file: "Di", content: "## Ideas\none\n## Ideas #notes\ntwo\n" },
+  ];
+  const writes = (notes: Array<TemplateNote<string>>, edit: (content: string) => string | null) =>
+    notes.flatMap((n) => {
+      const next = edit(n.content);
+      return next === null ? [] : [{ file: n.file, content: next }];
+    });
+
+  it("an added section goes to every note without a same-named section", () => {
+    expect(writes(vault(), (c) => propagateSectionAdd(c, { cleanTitle: "Ideas", tag: "#notes", defaultBody: "_x_" }))).toEqual([
+      { file: "Ann", content: "# Ann\n\n## Bio #notes\nhi\n\n## Ideas #notes\n_x_\n" },
+      { file: "Cy", content: "# Cy\n\n## Ideas #notes\n_x_\n" },
+    ]);
+  });
+
+  it("a deleted section comes out of every note that has it, first match only", () => {
+    expect(writes(vault(), (c) => propagateSectionDelete(c, "Ideas #notes"))).toEqual([
+      { file: "Bob", content: "# Bob\n" },
+      { file: "Di", content: "## Ideas #notes\ntwo\n" },
+    ]);
+  });
+
+  it("add then delete of a new section restores the notes up to trailing whitespace", () => {
+    const added = vault().map((n) => ({ ...n, content: propagateSectionAdd(n.content, { cleanTitle: "Fresh", tag: "#notes" }) ?? n.content }));
+    const removed = added.map((n) => ({ ...n, content: propagateSectionDelete(n.content, "Fresh #notes") ?? n.content }));
+    expect(removed.map((n) => n.content.trimEnd())).toEqual(vault().map((n) => n.content.trimEnd()));
+  });
+});

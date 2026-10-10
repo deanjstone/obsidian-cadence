@@ -4,9 +4,11 @@ import { CadenceChartSectionModal } from '../modals/chart-section';
 import { CadenceCrossSectionModal } from '../modals/cross-section';
 import { CadencePromptModal } from '../modals/prompt';
 import type { EntityDef, EntityKey } from '../types/entities';
+import type { ChartSectionConfig, CrossSectionConfig } from '../types/modals';
 import { ymd } from '../utils/dates';
-import { parseH2Sections, parseHeaderKey } from '../utils/parsing';
-import { entityTemplate, projectTemplate } from '../utils/templates';
+import { splitSectionColumns } from '../utils/field-edit';
+import { appendSection, parseH2Sections, parseHeaderKey } from '../utils/parsing';
+import { DAILY_TEMPLATE_CONTENT, defaultTemplateContent } from '../utils/templates';
 import { ensureFolderSync } from '../utils/vault';
 import type { FlashSaved } from './components/sections';
 import type { AppViewHost } from './host';
@@ -54,10 +56,7 @@ export async function renderTemplatesDashboard(view: AppViewHost, root: HTMLElem
     titleInfo.createDiv({ text: 'PLANNER', attr: { style: 'font-weight: 700; font-size: 0.7rem; letter-spacing: 0.12em; color: var(--text-muted);' } });
     titleInfo.createEl('h3', { text: 'Daily Note', attr: { style: 'margin: 2px 0 0 0; font-size: 1.15em; font-weight: 700;' } });
 
-    const badge = head.createSpan({
-      cls: exists ? 'cad-pill cad-pill-active' : 'cad-pill cad-pill-backlog',
-      text: exists ? 'Active Template' : 'Default'
-    });
+    const badge = head.createSpan(templateBadge(exists));
     badge.style.fontSize = '0.7em';
     badge.style.padding = '3px 8px';
 
@@ -95,17 +94,7 @@ export async function renderTemplatesDashboard(view: AppViewHost, root: HTMLElem
       resetBtn.style.height = 'auto';
       resetBtn.addEventListener('click', async (e) => {
         e.stopPropagation();
-        const dailyTemplateContent = [
-          '# {{date}}',
-          '',
-          '## Today',
-          '- [ ] ',
-          '',
-          '## Journal',
-          '',
-          ''
-        ].join('\n');
-        await view.app.vault.create(dailyTemplatePath, dailyTemplateContent);
+        await view.app.vault.create(dailyTemplatePath, DAILY_TEMPLATE_CONTENT);
         new Notice('Daily Note template successfully enabled.');
         view.render();
       });
@@ -122,14 +111,7 @@ export async function renderTemplatesDashboard(view: AppViewHost, root: HTMLElem
 
     let foundPath: string | null = null;
     let exists = false;
-    const pathsToTry = [
-      `${templatesFolder}/${entityKey}.md`,
-      `${templatesFolder}/${def.label}.md`,
-      `${templatesFolder}/${def.plural}.md`,
-      `${templatesFolder}/${entityKey.toLowerCase()}.md`,
-      `${templatesFolder}/${def.label.toLowerCase()}.md`,
-      `${templatesFolder}/${def.plural.toLowerCase()}.md`
-    ];
+    const pathsToTry = templatePathCandidates(templatesFolder, entityKey, def);
 
     for (const p of pathsToTry) {
       const tFile = view.app.vault.getAbstractFileByPath(p);
@@ -156,10 +138,7 @@ export async function renderTemplatesDashboard(view: AppViewHost, root: HTMLElem
     titleInfo.createDiv({ text: def.label.toUpperCase(), attr: { style: 'font-weight: 700; font-size: 0.7rem; letter-spacing: 0.12em; color: var(--text-muted);' } });
     titleInfo.createEl('h3', { text: def.plural, attr: { style: 'margin: 2px 0 0 0; font-size: 1.15em; font-weight: 700;' } });
 
-    const badge = head.createSpan({
-      cls: exists ? 'cad-pill cad-pill-active' : 'cad-pill cad-pill-backlog',
-      text: exists ? 'Active Template' : 'Default'
-    });
+    const badge = head.createSpan(templateBadge(exists));
     badge.style.fontSize = '0.7em';
     badge.style.padding = '3px 8px';
 
@@ -204,16 +183,7 @@ export async function renderTemplatesDashboard(view: AppViewHost, root: HTMLElem
     if (!exists) resetBtn.classList.add('primary');
     resetBtn.addEventListener('click', async (e) => {
       e.stopPropagation();
-      let templateContent = entityTemplate(entityKey, '{{name}}');
-      if (entityKey === 'project') {
-        templateContent = projectTemplate('{{name}}');
-      } else if (entityKey === 'company') {
-        templateContent += '\n## Description #notes\n_Company description and profile..._\n\n## Contacts #cross-contact-company-table\n\n## Deals #cross-deal-company-kanban\n';
-      } else if (entityKey === 'contact') {
-        templateContent += '\n## Bio #notes\n_Background, interests, and how we met..._\n\n## Tasks #tasks\n- [ ] Follow up in 2 weeks\n';
-      } else {
-        templateContent += '\n## Notes #notes\n_Context and general notes..._\n';
-      }
+      const templateContent = defaultTemplateContent(entityKey);
 
       const targetPath = `${templatesFolder}/${entityKey}.md`;
       let tFile = view.app.vault.getAbstractFileByPath(targetPath);
@@ -240,7 +210,7 @@ export async function renderTemplatesDashboard(view: AppViewHost, root: HTMLElem
 
 export async function renderTemplateDetail(view: AppViewHost, root: HTMLElement, entityKey: string, file: TFile | null): Promise<void> {
   root.addClass('cadence-project-detail');
-  const def = ENTITIES[entityKey] || { label: 'Daily Note', plural: 'Daily Notes', fields: [] };
+  const def = templateDetailDef(entityKey);
   if (!file) { view.closeEntityDetail(); return; }
 
   const content = await view.app.vault.read(file);
@@ -287,16 +257,7 @@ export async function renderTemplateDetail(view: AppViewHost, root: HTMLElement,
   const left = cols.createDiv({ cls: 'cad-pd-col' });
   const right = cols.createDiv({ cls: 'cad-pd-col' });
 
-  const leftKeys: string[] = [];
-  const rightKeys: string[] = [];
-
-  sectionKeys.forEach((key, idx) => {
-    if (idx % 2 === 0) {
-      leftKeys.push(key);
-    } else {
-      rightKeys.push(key);
-    }
-  });
+  const { left: leftKeys, right: rightKeys } = splitSectionColumns(sectionKeys);
 
   // For each left-column section: render live widget + delete button
   leftKeys.forEach((rawKey) => {
@@ -317,8 +278,7 @@ export async function renderTemplateDetail(view: AppViewHost, root: HTMLElement,
   /* cleanTitle is null when the title prompt is cancelled (flagged). */
   const addSectionHelper = async (cleanTitle: string | null, tag: string, defaultBody = '') => {
     const curContent = await view.app.vault.read(file);
-    const header = `## ${cleanTitle} ${tag}`.trim();
-    const nextContent = curContent.replace(/\s*$/, '') + `\n\n${header}\n${defaultBody}\n`;
+    const nextContent = appendTemplateSection(curContent, cleanTitle as string, tag, defaultBody);
     await view.app.vault.modify(file, nextContent);
     new Notice(`Section "${cleanTitle}" added to template.`);
     await view._propagateTemplateSectionAdd(entityKey, cleanTitle as string, tag, defaultBody);
@@ -364,15 +324,14 @@ export async function renderTemplateDetail(view: AppViewHost, root: HTMLElement,
   const addCrossBtn = btnRow.createEl('button', { cls: 'cad-btn', text: '🔗 Cross-Linked Data' });
   addCrossBtn.addEventListener('click', () => {
     new CadenceCrossSectionModal(view.app, entityKey, async (config) => {
-      const defaultTitle = `Related ${ENTITIES[config.targetEntity]?.plural || 'Links'}`;
+      const block = crossSectionBlock(config);
       new CadencePromptModal(view.app, {
         title: 'New Cross-Linked Section',
         placeholder: 'Enter section title:',
-        defaultValue: defaultTitle,
+        defaultValue: block.title,
         cta: 'Add Block',
         onSubmit: (title) => {
-          const crossTag = `#cross-${config.targetEntity}-${config.linkField}-${config.viewType}`;
-          addSectionHelper(title, crossTag, '');
+          addSectionHelper(title, block.tag, '');
         }
       }).open();
     }).open();
@@ -381,14 +340,13 @@ export async function renderTemplateDetail(view: AppViewHost, root: HTMLElement,
   const addChartBtn = btnRow.createEl('button', { cls: 'cad-btn', text: '📊 Analytics Chart' });
   addChartBtn.addEventListener('click', () => {
     new CadenceChartSectionModal(view.app, entityKey, (config) => {
-      const chartTag = `#chart-${config.targetEntity}-${config.linkField}-${config.groupField}-${config.style}`;
-      const defaultTitle = `${ENTITIES[config.targetEntity]?.plural || config.targetEntity} by ${config.groupField}`;
+      const block = chartSectionBlock(config);
       new CadencePromptModal(view.app, {
         title: 'New Analytics Chart',
         placeholder: 'Enter chart section title:',
-        defaultValue: defaultTitle,
+        defaultValue: block.title,
         cta: 'Add Chart',
-        onSubmit: (title) => { addSectionHelper(title, chartTag, ''); }
+        onSubmit: (title) => { addSectionHelper(title, block.tag, ''); }
       }).open();
     }).open();
   });
@@ -438,37 +396,10 @@ export function renderTemplateSectionWithDelete(
     if (!draggedRawKey || draggedRawKey === rawKey) return;
 
     const curContent = await view.app.vault.read(file);
-    const lines = curContent.split('\n');
-    const h2Indices = lines.map((l, i) => (/^##\s/.test(l) ? i : -1)).filter(i => i >= 0);
+    const nextContent = moveTemplateSection(curContent, draggedRawKey, rawKey);
+    if (nextContent === null) return;
 
-    const draggedIdx = h2Indices.findIndex(i => lines[i].trim().replace(/^##\s+/, '') === draggedRawKey);
-    const targetIdx = h2Indices.findIndex(i => lines[i].trim().replace(/^##\s+/, '') === rawKey);
-    if (draggedIdx === -1 || targetIdx === -1) return;
-
-    // Extract section block to move
-    const getBlock = (hi: number) => {
-      const start = h2Indices[hi];
-      const end = hi + 1 < h2Indices.length ? h2Indices[hi + 1] : lines.length;
-      return lines.slice(start, end);
-    };
-
-    const draggedBlock = getBlock(draggedIdx);
-
-    // Remove block from lines
-    const startDel = h2Indices[draggedIdx];
-    lines.splice(startDel, draggedBlock.length);
-
-    // Re-calculate indices to insert at the correct spot
-    const linesTemp = lines.join('\n');
-    const linesArr = linesTemp.split('\n');
-    const h2IndicesNew = linesArr.map((l, i) => (/^##\s/.test(l) ? i : -1)).filter(i => i >= 0);
-    const targetIdxNew = h2IndicesNew.findIndex(i => linesArr[i].trim().replace(/^##\s+/, '') === rawKey);
-
-    // Insert before the target section
-    const insertPos = h2IndicesNew[targetIdxNew];
-    linesArr.splice(insertPos, 0, ...draggedBlock);
-
-    await view.app.vault.modify(file, linesArr.join('\n'));
+    await view.app.vault.modify(file, nextContent);
     view.render();
   });
 
@@ -493,25 +424,12 @@ export function renderTemplateSectionWithDelete(
   delBtn.addEventListener('click', async (ev) => {
     ev.stopPropagation();
     const usedFiles = await view._getFilesUsingTemplateSection(entityKey, rawKey);
-    if (usedFiles.length > 0) {
-      const fileNames = usedFiles.map(f => f.basename).join(', ');
-      if (!confirm(`Warning: The section "${cleanLabel}" has active content in the following files:\n${fileNames}\n\nAre you sure you want to delete it from the template?`)) {
-        return;
-      }
-    } else {
-      if (!confirm(`Remove the section "${cleanLabel}" from this template?`)) return;
-    }
-    
+    if (!confirm(deleteSectionMessage(cleanLabel, usedFiles.map(f => f.basename)))) return;
+
     const curContent = await view.app.vault.read(file);
-    const lines = curContent.split('\n');
-    const idx = lines.findIndex(l => l.trim().replace(/^##\s+/, '') === rawKey);
-    if (idx !== -1) {
-      let endIdx = lines.length;
-      for (let i = idx + 1; i < lines.length; i++) {
-        if (/^##\s/.test(lines[i])) { endIdx = i; break; }
-      }
-      lines.splice(idx, endIdx - idx);
-      await view.app.vault.modify(file, lines.join('\n'));
+    const nextContent = removeTemplateSection(curContent, rawKey);
+    if (nextContent !== null) {
+      await view.app.vault.modify(file, nextContent);
       await view._propagateTemplateSectionDelete(entityKey, rawKey);
       new Notice(`Section "${cleanLabel}" removed.`);
       view.render();
@@ -521,56 +439,207 @@ export function renderTemplateSectionWithDelete(
 
 export async function getFilesUsingTemplateSection(view: AppViewHost, entityKey: EntityKey | 'daily', rawKey: string): Promise<TFile[]> {
   const files = view._getEntityFiles(entityKey);
-  const used = [];
-  const { cleanLabel } = parseHeaderKey(rawKey);
+  const notes: Array<TemplateNote<TFile>> = [];
   for (const file of files) {
-    const content = await view.app.vault.read(file);
-    const sections = parseH2Sections(content);
-    const matchingKey = Object.keys(sections).find(k => parseHeaderKey(k).cleanLabel.toLowerCase() === cleanLabel.toLowerCase());
-    if (matchingKey) {
-      const body = (sections[matchingKey] || '').trim();
-      if (body && !body.startsWith('_Enter your notes here...') && !body.startsWith('_Company description') && !body.startsWith('_Background, interests') && !body.startsWith('_The outcome we want') && !body.startsWith('- [ ] First task') && !body.startsWith('- [ ] First milestone')) {
-        used.push(file);
-      }
-    }
+    notes.push({ file, content: await view.app.vault.read(file) });
   }
-  return used;
+  return filesUsingTemplateSection(notes, rawKey);
 }
 
 export async function propagateTemplateSectionAdd(
   view: AppViewHost, entityKey: EntityKey | 'daily', cleanTitle: string, tag: string, defaultBody = '',
 ): Promise<void> {
   const files = view._getEntityFiles(entityKey);
-  const header = `## ${cleanTitle} ${tag}`.trim();
   for (const file of files) {
     const content = await view.app.vault.read(file);
-    const sections = parseH2Sections(content);
-    const exists = Object.keys(sections).some(k => parseHeaderKey(k).cleanLabel.toLowerCase() === cleanTitle.toLowerCase());
-    if (!exists) {
-      const nextContent = content.replace(/\s*$/, '') + `\n\n${header}\n${defaultBody}\n`;
-      await view.app.vault.modify(file, nextContent);
-    }
+    const nextContent = propagateSectionAdd(content, { cleanTitle, tag, defaultBody });
+    if (nextContent !== null) await view.app.vault.modify(file, nextContent);
   }
 }
 
 export async function propagateTemplateSectionDelete(view: AppViewHost, entityKey: EntityKey | 'daily', rawKey: string): Promise<void> {
   const files = view._getEntityFiles(entityKey);
-  const { cleanLabel } = parseHeaderKey(rawKey);
   for (const file of files) {
     const content = await view.app.vault.read(file);
-    const lines = content.split('\n');
-    const idx = lines.findIndex(l => {
-      if (!/^##\s/.test(l)) return false;
-      const key = l.trim().replace(/^##\s+/, '');
-      return parseHeaderKey(key).cleanLabel.toLowerCase() === cleanLabel.toLowerCase();
-    });
-    if (idx !== -1) {
-      let endIdx = lines.length;
-      for (let i = idx + 1; i < lines.length; i++) {
-        if (/^##\s/.test(lines[i])) { endIdx = i; break; }
-      }
-      lines.splice(idx, endIdx - idx);
-      await view.app.vault.modify(file, lines.join('\n'));
-    }
+    const nextContent = propagateSectionDelete(content, rawKey);
+    if (nextContent !== null) await view.app.vault.modify(file, nextContent);
   }
+}
+
+/* ── Pure seams ── */
+
+/* Where the dashboard looks for an entity's template, in order: the key,
+   the label and the plural, then the same three lower-cased. */
+export function templatePathCandidates(folder: string, entityKey: string, def: Pick<EntityDef, 'label' | 'plural'>): string[] {
+  return [
+    `${folder}/${entityKey}.md`,
+    `${folder}/${def.label}.md`,
+    `${folder}/${def.plural}.md`,
+    `${folder}/${entityKey.toLowerCase()}.md`,
+    `${folder}/${def.label.toLowerCase()}.md`,
+    `${folder}/${def.plural.toLowerCase()}.md`
+  ];
+}
+
+/* A tile's status pill. */
+export function templateBadge(exists: boolean): { cls: string; text: string } {
+  return {
+    cls: exists ? 'cad-pill cad-pill-active' : 'cad-pill cad-pill-backlog',
+    text: exists ? 'Active Template' : 'Default'
+  };
+}
+
+/* The builder's entity def; a key with no def (the daily template) is a Daily Note. */
+export function templateDetailDef(entityKey: string): Pick<EntityDef, 'label' | 'plural' | 'fields'> {
+  return ENTITIES[entityKey] || { label: 'Daily Note', plural: 'Daily Notes', fields: [] };
+}
+
+/* A cross-linked block's tag and suggested title. */
+export function crossSectionBlock(config: CrossSectionConfig): { tag: string; title: string } {
+  return {
+    tag: `#cross-${config.targetEntity}-${config.linkField}-${config.viewType}`,
+    title: `Related ${ENTITIES[config.targetEntity]?.plural || 'Links'}`,
+  };
+}
+
+/* A chart block's tag and suggested title. */
+export function chartSectionBlock(config: ChartSectionConfig): { tag: string; title: string } {
+  return {
+    tag: `#chart-${config.targetEntity}-${config.linkField}-${config.groupField}-${config.style}`,
+    title: `${ENTITIES[config.targetEntity]?.plural || config.targetEntity} by ${config.groupField}`,
+  };
+}
+
+/* A section's H2 line; a blank tag leaves no trailing space. */
+export function templateHeader(cleanTitle: string, tag: string): string {
+  return `## ${cleanTitle} ${tag}`.trim();
+}
+
+/* Append a section to a template. Flagged: it does not check for an
+   existing section of the same name. */
+export function appendTemplateSection(content: string, cleanTitle: string, tag: string, defaultBody = ''): string {
+  return appendSection(content, templateHeader(cleanTitle, tag), defaultBody);
+}
+
+/** A section added to a template, as propagated to the entity's notes. */
+export interface TemplateSection {
+  cleanTitle: string;
+  tag: string;
+  defaultBody?: string;
+}
+
+/* Same section name: the labels match case-insensitively, whatever the tags. */
+function sameLabel(key: string, cleanLabel: string): boolean {
+  return parseHeaderKey(key).cleanLabel.toLowerCase() === cleanLabel.toLowerCase();
+}
+
+/* Remove lines[idx] and everything up to the next H2 line, in place. */
+function spliceSection(lines: string[], idx: number): void {
+  let endIdx = lines.length;
+  for (let i = idx + 1; i < lines.length; i++) {
+    if (/^##\s/.test(lines[i])) { endIdx = i; break; }
+  }
+  lines.splice(idx, endIdx - idx);
+}
+
+/* Propagate an added section to one note: append it, unless the note has
+   an H2 section of the same name (any tag). null = no change. */
+export function propagateSectionAdd(content: string, section: TemplateSection): string | null {
+  const sections = parseH2Sections(content);
+  const exists = Object.keys(sections).some(k => sameLabel(k, section.cleanTitle));
+  if (exists) return null;
+  return appendSection(content, templateHeader(section.cleanTitle, section.tag), section.defaultBody ?? '');
+}
+
+/* Propagate a deleted section to one note: remove the first H2 section of
+   the same name (any tag), up to the next H2. null = no change. */
+export function propagateSectionDelete(content: string, sectionKey: string): string | null {
+  const { cleanLabel } = parseHeaderKey(sectionKey);
+  const lines = content.split('\n');
+  const idx = lines.findIndex(l => {
+    if (!/^##\s/.test(l)) return false;
+    const key = l.trim().replace(/^##\s+/, '');
+    return sameLabel(key, cleanLabel);
+  });
+  if (idx === -1) return null;
+  spliceSection(lines, idx);
+  return lines.join('\n');
+}
+
+/* Remove a section from the template itself, matched by its exact raw key.
+   Flagged: the match is the first line that reads as the key once trimmed
+   and stripped of a leading "## ", heading or not. null = not found. */
+export function removeTemplateSection(content: string, rawKey: string): string | null {
+  const lines = content.split('\n');
+  const idx = lines.findIndex(l => l.trim().replace(/^##\s+/, '') === rawKey);
+  if (idx === -1) return null;
+  spliceSection(lines, idx);
+  return lines.join('\n');
+}
+
+/* Move the dragged H2 section (heading to the next H2) to just before the
+   target section. null when the keys are the same or either is not an H2
+   in the content.
+   Flagged: the block moves as-is, so a last section with no trailing blank
+   line runs into the heading after it. */
+export function moveTemplateSection(content: string, draggedRawKey: string, targetRawKey: string): string | null {
+  if (draggedRawKey === targetRawKey) return null;
+  const lines = content.split('\n');
+  const keyAt = (ls: string[], i: number) => ls[i].trim().replace(/^##\s+/, '');
+  const h2Indices = lines.map((l, i) => (/^##\s/.test(l) ? i : -1)).filter(i => i >= 0);
+
+  const draggedIdx = h2Indices.findIndex(i => keyAt(lines, i) === draggedRawKey);
+  const targetIdx = h2Indices.findIndex(i => keyAt(lines, i) === targetRawKey);
+  if (draggedIdx === -1 || targetIdx === -1) return null;
+
+  const start = h2Indices[draggedIdx];
+  const end = draggedIdx + 1 < h2Indices.length ? h2Indices[draggedIdx + 1] : lines.length;
+  const draggedBlock = lines.slice(start, end);
+  lines.splice(start, draggedBlock.length);
+
+  const h2IndicesNew = lines.map((l, i) => (/^##\s/.test(l) ? i : -1)).filter(i => i >= 0);
+  const targetIdxNew = h2IndicesNew.findIndex(i => keyAt(lines, i) === targetRawKey);
+  lines.splice(h2IndicesNew[targetIdxNew], 0, ...draggedBlock);
+  return lines.join('\n');
+}
+
+/* The × confirm text: a warning naming the notes with content, or a plain ask. */
+export function deleteSectionMessage(cleanLabel: string, usedNames: string[]): string {
+  if (usedNames.length > 0) {
+    return `Warning: The section "${cleanLabel}" has active content in the following files:\n${usedNames.join(', ')}\n\nAre you sure you want to delete it from the template?`;
+  }
+  return `Remove the section "${cleanLabel}" from this template?`;
+}
+
+/* Starter bodies that don't count as content. Flagged: '_Context and
+   general notes..._' (most entities' Notes), a dated first milestone and
+   an empty '- [ ]' task are missing, so untouched notes count as in use. */
+export const TEMPLATE_PLACEHOLDERS = [
+  '_Enter your notes here...',
+  '_Company description',
+  '_Background, interests',
+  '_The outcome we want',
+  '- [ ] First task',
+  '- [ ] First milestone',
+];
+
+/* Does the note have a same-named section (any tag) with real content? */
+export function sectionInUse(content: string, sectionKey: string): boolean {
+  const { cleanLabel } = parseHeaderKey(sectionKey);
+  const sections = parseH2Sections(content);
+  const matchingKey = Object.keys(sections).find(k => sameLabel(k, cleanLabel));
+  if (!matchingKey) return false;
+  const body = (sections[matchingKey] || '').trim();
+  return !!body && !TEMPLATE_PLACEHOLDERS.some(p => body.startsWith(p));
+}
+
+/** A note and its content, as read from the vault. */
+export interface TemplateNote<F> {
+  file: F;
+  content: string;
+}
+
+/* The notes whose section has content, in the order given. */
+export function filesUsingTemplateSection<F>(notes: Array<TemplateNote<F>>, sectionKey: string): F[] {
+  return notes.filter(n => sectionInUse(n.content, sectionKey)).map(n => n.file);
 }

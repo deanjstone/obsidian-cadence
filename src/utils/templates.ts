@@ -11,17 +11,7 @@ export async function ensureDefaultTemplates(app: App): Promise<void> {
     const targetPath = `${templatesFolder}/${entityKey}.md`;
     let tFile = app.vault.getAbstractFileByPath(targetPath);
     if (!tFile) {
-      let templateContent = entityTemplate(entityKey, '{{name}}');
-      if (entityKey === 'project') {
-        templateContent = projectTemplate('{{name}}');
-      } else if (entityKey === 'company') {
-        templateContent += '\n## Description #notes\n_Company description and profile..._\n\n## Contacts #cross-contact-company-table\n\n## Deals #cross-deal-company-kanban\n';
-      } else if (entityKey === 'contact') {
-        templateContent += '\n## Bio #notes\n_Background, interests, and how we met..._\n\n## Tasks #tasks\n- [ ] Follow up in 2 weeks\n';
-      } else {
-        templateContent += '\n## Notes #notes\n_Context and general notes..._\n';
-      }
-      await app.vault.create(targetPath, templateContent);
+      await app.vault.create(targetPath, defaultTemplateContent(entityKey));
     }
   }
 
@@ -29,18 +19,38 @@ export async function ensureDefaultTemplates(app: App): Promise<void> {
   const dailyTargetPath = `${templatesFolder}/daily.md`;
   let dailyTFile = app.vault.getAbstractFileByPath(dailyTargetPath);
   if (!dailyTFile) {
-    const dailyTemplateContent = [
-      '# {{date}}',
-      '',
-      '## Today',
-      '- [ ] ',
-      '',
-      '## Journal',
-      '',
-      ''
-    ].join('\n');
-    await app.vault.create(dailyTargetPath, dailyTemplateContent);
+    await app.vault.create(dailyTargetPath, DAILY_TEMPLATE_CONTENT);
   }
+}
+
+/* The daily note template the plugin creates, and the Templates dashboard
+   enables. */
+export const DAILY_TEMPLATE_CONTENT = [
+  '# {{date}}',
+  '',
+  '## Today',
+  '- [ ] ',
+  '',
+  '## Journal',
+  '',
+  ''
+].join('\n');
+
+/* An entity's default template: its frontmatter and title, plus starter
+   sections (the full project template for a project). Used when templates
+   are first created and by the dashboard's Enable Custom / Reset to Default. */
+export function defaultTemplateContent(entityKey: EntityKey): string {
+  let templateContent = entityTemplate(entityKey, '{{name}}');
+  if (entityKey === 'project') {
+    templateContent = projectTemplate('{{name}}');
+  } else if (entityKey === 'company') {
+    templateContent += '\n## Description #notes\n_Company description and profile..._\n\n## Contacts #cross-contact-company-table\n\n## Deals #cross-deal-company-kanban\n';
+  } else if (entityKey === 'contact') {
+    templateContent += '\n## Bio #notes\n_Background, interests, and how we met..._\n\n## Tasks #tasks\n- [ ] Follow up in 2 weeks\n';
+  } else {
+    templateContent += '\n## Notes #notes\n_Context and general notes..._\n';
+  }
+  return templateContent;
 }
 
 /* Throws a TypeError for an entity key that is not registered (def is

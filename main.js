@@ -364,15 +364,18 @@ function parseSections(content, settings) {
   }
   return { tasks, journal: journal.replace(/\s+$/, ""), raw: content };
 }
+function appendSection(content, heading, body) {
+  return content.replace(/\s*$/, "") + `
+
+${heading}
+${body}
+`;
+}
 function replaceSection(content, heading, newBody) {
   const lines = content.split("\n");
   const headIdx = lines.findIndex((l) => l.trim() === heading);
   if (headIdx === -1) {
-    return content.replace(/\s*$/, "") + `
-
-${heading}
-${newBody}
-`;
+    return appendSection(content, heading, newBody);
   }
   let endIdx = lines.length;
   for (let i = headIdx + 1; i < lines.length; i++) {
@@ -764,34 +767,37 @@ async function ensureDefaultTemplates(app) {
     const targetPath = `${templatesFolder}/${entityKey}.md`;
     let tFile = app.vault.getAbstractFileByPath(targetPath);
     if (!tFile) {
-      let templateContent = entityTemplate(entityKey, "{{name}}");
-      if (entityKey === "project") {
-        templateContent = projectTemplate("{{name}}");
-      } else if (entityKey === "company") {
-        templateContent += "\n## Description #notes\n_Company description and profile..._\n\n## Contacts #cross-contact-company-table\n\n## Deals #cross-deal-company-kanban\n";
-      } else if (entityKey === "contact") {
-        templateContent += "\n## Bio #notes\n_Background, interests, and how we met..._\n\n## Tasks #tasks\n- [ ] Follow up in 2 weeks\n";
-      } else {
-        templateContent += "\n## Notes #notes\n_Context and general notes..._\n";
-      }
-      await app.vault.create(targetPath, templateContent);
+      await app.vault.create(targetPath, defaultTemplateContent(entityKey));
     }
   }
   const dailyTargetPath = `${templatesFolder}/daily.md`;
   let dailyTFile = app.vault.getAbstractFileByPath(dailyTargetPath);
   if (!dailyTFile) {
-    const dailyTemplateContent = [
-      "# {{date}}",
-      "",
-      "## Today",
-      "- [ ] ",
-      "",
-      "## Journal",
-      "",
-      ""
-    ].join("\n");
-    await app.vault.create(dailyTargetPath, dailyTemplateContent);
+    await app.vault.create(dailyTargetPath, DAILY_TEMPLATE_CONTENT);
   }
+}
+var DAILY_TEMPLATE_CONTENT = [
+  "# {{date}}",
+  "",
+  "## Today",
+  "- [ ] ",
+  "",
+  "## Journal",
+  "",
+  ""
+].join("\n");
+function defaultTemplateContent(entityKey) {
+  let templateContent = entityTemplate(entityKey, "{{name}}");
+  if (entityKey === "project") {
+    templateContent = projectTemplate("{{name}}");
+  } else if (entityKey === "company") {
+    templateContent += "\n## Description #notes\n_Company description and profile..._\n\n## Contacts #cross-contact-company-table\n\n## Deals #cross-deal-company-kanban\n";
+  } else if (entityKey === "contact") {
+    templateContent += "\n## Bio #notes\n_Background, interests, and how we met..._\n\n## Tasks #tasks\n- [ ] Follow up in 2 weeks\n";
+  } else {
+    templateContent += "\n## Notes #notes\n_Context and general notes..._\n";
+  }
+  return templateContent;
 }
 function entityTemplate(entityKey, name) {
   if (entityKey === "project") return projectTemplate(name);
@@ -6409,10 +6415,7 @@ async function renderTemplatesDashboard(view, root) {
     const titleInfo = infoWrap.createDiv();
     titleInfo.createDiv({ text: "PLANNER", attr: { style: "font-weight: 700; font-size: 0.7rem; letter-spacing: 0.12em; color: var(--text-muted);" } });
     titleInfo.createEl("h3", { text: "Daily Note", attr: { style: "margin: 2px 0 0 0; font-size: 1.15em; font-weight: 700;" } });
-    const badge = head.createSpan({
-      cls: exists ? "cad-pill cad-pill-active" : "cad-pill cad-pill-backlog",
-      text: exists ? "Active Template" : "Default"
-    });
+    const badge = head.createSpan(templateBadge(exists));
     badge.style.fontSize = "0.7em";
     badge.style.padding = "3px 8px";
     card.createDiv({
@@ -6445,17 +6448,7 @@ async function renderTemplatesDashboard(view, root) {
       resetBtn.style.height = "auto";
       resetBtn.addEventListener("click", async (e) => {
         e.stopPropagation();
-        const dailyTemplateContent = [
-          "# {{date}}",
-          "",
-          "## Today",
-          "- [ ] ",
-          "",
-          "## Journal",
-          "",
-          ""
-        ].join("\n");
-        await view.app.vault.create(dailyTemplatePath, dailyTemplateContent);
+        await view.app.vault.create(dailyTemplatePath, DAILY_TEMPLATE_CONTENT);
         new import_obsidian22.Notice("Daily Note template successfully enabled.");
         view.render();
       });
@@ -6469,14 +6462,7 @@ async function renderTemplatesDashboard(view, root) {
     await ensureFolderSync(view.app, templatesFolder);
     let foundPath = null;
     let exists = false;
-    const pathsToTry = [
-      `${templatesFolder}/${entityKey}.md`,
-      `${templatesFolder}/${def.label}.md`,
-      `${templatesFolder}/${def.plural}.md`,
-      `${templatesFolder}/${entityKey.toLowerCase()}.md`,
-      `${templatesFolder}/${def.label.toLowerCase()}.md`,
-      `${templatesFolder}/${def.plural.toLowerCase()}.md`
-    ];
+    const pathsToTry = templatePathCandidates(templatesFolder, entityKey, def);
     for (const p of pathsToTry) {
       const tFile = view.app.vault.getAbstractFileByPath(p);
       if (tFile && tFile instanceof import_obsidian22.TFile) {
@@ -6500,10 +6486,7 @@ async function renderTemplatesDashboard(view, root) {
     const titleInfo = infoWrap.createDiv();
     titleInfo.createDiv({ text: def.label.toUpperCase(), attr: { style: "font-weight: 700; font-size: 0.7rem; letter-spacing: 0.12em; color: var(--text-muted);" } });
     titleInfo.createEl("h3", { text: def.plural, attr: { style: "margin: 2px 0 0 0; font-size: 1.15em; font-weight: 700;" } });
-    const badge = head.createSpan({
-      cls: exists ? "cad-pill cad-pill-active" : "cad-pill cad-pill-backlog",
-      text: exists ? "Active Template" : "Default"
-    });
+    const badge = head.createSpan(templateBadge(exists));
     badge.style.fontSize = "0.7em";
     badge.style.padding = "3px 8px";
     card.createDiv({
@@ -6542,16 +6525,7 @@ async function renderTemplatesDashboard(view, root) {
     if (!exists) resetBtn.classList.add("primary");
     resetBtn.addEventListener("click", async (e) => {
       e.stopPropagation();
-      let templateContent = entityTemplate(entityKey, "{{name}}");
-      if (entityKey === "project") {
-        templateContent = projectTemplate("{{name}}");
-      } else if (entityKey === "company") {
-        templateContent += "\n## Description #notes\n_Company description and profile..._\n\n## Contacts #cross-contact-company-table\n\n## Deals #cross-deal-company-kanban\n";
-      } else if (entityKey === "contact") {
-        templateContent += "\n## Bio #notes\n_Background, interests, and how we met..._\n\n## Tasks #tasks\n- [ ] Follow up in 2 weeks\n";
-      } else {
-        templateContent += "\n## Notes #notes\n_Context and general notes..._\n";
-      }
+      const templateContent = defaultTemplateContent(entityKey);
       const targetPath = `${templatesFolder}/${entityKey}.md`;
       let tFile = view.app.vault.getAbstractFileByPath(targetPath);
       if (tFile && tFile instanceof import_obsidian22.TFile) {
@@ -6574,7 +6548,7 @@ async function renderTemplatesDashboard(view, root) {
 }
 async function renderTemplateDetail(view, root, entityKey, file) {
   root.addClass("cadence-project-detail");
-  const def = ENTITIES[entityKey] || { label: "Daily Note", plural: "Daily Notes", fields: [] };
+  const def = templateDetailDef(entityKey);
   if (!file) {
     view.closeEntityDetail();
     return;
@@ -6614,15 +6588,7 @@ async function renderTemplateDetail(view, root, entityKey, file) {
   const cols = root.createDiv({ cls: "cad-pd-cols" });
   const left = cols.createDiv({ cls: "cad-pd-col" });
   const right = cols.createDiv({ cls: "cad-pd-col" });
-  const leftKeys = [];
-  const rightKeys = [];
-  sectionKeys.forEach((key, idx) => {
-    if (idx % 2 === 0) {
-      leftKeys.push(key);
-    } else {
-      rightKeys.push(key);
-    }
-  });
+  const { left: leftKeys, right: rightKeys } = splitSectionColumns(sectionKeys);
   leftKeys.forEach((rawKey) => {
     view._renderTemplateSectionWithDelete(left, file, sections, rawKey, flashSaved);
   });
@@ -6634,12 +6600,7 @@ async function renderTemplateDetail(view, root, entityKey, file) {
   const btnRow = toolbar.createDiv({ attr: { style: "display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;" } });
   const addSectionHelper = async (cleanTitle, tag, defaultBody = "") => {
     const curContent = await view.app.vault.read(file);
-    const header = `## ${cleanTitle} ${tag}`.trim();
-    const nextContent = curContent.replace(/\s*$/, "") + `
-
-${header}
-${defaultBody}
-`;
+    const nextContent = appendTemplateSection(curContent, cleanTitle, tag, defaultBody);
     await view.app.vault.modify(file, nextContent);
     new import_obsidian22.Notice(`Section "${cleanTitle}" added to template.`);
     await view._propagateTemplateSectionAdd(entityKey, cleanTitle, tag, defaultBody);
@@ -6685,15 +6646,14 @@ ${defaultBody}
   const addCrossBtn = btnRow.createEl("button", { cls: "cad-btn", text: "\u{1F517} Cross-Linked Data" });
   addCrossBtn.addEventListener("click", () => {
     new CadenceCrossSectionModal(view.app, entityKey, async (config) => {
-      const defaultTitle = `Related ${ENTITIES[config.targetEntity]?.plural || "Links"}`;
+      const block = crossSectionBlock(config);
       new CadencePromptModal(view.app, {
         title: "New Cross-Linked Section",
         placeholder: "Enter section title:",
-        defaultValue: defaultTitle,
+        defaultValue: block.title,
         cta: "Add Block",
         onSubmit: (title) => {
-          const crossTag = `#cross-${config.targetEntity}-${config.linkField}-${config.viewType}`;
-          addSectionHelper(title, crossTag, "");
+          addSectionHelper(title, block.tag, "");
         }
       }).open();
     }).open();
@@ -6701,15 +6661,14 @@ ${defaultBody}
   const addChartBtn = btnRow.createEl("button", { cls: "cad-btn", text: "\u{1F4CA} Analytics Chart" });
   addChartBtn.addEventListener("click", () => {
     new CadenceChartSectionModal(view.app, entityKey, (config) => {
-      const chartTag = `#chart-${config.targetEntity}-${config.linkField}-${config.groupField}-${config.style}`;
-      const defaultTitle = `${ENTITIES[config.targetEntity]?.plural || config.targetEntity} by ${config.groupField}`;
+      const block = chartSectionBlock(config);
       new CadencePromptModal(view.app, {
         title: "New Analytics Chart",
         placeholder: "Enter chart section title:",
-        defaultValue: defaultTitle,
+        defaultValue: block.title,
         cta: "Add Chart",
         onSubmit: (title) => {
-          addSectionHelper(title, chartTag, "");
+          addSectionHelper(title, block.tag, "");
         }
       }).open();
     }).open();
@@ -6749,26 +6708,9 @@ function renderTemplateSectionWithDelete(view, parent, file, sections, rawKey, f
     const draggedRawKey = ev.dataTransfer.getData("text/cadence-template-section");
     if (!draggedRawKey || draggedRawKey === rawKey) return;
     const curContent = await view.app.vault.read(file);
-    const lines = curContent.split("\n");
-    const h2Indices = lines.map((l, i) => /^##\s/.test(l) ? i : -1).filter((i) => i >= 0);
-    const draggedIdx = h2Indices.findIndex((i) => lines[i].trim().replace(/^##\s+/, "") === draggedRawKey);
-    const targetIdx = h2Indices.findIndex((i) => lines[i].trim().replace(/^##\s+/, "") === rawKey);
-    if (draggedIdx === -1 || targetIdx === -1) return;
-    const getBlock = (hi) => {
-      const start = h2Indices[hi];
-      const end = hi + 1 < h2Indices.length ? h2Indices[hi + 1] : lines.length;
-      return lines.slice(start, end);
-    };
-    const draggedBlock = getBlock(draggedIdx);
-    const startDel = h2Indices[draggedIdx];
-    lines.splice(startDel, draggedBlock.length);
-    const linesTemp = lines.join("\n");
-    const linesArr = linesTemp.split("\n");
-    const h2IndicesNew = linesArr.map((l, i) => /^##\s/.test(l) ? i : -1).filter((i) => i >= 0);
-    const targetIdxNew = h2IndicesNew.findIndex((i) => linesArr[i].trim().replace(/^##\s+/, "") === rawKey);
-    const insertPos = h2IndicesNew[targetIdxNew];
-    linesArr.splice(insertPos, 0, ...draggedBlock);
-    await view.app.vault.modify(file, linesArr.join("\n"));
+    const nextContent = moveTemplateSection(curContent, draggedRawKey, rawKey);
+    if (nextContent === null) return;
+    await view.app.vault.modify(file, nextContent);
     view.render();
   });
   view._renderDynamicH2Section(wrap, file, sections, rawKey, flashSaved);
@@ -6786,30 +6728,11 @@ function renderTemplateSectionWithDelete(view, parent, file, sections, rawKey, f
   delBtn.addEventListener("click", async (ev) => {
     ev.stopPropagation();
     const usedFiles = await view._getFilesUsingTemplateSection(entityKey, rawKey);
-    if (usedFiles.length > 0) {
-      const fileNames = usedFiles.map((f) => f.basename).join(", ");
-      if (!confirm(`Warning: The section "${cleanLabel}" has active content in the following files:
-${fileNames}
-
-Are you sure you want to delete it from the template?`)) {
-        return;
-      }
-    } else {
-      if (!confirm(`Remove the section "${cleanLabel}" from this template?`)) return;
-    }
+    if (!confirm(deleteSectionMessage(cleanLabel, usedFiles.map((f) => f.basename)))) return;
     const curContent = await view.app.vault.read(file);
-    const lines = curContent.split("\n");
-    const idx = lines.findIndex((l) => l.trim().replace(/^##\s+/, "") === rawKey);
-    if (idx !== -1) {
-      let endIdx = lines.length;
-      for (let i = idx + 1; i < lines.length; i++) {
-        if (/^##\s/.test(lines[i])) {
-          endIdx = i;
-          break;
-        }
-      }
-      lines.splice(idx, endIdx - idx);
-      await view.app.vault.modify(file, lines.join("\n"));
+    const nextContent = removeTemplateSection(curContent, rawKey);
+    if (nextContent !== null) {
+      await view.app.vault.modify(file, nextContent);
       await view._propagateTemplateSectionDelete(entityKey, rawKey);
       new import_obsidian22.Notice(`Section "${cleanLabel}" removed.`);
       view.render();
@@ -6818,61 +6741,147 @@ Are you sure you want to delete it from the template?`)) {
 }
 async function getFilesUsingTemplateSection(view, entityKey, rawKey) {
   const files = view._getEntityFiles(entityKey);
-  const used = [];
-  const { cleanLabel } = parseHeaderKey(rawKey);
+  const notes = [];
   for (const file of files) {
-    const content = await view.app.vault.read(file);
-    const sections = parseH2Sections(content);
-    const matchingKey = Object.keys(sections).find((k) => parseHeaderKey(k).cleanLabel.toLowerCase() === cleanLabel.toLowerCase());
-    if (matchingKey) {
-      const body = (sections[matchingKey] || "").trim();
-      if (body && !body.startsWith("_Enter your notes here...") && !body.startsWith("_Company description") && !body.startsWith("_Background, interests") && !body.startsWith("_The outcome we want") && !body.startsWith("- [ ] First task") && !body.startsWith("- [ ] First milestone")) {
-        used.push(file);
-      }
-    }
+    notes.push({ file, content: await view.app.vault.read(file) });
   }
-  return used;
+  return filesUsingTemplateSection(notes, rawKey);
 }
 async function propagateTemplateSectionAdd(view, entityKey, cleanTitle, tag, defaultBody = "") {
   const files = view._getEntityFiles(entityKey);
-  const header = `## ${cleanTitle} ${tag}`.trim();
   for (const file of files) {
     const content = await view.app.vault.read(file);
-    const sections = parseH2Sections(content);
-    const exists = Object.keys(sections).some((k) => parseHeaderKey(k).cleanLabel.toLowerCase() === cleanTitle.toLowerCase());
-    if (!exists) {
-      const nextContent = content.replace(/\s*$/, "") + `
-
-${header}
-${defaultBody}
-`;
-      await view.app.vault.modify(file, nextContent);
-    }
+    const nextContent = propagateSectionAdd(content, { cleanTitle, tag, defaultBody });
+    if (nextContent !== null) await view.app.vault.modify(file, nextContent);
   }
 }
 async function propagateTemplateSectionDelete(view, entityKey, rawKey) {
   const files = view._getEntityFiles(entityKey);
-  const { cleanLabel } = parseHeaderKey(rawKey);
   for (const file of files) {
     const content = await view.app.vault.read(file);
-    const lines = content.split("\n");
-    const idx = lines.findIndex((l) => {
-      if (!/^##\s/.test(l)) return false;
-      const key = l.trim().replace(/^##\s+/, "");
-      return parseHeaderKey(key).cleanLabel.toLowerCase() === cleanLabel.toLowerCase();
-    });
-    if (idx !== -1) {
-      let endIdx = lines.length;
-      for (let i = idx + 1; i < lines.length; i++) {
-        if (/^##\s/.test(lines[i])) {
-          endIdx = i;
-          break;
-        }
-      }
-      lines.splice(idx, endIdx - idx);
-      await view.app.vault.modify(file, lines.join("\n"));
+    const nextContent = propagateSectionDelete(content, rawKey);
+    if (nextContent !== null) await view.app.vault.modify(file, nextContent);
+  }
+}
+function templatePathCandidates(folder, entityKey, def) {
+  return [
+    `${folder}/${entityKey}.md`,
+    `${folder}/${def.label}.md`,
+    `${folder}/${def.plural}.md`,
+    `${folder}/${entityKey.toLowerCase()}.md`,
+    `${folder}/${def.label.toLowerCase()}.md`,
+    `${folder}/${def.plural.toLowerCase()}.md`
+  ];
+}
+function templateBadge(exists) {
+  return {
+    cls: exists ? "cad-pill cad-pill-active" : "cad-pill cad-pill-backlog",
+    text: exists ? "Active Template" : "Default"
+  };
+}
+function templateDetailDef(entityKey) {
+  return ENTITIES[entityKey] || { label: "Daily Note", plural: "Daily Notes", fields: [] };
+}
+function crossSectionBlock(config) {
+  return {
+    tag: `#cross-${config.targetEntity}-${config.linkField}-${config.viewType}`,
+    title: `Related ${ENTITIES[config.targetEntity]?.plural || "Links"}`
+  };
+}
+function chartSectionBlock(config) {
+  return {
+    tag: `#chart-${config.targetEntity}-${config.linkField}-${config.groupField}-${config.style}`,
+    title: `${ENTITIES[config.targetEntity]?.plural || config.targetEntity} by ${config.groupField}`
+  };
+}
+function templateHeader(cleanTitle, tag) {
+  return `## ${cleanTitle} ${tag}`.trim();
+}
+function appendTemplateSection(content, cleanTitle, tag, defaultBody = "") {
+  return appendSection(content, templateHeader(cleanTitle, tag), defaultBody);
+}
+function sameLabel(key, cleanLabel) {
+  return parseHeaderKey(key).cleanLabel.toLowerCase() === cleanLabel.toLowerCase();
+}
+function spliceSection(lines, idx) {
+  let endIdx = lines.length;
+  for (let i = idx + 1; i < lines.length; i++) {
+    if (/^##\s/.test(lines[i])) {
+      endIdx = i;
+      break;
     }
   }
+  lines.splice(idx, endIdx - idx);
+}
+function propagateSectionAdd(content, section) {
+  const sections = parseH2Sections(content);
+  const exists = Object.keys(sections).some((k) => sameLabel(k, section.cleanTitle));
+  if (exists) return null;
+  return appendSection(content, templateHeader(section.cleanTitle, section.tag), section.defaultBody ?? "");
+}
+function propagateSectionDelete(content, sectionKey) {
+  const { cleanLabel } = parseHeaderKey(sectionKey);
+  const lines = content.split("\n");
+  const idx = lines.findIndex((l) => {
+    if (!/^##\s/.test(l)) return false;
+    const key = l.trim().replace(/^##\s+/, "");
+    return sameLabel(key, cleanLabel);
+  });
+  if (idx === -1) return null;
+  spliceSection(lines, idx);
+  return lines.join("\n");
+}
+function removeTemplateSection(content, rawKey) {
+  const lines = content.split("\n");
+  const idx = lines.findIndex((l) => l.trim().replace(/^##\s+/, "") === rawKey);
+  if (idx === -1) return null;
+  spliceSection(lines, idx);
+  return lines.join("\n");
+}
+function moveTemplateSection(content, draggedRawKey, targetRawKey) {
+  if (draggedRawKey === targetRawKey) return null;
+  const lines = content.split("\n");
+  const keyAt = (ls, i) => ls[i].trim().replace(/^##\s+/, "");
+  const h2Indices = lines.map((l, i) => /^##\s/.test(l) ? i : -1).filter((i) => i >= 0);
+  const draggedIdx = h2Indices.findIndex((i) => keyAt(lines, i) === draggedRawKey);
+  const targetIdx = h2Indices.findIndex((i) => keyAt(lines, i) === targetRawKey);
+  if (draggedIdx === -1 || targetIdx === -1) return null;
+  const start = h2Indices[draggedIdx];
+  const end = draggedIdx + 1 < h2Indices.length ? h2Indices[draggedIdx + 1] : lines.length;
+  const draggedBlock = lines.slice(start, end);
+  lines.splice(start, draggedBlock.length);
+  const h2IndicesNew = lines.map((l, i) => /^##\s/.test(l) ? i : -1).filter((i) => i >= 0);
+  const targetIdxNew = h2IndicesNew.findIndex((i) => keyAt(lines, i) === targetRawKey);
+  lines.splice(h2IndicesNew[targetIdxNew], 0, ...draggedBlock);
+  return lines.join("\n");
+}
+function deleteSectionMessage(cleanLabel, usedNames) {
+  if (usedNames.length > 0) {
+    return `Warning: The section "${cleanLabel}" has active content in the following files:
+${usedNames.join(", ")}
+
+Are you sure you want to delete it from the template?`;
+  }
+  return `Remove the section "${cleanLabel}" from this template?`;
+}
+var TEMPLATE_PLACEHOLDERS = [
+  "_Enter your notes here...",
+  "_Company description",
+  "_Background, interests",
+  "_The outcome we want",
+  "- [ ] First task",
+  "- [ ] First milestone"
+];
+function sectionInUse(content, sectionKey) {
+  const { cleanLabel } = parseHeaderKey(sectionKey);
+  const sections = parseH2Sections(content);
+  const matchingKey = Object.keys(sections).find((k) => sameLabel(k, cleanLabel));
+  if (!matchingKey) return false;
+  const body = (sections[matchingKey] || "").trim();
+  return !!body && !TEMPLATE_PLACEHOLDERS.some((p) => body.startsWith(p));
+}
+function filesUsingTemplateSection(notes, sectionKey) {
+  return notes.filter((n) => sectionInUse(n.content, sectionKey)).map((n) => n.file);
 }
 
 // src/views/crm-dashboard.ts
