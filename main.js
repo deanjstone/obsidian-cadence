@@ -4960,6 +4960,159 @@ async function renderEntityList(view, root, entityKey, opts = {}) {
 
 // src/views/entity-detail.ts
 var import_obsidian19 = require("obsidian");
+
+// src/utils/field-edit.ts
+function coerceFieldEdit(def, key, raw) {
+  let value = raw;
+  const fdef = def.fields.find((f) => f.key === key);
+  if (fdef) {
+    if (fdef.type === "tags") {
+      if (Array.isArray(raw)) {
+        value = raw;
+      } else {
+        value = (raw || "").split(",").map((t) => t.trim()).filter(Boolean);
+      }
+    } else if (fdef.type === "number" || fdef.type === "currency") {
+      const n = Number(raw);
+      value = isNaN(n) ? null : n;
+    } else if (key === "stage") {
+      value = raw ? [raw] : null;
+    } else if (raw === "") {
+      value = null;
+    }
+  }
+  return value;
+}
+function applyFieldEdit(frontmatter, key, value) {
+  if (value == null || Array.isArray(value) && value.length === 0) {
+    delete frontmatter[key];
+  } else {
+    frontmatter[key] = value;
+  }
+}
+function dateInputValue(current) {
+  const d = new Date(current);
+  return isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
+}
+function enumCurrent(current) {
+  return Array.isArray(current) ? String(current[0] || "") : String(current || "");
+}
+function isChipField(f) {
+  const fieldType = f.type || "text";
+  return fieldType === "tags" || fieldType === "multitext" || getFieldSuggestionSource(f) !== "none";
+}
+var DETAIL_LIST_KEYS = ["tags", "owner", "assigned", "contacts", "domain", "industry", "role", "with", "related"];
+var COMPANY_LIST_KEYS = ["owner", "contacts", "domain", "industry", "role", "with", "related"];
+function chipConfig(f, entities, listKeys) {
+  const fieldType = f.type || "text";
+  const suggestionSource = getFieldSuggestionSource(f);
+  const isEntitySrc = entities[suggestionSource] != null;
+  const isFolderSrc = suggestionSource && suggestionSource.startsWith("folder:");
+  const isPlainChip = ["tags", "none", "history"].includes(suggestionSource);
+  const isList = fieldType === "tags" || fieldType === "multitext" || f.isList === true || listKeys.includes(f.key);
+  let targetEntityKey = isEntitySrc ? suggestionSource : null;
+  const customFolderPath = isFolderSrc ? suggestionSource.slice("folder:".length) : null;
+  if (isFolderSrc && customFolderPath) {
+    const normalizedPath = customFolderPath.replace(/\/+$/, "").toLowerCase();
+    for (const [ek, def] of Object.entries(entities)) {
+      if (def && def.folder && def.folder.replace(/\/+$/, "").toLowerCase() === normalizedPath) {
+        targetEntityKey = ek;
+        break;
+      }
+    }
+  }
+  return { suggestionSource, isPlainChip, isList, targetEntityKey, customFolderPath };
+}
+function unwrapChip(v, isPlainChip) {
+  return isPlainChip ? String(v).trim() : String(v).replace(/^\[\[|\]\]$/g, "").trim();
+}
+function chipValues(current, isPlainChip) {
+  if (Array.isArray(current)) {
+    return current.map((v) => unwrapChip(v, isPlainChip)).filter(Boolean);
+  } else if (current != null && current !== "") {
+    return [unwrapChip(current, isPlainChip)].filter(Boolean);
+  }
+  return [];
+}
+function chipWriteValue(values, isPlainChip, isList) {
+  if (isPlainChip) {
+    return isList ? values : values[0] || null;
+  }
+  return isList ? values.map((o) => `[[${o}]]`) : values[0] ? `[[${values[0]}]]` : null;
+}
+function chipAdd(values, raw, isList) {
+  const name = raw.trim();
+  if (!name) return { kind: "blank" };
+  if (isList) {
+    if (values.includes(name)) return { kind: "duplicate" };
+    return { kind: "added", name, values: [...values, name] };
+  }
+  return { kind: "added", name, values: [name] };
+}
+function historyValues(frontmatters, key) {
+  const allValues = /* @__PURE__ */ new Set();
+  frontmatters.forEach((fm) => {
+    const val = fm[key];
+    if (Array.isArray(val)) {
+      val.forEach((v) => {
+        if (v) allValues.add(String(v).replace(/^\[\[|\]\]$/g, "").trim());
+      });
+    } else if (val != null && val !== "") {
+      allValues.add(String(val).replace(/^\[\[|\]\]$/g, "").trim());
+    }
+  });
+  return Array.from(allValues);
+}
+function folderNoteNames(folderNode) {
+  const names = [];
+  if (folderNode && folderNode.children) {
+    const walk = (node) => {
+      for (const child of node.children) {
+        if (child.children) walk(child);
+        else if (child.path && child.path.endsWith(".md")) names.push(child.basename);
+      }
+    };
+    walk(folderNode);
+  }
+  return names;
+}
+function filterSuggestions(candidates, query, taken) {
+  return candidates.filter((v) => (!query || v.toLowerCase().includes(query)) && !taken.includes(v));
+}
+function findNoteByName(files, name) {
+  return files.find((cFile) => cFile.basename.toLowerCase() === name.toLowerCase());
+}
+function chipLinkTarget(targetEntityKey, targetFile, name) {
+  if (targetFile) {
+    if (targetEntityKey && !targetEntityKey.startsWith("folder:")) {
+      return { kind: "entity", entityKey: targetEntityKey, file: targetFile };
+    }
+    return { kind: "file", file: targetFile };
+  }
+  return { kind: "link", linktext: name };
+}
+function chipCreation(suggestionSource, targetEntityKey, entities) {
+  return {
+    source: suggestionSource === "history" ? "folder:Cadence/Shared" : targetEntityKey || suggestionSource,
+    label: entities[targetEntityKey] ? entities[targetEntityKey].label : "Note"
+  };
+}
+
+// src/views/entity-detail.ts
+function entityDetailTitle(fm, primaryKey, basename) {
+  return fm[primaryKey] != null && fm[primaryKey] !== "" ? fm[primaryKey] : basename;
+}
+function detailFields(def) {
+  return def.fields.filter((f) => !(f.key === "type" && f.type !== "enum"));
+}
+function detailControl(f) {
+  const fieldType = f.type || "text";
+  if (fieldType === "enum") return "enum";
+  if (fieldType === "date") return "date";
+  if (fieldType === "number" || fieldType === "currency") return "number";
+  if (fieldType === "email") return "email";
+  return isChipField(f) ? "chips" : "text";
+}
 async function renderEntityDetail(view, root, entityKey, file) {
   if (entityKey === "project") return view.renderProjectDetail(root, file);
   if (entityKey === "company") return view.renderCompanyDetail(root, file);
@@ -4972,7 +5125,7 @@ async function renderEntityDetail(view, root, entityKey, file) {
   const cache = view.app.metadataCache.getFileCache(file) || {};
   const fm = Object.assign({}, cache.frontmatter || {});
   const primaryKey = def.fields[0].key;
-  const titleVal = fm[primaryKey] != null && fm[primaryKey] !== "" ? fm[primaryKey] : file.basename;
+  const titleVal = entityDetailTitle(fm, primaryKey, file.basename);
   const head = root.createDiv({ cls: "cad-detail-header" });
   const headLeft = head.createDiv({ cls: "cad-detail-header-left" });
   const back = headLeft.createEl("button", { cls: "cad-btn cad-detail-back", text: "\u2190 " + def.plural });
@@ -5016,31 +5169,8 @@ async function renderEntityDetail(view, root, entityKey, file) {
   };
   const writeField = async (key, raw) => {
     try {
-      let value = raw;
-      const fdef = def.fields.find((f) => f.key === key);
-      if (fdef) {
-        if (fdef.type === "tags") {
-          if (Array.isArray(raw)) {
-            value = raw;
-          } else {
-            value = (raw || "").split(",").map((t) => t.trim()).filter(Boolean);
-          }
-        } else if (fdef.type === "number" || fdef.type === "currency") {
-          const n = Number(raw);
-          value = isNaN(n) ? null : n;
-        } else if (key === "stage") {
-          value = raw ? [raw] : null;
-        } else if (raw === "") {
-          value = null;
-        }
-      }
-      await view.app.fileManager.processFrontMatter(file, (frontmatter) => {
-        if (value == null || Array.isArray(value) && value.length === 0) {
-          delete frontmatter[key];
-        } else {
-          frontmatter[key] = value;
-        }
-      });
+      const value = coerceFieldEdit(def, key, raw);
+      await view.app.fileManager.processFrontMatter(file, (frontmatter) => applyFieldEdit(frontmatter, key, value));
       flashSaved();
     } catch (e) {
       new import_obsidian19.Notice(`Save failed: ${e.message}`);
@@ -5051,28 +5181,25 @@ async function renderEntityDetail(view, root, entityKey, file) {
     saveTimer = setTimeout(() => writeField(key, val), 350);
   };
   const isCore = ["contact", "company", "partner", "registration", "commission", "lead", "certification", "activity", "sequence", "project", "deal"].includes(entityKey);
-  def.fields.forEach((f) => {
-    if (f.key === "type" && f.type !== "enum") {
-      return;
-    }
+  detailFields(def).forEach((f) => {
     const row = form.createDiv({ cls: "cad-form-row" });
     row.createDiv({ cls: "cad-form-label", text: f.label.toUpperCase() });
     const current = fm[f.key];
     const fieldType = f.type || "text";
-    if (fieldType === "enum") {
+    const control = detailControl(f);
+    if (control === "enum") {
       const sel = row.createEl("select", { cls: "cad-form-input" });
       sel.createEl("option", { value: "", text: "\u2014" });
       (f.options || []).forEach((opt) => {
         const o = sel.createEl("option", { value: opt, text: opt });
-        const valStr = Array.isArray(current) ? String(current[0] || "") : String(current || "");
-        if (valStr === opt) o.selected = true;
+        if (enumCurrent(current) === opt) o.selected = true;
       });
       sel.addEventListener("change", () => writeField(f.key, sel.value));
-    } else if (fieldType === "date") {
+    } else if (control === "date") {
       const inp = row.createEl("input", { type: "date", cls: "cad-form-input" });
       if (current) {
-        const d = new Date(current);
-        if (!isNaN(d.getTime())) inp.value = d.toISOString().slice(0, 10);
+        const date = dateInputValue(current);
+        if (date !== null) inp.value = date;
       }
       if (!isCore && f.key === "type") {
         inp.disabled = true;
@@ -5082,7 +5209,7 @@ async function renderEntityDetail(view, root, entityKey, file) {
       } else {
         inp.addEventListener("change", () => writeField(f.key, inp.value));
       }
-    } else if (fieldType === "number" || fieldType === "currency") {
+    } else if (control === "number") {
       const inp = row.createEl("input", { type: "number", cls: "cad-form-input" });
       if (current != null) inp.value = String(current);
       if (fieldType === "currency") inp.placeholder = `${view.plugin.settings.currency || "USD"} amount`;
@@ -5095,7 +5222,7 @@ async function renderEntityDetail(view, root, entityKey, file) {
         inp.addEventListener("input", () => debouncedWrite(f.key, inp.value));
         inp.addEventListener("blur", () => writeField(f.key, inp.value));
       }
-    } else if (fieldType === "email") {
+    } else if (control === "email") {
       const inp = row.createEl("input", { type: "email", cls: "cad-form-input" });
       if (current) inp.value = String(current);
       if (!isCore && f.key === "type") {
@@ -5108,24 +5235,8 @@ async function renderEntityDetail(view, root, entityKey, file) {
         inp.addEventListener("blur", () => writeField(f.key, inp.value));
       }
     } else {
-      const suggestionSource = getFieldSuggestionSource(f);
-      const isChips = fieldType === "tags" || fieldType === "multitext" || suggestionSource !== "none";
-      if (isChips) {
-        const isEntitySrc = ENTITIES[suggestionSource] != null;
-        const isFolderSrc = suggestionSource && suggestionSource.startsWith("folder:");
-        const isPlainChip = ["tags", "none", "history"].includes(suggestionSource);
-        const isList = fieldType === "tags" || fieldType === "multitext" || f.isList === true || f.key === "tags" || ["owner", "assigned", "contacts", "domain", "industry", "role", "with", "related"].includes(f.key);
-        let targetEntityKey = isEntitySrc ? suggestionSource : null;
-        const customFolderPath = isFolderSrc ? suggestionSource.slice("folder:".length) : null;
-        if (isFolderSrc && customFolderPath) {
-          const normalizedPath = customFolderPath.replace(/\/+$/, "").toLowerCase();
-          for (const [ek, def2] of Object.entries(ENTITIES)) {
-            if (def2 && def2.folder && def2.folder.replace(/\/+$/, "").toLowerCase() === normalizedPath) {
-              targetEntityKey = ek;
-              break;
-            }
-          }
-        }
+      if (control === "chips") {
+        const { suggestionSource, isPlainChip, isList, targetEntityKey, customFolderPath } = chipConfig(f, ENTITIES, DETAIL_LIST_KEYS);
         row.style.position = "relative";
         const wrap = row.createDiv({ cls: "cad-pd-tag-input-wrap" });
         wrap.style.display = "flex";
@@ -5168,63 +5279,26 @@ async function renderEntityDetail(view, root, entityKey, file) {
         suggestionsBox.style.top = "100%";
         suggestionsBox.style.right = "0";
         suggestionsBox.style.marginTop = "4px";
-        let valuesList = [];
-        const cur = fm[f.key];
-        if (Array.isArray(cur)) {
-          valuesList = cur.map((v) => isPlainChip ? String(v).trim() : String(v).replace(/^\[\[|\]\]$/g, "").trim()).filter(Boolean);
-        } else if (cur != null && cur !== "") {
-          valuesList = [isPlainChip ? String(cur).trim() : String(cur).replace(/^\[\[|\]\]$/g, "").trim()].filter(Boolean);
-        }
+        let valuesList = chipValues(fm[f.key], isPlainChip);
         const updateSuggestions = () => {
           const query = inp.value.trim().toLowerCase();
           suggestionsBox.empty();
-          let filtered = [];
+          let candidates = [];
           if (suggestionSource === "tags") {
-            const suggestions = Object.keys(view.app.metadataCache.getTags() || {}).map((t) => t.replace(/^#/, ""));
-            filtered = suggestions.filter(
-              (v) => (!query || v.toLowerCase().includes(query)) && !valuesList.includes(v)
-            );
+            candidates = Object.keys(view.app.metadataCache.getTags() || {}).map((t) => t.replace(/^#/, ""));
           } else if (suggestionSource === "history") {
-            const allFiles = view.app.vault.getMarkdownFiles();
-            const allValues = /* @__PURE__ */ new Set();
-            allFiles.forEach((file2) => {
-              const cache2 = view.app.metadataCache.getFileCache(file2);
-              const fm2 = cache2 && cache2.frontmatter || {};
-              const val = fm2[f.key];
-              if (Array.isArray(val)) {
-                val.forEach((v) => {
-                  if (v) allValues.add(String(v).replace(/^\[\[|\]\]$/g, "").trim());
-                });
-              } else if (val != null && val !== "") {
-                allValues.add(String(val).replace(/^\[\[|\]\]$/g, "").trim());
-              }
-            });
-            filtered = Array.from(allValues).filter(
-              (v) => (!query || v.toLowerCase().includes(query)) && !valuesList.includes(v)
-            );
+            candidates = historyValues(view.app.vault.getMarkdownFiles().map((fl) => {
+              const cache2 = view.app.metadataCache.getFileCache(fl);
+              return cache2 && cache2.frontmatter || {};
+            }), f.key);
           } else if (suggestionSource !== "none") {
             if (customFolderPath) {
-              const folderNode = view.app.vault.getAbstractFileByPath(customFolderPath);
-              const names = [];
-              if (folderNode && folderNode.children) {
-                const walk = (node) => {
-                  for (const child of node.children) {
-                    if (child.children) walk(child);
-                    else if (child.path && child.path.endsWith(".md")) names.push(child.basename);
-                  }
-                };
-                walk(folderNode);
-              }
-              filtered = names.filter(
-                (n) => (!query || n.toLowerCase().includes(query)) && !valuesList.includes(n)
-              );
+              candidates = folderNoteNames(view.app.vault.getAbstractFileByPath(customFolderPath));
             } else {
-              const targetEntities = listEntities(view.app, targetEntityKey);
-              filtered = targetEntities.filter(
-                (c) => (!query || c.basename.toLowerCase().includes(query)) && !valuesList.includes(c.basename)
-              ).map((c) => c.basename);
+              candidates = listEntities(view.app, targetEntityKey).map((c) => c.basename);
             }
           }
+          const filtered = filterSuggestions(candidates, query, valuesList);
           if (filtered.length === 0) {
             suggestionsBox.style.display = "none";
             return;
@@ -5271,15 +5345,13 @@ async function renderEntityDetail(view, root, entityKey, file) {
               labelSpan.style.cursor = "pointer";
               labelSpan.addEventListener("click", (ev) => {
                 ev.stopPropagation();
-                const targetFile = view.app.vault.getMarkdownFiles().find((cFile) => cFile.basename.toLowerCase() === valName.toLowerCase());
-                if (targetFile) {
-                  if (targetEntityKey && !targetEntityKey.startsWith("folder:")) {
-                    view.openEntityDetail(targetEntityKey, targetFile);
-                  } else {
-                    view.openEntityDetailFromFile(targetFile);
-                  }
+                const target = chipLinkTarget(targetEntityKey, findNoteByName(view.app.vault.getMarkdownFiles(), valName), valName);
+                if (target.kind === "entity") {
+                  view.openEntityDetail(target.entityKey, target.file);
+                } else if (target.kind === "file") {
+                  view.openEntityDetailFromFile(target.file);
                 } else {
-                  view.app.workspace.openLinkText(valName, "", false);
+                  view.app.workspace.openLinkText(target.linktext, "", false);
                 }
               });
             }
@@ -5303,37 +5375,24 @@ async function renderEntityDetail(view, root, entityKey, file) {
           });
         };
         const save = async () => {
-          let val;
-          if (isPlainChip) {
-            val = isList ? valuesList : valuesList[0] || null;
-          } else {
-            val = isList ? valuesList.map((o) => `[[${o}]]`) : valuesList[0] ? `[[${valuesList[0]}]]` : null;
-          }
-          await writeField(f.key, val);
+          await writeField(f.key, chipWriteValue(valuesList, isPlainChip, isList));
         };
-        const addVal = async (name) => {
-          name = name.trim();
-          if (!name) return;
-          if (isList) {
-            if (valuesList.includes(name)) {
-              inp.value = "";
-              return;
-            }
-            valuesList.push(name);
-          } else {
-            valuesList = [name];
-          }
+        const addVal = async (raw) => {
+          const added = chipAdd(valuesList, raw, isList);
+          if (added.kind === "blank") return;
           inp.value = "";
+          if (added.kind === "duplicate") return;
+          const { name } = added;
+          valuesList = added.values;
           renderChips();
           await save();
           if (!isPlainChip) {
-            const targetFile = view.app.vault.getMarkdownFiles().find((cFile) => cFile.basename.toLowerCase() === name.toLowerCase());
+            const targetFile = findNoteByName(view.app.vault.getMarkdownFiles(), name);
             if (!targetFile) {
               try {
-                const creationSource = suggestionSource === "history" ? "folder:Cadence/Shared" : targetEntityKey || suggestionSource;
-                await createEntity(view.app, creationSource, name);
-                const label = ENTITIES[targetEntityKey] ? ENTITIES[targetEntityKey].label : "Note";
-                new import_obsidian19.Notice(`Created new ${label}: ${name}`);
+                const creation = chipCreation(suggestionSource, targetEntityKey, ENTITIES);
+                await createEntity(view.app, creation.source, name);
+                new import_obsidian19.Notice(`Created new ${creation.label}: ${name}`);
               } catch (e) {
                 console.warn(`Failed to auto-create ${targetEntityKey || suggestionSource}`, e);
               }
@@ -5404,12 +5463,45 @@ async function renderEntityDetail(view, root, entityKey, file) {
 
 // src/views/company-detail.ts
 var import_obsidian20 = require("obsidian");
+function companyDetailTitle(fm, basename) {
+  return fm.name || basename;
+}
+function companyMetaFields(def) {
+  return def.fields.filter((f) => !f.primary && !(f.key === "type" && f.type !== "enum"));
+}
+function companyMetaControl(f) {
+  if (isChipField(f)) return "chips";
+  return (f.type || "text") === "enum" ? "enum" : "input";
+}
+function metaInputType(fieldType) {
+  return fieldType === "date" ? "date" : fieldType === "number" || fieldType === "currency" ? "number" : "text";
+}
+function metaInputValue(fieldType, raw) {
+  let val = raw || null;
+  if (fieldType === "number" || fieldType === "currency") {
+    const n = Number(raw);
+    val = isNaN(n) ? null : n;
+  }
+  return val;
+}
+function splitSectionColumns(keys) {
+  const left = [];
+  const right = [];
+  keys.forEach((key, idx) => {
+    if (idx % 2 === 0) {
+      left.push(key);
+    } else {
+      right.push(key);
+    }
+  });
+  return { left, right };
+}
 async function renderCompanyDetail(view, root, file) {
   root.addClass("cadence-project-detail");
   const def = ENTITIES.company;
   const cache = view.app.metadataCache.getFileCache(file) || {};
   const fm = Object.assign({}, cache.frontmatter || {});
-  const titleVal = fm.name || file.basename;
+  const titleVal = companyDetailTitle(fm, file.basename);
   const head = root.createDiv({ cls: "cad-detail-header" });
   const headLeft = head.createDiv({ cls: "cad-detail-header-left" });
   const back = headLeft.createEl("button", { cls: "cad-btn cad-detail-back", text: "\u2190 Companies" });
@@ -5459,24 +5551,9 @@ async function renderCompanyDetail(view, root, file) {
     cell.style.position = "relative";
     cell.createDiv({ cls: "cad-pd-meta-label", text: label.toUpperCase() });
     const current = fm[key];
-    const suggestionSource = getFieldSuggestionSource(f);
-    const isChips = fieldType === "tags" || fieldType === "multitext" || suggestionSource !== "none";
-    if (isChips) {
-      const isEntitySrc2 = ENTITIES[suggestionSource] != null;
-      const isFolderSrc2 = suggestionSource && suggestionSource.startsWith("folder:");
-      const isPlainChip = ["tags", "none", "history"].includes(suggestionSource);
-      const isList = fieldType === "tags" || fieldType === "multitext" || f.isList === true || ["owner", "contacts", "domain", "industry", "role", "with", "related"].includes(key);
-      let targetEntityKey = isEntitySrc2 ? suggestionSource : null;
-      const customFolderPath = isFolderSrc2 ? suggestionSource.slice("folder:".length) : null;
-      if (isFolderSrc2 && customFolderPath) {
-        const normalizedPath = customFolderPath.replace(/\/+$/, "").toLowerCase();
-        for (const [ek, def2] of Object.entries(ENTITIES)) {
-          if (def2 && def2.folder && def2.folder.replace(/\/+$/, "").toLowerCase() === normalizedPath) {
-            targetEntityKey = ek;
-            break;
-          }
-        }
-      }
+    const control = companyMetaControl(f);
+    if (control === "chips") {
+      const { suggestionSource, isPlainChip, isList, targetEntityKey, customFolderPath } = chipConfig(f, ENTITIES, COMPANY_LIST_KEYS);
       const wrap = cell.createDiv({ cls: "cad-pd-tag-input-wrap" });
       wrap.style.display = "flex";
       wrap.style.flexWrap = "wrap";
@@ -5514,62 +5591,26 @@ async function renderCompanyDetail(view, root, file) {
       suggestionsBox.style.top = "100%";
       suggestionsBox.style.left = "0";
       suggestionsBox.style.marginTop = "4px";
-      let valuesList = [];
-      if (Array.isArray(current)) {
-        valuesList = current.map((v) => isPlainChip ? String(v).trim() : String(v).replace(/^\[\[|\]\]$/g, "").trim()).filter(Boolean);
-      } else if (current != null && current !== "") {
-        valuesList = [isPlainChip ? String(current).trim() : String(current).replace(/^\[\[|\]\]$/g, "").trim()].filter(Boolean);
-      }
+      let valuesList = chipValues(current, isPlainChip);
       const updateSuggestions = () => {
         const query = inp.value.trim().toLowerCase();
         suggestionsBox.empty();
-        let filtered = [];
+        let candidates = [];
         if (suggestionSource === "tags") {
-          const suggestions = Object.keys(view.app.metadataCache.getTags() || {}).map((t) => t.replace(/^#/, ""));
-          filtered = suggestions.filter(
-            (v) => (!query || v.toLowerCase().includes(query)) && !valuesList.includes(v)
-          );
+          candidates = Object.keys(view.app.metadataCache.getTags() || {}).map((t) => t.replace(/^#/, ""));
         } else if (suggestionSource === "history") {
-          const allFiles = view.app.vault.getMarkdownFiles();
-          const allValues = /* @__PURE__ */ new Set();
-          allFiles.forEach((fl) => {
+          candidates = historyValues(view.app.vault.getMarkdownFiles().map((fl) => {
             const cache2 = view.app.metadataCache.getFileCache(fl);
-            const fm2 = cache2 && cache2.frontmatter || {};
-            const val = fm2[key];
-            if (Array.isArray(val)) {
-              val.forEach((v) => {
-                if (v) allValues.add(String(v).replace(/^\[\[|\]\]$/g, "").trim());
-              });
-            } else if (val != null && val !== "") {
-              allValues.add(String(val).replace(/^\[\[|\]\]$/g, "").trim());
-            }
-          });
-          filtered = Array.from(allValues).filter(
-            (v) => (!query || v.toLowerCase().includes(query)) && !valuesList.includes(v)
-          );
+            return cache2 && cache2.frontmatter || {};
+          }), key);
         } else if (suggestionSource !== "none") {
           if (customFolderPath) {
-            const folderNode = view.app.vault.getAbstractFileByPath(customFolderPath);
-            const names = [];
-            if (folderNode && folderNode.children) {
-              const walk = (node) => {
-                for (const child of node.children) {
-                  if (child.children) walk(child);
-                  else if (child.path && child.path.endsWith(".md")) names.push(child.basename);
-                }
-              };
-              walk(folderNode);
-            }
-            filtered = names.filter(
-              (n) => (!query || n.toLowerCase().includes(query)) && !valuesList.includes(n)
-            );
+            candidates = folderNoteNames(view.app.vault.getAbstractFileByPath(customFolderPath));
           } else {
-            const targetEntities = listEntities(view.app, targetEntityKey);
-            filtered = targetEntities.filter(
-              (c) => (!query || c.basename.toLowerCase().includes(query)) && !valuesList.includes(c.basename)
-            ).map((c) => c.basename);
+            candidates = listEntities(view.app, targetEntityKey).map((c) => c.basename);
           }
         }
+        const filtered = filterSuggestions(candidates, query, valuesList);
         if (filtered.length === 0) {
           suggestionsBox.style.display = "none";
           return;
@@ -5616,15 +5657,13 @@ async function renderCompanyDetail(view, root, file) {
             labelSpan.style.cursor = "pointer";
             labelSpan.addEventListener("click", (ev) => {
               ev.stopPropagation();
-              const targetFile = view.app.vault.getMarkdownFiles().find((cFile) => cFile.basename.toLowerCase() === valName.toLowerCase());
-              if (targetFile) {
-                if (targetEntityKey && !targetEntityKey.startsWith("folder:")) {
-                  view.openEntityDetail(targetEntityKey, targetFile);
-                } else {
-                  view.openEntityDetailFromFile(targetFile);
-                }
+              const target = chipLinkTarget(targetEntityKey, findNoteByName(view.app.vault.getMarkdownFiles(), valName), valName);
+              if (target.kind === "entity") {
+                view.openEntityDetail(target.entityKey, target.file);
+              } else if (target.kind === "file") {
+                view.openEntityDetailFromFile(target.file);
               } else {
-                view.app.workspace.openLinkText(valName, "", false);
+                view.app.workspace.openLinkText(target.linktext, "", false);
               }
             });
           }
@@ -5644,44 +5683,26 @@ async function renderCompanyDetail(view, root, file) {
         });
       };
       const save = async () => {
-        let val;
-        if (isPlainChip) {
-          val = isList ? valuesList : valuesList[0] || null;
-        } else {
-          val = isList ? valuesList.map((o) => `[[${o}]]`) : valuesList[0] ? `[[${valuesList[0]}]]` : null;
-        }
-        await view.app.fileManager.processFrontMatter(file, (frontmatter) => {
-          if (val == null || Array.isArray(val) && val.length === 0) {
-            delete frontmatter[key];
-          } else {
-            frontmatter[key] = val;
-          }
-        });
+        const val = chipWriteValue(valuesList, isPlainChip, isList);
+        await view.app.fileManager.processFrontMatter(file, (frontmatter) => applyFieldEdit(frontmatter, key, val));
         flashSaved();
       };
-      const addVal = async (name) => {
-        name = name.trim();
-        if (!name) return;
-        if (isList) {
-          if (valuesList.includes(name)) {
-            inp.value = "";
-            return;
-          }
-          valuesList.push(name);
-        } else {
-          valuesList = [name];
-        }
+      const addVal = async (raw) => {
+        const added = chipAdd(valuesList, raw, isList);
+        if (added.kind === "blank") return;
         inp.value = "";
+        if (added.kind === "duplicate") return;
+        const { name } = added;
+        valuesList = added.values;
         renderChips();
         await save();
         if (!isPlainChip) {
-          const targetFile = view.app.vault.getMarkdownFiles().find((cFile) => cFile.basename.toLowerCase() === name.toLowerCase());
+          const targetFile = findNoteByName(view.app.vault.getMarkdownFiles(), name);
           if (!targetFile) {
             try {
-              const creationSource = suggestionSource === "history" ? "folder:Cadence/Shared" : targetEntityKey || suggestionSource;
-              await createEntity(view.app, creationSource, name);
-              const label2 = ENTITIES[targetEntityKey] ? ENTITIES[targetEntityKey].label : "Note";
-              new import_obsidian20.Notice(`Created new ${label2}: ${name}`);
+              const creation = chipCreation(suggestionSource, targetEntityKey, ENTITIES);
+              await createEntity(view.app, creation.source, name);
+              new import_obsidian20.Notice(`Created new ${creation.label}: ${name}`);
             } catch (e) {
               console.warn(`Failed to auto-create ${targetEntityKey || suggestionSource}`, e);
             }
@@ -5711,7 +5732,7 @@ async function renderCompanyDetail(view, root, file) {
       });
       wrap.addEventListener("click", () => inp.focus());
       renderChips();
-    } else if (fieldType === "enum") {
+    } else if (control === "enum") {
       const sel = cell.createEl("select", { cls: "cad-pd-meta-input" });
       sel.style.border = "none";
       sel.style.background = "transparent";
@@ -5721,38 +5742,27 @@ async function renderCompanyDetail(view, root, file) {
       sel.createEl("option", { value: "", text: "\u2014" });
       (f.options || []).forEach((opt) => {
         const o = sel.createEl("option", { value: opt, text: opt });
-        const valStr = Array.isArray(current) ? String(current[0] || "") : String(current || "");
-        if (valStr === opt) o.selected = true;
+        if (enumCurrent(current) === opt) o.selected = true;
       });
       const commit = async () => {
         const val = sel.value || null;
-        await view.app.fileManager.processFrontMatter(file, (frontmatter) => {
-          if (val === null) delete frontmatter[key];
-          else frontmatter[key] = val;
-        });
+        await view.app.fileManager.processFrontMatter(file, (frontmatter) => applyFieldEdit(frontmatter, key, val));
         flashSaved();
       };
       sel.addEventListener("change", commit);
     } else {
-      const inp = cell.createEl("input", { type: fieldType === "date" ? "date" : fieldType === "number" || fieldType === "currency" ? "number" : "text", cls: "cad-pd-meta-input" });
+      const inp = cell.createEl("input", { type: metaInputType(fieldType), cls: "cad-pd-meta-input" });
       if (fieldType === "currency") inp.placeholder = `${view.plugin.settings.currency || "USD"} amount`;
       if (fieldType === "date" && current) {
-        const d = new Date(current);
-        if (!isNaN(d.getTime())) inp.value = d.toISOString().slice(0, 10);
+        const date = dateInputValue(current);
+        if (date !== null) inp.value = date;
       } else if (current != null) {
         inp.value = String(current);
       }
       let t;
       const commit = () => {
-        let val = inp.value || null;
-        if (fieldType === "number" || fieldType === "currency") {
-          const n = Number(inp.value);
-          val = isNaN(n) ? null : n;
-        }
-        view.app.fileManager.processFrontMatter(file, (frontmatter) => {
-          if (val === null || val === "") delete frontmatter[key];
-          else frontmatter[key] = val;
-        });
+        const val = metaInputValue(fieldType, inp.value);
+        view.app.fileManager.processFrontMatter(file, (frontmatter) => applyFieldEdit(frontmatter, key, val));
         flashSaved();
       };
       inp.addEventListener("input", () => {
@@ -5762,25 +5772,13 @@ async function renderCompanyDetail(view, root, file) {
       inp.addEventListener("blur", commit);
     }
   };
-  def.fields.forEach((f) => {
-    if (f.primary) return;
-    if (f.key === "type" && f.type !== "enum") return;
-    mkMeta(f);
-  });
+  companyMetaFields(def).forEach((f) => mkMeta(f));
   const cols = root.createDiv({ cls: "cad-pd-cols" });
   const left = cols.createDiv({ cls: "cad-pd-col" });
   const right = cols.createDiv({ cls: "cad-pd-col" });
   const content = await view.app.vault.read(file);
   const sections = parseH2Sections(content);
-  const leftKeys = [];
-  const rightKeys = [];
-  Object.keys(sections).forEach((key, idx) => {
-    if (idx % 2 === 0) {
-      leftKeys.push(key);
-    } else {
-      rightKeys.push(key);
-    }
-  });
+  const { left: leftKeys, right: rightKeys } = splitSectionColumns(Object.keys(sections));
   leftKeys.forEach((key) => {
     view._renderDynamicH2Section(left, file, sections, key, flashSaved);
   });
