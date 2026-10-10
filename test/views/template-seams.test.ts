@@ -132,10 +132,13 @@ describe("propagateSectionAdd", () => {
     expect(propagateSectionAdd("  ## Ideas\n### Ideas\n", { cleanTitle: "Ideas", tag: "" })).toBe("  ## Ideas\n### Ideas\n\n## Ideas\n\n");
   });
 
-  it("QUIRK: a null title throws once the note has any section, and appends '## null' otherwise", () => {
-    const section = { cleanTitle: null as unknown as string, tag: "#notes" };
-    expect(() => propagateSectionAdd("## Bio\nx\n", section)).toThrow(TypeError);
-    expect(propagateSectionAdd("# Cy\n", section)).toBe("# Cy\n\n## null #notes\n\n");
+  it("a null or blank title (a cancelled prompt) changes no note and never throws", () => {
+    for (const cleanTitle of [null, undefined, "", "   "]) {
+      const section = { cleanTitle: cleanTitle as unknown as string, tag: "#notes" };
+      expect(propagateSectionAdd("## Bio\nx\n", section)).toBeNull();
+      expect(propagateSectionAdd("# Cy\n\n## Bio #notes\nx\n\n## Tasks #tasks\n- [ ] y\n", section)).toBeNull();
+      expect(propagateSectionAdd("# Cy\n", section)).toBeNull();
+    }
   });
 });
 

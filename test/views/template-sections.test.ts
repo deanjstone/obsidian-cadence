@@ -382,12 +382,12 @@ describe("_propagateTemplateSectionAdd over a vault", () => {
     expect(app.vault.modified).toEqual([]);
   });
 
-  it("QUIRK: a null title (a cancelled prompt) appends '## null' to notes with no sections, and throws on one with sections", async () => {
-    const { view, read } = setup([note("Cy", "# Cy\n")]);
-    await view._propagateTemplateSectionAdd("contact", null, "#notes", "");
-    expect(await read(`${C}/Cy.md`)).toBe("# Cy\n\n## null #notes\n\n");
-    const other = setup([note("Ann", "## Bio\nx\n")]);
-    await expect(other.view._propagateTemplateSectionAdd("contact", null, "#notes", "")).rejects.toThrow(TypeError);
+  it("a null title (a cancelled prompt) writes nothing, and never throws on a note with H2 sections", async () => {
+    const { view, app, read } = setup([note("Cy", "# Cy\n"), note("Ann", "## Bio\nx\n")]);
+    await expect(view._propagateTemplateSectionAdd("contact", null, "#notes", "")).resolves.toBeUndefined();
+    expect(app.vault.modified).toEqual([]);
+    expect(await read(`${C}/Cy.md`)).toBe("# Cy\n");
+    expect(await read(`${C}/Ann.md`)).toBe("## Bio\nx\n");
   });
 });
 

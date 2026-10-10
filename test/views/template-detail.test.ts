@@ -272,12 +272,32 @@ describe("renderTemplateDetail: adding blocks", () => {
     expect(propagate.mock.calls).toEqual([["contact", "Stages", "#chart-deal-contact-stage-donut", ""]]);
   });
 
-  it("QUIRK: cancelling the title prompt calls onSubmit(null), which appends a '## null' section", async () => {
-    const { prompts, propagate, read } = await addBlock("📝 Text Area");
+  it("cancelling the title prompt (onSubmit(null)) writes nothing, notices nothing and propagates nothing", async () => {
+    const { prompts, propagate, read, app, rendered } = await addBlock("📝 Text Area");
     prompts[0].onClose();
     await flush();
-    expect((await read(`${T}/contact.md`)).endsWith("\n\n## null #notes\n_Enter your notes here..._\n")).toBe(true);
-    expect(Notice.messages).toEqual(['Section "null" added to template.']);
-    expect(propagate.mock.calls).toEqual([["contact", null, "#notes", "_Enter your notes here..._"]]);
+    expect(await read(`${T}/contact.md`)).toBe(CONTACT_TEMPLATE);
+    expect(app.vault.modified).toEqual([]);
+    expect(Notice.messages).toEqual([]);
+    expect(propagate).not.toHaveBeenCalled();
+    expect(rendered).not.toHaveBeenCalled();
+  });
+
+  it("a cancelled prompt on any of the five add-block buttons writes nothing (regression)", async () => {
+    const made = setup();
+    const crosses = captureOpen<Any>(CadenceCrossSectionModal);
+    const charts = captureOpen<Any>(CadenceChartSectionModal);
+    const prompts = captureOpen<Any>(CadencePromptModal);
+    await made.view.renderTemplateDetail(made.root, "contact", made.file(`${T}/contact.md`));
+    for (const text of ["📝 Text Area", "📋 Task List", "📅 Milestones / Timeline"]) addButton(made.root, text).trigger("click");
+    addButton(made.root, "🔗 Cross-Linked Data").trigger("click");
+    await crosses[0].onSubmit({ targetEntity: "deal", linkField: "contact", viewType: "kanban" });
+    addButton(made.root, "📊 Analytics Chart").trigger("click");
+    charts[0].onSubmit({ targetEntity: "deal", linkField: "contact", groupField: "stage", style: "donut" });
+    expect(prompts).toHaveLength(5);
+    for (const p of prompts) p.onClose();
+    await flush();
+    expect(made.app.vault.modified).toEqual([]);
+    expect(Notice.messages).toEqual([]);
   });
 });

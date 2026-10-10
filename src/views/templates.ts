@@ -275,10 +275,11 @@ export async function renderTemplateDetail(view: AppViewHost, root: HTMLElement,
 
   const btnRow = toolbar.createDiv({ attr: { style: 'display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;' } });
 
-  /* cleanTitle is null when the title prompt is cancelled (flagged). */
+  /* cleanTitle is null when the title prompt is cancelled: write nothing. */
   const addSectionHelper = async (cleanTitle: string | null, tag: string, defaultBody = '') => {
+    if (!cleanTitle) return;
     const curContent = await view.app.vault.read(file);
-    const nextContent = appendTemplateSection(curContent, cleanTitle as string, tag, defaultBody);
+    const nextContent = appendTemplateSection(curContent, cleanTitle, tag, defaultBody);
     await view.app.vault.modify(file, nextContent);
     new Notice(`Section "${cleanTitle}" added to template.`);
     await view._propagateTemplateSectionAdd(entityKey, cleanTitle as string, tag, defaultBody);
@@ -543,8 +544,10 @@ function spliceSection(lines: string[], idx: number): void {
 }
 
 /* Propagate an added section to one note: append it, unless the note has
-   an H2 section of the same name (any tag). null = no change. */
+   an H2 section of the same name (any tag). null = no change, as for a
+   missing or blank title (a cancelled prompt). */
 export function propagateSectionAdd(content: string, section: TemplateSection): string | null {
+  if (!section.cleanTitle?.trim()) return null;
   const sections = parseH2Sections(content);
   const exists = Object.keys(sections).some(k => sameLabel(k, section.cleanTitle));
   if (exists) return null;
