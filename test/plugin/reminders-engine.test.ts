@@ -214,12 +214,48 @@ describe("snoozeReminder and completeReminder", () => {
     expect(plugin.settings.reminders.map((r: Any) => r.when)).toEqual([iso(-10 * DAY), iso(4 * DAY)]);
   });
 
-  it("QUIRK: snoozing a repeating reminder moves the rest of the series with it", async () => {
-    const { plugin } = await makeLoadedPlugin({ data: { reminders: [reminder({ repeat: "daily" })] } });
+  it("snoozing a repeating reminder moves only that occurrence; the series keeps its own time", async () => {
+    const { plugin } = await makeLoadedPlugin({ data: { reminders: [reminder({ repeat: "daily", notes: "agenda" })] } });
     await plugin.snoozeReminder("rem_a", 30 * MIN);
     vi.setSystemTime(NOW.getTime() + 30 * MIN);
     plugin.tickReminders();
-    expect(plugin.settings.reminders[1].when).toBe(iso(30 * MIN + DAY));
+    expect(Notice.messages).toEqual(["⏰  Call Jane"]);
+    expect(plugin.settings.reminders.map((r: Any) => r.when)).toEqual([iso(30 * MIN), iso(-MIN + DAY)]);
+    expect(plugin.settings.reminders[1]).toMatchObject({ notes: "agenda", notified: false, done: false });
+  });
+
+  it("snoozing a repeating reminder that already fired doesn't fork the series", async () => {
+    const { plugin } = await makeLoadedPlugin({ data: { reminders: [reminder({ repeat: "daily" })] } });
+    plugin.tickReminders();
+    await plugin.snoozeReminder("rem_a", 30 * MIN);
+    vi.setSystemTime(NOW.getTime() + 30 * MIN);
+    plugin.tickReminders();
+    expect(Notice.messages).toHaveLength(2);
+    expect(plugin.settings.reminders.map((r: Any) => r.when)).toEqual([iso(30 * MIN), iso(-MIN + DAY)]);
+  });
+
+  it("snoozing a fired repeating reminder saved before #44 (no advanced flag) doesn't fork the series either", async () => {
+    const { plugin } = await makeLoadedPlugin({
+      data: { reminders: [reminder({ repeat: "daily", notified: true }), reminder({ id: "rem_b", repeat: "daily", when: iso(-MIN + DAY) })] },
+    });
+    await plugin.snoozeReminder("rem_a", 30 * MIN);
+    vi.setSystemTime(NOW.getTime() + 30 * MIN);
+    plugin.tickReminders();
+    expect(plugin.settings.reminders.map((r: Any) => r.when)).toEqual([iso(30 * MIN), iso(-MIN + DAY)]);
+  });
+
+  it("completing a snoozed repeating occurrence adds no second next occurrence", async () => {
+    const { plugin } = await makeLoadedPlugin({ data: { reminders: [reminder({ repeat: "daily" })] } });
+    await plugin.snoozeReminder("rem_a", 30 * MIN);
+    await plugin.completeReminder("rem_a");
+    expect(plugin.settings.reminders.map((r: Any) => [r.when, r.done])).toEqual([[iso(30 * MIN), true], [iso(-MIN + DAY), false]]);
+  });
+
+  it("snoozing a one-off adds nothing and marks nothing advanced", async () => {
+    const { plugin } = await makeLoadedPlugin({ data: { reminders: [reminder()] } });
+    await plugin.snoozeReminder("rem_a", 30 * MIN);
+    expect(plugin.settings.reminders).toHaveLength(1);
+    expect(plugin.settings.reminders[0]).not.toHaveProperty("advanced");
   });
 });
 

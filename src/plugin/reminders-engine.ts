@@ -116,19 +116,24 @@ export async function deleteReminder(plugin: PluginHost, id: string): Promise<vo
   plugin.refreshOpenViews();
 }
 
+/* Before a snooze or a completion, a repeating occurrence hands its series
+   on (appending the next occurrence unless it already has) and the patch
+   marks it `advanced`. updateReminder then saves both at once. */
+function withSeriesHandedOn(plugin: PluginHost, id: string, patch: Partial<Reminder>): Partial<Reminder> {
+  const r = (plugin.settings.reminders || []).find((x) => x.id === id);
+  if (!r || !isRepeating(r.repeat)) return patch;
+  const next = continueSeries(r, new Date());
+  if (next) plugin.settings.reminders.push(next);
+  return { ...patch, advanced: true };
+}
+
+/* Snoozing moves only this occurrence; the series keeps its own time (#44). */
 export async function snoozeReminder(plugin: PluginHost, id: string, ms: number): Promise<Reminder | null> {
-  return plugin.updateReminder(id, snoozePatch(ms, Date.now()));
+  return plugin.updateReminder(id, withSeriesHandedOn(plugin, id, snoozePatch(ms, Date.now())));
 }
 
 export async function completeReminder(plugin: PluginHost, id: string): Promise<Reminder | null> {
-  const patch: Partial<Reminder> = { ...COMPLETE_PATCH };
-  const r = (plugin.settings.reminders || []).find((x) => x.id === id);
-  if (r && isRepeating(r.repeat)) {
-    const next = continueSeries(r, new Date());
-    if (next) plugin.settings.reminders.push(next);
-    patch.advanced = true;
-  }
-  return plugin.updateReminder(id, patch);
+  return plugin.updateReminder(id, withSeriesHandedOn(plugin, id, { ...COMPLETE_PATCH }));
 }
 
 /* ── Reminder ticker ── */
