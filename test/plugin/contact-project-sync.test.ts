@@ -201,21 +201,22 @@ describe("a project note changes", () => {
     expect(app.fileManager.processed).toEqual([]);
   });
 
-  it("removes the project from a contact the project no longer names", async () => {
+  it("keeps the project on a contact the project does not name", async () => {
     const { app } = await loadedVault([
       { path: jane.path, frontmatter: { type: "contact", project: ["[[Apollo]]", "[[website relaunch]]"] } },
       apollo,
       { path: website.path, frontmatter: { type: "project", owner: [] } },
     ]);
     await changed(app, website.path);
-    expect(fm(app, jane.path)?.project).toBe("[[Apollo]]");
-    expect(Notice.messages).toEqual(['Lien automatique : Projet "Website relaunch" dissocié du contact "Jane Doe".']);
+    expect(fm(app, jane.path)?.project).toEqual(["[[Apollo]]", "[[website relaunch]]"]);
+    expect(app.fileManager.processed).toEqual([]);
+    expect(Notice.messages).toEqual([]);
   });
 
-  it("deletes the contact's project key when that was its last project", async () => {
+  it("keeps the contact's last project", async () => {
     const { app } = await loadedVault([jane, { path: website.path, frontmatter: { type: "project" } }]);
     await changed(app, website.path);
-    expect(fm(app, jane.path)).not.toHaveProperty("project");
+    expect(fm(app, jane.path)?.project).toEqual(["[[Website relaunch]]"]);
   });
 
   it("keeps the link when another note names both the contact and the project", async () => {
@@ -229,7 +230,7 @@ describe("a project note changes", () => {
     expect(app.fileManager.processed).toEqual([]);
   });
 
-  it("does not count the contact's own note, or a note naming only one side, as another source", async () => {
+  it("keeps the link with no other source: not the contact's own note, nor a note naming only one side", async () => {
     const { app } = await loadedVault([
       jane,
       { path: website.path, frontmatter: { type: "project" } },
@@ -237,7 +238,8 @@ describe("a project note changes", () => {
       { path: "Meetings/Bare.md" },
     ]);
     await changed(app, website.path);
-    expect(fm(app, jane.path)).not.toHaveProperty("project");
+    expect(fm(app, jane.path)?.project).toEqual(["[[Website relaunch]]"]);
+    expect(app.fileManager.processed).toEqual([]);
   });
 });
 
@@ -271,7 +273,7 @@ describe("any other note changes", () => {
     expect(Notice.messages).toEqual([]);
   });
 
-  it("QUIRK: a project a contact lists by hand is removed when no other note backs it", async () => {
+  it("keeps a project a contact lists by hand, even when no other note backs it", async () => {
     const { app } = await loadedVault([
       { path: jane.path, frontmatter: { type: "contact", project: ["[[Website relaunch]]", "[[Apollo]]"] } },
       website,
@@ -279,14 +281,15 @@ describe("any other note changes", () => {
       { path: "Notes/unrelated.md", frontmatter: { mood: "fine" } },
     ]);
     await changed(app, "Notes/unrelated.md");
-    expect(fm(app, jane.path)?.project).toBe("[[Website relaunch]]");
-    expect(Notice.messages).toEqual(['Lien automatique : Projet "Apollo" dissocié de "Jane Doe".']);
+    expect(fm(app, jane.path)?.project).toEqual(["[[Website relaunch]]", "[[Apollo]]"]);
+    expect(app.fileManager.processed).toEqual([]);
+    expect(Notice.messages).toEqual([]);
   });
 
-  it("deletes the project key of a contact with no backed project", async () => {
+  it("keeps the project key of a contact with no backed project", async () => {
     const { app } = await loadedVault([jane, { path: website.path, frontmatter: { type: "project" } }, { path: "Notes/n.md", frontmatter: { a: 1 } }]);
     await changed(app, "Notes/n.md");
-    expect(fm(app, jane.path)).not.toHaveProperty("project");
+    expect(fm(app, jane.path)?.project).toEqual(["[[Website relaunch]]"]);
   });
 
   it("QUIRK: creates a contact for any name in a contact field, and a project for any name in a project field", async () => {
@@ -307,7 +310,7 @@ describe("any other note changes", () => {
     ]);
     await changed(app, "Notes/n.md");
     expect(fm(app, sam.path)?.project).toBeUndefined();
-    expect(fm(app, jane.path)).not.toHaveProperty("project");
+    expect(fm(app, jane.path)?.project).toBe("[[Apollo]]");
   });
 
   it("splits comma lists and strips link aliases", async () => {

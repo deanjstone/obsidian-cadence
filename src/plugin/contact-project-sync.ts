@@ -9,6 +9,9 @@ import type { PluginHost } from './host';
    vault 'delete'. Only contacts' `project` field is written. CadencePlugin
    keeps a one-line delegate for each.
 
+   The sync only adds (#45): a change never removes a project a contact
+   lists. Only deleting a project note removes it.
+
    The link maths is plain data over names and frontmatter: which names a
    value holds (extractEntitiesFromValue), which fields name contacts or
    projects, which contact–project pairs a note backs (noteLinks,
@@ -182,21 +185,12 @@ export function removeProjectLink(current: string[], projectName: string): strin
   return current.filter(p => p.toLowerCase() !== projectName.toLowerCase());
 }
 
-/* What the vault-wide pass writes to one contact, or null when its
-   projects already match the target (case-insensitively, as sets). */
-export function contactProjectsPlan(
-  existing: string[],
-  target: string[],
-): { names: string[]; added: string[]; removed: string[] } | null {
-  const existingLower = existing.map(p => p.toLowerCase());
-  const targetLower = target.map(p => p.toLowerCase());
-  const needsUpdate = existingLower.some(p => !targetLower.includes(p)) || targetLower.some(p => !existingLower.includes(p));
-  if (!needsUpdate) return null;
-  return {
-    names: target,
-    added: target.filter(p => !existing.some(ep => ep.toLowerCase() === p.toLowerCase())),
-    removed: existing.filter(ep => !target.some(p => p.toLowerCase() === ep.toLowerCase())),
-  };
+/* The backed projects the vault-wide pass adds to one contact, or null when
+   it already lists them all (case-insensitively). The sync is additive: a
+   project the contact lists is never removed, backed or not (#45). */
+export function contactProjectsPlan(existing: string[], backed: string[]): { added: string[] } | null {
+  const added = backed.filter(p => !existing.some(ep => ep.toLowerCase() === p.toLowerCase()));
+  return added.length > 0 ? { added } : null;
 }
 
 export async function syncContactProjectRelationships(plugin: PluginHost, changedFile: TFile | null | undefined): Promise<void> {
@@ -288,29 +282,6 @@ export async function syncContactProjectRelationships(plugin: PluginHost, change
             }
           });
           new Notice(`Lien automatique : Projet "${changedFile.basename}" associé au contact "${contactFile.basename}".`);
-        } else if (!projectListsContact && listsProject) {
-          // User removed contact from project sheet! Check if there is any other note listing both.
-          let hasOtherSource = false;
-          const allFiles = plugin.app.vault.getMarkdownFiles();
-          for (const f of allFiles) {
-            if (f.path === changedFile.path || f.path === contactFile.path) continue;
-            const cache = plugin.app.metadataCache.getFileCache(f);
-            if (!cache || !cache.frontmatter) continue;
-
-            const note = { entityKey: entityKeyFromFile(plugin.app, f), basename: f.basename, frontmatter: cache.frontmatter };
-            const { contacts, projects } = noteLinks(note, contactMap, projectMap, ENTITIES);
-            if (contacts.has(contactLower) && projects.has(projectLower)) {
-              hasOtherSource = true;
-              break;
-            }
-          }
-
-          if (!hasOtherSource) {
-            await plugin.app.fileManager.processFrontMatter(contactFile, (cfm: Frontmatter) => {
-              writeProjectLinks(cfm, removeProjectLink(extractEntitiesFromValue(cfm.project), projectLower));
-            });
-            new Notice(`Lien automatique : Projet "${changedFile.basename}" dissocié du contact "${contactFile.basename}".`);
-          }
         }
       }
     }
@@ -353,15 +324,9 @@ export async function syncContactProjectRelationships(plugin: PluginHost, change
         const plan = contactProjectsPlan(existingProjects, Array.from(projectNamesToLink));
         if (plan) {
           await plugin.app.fileManager.processFrontMatter(contactFile, (cfm: Frontmatter) => {
-            writeProjectLinks(cfm, plan.names);
+            writeProjectLinks(cfm, [...extractEntitiesFromValue(cfm.project), ...plan.added]);
           });
-
-          if (plan.added.length > 0) {
-            new Notice(`Lien automatique : Projet "${plan.added.join(', ')}" associé à "${contactFile.basename}".`);
-          }
-          if (plan.removed.length > 0) {
-            new Notice(`Lien automatique : Projet "${plan.removed.join(', ')}" dissocié de "${contactFile.basename}".`);
-          }
+          new Notice(`Lien automatique : Projet "${plan.added.join(', ')}" associé à "${contactFile.basename}".`);
         }
       }
 

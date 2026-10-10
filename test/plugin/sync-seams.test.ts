@@ -143,15 +143,14 @@ describe("project link values", () => {
 });
 
 describe("contactProjectsPlan", () => {
-  it("is null when the sets match case-insensitively, whatever the order", () => {
+  it("is null when every backed project is already listed, case-insensitively", () => {
     expect(contactProjectsPlan(["Apollo", "zeta"], ["Zeta", "apollo"])).toBeNull();
     expect(contactProjectsPlan([], [])).toBeNull();
   });
 
-  it("writes the target and reports what was added and removed", () => {
-    expect(contactProjectsPlan(["Apollo", "Old"], ["apollo", "New"])).toEqual({
-      names: ["apollo", "New"], added: ["New"], removed: ["Old"],
-    });
-    expect(contactProjectsPlan(["Apollo"], [])).toEqual({ names: [], added: [], removed: ["Apollo"] });
+  it("only adds: a backed project missing from the contact is added, and none is removed", () => {
+    expect(contactProjectsPlan(["Apollo", "Old"], ["apollo", "New"])).toEqual({ added: ["New"] });
+    expect(contactProjectsPlan(["Apollo"], [])).toBeNull();
+    expect(contactProjectsPlan(["Apollo", "Old"], ["apollo"])).toBeNull();
   });
 });
