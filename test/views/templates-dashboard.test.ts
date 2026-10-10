@@ -288,7 +288,7 @@ describe("renderTemplatesDashboard: Enable Custom and Reset to Default", () => {
     expect(rendered).toHaveBeenCalledTimes(1);
   });
 
-  it("QUIRK: Reset on a template found at a label/plural path skips the confirm and creates <key>.md beside it", async () => {
+  it("Reset on a template found at a label/plural path asks first, then overwrites that file and creates nothing", async () => {
     const confirm = vi.fn(() => true);
     vi.stubGlobal("confirm", confirm);
     const { view, root, app, read } = setup([tpl("Deals", "custom")]);
@@ -296,9 +296,21 @@ describe("renderTemplatesDashboard: Enable Custom and Reset to Default", () => {
     expect(badge(tile(root, "deal")).text).toBe("Active Template");
     button(tile(root, "deal"), "Reset to Default").trigger("click");
     await flush();
-    expect(confirm).not.toHaveBeenCalled();
-    expect(app.vault.created).toEqual([`${T}/deal.md`]);
+    expect(confirm.mock.calls).toEqual([["Are you sure you want to reset the template for Deal? Your visual changes will be overwritten."]]);
+    expect(app.vault.created.filter((p: string) => p.startsWith(`${T}/`) && p.endsWith(".md"))).toEqual([]);
+    expect(app.vault.modified).toEqual([`${T}/Deals.md`]);
+    expect(await read(`${T}/Deals.md`)).toBe(entityTemplate("deal", "{{name}}") + "\n## Notes #notes\n_Context and general notes..._\n");
+    expect(Notice.messages).toEqual(["Template reset for Deal."]);
+  });
+
+  it("declining Reset on a label/plural-path template leaves it alone", async () => {
+    vi.stubGlobal("confirm", vi.fn(() => false));
+    const { view, root, app, read } = setup([tpl("Deals", "custom")]);
+    await view.renderTemplatesDashboard(root);
+    button(tile(root, "deal"), "Reset to Default").trigger("click");
+    await flush();
+    expect(app.vault.modified).toEqual([]);
+    expect(app.vault.created.filter((p: string) => p.endsWith("deal.md"))).toEqual([]);
     expect(await read(`${T}/Deals.md`)).toBe("custom");
-    expect(Notice.messages).toEqual(["Template successfully enabled for Deal."]);
   });
 });

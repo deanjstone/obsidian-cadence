@@ -7,7 +7,7 @@ import type { EntityDef, EntityKey } from '../types/entities';
 import type { ChartSectionConfig, CrossSectionConfig } from '../types/modals';
 import { ymd } from '../utils/dates';
 import { splitSectionColumns } from '../utils/field-edit';
-import { appendSection, parseH2Sections, parseHeaderKey } from '../utils/parsing';
+import { appendSection, parseH2Sections, parseHeaderKey, type HeaderKey } from '../utils/parsing';
 import { DAILY_TEMPLATE_CONTENT, defaultTemplateContent } from '../utils/templates';
 import { ensureFolderSync } from '../utils/vault';
 import type { FlashSaved } from './components/sections';
@@ -185,7 +185,7 @@ export async function renderTemplatesDashboard(view: AppViewHost, root: HTMLElem
       e.stopPropagation();
       const templateContent = defaultTemplateContent(entityKey);
 
-      const targetPath = `${templatesFolder}/${entityKey}.md`;
+      const targetPath = foundPath ?? `${templatesFolder}/${entityKey}.md`;
       let tFile = view.app.vault.getAbstractFileByPath(targetPath);
       if (tFile && tFile instanceof TFile) {
         if (!confirm(`Are you sure you want to reset the template for ${def.label}? Your visual changes will be overwritten.`)) return;
@@ -275,10 +275,15 @@ export async function renderTemplateDetail(view: AppViewHost, root: HTMLElement,
 
   const btnRow = toolbar.createDiv({ attr: { style: 'display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;' } });
 
-  /* cleanTitle is null when the title prompt is cancelled (flagged). */
+  /* cleanTitle is null when the title prompt is cancelled: write nothing. */
   const addSectionHelper = async (cleanTitle: string | null, tag: string, defaultBody = '') => {
+    if (!cleanTitle) return;
     const curContent = await view.app.vault.read(file);
-    const nextContent = appendTemplateSection(curContent, cleanTitle as string, tag, defaultBody);
+    const nextContent = appendTemplateSection(curContent, cleanTitle, tag, defaultBody);
+    if (nextContent === null) {
+      new Notice(`Section "${cleanTitle}" is already in this template.`);
+      return;
+    }
     await view.app.vault.modify(file, nextContent);
     new Notice(`Section "${cleanTitle}" added to template.`);
     await view._propagateTemplateSectionAdd(entityKey, cleanTitle as string, tag, defaultBody);
@@ -356,7 +361,7 @@ export function renderTemplateSectionWithDelete(
   view: AppViewHost, parent: HTMLElement, file: TFile, sections: Record<string, string>, rawKey: string,
   flashSaved?: FlashSaved, allRawKeys?: string[],
 ): void {
-  const entityKey = file.basename;
+  const entityKey = templateEntityKey(file.basename);
   const { cleanLabel, tag } = parseHeaderKey(rawKey);
 
   // Outer wrapper — draggable to support reordering
@@ -423,14 +428,17 @@ export function renderTemplateSectionWithDelete(
   delBtn.title = `Remove section "${cleanLabel}" from template`;
   delBtn.addEventListener('click', async (ev) => {
     ev.stopPropagation();
-    const usedFiles = await view._getFilesUsingTemplateSection(entityKey, rawKey);
+    /* A daily-template delete changes the template only: daily notes are
+       never rewritten (owner decision on #43), so there is nothing to warn about. */
+    const propagates = entityKey !== 'daily';
+    const usedFiles = propagates ? await view._getFilesUsingTemplateSection(entityKey, rawKey) : [];
     if (!confirm(deleteSectionMessage(cleanLabel, usedFiles.map(f => f.basename)))) return;
 
     const curContent = await view.app.vault.read(file);
     const nextContent = removeTemplateSection(curContent, rawKey);
     if (nextContent !== null) {
       await view.app.vault.modify(file, nextContent);
-      await view._propagateTemplateSectionDelete(entityKey, rawKey);
+      if (propagates) await view._propagateTemplateSectionDelete(entityKey, rawKey);
       new Notice(`Section "${cleanLabel}" removed.`);
       view.render();
     }
@@ -481,6 +489,17 @@ export function templatePathCandidates(folder: string, entityKey: string, def: P
   ];
 }
 
+/* The entity a template file is for, from its basename: an entity key,
+   label or plural (any case, as templatePathCandidates finds them), or
+   'daily'. An unknown basename is returned as-is. */
+export function templateEntityKey(basename: string): EntityKey | 'daily' {
+  const name = basename.toLowerCase();
+  if (name === 'daily') return 'daily';
+  const match = Object.entries(ENTITIES).find(([key, def]) =>
+    [key, def.label, def.plural].some(n => n.toLowerCase() === name));
+  return match ? match[0] : basename;
+}
+
 /* A tile's status pill. */
 export function templateBadge(exists: boolean): { cls: string; text: string } {
   return {
@@ -515,9 +534,12 @@ export function templateHeader(cleanTitle: string, tag: string): string {
   return `## ${cleanTitle} ${tag}`.trim();
 }
 
-/* Append a section to a template. Flagged: it does not check for an
-   existing section of the same name. */
-export function appendTemplateSection(content: string, cleanTitle: string, tag: string, defaultBody = ''): string {
+/* Append a section to a template. null when the template already has a
+   section of that name (any tag, any case), so a block is never added twice. */
+export function appendTemplateSection(content: string, cleanTitle: string, tag: string, defaultBody = ''): string | null {
+  const name = cleanTitle.trim().toLowerCase();
+  const exists = Object.keys(parseH2Sections(content)).some(k => parseHeaderKey(k).cleanLabel.toLowerCase() === name);
+  if (exists) return null;
   return appendSection(content, templateHeader(cleanTitle, tag), defaultBody);
 }
 
@@ -528,50 +550,58 @@ export interface TemplateSection {
   defaultBody?: string;
 }
 
-/* Same section name: the labels match case-insensitively, whatever the tags. */
-function sameLabel(key: string, cleanLabel: string): boolean {
-  return parseHeaderKey(key).cleanLabel.toLowerCase() === cleanLabel.toLowerCase();
+/* Same section: the labels and the tags both match, case-insensitively. A
+   same-named section with another tag, or none, is the user's own. */
+function sameSection(key: string, other: HeaderKey): boolean {
+  const { cleanLabel, tag } = parseHeaderKey(key);
+  return cleanLabel.toLowerCase() === other.cleanLabel.toLowerCase()
+    && tag.toLowerCase() === other.tag.toLowerCase();
 }
 
-/* Remove lines[idx] and everything up to the next H2 line, in place. */
+/* Remove lines[idx] and everything up to the next H2 line, in place. A
+   last section keeps the note's final newline. */
 function spliceSection(lines: string[], idx: number): void {
   let endIdx = lines.length;
   for (let i = idx + 1; i < lines.length; i++) {
     if (/^##\s/.test(lines[i])) { endIdx = i; break; }
   }
+  if (endIdx === lines.length && idx > 0 && lines[idx - 1] !== '' && lines[endIdx - 1] === '') endIdx--;
   lines.splice(idx, endIdx - idx);
 }
 
 /* Propagate an added section to one note: append it, unless the note has
-   an H2 section of the same name (any tag). null = no change. */
+   the same H2 section (name and tag). null = no change, as for a missing
+   or blank title (a cancelled prompt). */
 export function propagateSectionAdd(content: string, section: TemplateSection): string | null {
+  if (!section.cleanTitle?.trim()) return null;
   const sections = parseH2Sections(content);
-  const exists = Object.keys(sections).some(k => sameLabel(k, section.cleanTitle));
+  const target = parseHeaderKey(templateHeader(section.cleanTitle, section.tag).replace(/^##\s+/, ''));
+  const exists = Object.keys(sections).some(k => sameSection(k, target));
   if (exists) return null;
   return appendSection(content, templateHeader(section.cleanTitle, section.tag), section.defaultBody ?? '');
 }
 
-/* Propagate a deleted section to one note: remove the first H2 section of
-   the same name (any tag), up to the next H2. null = no change. */
+/* Propagate a deleted section to one note: remove every H2 section that is
+   the same section (name and tag), each up to the next H2. null = no change. */
 export function propagateSectionDelete(content: string, sectionKey: string): string | null {
-  const { cleanLabel } = parseHeaderKey(sectionKey);
+  const target = parseHeaderKey(sectionKey);
   const lines = content.split('\n');
-  const idx = lines.findIndex(l => {
-    if (!/^##\s/.test(l)) return false;
-    const key = l.trim().replace(/^##\s+/, '');
-    return sameLabel(key, cleanLabel);
-  });
-  if (idx === -1) return null;
-  spliceSection(lines, idx);
-  return lines.join('\n');
+  let removed = false;
+  for (let idx = lines.length - 1; idx >= 0; idx--) {
+    if (!/^##\s/.test(lines[idx])) continue;
+    if (!sameSection(lines[idx].trim().replace(/^##\s+/, ''), target)) continue;
+    spliceSection(lines, idx);
+    removed = true;
+  }
+  return removed ? lines.join('\n') : null;
 }
 
-/* Remove a section from the template itself, matched by its exact raw key.
-   Flagged: the match is the first line that reads as the key once trimmed
-   and stripped of a leading "## ", heading or not. null = not found. */
+/* Remove a section from the template itself: the first H2 heading whose
+   key (as parseH2Sections reads it) is exactly the raw key, up to the next
+   H2. A plain line with the same text is not a heading. null = not found. */
 export function removeTemplateSection(content: string, rawKey: string): string | null {
   const lines = content.split('\n');
-  const idx = lines.findIndex(l => l.trim().replace(/^##\s+/, '') === rawKey);
+  const idx = lines.findIndex(l => /^##\s/.test(l) && l.replace(/^##\s+/, '').trim() === rawKey);
   if (idx === -1) return null;
   spliceSection(lines, idx);
   return lines.join('\n');
@@ -579,9 +609,8 @@ export function removeTemplateSection(content: string, rawKey: string): string |
 
 /* Move the dragged H2 section (heading to the next H2) to just before the
    target section. null when the keys are the same or either is not an H2
-   in the content.
-   Flagged: the block moves as-is, so a last section with no trailing blank
-   line runs into the heading after it. */
+   in the content. A block with no trailing blank line (a last section)
+   gets one, so it never runs into the heading after it. */
 export function moveTemplateSection(content: string, draggedRawKey: string, targetRawKey: string): string | null {
   if (draggedRawKey === targetRawKey) return null;
   const lines = content.split('\n');
@@ -596,6 +625,7 @@ export function moveTemplateSection(content: string, draggedRawKey: string, targ
   const end = draggedIdx + 1 < h2Indices.length ? h2Indices[draggedIdx + 1] : lines.length;
   const draggedBlock = lines.slice(start, end);
   lines.splice(start, draggedBlock.length);
+  if (draggedBlock[draggedBlock.length - 1] !== '') draggedBlock.push('');
 
   const h2IndicesNew = lines.map((l, i) => (/^##\s/.test(l) ? i : -1)).filter(i => i >= 0);
   const targetIdxNew = h2IndicesNew.findIndex(i => keyAt(lines, i) === targetRawKey);
@@ -611,11 +641,11 @@ export function deleteSectionMessage(cleanLabel: string, usedNames: string[]): s
   return `Remove the section "${cleanLabel}" from this template?`;
 }
 
-/* Starter bodies that don't count as content. Flagged: '_Context and
-   general notes..._' (most entities' Notes), a dated first milestone and
-   an empty '- [ ]' task are missing, so untouched notes count as in use. */
+/* Starter bodies that don't count as content, matched at the start of the
+   section body. */
 export const TEMPLATE_PLACEHOLDERS = [
   '_Enter your notes here...',
+  '_Context and general notes',
   '_Company description',
   '_Background, interests',
   '_The outcome we want',
@@ -623,14 +653,26 @@ export const TEMPLATE_PLACEHOLDERS = [
   '- [ ] First milestone',
 ];
 
-/* Does the note have a same-named section (any tag) with real content? */
+/* Starter first lines that need a pattern: a dated first milestone (the
+   project template's and the builder's) and an empty unticked task. */
+const TEMPLATE_PLACEHOLDER_PATTERNS = [
+  /^- \[ \] \d{4}-\d{2}-\d{2} — First milestone/,
+  /^- \[ \]\s*(\n|$)/,
+];
+
+function isPlaceholderBody(body: string): boolean {
+  return TEMPLATE_PLACEHOLDERS.some(p => body.startsWith(p))
+    || TEMPLATE_PLACEHOLDER_PATTERNS.some(p => p.test(body));
+}
+
+/* Does the note have the same section (name and tag) with real content? */
 export function sectionInUse(content: string, sectionKey: string): boolean {
-  const { cleanLabel } = parseHeaderKey(sectionKey);
+  const target = parseHeaderKey(sectionKey);
   const sections = parseH2Sections(content);
-  const matchingKey = Object.keys(sections).find(k => sameLabel(k, cleanLabel));
-  if (!matchingKey) return false;
-  const body = (sections[matchingKey] || '').trim();
-  return !!body && !TEMPLATE_PLACEHOLDERS.some(p => body.startsWith(p));
+  return Object.keys(sections).filter(k => sameSection(k, target)).some((k) => {
+    const body = (sections[k] || '').trim();
+    return !!body && !isPlaceholderBody(body);
+  });
 }
 
 /** A note and its content, as read from the vault. */
