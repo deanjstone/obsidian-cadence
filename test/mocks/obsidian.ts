@@ -172,6 +172,8 @@ export class MetadataCache {
   private frontmatter = new Map<string, Frontmatter>();
   /** What getTags() reports: `#tag` → count. Set directly in tests. */
   tags: Record<string, number> = {};
+  /** Source path → linked path → count, as Obsidian resolves links. Set directly in tests. */
+  resolvedLinks: Record<string, Record<string, number>> = {};
   getTags(): Record<string, number> {
     return this.tags;
   }
@@ -411,6 +413,17 @@ export class FakeElement {
   rows = 0;
   /** Fixed at 0: the stub does no layout. */
   scrollHeight = 0;
+  /** 0 unless a test sets them: the stub does no layout. */
+  clientWidth = 0;
+  clientHeight = 0;
+  /** <canvas> only: the bitmap size the code assigns. */
+  width = 0;
+  height = 0;
+  /** What getBoundingClientRect() reports. Set directly in tests. */
+  rect = { left: 0, top: 0 };
+  /** True unless a test sets it, as for an element in the document. */
+  isConnected = true;
+  private context2d: FakeCanvasContext | null = null;
   readonly dataset: Record<string, string> = {};
   /** The DOM's classList, backed by `classes`. */
   readonly classList = {
@@ -631,6 +644,43 @@ export class FakeElement {
   /** Descendants (depth-first, document order) matching `tag`. */
   findAll(tag: string): FakeElement[] {
     return this.children.flatMap((c) => [...(c.localName === tag ? [c] : []), ...c.findAll(tag)]);
+  }
+
+  getBoundingClientRect(): { left: number; top: number } {
+    return this.rect;
+  }
+
+  /* <canvas> only: one recording 2D context per element. */
+  getContext(_kind: string): FakeCanvasContext {
+    this.context2d ??= new FakeCanvasContext();
+    return this.context2d;
+  }
+}
+
+/* A 2D canvas context that records every call and style write, in order:
+   a call as `[method, ...args]`, a write as `['fillStyle=', value]`. */
+export class FakeCanvasContext {
+  readonly ops: unknown[][] = [];
+  private readonly props: Record<string, unknown> = {};
+
+  constructor() {
+    for (const prop of ['fillStyle', 'strokeStyle', 'lineWidth', 'font', 'textAlign']) {
+      Object.defineProperty(this, prop, {
+        get: () => this.props[prop],
+        set: (value: unknown) => {
+          this.props[prop] = value;
+          this.ops.push([`${prop}=`, value]);
+        },
+      });
+    }
+    for (const method of [
+      'scale', 'resetTransform', 'clearRect', 'save', 'restore', 'translate', 'beginPath', 'moveTo', 'lineTo',
+      'stroke', 'arc', 'fill', 'fillText',
+    ]) {
+      (this as unknown as Record<string, unknown>)[method] = (...args: unknown[]) => {
+        this.ops.push([method, ...args]);
+      };
+    }
   }
 }
 

@@ -17,8 +17,17 @@ export interface DashCardRow {
   /** Used only when metaParts is absent. */
   meta?: string;
   metaParts?: DashMetaPart[];
-  /** When set, clicking the row opens the file's detail form. */
-  file?: TFile;
+  /** When set, clicking the row opens the file's detail form. PRM's top
+      partners pass null for a partner value that names no partner. */
+  file?: TFile | null;
+}
+
+/** A mini stat inside a card row. `sub` is omitted where the card has none. */
+export interface MiniStat {
+  label: string;
+  value: string;
+  accent: string;
+  sub?: string;
 }
 
 /** A stat card: label, value, optional sub line and accent. */

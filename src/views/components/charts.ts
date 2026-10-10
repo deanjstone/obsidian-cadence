@@ -31,8 +31,8 @@ function toChartData(counts: Record<string, number>): ChartDatum[] {
 /* A dashboard widget's data: entities counted by the widget's groupBy
    field, read through entityValue. Wiki-link brackets are stripped. Each
    item of a list value counts once and blank items are skipped. A blank
-   scalar counts as 'Unspecified'. The Projects and CRM dashboards use it
-   (#17); the PRM dashboard still inlines the same loop until #20. */
+   scalar counts as 'Unspecified'. The Projects, CRM (#17) and PRM (#20)
+   dashboards all count their widgets with it. */
 export function chartData(entities: Entity[], widget: Pick<WidgetConfig, 'groupBy'>, def: EntityDef): ChartDatum[] {
   const fieldKey = widget.groupBy;
   const counts: Record<string, number> = {};
@@ -53,7 +53,7 @@ export function chartData(entities: Entity[], widget: Pick<WidgetConfig, 'groupB
 }
 
 /* The settings key holding each dashboard's custom chart widgets. */
-export type DashboardWidgetsKey = 'projectDashboardWidgets' | 'crmDashboardWidgets';
+export type DashboardWidgetsKey = 'projectDashboardWidgets' | 'crmDashboardWidgets' | 'prmDashboardWidgets';
 
 /* The chart styles a dashboard widget's style select offers, in order. */
 export const WIDGET_STYLE_OPTIONS: ReadonlyArray<{ value: ChartStyle; label: string }> = [

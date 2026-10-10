@@ -7,7 +7,7 @@ import { crmSummary, dealValue, sumValues } from '../utils/deals';
 import { entityValue, getDealStages, listEntities } from '../utils/entities';
 import { fmtValue } from '../utils/format';
 import { parseSections } from '../utils/parsing';
-import type { DashCardRow, StatCard } from './components/cards';
+import type { DashCardRow, MiniStat, StatCard } from './components/cards';
 import type { AppViewHost } from './host';
 
 /* The five tabular reports (reports.pipeline, reports.sales,
@@ -43,13 +43,8 @@ export function reportBar(value: number, max: number): { height: string; band: B
   };
 }
 
-/* A mini stat inside a card row. `sub` is omitted where the card has none. */
-export interface MiniStat {
-  label: string;
-  value: string;
-  accent: string;
-  sub?: string;
-}
+/* MiniStat moved to components/cards.ts, which PRM analytics shares; re-exported here. */
+export type { MiniStat } from './components/cards';
 
 function entityTitle(entity: Entity, key: string, def: EntityDef): string {
   return (entityValue(entity, key, def) as string) || entity.basename;
