@@ -42,8 +42,14 @@ Members that are Obsidian's `View` contract and have no logic stay on the class:
 | `host.ts` | `AppViewHost` (the view state and every member a moved surface uses), `AppViewPlugin` and `PromptOptions` |
 | `nav.ts` | `migrateModeId`, `resolveSurface`, `visibleNavGroups`, `modeUsesEntityFolder`, `routeFor` (pure), plus `toggleMobileNav`, `toggleCadenceDark`, `setMode` and `toggleGroup` |
 | `app-view.ts` | `initAppViewState`, `onOpenAppView`, `renderAppView`, the entity-detail open/close functions, `renderComingSoon`, `renderPageHeader`, `openSettingsTab`, `openPrompt`, `createEntityFromPrompt` and the pure `planEntityLinks` |
+| `components/charts.ts` | `drawChart`, `drawChartEmpty`, `drawDonutChart`, `drawBarChart`, `drawKpiGrid`, `drawSimpleList`, plus the pure `chartData`, `sectionChartData`, `donutGeometry`, `barRows` and `kpiCards` |
+| `components/cards.ts` | `dashCardSection` |
+| `components/entity-table.ts` | `renderEntityLinks`, `renderOwnerLinks`, `renderEntityTable` and `getEntityFiles` |
+| `components/sections.ts` | `renderMarkdownTextCard`, `renderProjectTextSection`, `renderGenericTextSection`, `renderSingleCrossSection`, `renderCrossSections`, `renderDynamicH2Section`, plus the pure `linksTo`, `crossSectionRows` and `dynamicH2Kind` |
 
 Use one file per major surface (`home.ts`, `today.ts`, `planner.ts`, `inbox.ts`, `entity-list.ts`, …), as in the map's module layout. Named exports only.
+
+Components that several surfaces share live in `components/` ([#11](https://github.com/deanjstone/obsidian-cadence/issues/11)). Surfaces still reach them only through `view._x()`, never by import. A component module may import another component's **pure** helper (`sections.ts` uses `sectionChartData`), because pure helpers take no `view`.
 
 ## How a view ticket applies the loop
 
@@ -59,6 +65,8 @@ Use one file per major surface (`home.ts`, `today.ts`, `planner.ts`, `inbox.ts`,
 
 ### Evidence for the PR
 
-- **Verbatim check.** Pass each legacy method body (with `this` → `view`) and each moved function through esbuild's `transformSync`, which strips the types and normalises the formatting, then compare the function bodies. #10's script is in its PR description.
-- **Mutation check.** Make a handful of one-line mutations to the extracted module, and confirm that each one breaks at least one test.
+- **Verbatim check.** Pass each legacy method body (with `this` → `view`) and each moved function through esbuild's `transformSync`, which strips the types and normalises the formatting, then compare the function bodies. #10's script is in its PR description, and #11's handles default parameters.
+  - If you rewrite `this` → `view` mechanically, skip string literals. #11's rewrite turned "Open this note" into "Open view note", and only a characterization test caught it.
+- **Mutation check.** Make a handful of one-line mutations to the extracted module, and confirm that each one breaks at least one test. If one survives, add the missing characterization test and say so in the PR.
+- **A seam whose callers belong to a later ticket** can land unwired, as long as it is tested and its doc comment names the callers that will adopt it. `chartData` is an example: it is the dashboards' counting loop, and the dashboard tickets swap it in.
 - Run `pnpm typecheck && pnpm test && pnpm build`, and check that `git diff --exit-code -- main.js` is clean after the build. The registration-parity smoke test must be green with its snapshot unedited.
