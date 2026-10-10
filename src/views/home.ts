@@ -11,6 +11,8 @@ import { parseLinkValues, parseSections, replaceSection } from '../utils/parsing
 import { reminderTimeStr } from '../utils/reminders';
 import { listTaskNotesTasks, toggleTaskNotesTask } from '../utils/tasknotes';
 import type { Entity, ProjectMeta, TaskNotesTask } from '../types/entities';
+import type { Reminder } from '../types/reminders';
+import type { Milestone } from '../utils/parsing';
 import type { AppViewHost } from './host';
 
 /* Home, the command centre: the "Top of the day" briefing and the eight
@@ -80,7 +82,7 @@ export function homeCard(view: AppViewHost, parent: HTMLElement, title: string, 
 }
 
 export async function renderBriefing(view: AppViewHost, root: HTMLElement): Promise<void> {
-  let items = await view._computeBriefing();
+  const items = await view._computeBriefing();
   const card = root.createDiv({ cls: 'cad-briefing' });
 
   const head = card.createDiv({ cls: 'cad-briefing-head' });
@@ -92,15 +94,10 @@ export async function renderBriefing(view: AppViewHost, root: HTMLElement): Prom
     return;
   }
 
-  // On mobile, trim to the top 3 most urgent. _computeBriefing already
-  // emits items in priority order (overdue → time → opportunity → wins),
-  // so a simple slice keeps what matters most.
-  const isMobile = !!(Platform && Platform.isMobile);
-  const hiddenCount = isMobile && items.length > 3 ? items.length - 3 : 0;
-  if (isMobile && items.length > 3) items = items.slice(0, 3);
+  const { shown, hiddenCount } = visibleBriefing(items, !!(Platform && Platform.isMobile));
 
   const list = card.createDiv({ cls: 'cad-briefing-list' });
-  items.forEach((it) => {
+  shown.forEach((it) => {
     const row = list.createDiv({ cls: `cad-briefing-row cad-tone-${it.tone || 'emerald'}` });
     row.createSpan({ cls: 'cad-briefing-icon', text: it.icon });
     row.createSpan({ cls: 'cad-briefing-text', text: it.text });
@@ -115,6 +112,14 @@ export async function renderBriefing(view: AppViewHost, root: HTMLElement): Prom
   }
 }
 
+/** On mobile, trim to the top 3 most urgent. computeBriefing already emits
+    items in priority order (overdue → time → opportunity → wins), so a
+    simple slice keeps what matters most. */
+export function visibleBriefing<T>(items: T[], isMobile: boolean): { shown: T[]; hiddenCount: number } {
+  const hiddenCount = isMobile && items.length > 3 ? items.length - 3 : 0;
+  return { shown: isMobile && items.length > 3 ? items.slice(0, 3) : items, hiddenCount };
+}
+
 export function briefingHeadline(items: BriefingItem[]): string {
   const hasOverdue = items.some((i) => i.tone === 'rose');
   if (hasOverdue) return 'A couple of things need attention this morning.';
@@ -123,42 +128,63 @@ export function briefingHeadline(items: BriefingItem[]): string {
   return "Here's what's on your radar.";
 }
 
-export async function loadBriefing(view: AppViewHost): Promise<BriefingItem[]> {
-  const items = [];
-  const settings = view.plugin.settings;
+/** Where a briefing row leads: a surface, a file's detail form, or a project. */
+export type BriefingTarget =
+  | { kind: 'mode'; mode: string }
+  | { kind: 'file'; file: TFile }
+  | { kind: 'project'; file: TFile };
+
+/** A briefing row as plain data; loadBriefing turns the target into a click action. */
+export interface BriefingEntry {
+  icon: string;
+  tone: string;
+  text: string;
+  target: BriefingTarget;
+}
+
+/** A project's next open milestone, as readProjectMeta reports it. */
+export interface ProjectNextMilestone {
+  file: TFile;
+  name: string | null;
+  next: Milestone | null;
+}
+
+/** What the briefing reads, gathered by loadBriefing. */
+export interface BriefingData {
+  taskManagementSystem?: string;
+  /** Open tasks scheduled today, or null when they could not be read. */
+  openTasks: number | null;
+  reminders?: Reminder[];
+  deals: Entity[];
+  contacts: Entity[];
+  /** One per project note that could be read. */
+  projects: ProjectNextMilestone[];
+}
+
+/** The briefing maths: up to seven entries, in priority order. */
+export function computeBriefing(data: BriefingData, now: Date): BriefingEntry[] {
+  const items: BriefingEntry[] = [];
   const dealDef = ENTITIES.deal;
   const contactDef = ENTITIES.contact;
-  const today = startOfDay(new Date());
+  const today = startOfDay(now);
   const todayMs = today.getTime();
-  const nowMs = Date.now();
+  const nowMs = now.getTime();
 
   /* 1. Open tasks today */
-  try {
-    let openTasks = 0;
-    if (settings.taskManagementSystem === 'tasknotes') {
-      const todayYmd = ymd(new Date());
-      const allTaskNotes = listTaskNotesTasks(view.app);
-      openTasks = allTaskNotes.filter(t => t.scheduled === todayYmd && !t.done).length;
-    } else {
-      const file = await ensureDailyNote(view.app, settings);
-      const content = await view.app.vault.read(file);
-      const parsed = parseSections(content, settings);
-      openTasks = parsed.tasks.filter((l) => / \[ \] /.test(l)).length;
-    }
-    if (openTasks > 0) {
-      items.push({
-        icon: '🎯',
-        tone: 'emerald',
-        text: settings.taskManagementSystem === 'tasknotes'
-          ? `${openTasks} open ${openTasks === 1 ? 'task' : 'tasks'} scheduled for today`
-          : `${openTasks} open ${openTasks === 1 ? 'task' : 'tasks'} on today's note`,
-        action: () => view.setMode('planner.today'),
-      });
-    }
-  } catch (_) { }
+  const openTasks = data.openTasks ?? 0;
+  if (openTasks > 0) {
+    items.push({
+      icon: '🎯',
+      tone: 'emerald',
+      text: data.taskManagementSystem === 'tasknotes'
+        ? `${openTasks} open ${openTasks === 1 ? 'task' : 'tasks'} scheduled for today`
+        : `${openTasks} open ${openTasks === 1 ? 'task' : 'tasks'} on today's note`,
+      target: { kind: 'mode', mode: 'planner.today' },
+    });
+  }
 
   /* 2. Overdue reminders */
-  const reminders = (settings.reminders || []).filter((r) => !r.done);
+  const reminders = (data.reminders || []).filter((r) => !r.done);
   const overdue = reminders.filter((r) => r.when && new Date(r.when).getTime() <= nowMs);
   if (overdue.length) {
     const ex = overdue[0];
@@ -169,7 +195,7 @@ export async function loadBriefing(view: AppViewHost): Promise<BriefingItem[]> {
       text: overdue.length === 1
         ? `Overdue reminder — "${exTxt}"`
         : `${overdue.length} overdue reminders — "${exTxt}" + ${overdue.length - 1} more`,
-      action: () => view.setMode('planner.inbox'),
+      target: { kind: 'mode', mode: 'planner.inbox' },
     });
   }
 
@@ -184,12 +210,12 @@ export async function loadBriefing(view: AppViewHost): Promise<BriefingItem[]> {
       icon: '⏰',
       tone: 'mint',
       text: `${dueToday.length} ${dueToday.length === 1 ? 'reminder' : 'reminders'} due later today`,
-      action: () => view.setMode('planner.inbox'),
+      target: { kind: 'mode', mode: 'planner.inbox' },
     });
   }
 
   /* 4. Deals closing this week */
-  const deals = listEntities(view.app, 'deal');
+  const deals = data.deals;
   const weekEnd = todayMs + 7 * 86400000;
   const closingThisWeek = deals.filter((e) => {
     const stage = String(entityValue(e, 'stage', dealDef));
@@ -205,12 +231,12 @@ export async function loadBriefing(view: AppViewHost): Promise<BriefingItem[]> {
       icon: '💼',
       tone: 'sky',
       text: `${closingThisWeek.length} ${closingThisWeek.length === 1 ? 'deal closes' : 'deals close'} this week · ${fmtValue(value, 'currency')}`,
-      action: () => view.setMode('crm.pipeline'),
+      target: { kind: 'mode', mode: 'crm.pipeline' },
     });
   }
 
   /* 5. Stale contacts on open deals (>30 days since lastContact) */
-  const contacts = listEntities(view.app, 'contact');
+  const contacts = data.contacts;
   const openDeals = deals.filter((e) => !['Won', 'Lost'].includes(String(entityValue(e, 'stage', dealDef))));
   const dealContactNames = new Set(
     openDeals.map((d) => String(entityValue(d, 'contact', dealDef) || '').trim()).filter(Boolean)
@@ -237,23 +263,19 @@ export async function loadBriefing(view: AppViewHost): Promise<BriefingItem[]> {
       icon: '👤',
       tone: 'warn',
       text: `${staleSample.name} — ${ago}${dealName ? ` · ${dealName}` : ''}${more}`,
-      action: () => view.openEntityDetailFromFile(staleSample!.contact.file),
+      target: { kind: 'file', file: staleSample.contact.file },
     });
   }
 
   /* 6. Upcoming project milestones (next 14 days) */
-  const projectFiles = listEntityFiles(view.app, 'project');
-  const upcoming = [];
-  for (const f of projectFiles) {
-    try {
-      const meta = await readProjectMeta(view.app, f);
-      if (meta.next && meta.next.date) {
-        const ms = meta.next.date.getTime();
-        if (ms >= todayMs && ms <= todayMs + 14 * 86400000) {
-          upcoming.push({ file: f, milestone: meta.next, name: projectNameFromPath(view.app, f.path) });
-        }
+  const upcoming: Array<{ file: TFile; milestone: Milestone; name: string | null }> = [];
+  for (const p of data.projects) {
+    if (p.next && p.next.date) {
+      const ms = p.next.date.getTime();
+      if (ms >= todayMs && ms <= todayMs + 14 * 86400000) {
+        upcoming.push({ file: p.file, milestone: p.next, name: p.name });
       }
-    } catch (_) { }
+    }
   }
   upcoming.sort((a, b) => (a.milestone.date as unknown as number) - (b.milestone.date as unknown as number));
   if (upcoming.length) {
@@ -265,7 +287,7 @@ export async function loadBriefing(view: AppViewHost): Promise<BriefingItem[]> {
       icon: '📅',
       tone: 'mint',
       text: `${m.name} · "${title}" — due ${dayStr}`,
-      action: () => view.openEntityDetail('project', m.file),
+      target: { kind: 'project', file: m.file },
     });
   }
 
@@ -281,19 +303,100 @@ export async function loadBriefing(view: AppViewHost): Promise<BriefingItem[]> {
       icon: '🎉',
       tone: 'emerald',
       text: `${recentWins.length} ${recentWins.length === 1 ? 'deal won' : 'deals won'} this week · ${fmtValue(value, 'currency')}`,
-      action: () => view.setMode('reports.sales'),
+      target: { kind: 'mode', mode: 'reports.sales' },
     });
   }
 
   return items;
 }
 
-export async function homeInboxCard(view: AppViewHost, parent: HTMLElement): Promise<void> {
-  const reminders = (view.plugin.settings.reminders || []).filter((r) => !r.done);
-  const overdueCount = reminders.filter((r) => r.when && new Date(r.when).getTime() <= Date.now()).length;
-  const tone = overdueCount > 0 ? 'rose' : 'sky';
+/* Gathers what the briefing reads (in the legacy order: tasks, deals,
+   contacts, then each project note), runs computeBriefing and turns each
+   entry's target into a click action. */
+export async function loadBriefing(view: AppViewHost): Promise<BriefingItem[]> {
+  const settings = view.plugin.settings;
 
-  const headTitle = `INBOX — ${reminders.length} item${reminders.length === 1 ? '' : 's'}${overdueCount > 0 ? ` · ${overdueCount} overdue` : ''}`;
+  /* 1. Open tasks today */
+  let openTasks: number | null = null;
+  try {
+    if (settings.taskManagementSystem === 'tasknotes') {
+      const todayYmd = ymd(new Date());
+      const allTaskNotes = listTaskNotesTasks(view.app);
+      openTasks = allTaskNotes.filter(t => t.scheduled === todayYmd && !t.done).length;
+    } else {
+      const file = await ensureDailyNote(view.app, settings);
+      const content = await view.app.vault.read(file);
+      const parsed = parseSections(content, settings);
+      openTasks = parsed.tasks.filter((l) => / \[ \] /.test(l)).length;
+    }
+  } catch (_) { }
+
+  const deals = listEntities(view.app, 'deal');
+  const contacts = listEntities(view.app, 'contact');
+
+  /* 6. Each project's next milestone */
+  const projects: ProjectNextMilestone[] = [];
+  for (const f of listEntityFiles(view.app, 'project')) {
+    try {
+      const meta = await readProjectMeta(view.app, f);
+      projects.push({ file: f, name: projectNameFromPath(view.app, f.path), next: meta.next });
+    } catch (_) { }
+  }
+
+  const entries = computeBriefing({
+    taskManagementSystem: settings.taskManagementSystem,
+    openTasks,
+    reminders: settings.reminders,
+    deals,
+    contacts,
+    projects,
+  }, new Date());
+  return entries.map(({ icon, tone, text, target }) => ({ icon, tone, text, action: briefingAction(view, target) }));
+}
+
+function briefingAction(view: AppViewHost, target: BriefingTarget): () => void {
+  if (target.kind === 'file') return () => view.openEntityDetailFromFile(target.file);
+  if (target.kind === 'project') return () => view.openEntityDetail('project', target.file);
+  return () => view.setMode(target.mode);
+}
+
+/* ── Inbox card ── */
+
+/** Open reminders, the overdue count, the card's title and tone, and the
+    first five rows by time (unscheduled last). */
+export function selectInboxCard(allReminders: Reminder[] | undefined, now: Date) {
+  const nowMs = now.getTime();
+  const reminders = (allReminders || []).filter((r) => !r.done);
+  const isOverdue = (r: Reminder) => !!r.when && new Date(r.when).getTime() <= nowMs;
+  const overdueCount = reminders.filter(isOverdue).length;
+  const tone = overdueCount > 0 ? 'rose' : 'sky';
+  const title = `INBOX — ${reminders.length} item${reminders.length === 1 ? '' : 's'}${overdueCount > 0 ? ` · ${overdueCount} overdue` : ''}`;
+
+  // Sort: scheduled by when ascending, unscheduled fall to the end
+  const sorted = [...reminders].sort((a, b) => {
+    const wa = a.when ? new Date(a.when).getTime() : Infinity;
+    const wb = b.when ? new Date(b.when).getTime() : Infinity;
+    return wa - wb;
+  });
+  const rows = sorted.slice(0, 5).map((reminder) => ({ reminder, overdue: isOverdue(reminder) }));
+  return { reminders, overdueCount, tone, title, rows };
+}
+
+/** An inbox row's meta bits: project, repeat and the first note line. */
+export function inboxRowMeta(r: Reminder, projectName: (path: string) => string | null): string[] {
+  const metaBits: string[] = [];
+  if (r.project) metaBits.push(`📁 ${projectName(r.project) || 'project'}`);
+  if (r.repeat && r.repeat !== 'none') metaBits.push(r.repeat === 'daily' ? '↻ daily' : '↻ weekly');
+  if (r.notes) {
+    const firstLine = String(r.notes).split('\n').find((l) => l.trim()) || '';
+    if (firstLine) metaBits.push(`📝 ${firstLine.length > 60 ? firstLine.slice(0, 57) + '…' : firstLine}`);
+  }
+  return metaBits;
+}
+
+export async function homeInboxCard(view: AppViewHost, parent: HTMLElement): Promise<void> {
+  const { reminders, tone, title: headTitle, rows } = selectInboxCard(view.plugin.settings.reminders, new Date());
+
   const body = view._homeCard(parent, headTitle, (head) => {
     const cap = head.createEl('a', { cls: 'cad-home-card-link', text: '+ Capture' });
     cap.style.marginRight = '12px';
@@ -307,30 +410,51 @@ export async function homeInboxCard(view: AppViewHost, parent: HTMLElement): Pro
     return;
   }
 
-  // Sort: scheduled by when ascending, unscheduled fall to the end
-  const sorted = [...reminders].sort((a, b) => {
-    const wa = a.when ? new Date(a.when).getTime() : Infinity;
-    const wb = b.when ? new Date(b.when).getTime() : Infinity;
-    return wa - wb;
-  });
-
-  sorted.slice(0, 5).forEach((r) => {
+  rows.forEach(({ reminder: r, overdue }) => {
     const row = body.createDiv({ cls: 'cad-home-row' });
-    const isOverdue = r.when && new Date(r.when).getTime() <= Date.now();
-    if (isOverdue) row.classList.add('overdue');
+    if (overdue) row.classList.add('overdue');
     row.createDiv({ cls: 'cad-home-row-date', text: r.when ? reminderTimeStr(r.when) : 'unscheduled' });
     const main = row.createDiv({ cls: 'cad-home-row-main' });
     main.createDiv({ cls: 'cad-home-row-title', text: r.text });
-    const metaBits = [];
-    if (r.project) metaBits.push(`📁 ${projectNameFromPath(view.app, r.project) || 'project'}`);
-    if (r.repeat && r.repeat !== 'none') metaBits.push(r.repeat === 'daily' ? '↻ daily' : '↻ weekly');
-    if (r.notes) {
-      const firstLine = String(r.notes).split('\n').find((l) => l.trim()) || '';
-      if (firstLine) metaBits.push(`📝 ${firstLine.length > 60 ? firstLine.slice(0, 57) + '…' : firstLine}`);
-    }
+    const metaBits = inboxRowMeta(r, (path) => projectNameFromPath(view.app, path));
     if (metaBits.length) main.createDiv({ cls: 'cad-home-row-meta', text: metaBits.join('  ·  ') });
     row.addEventListener('click', () => new CadenceReminderEditModal(view.app, view.plugin, r).open());
   });
+}
+
+/* ── Today card ── */
+
+const TASK_PREFIX = /^\s*-\s\[(x|X| )\]\s/;
+
+/** TaskNotes tasks scheduled on `todayYmd`, and their checklist lines. */
+export function taskNotesToday(allTaskNotes: TaskNotesTask[], todayYmd: string): { tasks: TaskNotesTask[]; lines: string[] } {
+  const tasks = allTaskNotes.filter(t => t.scheduled === todayYmd);
+  return { tasks, lines: tasks.map(t => `- [${t.done ? 'x' : ' '}] ${t.title}`) };
+}
+
+/** The Today card's counts, title and one row per checklist line. */
+export function selectTodayCard(tasksList: string[]) {
+  const open = tasksList.filter((l) => / \[ \] /.test(l));
+  const done = tasksList.filter((l) => / \[(x|X)\] /.test(l));
+  const rows = tasksList.map((rawLine) => ({
+    checked: / \[(x|X)\] /.test(rawLine),
+    text: rawLine.replace(TASK_PREFIX, ''),
+  }));
+  return { open: open.length, done: done.length, title: `TODAY — ${open.length} open · ${done.length} done`, rows };
+}
+
+/** Ticks (or unticks) the line at `idx`, and returns the new lines with the
+    task's trimmed text. */
+export function toggleTaskLine(tasks: string[], idx: number, checked: boolean): { tasks: string[]; taskText: string } {
+  const taskLine = tasks[idx] || '';
+  const taskText = taskLine.replace(TASK_PREFIX, '').trim();
+  const newTasks = tasks.map((line, i) => {
+    if (i !== idx) return line;
+    return checked
+      ? line.replace(/^\s*-\s\[\s\]\s/, '- [x] ')
+      : line.replace(/^\s*-\s\[(x|X)\]\s/, '- [ ] ');
+  });
+  return { tasks: newTasks, taskText };
 }
 
 export async function homeTodayCard(view: AppViewHost, parent: HTMLElement): Promise<void> {
@@ -341,9 +465,9 @@ export async function homeTodayCard(view: AppViewHost, parent: HTMLElement): Pro
 
   if (settings.taskManagementSystem === 'tasknotes') {
     const todayYmd = ymd(new Date());
-    const allTaskNotes = listTaskNotesTasks(view.app);
-    todayTaskNotes = allTaskNotes.filter(t => t.scheduled === todayYmd);
-    tasksList = todayTaskNotes.map(t => `- [${t.done ? 'x' : ' '}] ${t.title}`);
+    const today = taskNotesToday(listTaskNotesTasks(view.app), todayYmd);
+    todayTaskNotes = today.tasks;
+    tasksList = today.lines;
   } else {
     file = await ensureDailyNote(view.app, settings);
     const content = await view.app.vault.read(file);
@@ -351,10 +475,9 @@ export async function homeTodayCard(view: AppViewHost, parent: HTMLElement): Pro
     tasksList = parsed.tasks;
   }
 
-  const open = tasksList.filter((l) => / \[ \] /.test(l));
-  const done = tasksList.filter((l) => / \[(x|X)\] /.test(l));
+  const { title, rows } = selectTodayCard(tasksList);
 
-  const body = view._homeCard(parent, `TODAY — ${open.length} open · ${done.length} done`, (head) => {
+  const body = view._homeCard(parent, title, (head) => {
     const link = head.createEl('a', { cls: 'cad-home-card-link', text: 'Open Today →' });
     link.addEventListener('click', (e) => { e.preventDefault(); view.setMode('planner.today'); });
   }, 'emerald');
@@ -364,9 +487,7 @@ export async function homeTodayCard(view: AppViewHost, parent: HTMLElement): Pro
     return;
   }
 
-  tasksList.forEach((rawLine, idx) => {
-    const checked = / \[(x|X)\] /.test(rawLine);
-    const text = rawLine.replace(/^\s*-\s\[(x|X| )\]\s/, '');
+  rows.forEach(({ checked, text }, idx) => {
     const row = body.createDiv({ cls: 'cad-home-task' + (checked ? ' done' : '') });
     const cb = row.createEl('input', { type: 'checkbox' });
     cb.checked = checked;
@@ -377,14 +498,7 @@ export async function homeTodayCard(view: AppViewHost, parent: HTMLElement): Pro
       } else {
         const cur = await view.app.vault.read(file!);
         const cp = parseSections(cur, settings);
-        const taskLine = cp.tasks[idx] || '';
-        const taskText = taskLine.replace(/^\s*-\s\[(x|X| )\]\s/, '').trim();
-        const newTasks = cp.tasks.map((line, i) => {
-          if (i !== idx) return line;
-          return cb.checked
-            ? line.replace(/^\s*-\s\[\s\]\s/, '- [x] ')
-            : line.replace(/^\s*-\s\[(x|X)\]\s/, '- [ ] ');
-        });
+        const { tasks: newTasks, taskText } = toggleTaskLine(cp.tasks, idx, cb.checked);
         const next = replaceSection(cur, settings.tasksHeading, newTasks.join('\n'));
         await view.app.vault.modify(file!, next);
         if (taskText) {
@@ -445,6 +559,40 @@ export async function homeTodayCard(view: AppViewHost, parent: HTMLElement): Pro
   });
 }
 
+/* ── This-week card ── */
+
+/** Open and done counts over checklist lines. */
+export function countTaskLines(lines: string[]): { open: number; done: number } {
+  let open = 0, done = 0;
+  lines.forEach((l) => { if (/ \[(x|X)\] /.test(l)) done++; else if (/ \[ \] /.test(l)) open++; });
+  return { open, done };
+}
+
+/** Open and done counts over TaskNotes tasks scheduled on one of `weekYmds`. */
+export function countWeekTaskNotes(allTasks: TaskNotesTask[], weekYmds: string[]): { open: number; done: number } {
+  let open = 0, done = 0;
+  allTasks.forEach((t) => {
+    if (weekYmds.includes(t.scheduled)) {
+      if (t.done) done++;
+      else open++;
+    }
+  });
+  return { open, done };
+}
+
+/** The week card's title, percentage, band and label. */
+export function weekProgress(open: number, done: number) {
+  const total = open + done;
+  const pct = total === 0 ? 0 : Math.round((done / total) * 100);
+  return {
+    total,
+    pct,
+    band: pctBand(pct),
+    title: `THIS WEEK — ${done}/${total} done`,
+    label: total ? `${done} of ${total} tasks completed` : 'No tasks logged this week yet',
+  };
+}
+
 export async function homeWeekCard(view: AppViewHost, parent: HTMLElement): Promise<void> {
   const settings = view.plugin.settings;
   const weekStart = startOfWeek(new Date(), settings.weekStartsOn);
@@ -453,12 +601,7 @@ export async function homeWeekCard(view: AppViewHost, parent: HTMLElement): Prom
   if (settings.taskManagementSystem === 'tasknotes') {
     const allTasks = listTaskNotesTasks(view.app);
     const weekDatesList = Array.from({ length: 7 }, (_, i) => ymd(addDays(weekStart, i)));
-    allTasks.forEach((t) => {
-      if (weekDatesList.includes(t.scheduled)) {
-        if (t.done) done++;
-        else open++;
-      }
-    });
+    ({ open, done } = countWeekTaskNotes(allTasks, weekDatesList));
   } else {
     for (let i = 0; i < 7; i++) {
       const d = addDays(weekStart, i);
@@ -466,75 +609,111 @@ export async function homeWeekCard(view: AppViewHost, parent: HTMLElement): Prom
       if (f && f instanceof TFile) {
         const c = await view.app.vault.read(f);
         const p = parseSections(c, settings);
-        p.tasks.forEach((l) => { if (/ \[(x|X)\] /.test(l)) done++; else if (/ \[ \] /.test(l)) open++; });
+        const counts = countTaskLines(p.tasks);
+        open += counts.open;
+        done += counts.done;
       }
     }
   }
-  const total = open + done;
-  const pct = total === 0 ? 0 : Math.round((done / total) * 100);
+  const { pct, band, title, label } = weekProgress(open, done);
 
-  const body = view._homeCard(parent, `THIS WEEK — ${done}/${total} done`, (head) => {
+  const body = view._homeCard(parent, title, (head) => {
     const link = head.createEl('a', { cls: 'cad-home-card-link', text: 'Open Calendar →' });
     link.addEventListener('click', (e) => { e.preventDefault(); view.setMode('planner.calendar'); });
   }, 'mint');
 
   const wrap = body.createDiv({ cls: 'cad-proj-progress-wrap' });
-  wrap.dataset.pctBand = pctBand(pct);
+  wrap.dataset.pctBand = band;
   const lbl = wrap.createDiv({ cls: 'cad-proj-progress-label' });
-  lbl.createSpan({ text: total ? `${done} of ${total} tasks completed` : 'No tasks logged this week yet' });
+  lbl.createSpan({ text: label });
   lbl.createSpan({ cls: 'cad-proj-progress-pct', text: `${pct}%` });
   const bar = wrap.createDiv({ cls: 'cad-proj-progress-bar' });
   const fill = bar.createDiv({ cls: 'cad-proj-progress-fill' });
   fill.style.width = `${pct}%`;
 }
 
-export async function homeUpcomingCard(view: AppViewHost, parent: HTMLElement): Promise<void> {
-  const today = startOfDay(new Date());
+/* ── Upcoming card ── */
+
+export interface UpcomingItem {
+  date: Date;
+  title: string;
+  type: string;
+  file: TFile;
+}
+
+/** What the upcoming card reads. `projectNext` holds each project whose
+    note could be read, with its next milestone. */
+export interface UpcomingData {
+  projects: Entity[];
+  projectNext: Array<{ entity: Entity; next: Milestone | null }>;
+  registrations: Entity[];
+  certifications: Entity[];
+}
+
+/** Project deadlines, next milestones, and registration and cert expiries
+    from today to seven days out, sorted by date (ties keep that order). */
+export function selectUpcomingItems(data: UpcomingData, now: Date): UpcomingItem[] {
+  const today = startOfDay(now);
   const horizon = addDays(today, 7);
-  const items = [];
+  const items: UpcomingItem[] = [];
 
   // Project deadlines
-  const projects = listEntities(view.app, 'project');
-  projects.forEach((e) => {
+  data.projects.forEach((e) => {
     const due = entityValue(e, 'due', ENTITIES.project);
     if (!due) return;
     const d = new Date(due as string);
     if (isNaN(d.getTime())) return;
     if (d >= today && d <= horizon) {
-      items.push({ date: d, title: entityValue(e, 'name', ENTITIES.project) || e.basename, type: 'Project due', file: e.file });
+      items.push({ date: d, title: (entityValue(e, 'name', ENTITIES.project) as string) || e.basename, type: 'Project due', file: e.file });
     }
   });
   // Project milestones (next upcoming per project)
-  for (const e of projects) {
-    try {
-      const meta = await readProjectMeta(view.app, e.file);
-      if (meta.next && meta.next.date && meta.next.date >= today && meta.next.date <= horizon) {
-        items.push({ date: meta.next.date, title: `${entityValue(e, 'name', ENTITIES.project) || e.basename} — ${meta.next.title || 'milestone'}`, type: 'Milestone', file: e.file });
-      }
-    } catch (_) { }
+  for (const { entity: e, next } of data.projectNext) {
+    if (next && next.date && next.date >= today && next.date <= horizon) {
+      items.push({ date: next.date, title: `${entityValue(e, 'name', ENTITIES.project) || e.basename} — ${next.title || 'milestone'}`, type: 'Milestone', file: e.file });
+    }
   }
   // Registration expiries
-  listEntities(view.app, 'registration').forEach((e) => {
+  data.registrations.forEach((e) => {
     const exp = entityValue(e, 'expires', ENTITIES.registration);
     if (!exp) return;
     const d = new Date(exp as string);
     if (isNaN(d.getTime())) return;
     if (d >= today && d <= horizon) {
-      items.push({ date: d, title: entityValue(e, 'title', ENTITIES.registration) || e.basename, type: 'Registration expires', file: e.file });
+      items.push({ date: d, title: (entityValue(e, 'title', ENTITIES.registration) as string) || e.basename, type: 'Registration expires', file: e.file });
     }
   });
   // Cert expiries
-  listEntities(view.app, 'certification').forEach((e) => {
+  data.certifications.forEach((e) => {
     const exp = entityValue(e, 'expires', ENTITIES.certification);
     if (!exp) return;
     const d = new Date(exp as string);
     if (isNaN(d.getTime())) return;
     if (d >= today && d <= horizon) {
-      items.push({ date: d, title: entityValue(e, 'name', ENTITIES.certification) || e.basename, type: 'Cert expires', file: e.file });
+      items.push({ date: d, title: (entityValue(e, 'name', ENTITIES.certification) as string) || e.basename, type: 'Cert expires', file: e.file });
     }
   });
 
   items.sort((a, b) => (a.date as unknown as number) - (b.date as unknown as number));
+  return items;
+}
+
+export async function homeUpcomingCard(view: AppViewHost, parent: HTMLElement): Promise<void> {
+  const projects = listEntities(view.app, 'project');
+  const projectNext: UpcomingData['projectNext'] = [];
+  for (const e of projects) {
+    try {
+      const meta = await readProjectMeta(view.app, e.file);
+      projectNext.push({ entity: e, next: meta.next });
+    } catch (_) { }
+  }
+  const items = selectUpcomingItems({
+    projects,
+    projectNext,
+    registrations: listEntities(view.app, 'registration'),
+    certifications: listEntities(view.app, 'certification'),
+  }, new Date());
+
   const body = view._homeCard(parent, `UPCOMING · NEXT 7 DAYS — ${items.length}`, undefined, 'warn');
   if (!items.length) {
     body.createDiv({ cls: 'cad-empty', text: 'Nothing on the radar.' });
@@ -550,6 +729,21 @@ export async function homeUpcomingCard(view: AppViewHost, parent: HTMLElement): 
   });
 }
 
+/* ── Partners card ── */
+
+/** The first five partners, with name and "tier · status". */
+export function selectPartnerRows(partners: Entity[]): Array<{ entity: Entity; name: string; meta: string }> {
+  return partners.slice(0, 5).map((e) => {
+    const tier = entityValue(e, 'tier', ENTITIES.partner) || '';
+    const status = entityValue(e, 'status', ENTITIES.partner) || '';
+    return {
+      entity: e,
+      name: (entityValue(e, 'name', ENTITIES.partner) as string) || e.basename,
+      meta: [tier, status].filter(Boolean).join(' · '),
+    };
+  });
+}
+
 export async function homePartnersCard(view: AppViewHost, parent: HTMLElement): Promise<void> {
   const partners = listEntities(view.app, 'partner');
   const body = view._homeCard(parent, `PARTNERS — ${partners.length}`, (head) => {
@@ -560,15 +754,22 @@ export async function homePartnersCard(view: AppViewHost, parent: HTMLElement): 
     body.createDiv({ cls: 'cad-empty', text: 'No partners on the books yet.' });
     return;
   }
-  partners.slice(0, 5).forEach((e) => {
+  selectPartnerRows(partners).forEach(({ entity: e, name, meta }) => {
     const row = body.createDiv({ cls: 'cad-home-row' });
     const main = row.createDiv({ cls: 'cad-home-row-main' });
-    main.createDiv({ cls: 'cad-home-row-title', text: (entityValue(e, 'name', ENTITIES.partner) as string) || e.basename });
-    const tier = entityValue(e, 'tier', ENTITIES.partner) || '';
-    const status = entityValue(e, 'status', ENTITIES.partner) || '';
-    main.createDiv({ cls: 'cad-home-row-meta', text: [tier, status].filter(Boolean).join(' · ') });
+    main.createDiv({ cls: 'cad-home-row-title', text: name });
+    main.createDiv({ cls: 'cad-home-row-meta', text: meta });
     row.addEventListener('click', () => view.openEntityDetailFromFile(e.file));
   });
+}
+
+/* ── Projects card ── */
+
+/** Whether a project counts as active on Home: status active, on hold or in
+    progress (case- and space-insensitive), defaulting to active. */
+export function isHomeActiveProject(e: Entity): boolean {
+  const status = String(entityValue(e, 'status', ENTITIES.project) || 'active').toLowerCase();
+  return ['active', 'on_hold', 'in_progress'].includes(status.replace(/\s+/g, '_'));
 }
 
 export async function homeProjectsCard(view: AppViewHost, parent: HTMLElement): Promise<void> {
@@ -584,8 +785,7 @@ export async function homeProjectsCard(view: AppViewHost, parent: HTMLElement): 
   }
   const projects = await Promise.all(files.map(async (f) => {
     const e = readEntity(view.app, f);
-    const status = String(entityValue(e, 'status', def) || 'active').toLowerCase();
-    if (!['active', 'on_hold', 'in_progress'].includes(status.replace(/\s+/g, '_'))) return null;
+    if (!isHomeActiveProject(e)) return null;
     const meta = await readProjectMeta(view.app, f);
     return { entity: e, meta };
   }));
@@ -610,11 +810,20 @@ export async function homeProjectsCard(view: AppViewHost, parent: HTMLElement): 
   });
 }
 
-export async function homePipelineCard(view: AppViewHost, parent: HTMLElement): Promise<void> {
+/* ── Pipeline card ── */
+
+/** Open deals (not Won or Lost), their total value, and the top four by value. */
+export function selectPipelineCard(deals: Entity[]): { open: Entity[]; value: number; top: Entity[] } {
   const def = ENTITIES.deal;
-  const deals = listEntities(view.app, 'deal');
   const open = deals.filter((e) => !['Won', 'Lost'].includes(String(entityValue(e, 'stage', def))));
   const value = open.reduce((s, e) => s + (Number(entityValue(e, 'value', def)) || 0), 0);
+  const top = [...open].sort((a, b) => (Number(entityValue(b, 'value', def)) || 0) - (Number(entityValue(a, 'value', def)) || 0)).slice(0, 4);
+  return { open, value, top };
+}
+
+export async function homePipelineCard(view: AppViewHost, parent: HTMLElement): Promise<void> {
+  const def = ENTITIES.deal;
+  const { open, value, top } = selectPipelineCard(listEntities(view.app, 'deal'));
 
   const body = view._homeCard(parent, `PIPELINE — ${open.length} open · ${fmtValue(value, 'currency')}`, (head) => {
     const link = head.createEl('a', { cls: 'cad-home-card-link', text: 'Open Pipeline →' });
@@ -624,7 +833,6 @@ export async function homePipelineCard(view: AppViewHost, parent: HTMLElement): 
     body.createDiv({ cls: 'cad-empty', text: 'No open deals — hit + Deal above.' });
     return;
   }
-  const top = [...open].sort((a, b) => (Number(entityValue(b, 'value', def)) || 0) - (Number(entityValue(a, 'value', def)) || 0)).slice(0, 4);
   top.forEach((e) => {
     const row = body.createDiv({ cls: 'cad-home-row' });
     const main = row.createDiv({ cls: 'cad-home-row-main' });
@@ -633,6 +841,18 @@ export async function homePipelineCard(view: AppViewHost, parent: HTMLElement): 
     main.createDiv({ cls: 'cad-home-row-meta', text: `${stage || '—'} · ${fmtValue(entityValue(e, 'value', def), 'currency')}` });
     row.addEventListener('click', () => view.openEntityDetailFromFile(e.file));
   });
+}
+
+/* ── Activities card ── */
+
+/** The five most recent activities by `when`; undated ones sort as 1970. */
+export function selectRecentActivities(acts: Entity[]): Entity[] {
+  const def = ENTITIES.activity;
+  return [...acts].sort((a, b) => {
+    const da = new Date((entityValue(a, 'when', def) as string) || 0).getTime();
+    const db = new Date((entityValue(b, 'when', def) as string) || 0).getTime();
+    return db - da;
+  }).slice(0, 5);
 }
 
 export async function homeActivitiesCard(view: AppViewHost, parent: HTMLElement): Promise<void> {
@@ -646,12 +866,7 @@ export async function homeActivitiesCard(view: AppViewHost, parent: HTMLElement)
     body.createDiv({ cls: 'cad-empty', text: 'No activities logged yet.' });
     return;
   }
-  const sorted = [...acts].sort((a, b) => {
-    const da = new Date((entityValue(a, 'when', def) as string) || 0).getTime();
-    const db = new Date((entityValue(b, 'when', def) as string) || 0).getTime();
-    return db - da;
-  }).slice(0, 5);
-  sorted.forEach((e) => {
+  selectRecentActivities(acts).forEach((e) => {
     const row = body.createDiv({ cls: 'cad-home-row' });
     const main = row.createDiv({ cls: 'cad-home-row-main' });
     main.createDiv({ cls: 'cad-home-row-title', text: (entityValue(e, 'subject', def) as string) || e.basename });
