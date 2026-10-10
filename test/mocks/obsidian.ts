@@ -148,7 +148,8 @@ export class Vault {
     this.modified.push(file.path);
   }
 
-  on(name: string, callback: (...args: unknown[]) => unknown) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- each event passes its own args, as in obsidian.d.ts
+  on(name: string, callback: (...args: any[]) => unknown) {
     const list = this.listeners.get(name) ?? [];
     list.push(callback);
     this.listeners.set(name, list);
@@ -170,7 +171,8 @@ export class MetadataCache {
     const fm = this.frontmatter.get(file.path);
     return fm ? { frontmatter: fm } : null;
   }
-  on(name: string, callback: (...args: unknown[]) => unknown) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- each event passes its own args, as in obsidian.d.ts
+  on(name: string, callback: (...args: any[]) => unknown) {
     return { name, callback };
   }
 }
@@ -184,18 +186,40 @@ export class FileManager {
   }
 }
 
+export interface EventRef {
+  name: string;
+  callback: (...args: unknown[]) => unknown;
+}
+
+export class WorkspaceLeaf {
+  app: App;
+  constructor(app: App) {
+    this.app = app;
+  }
+}
+
 export class Workspace {
   readonly layoutReadyCallbacks: Array<() => unknown> = [];
+  /** What getActiveLeaf() reports. Set directly in tests. */
+  activeLeaf: unknown = null;
+  /** Every openLinkText(linktext, sourcePath, newLeaf) call, in order. */
+  readonly openedLinks: unknown[][] = [];
   onLayoutReady(callback: () => unknown) {
     this.layoutReadyCallbacks.push(callback);
   }
-  on(name: string, callback: (...args: unknown[]) => unknown) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- each event passes its own args, as in obsidian.d.ts
+  on(name: string, callback: (...args: any[]) => unknown) {
     return { name, callback };
   }
   getLeavesOfType(_type: string): unknown[] {
     return [];
   }
-  openLinkText() {}
+  getActiveLeaf(): unknown {
+    return this.activeLeaf;
+  }
+  openLinkText(...args: unknown[]) {
+    this.openedLinks.push(args);
+  }
 }
 
 export class MetadataTypeManager {
@@ -211,6 +235,16 @@ export class App {
   vault = new Vault(this.metadataCache);
   fileManager = new FileManager(this.metadataCache);
   workspace = new Workspace();
+  /** Obsidian's settings window (not in the public obsidian.d.ts). Records calls. */
+  setting = {
+    calls: [] as string[],
+    open() {
+      this.calls.push('open');
+    },
+    openTabById(id: string) {
+      this.calls.push(`openTabById:${id}`);
+    },
+  };
 }
 
 /* Build an App whose vault holds the given files. */
@@ -315,6 +349,12 @@ declare global {
   interface Element extends Node {
     setText(val: string | DocumentFragment): void;
     addClass(...classes: string[]): void;
+    removeClass(...classes: string[]): void;
+    toggleClass(classes: string | string[], value: boolean): void;
+    hasClass(cls: string): boolean;
+  }
+  interface HTMLElement extends Element {
+    createSpan(o?: DomElementInfo | string, callback?: (el: HTMLSpanElement) => void): HTMLSpanElement;
   }
 }
 
@@ -339,6 +379,8 @@ export class FakeElement {
   type = '';
   placeholder = '';
   title = '';
+  /** Last icon set on this element through setIcon(). */
+  icon = '';
   checked = false;
   disabled = false;
   required = false;
@@ -435,6 +477,27 @@ export class FakeElement {
     for (const c of classes) if (c && !this.classes.includes(c)) this.classes.push(c);
   }
 
+  removeClass(...classes: string[]) {
+    for (const c of classes) {
+      const index = this.classes.indexOf(c);
+      if (index !== -1) this.classes.splice(index, 1);
+    }
+  }
+
+  toggleClass(classes: string | string[], value: boolean) {
+    const list = Array.isArray(classes) ? classes : [classes];
+    if (value) this.addClass(...list);
+    else this.removeClass(...list);
+  }
+
+  hasClass(cls: string): boolean {
+    return this.classes.includes(cls);
+  }
+
+  createSpan(o?: DomElementInfo | string, callback?: (el: FakeElement) => void): FakeElement {
+    return this.createEl('span', o, callback);
+  }
+
   setText(text: string) {
     this.text = String(text);
   }
@@ -510,12 +573,25 @@ export class SuggestModal<T> extends Modal {
   }
 }
 
+/* Like Obsidian's View: app comes from the leaf, and containerEl holds the
+   header (children[0]) and the content element (children[1]). */
 export class ItemView extends Component {
-  leaf: unknown;
-  containerEl: unknown = {};
-  constructor(leaf: unknown) {
+  app: App;
+  leaf: WorkspaceLeaf;
+  containerEl: HTMLElement;
+  /** Every registerEvent() ref, in order. Fire one with `ref.callback(...)`. */
+  readonly registeredEvents: EventRef[] = [];
+  constructor(leaf: WorkspaceLeaf) {
     super();
     this.leaf = leaf;
+    this.app = leaf.app;
+    const container = new FakeElement('div');
+    container.createDiv({ cls: 'view-header' });
+    container.createDiv({ cls: 'view-content' });
+    this.containerEl = container as unknown as HTMLElement;
+  }
+  override registerEvent(ref: unknown) {
+    this.registeredEvents.push(ref as EventRef);
   }
 }
 
@@ -535,7 +611,9 @@ export class Setting {
 
 export const Platform = { isMobile: false, isDesktop: true, isMobileApp: false, isDesktopApp: true };
 
-export function setIcon(_el: unknown, _icon: string) {}
+export function setIcon(el: unknown, icon: string) {
+  if (el instanceof FakeElement) el.icon = icon;
+}
 
 export const MarkdownRenderer = {
   render: async () => {},
