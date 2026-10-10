@@ -194,6 +194,18 @@ describe("renderEntityDetail: header", () => {
     expect(closed).toHaveBeenCalledTimes(1);
   });
 
+  it("Delete waits the full 50ms before trashing", async () => {
+    const open = vi.spyOn(CadenceConfirmModal.prototype, "open").mockImplementation(() => {});
+    const { root, render, app } = setup([JANE]);
+    await render("contact", JANE.path);
+    headActions(root)[2].trigger("click");
+    (open.mock.contexts[0] as Any).onConfirm();
+    await vi.advanceTimersByTimeAsync(49);
+    expect(app.vault.trashed).toEqual([]);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(app.vault.trashed).toEqual([JANE.path]);
+  });
+
   it("a failed delete notices the error and keeps the form open", async () => {
     const open = vi.spyOn(CadenceConfirmModal.prototype, "open").mockImplementation(() => {});
     const { root, render, closed, app } = setup([JANE]);
@@ -627,6 +639,19 @@ describe("renderEntityDetail: sections", () => {
     const flashSaved = h2.mock.calls[0][4] as () => void;
     flashSaved();
     expect(badge(root).text).toBe("Saved");
+    expect(cross.mock.calls).toEqual([[root, "contact", "Jane Doe"]]);
+  });
+
+  it("renders the grid for a single section", async () => {
+    const { root, render, h2 } = setup([{ ...DEAL, body: "## Notes\nOne\n" }]);
+    await render("deal", DEAL.path);
+    expect(root.children[2].text).toBe("NOTE SECTIONS");
+    expect(h2.mock.calls.map((c) => c[3])).toEqual(["Notes"]);
+  });
+
+  it("passes the title, not the basename, to the cross sections", async () => {
+    const { root, render, cross } = setup([{ path: "Cadence/Contacts/jd.md", frontmatter: { name: "Jane Doe" } }]);
+    await render("contact", "Cadence/Contacts/jd.md");
     expect(cross.mock.calls).toEqual([[root, "contact", "Jane Doe"]]);
   });
 
