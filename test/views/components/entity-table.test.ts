@@ -182,6 +182,11 @@ describe("_getEntityFiles", () => {
     expect(view._getEntityFiles("daily").map((f: { path: string }) => f.path)).toEqual(["daily/2026-10-01.md", "daily/2026/2026-10-02.MD"]);
   });
 
+  it("skips files whose name only ends in 'md' without the dot", () => {
+    const { view } = setup([{ path: "daily/2026-10-04.amd" }, { path: "daily/cmd" }, { path: "daily/x.md" }]);
+    expect(view._getEntityFiles("daily").map((f: { path: string }) => f.path)).toEqual(["daily/x.md"]);
+  });
+
   it("uses the configured daily-note folder", () => {
     const { view } = setup(daily, { dailyNoteFolder: "journal" });
     expect(view._getEntityFiles("daily").map((f: { path: string }) => f.path)).toEqual(["journal/2026-10-03.md"]);

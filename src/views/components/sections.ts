@@ -1,10 +1,11 @@
 import { MarkdownRenderer, Notice, Platform, TFile, setIcon, type Component } from 'obsidian';
 import { ENTITIES } from '../../constants/entities';
-import type { Entity, EntityKey } from '../../types/entities';
+import type { Entity, EntityKey, Frontmatter } from '../../types/entities';
 import { entityValue, listEntities, readProjectMeta } from '../../utils/entities';
 import { fmtValue, pctBand } from '../../utils/format';
 import { parseHeaderKey, parseLinkValues, parseMilestones, parseTasksList } from '../../utils/parsing';
 import type { AppViewHost } from '../host';
+import { sectionChartData } from './charts';
 
 /* The detail-form sections shared by the entity, company and project
    detail forms, the templates and Today: markdown text cards, cross
@@ -19,6 +20,68 @@ export interface ProjectTextSectionDef {
   key: string;
   label: string;
   placeholder?: string;
+}
+
+/* True when a frontmatter link value names `name`: a single value or a
+   list, compared without wiki-link brackets, surrounding spaces or case.
+   A comma-separated string is one value, so it matches only as a whole. */
+export function linksTo(val: unknown, name: string): boolean {
+  if (val == null) return false;
+  const cleanName = name.trim().toLowerCase();
+  const arr = Array.isArray(val) ? val : [val];
+  return arr.some(v => String(v).replace(/^\[\[|\]\]$/g, '').trim().toLowerCase() === cleanName);
+}
+
+/* A cross section's targets: the entities whose linkField names the
+   parent, in the given order. */
+export function crossSectionRows(
+  entities: Entity[], linkField: string, parentName: string, frontmatterOf: (entity: Entity) => Frontmatter,
+): Entity[] {
+  return entities.filter(e => linksTo(frontmatterOf(e)[linkField], parentName));
+}
+
+/* Reads an entity's frontmatter fresh from the metadata cache, as each
+   cross-section filter did inline. */
+function frontmatterReader(view: AppViewHost): (entity: Entity) => Frontmatter {
+  return (e) => {
+    const cache = view.app.metadataCache.getFileCache(e.file);
+    return (cache && cache.frontmatter || {}) as Frontmatter;
+  };
+}
+
+/** Which renderer an H2 section gets, from its heading. */
+export type DynamicH2Kind =
+  | { kind: 'tasks' | 'milestones' | 'text'; cleanLabel: string }
+  /** A #cross- or #chart- tag with the wrong number of parts: renders nothing. */
+  | { kind: 'malformed'; cleanLabel: string }
+  | { kind: 'cross'; cleanLabel: string; targetEntity: string; linkField: string; viewType: string }
+  | { kind: 'chart'; cleanLabel: string; targetEntity: string; linkField: string; groupField: string; chartStyle: string };
+
+/* Classify an H2 heading key (`Label #tag`). A #tasks/#milestones tag or
+   label wins first. `#cross-{entity}-{linkField}-{view}` needs exactly
+   three parts. `#chart-{entity}-{linkField}-{groupField}-{style}` needs at
+   least four, and the style keeps any further dashes. Every other heading
+   is a text section. */
+export function dynamicH2Kind(rawKey: string): DynamicH2Kind {
+  const { cleanLabel, tag } = parseHeaderKey(rawKey);
+  const cleanLower = cleanLabel.toLowerCase();
+  if (tag === '#tasks' || cleanLower === 'tasks') return { kind: 'tasks', cleanLabel };
+  if (tag === '#milestones' || cleanLower === 'milestones') return { kind: 'milestones', cleanLabel };
+  if (tag.startsWith('#cross-')) {
+    const crossParts = tag.slice('#cross-'.length).split('-');
+    if (crossParts.length !== 3) return { kind: 'malformed', cleanLabel };
+    const [targetEntity, linkField, viewType] = crossParts;
+    return { kind: 'cross', cleanLabel, targetEntity, linkField, viewType };
+  }
+  if (tag.startsWith('#chart-')) {
+    const chartParts = tag.slice('#chart-'.length).split('-');
+    if (chartParts.length < 4) return { kind: 'malformed', cleanLabel };
+    return {
+      kind: 'chart', cleanLabel,
+      targetEntity: chartParts[0], linkField: chartParts[1], groupField: chartParts[2], chartStyle: chartParts.slice(3).join('-'),
+    };
+  }
+  return { kind: 'text', cleanLabel };
 }
 
 export function renderMarkdownTextCard(view: AppViewHost, parent: HTMLElement, file: TFile, sectionKey: string, label: string, initialValue: string | undefined, placeholder?: string, flashSaved?: FlashSaved): void {
@@ -83,20 +146,7 @@ export function renderSingleCrossSection(view: AppViewHost, parent: HTMLElement,
   const def = ENTITIES[targetEntity];
   if (!def) return;
 
-  const filteredList = preFilteredList || listEntities(view.app, targetEntity).filter(e => {
-    const cache = view.app.metadataCache.getFileCache(e.file);
-    const fm = cache && cache.frontmatter || {};
-    const matchesLink = (val: unknown, name: string) => {
-      if (val == null) return false;
-      const cleanName = name.trim().toLowerCase();
-      const arr = Array.isArray(val) ? val : [val];
-      return arr.some(v => {
-        const cleanV = String(v).replace(/^\[\[|\]\]$/g, '').trim().toLowerCase();
-        return cleanV === cleanName;
-      });
-    };
-    return matchesLink(fm[linkField], parentName);
-  });
+  const filteredList = preFilteredList || crossSectionRows(listEntities(view.app, targetEntity), linkField, parentName, frontmatterReader(view));
 
   const secWrap = parent.createDiv({ attr: { style: 'margin-top: 12px; margin-bottom: 12px;' } });
 
@@ -346,25 +396,11 @@ export function renderCrossSections(view: AppViewHost, parent: HTMLElement, pare
   const configs = crossSections.filter(c => c.parentEntity === parentEntity);
   if (configs.length === 0) return;
 
-  const matchesLink = (val: unknown, name: string) => {
-    if (val == null) return false;
-    const cleanName = name.trim().toLowerCase();
-    const arr = Array.isArray(val) ? val : [val];
-    return arr.some(v => {
-      const cleanV = String(v).replace(/^\[\[|\]\]$/g, '').trim().toLowerCase();
-      return cleanV === cleanName;
-    });
-  };
-
   configs.forEach(config => {
     const def = ENTITIES[config.targetEntity];
     if (!def) return;
 
-    const filteredList = listEntities(view.app, config.targetEntity).filter(e => {
-      const cache = view.app.metadataCache.getFileCache(e.file);
-      const fm = cache && cache.frontmatter || {};
-      return matchesLink(fm[config.linkField], parentName);
-    });
+    const filteredList = crossSectionRows(listEntities(view.app, config.targetEntity), config.linkField, parentName, frontmatterReader(view));
 
     const secWrap = parent.createDiv({ attr: { style: 'margin-top: 24px; margin-bottom: 24px;' } });
 
@@ -437,145 +473,103 @@ export function renderCrossSections(view: AppViewHost, parent: HTMLElement, pare
 }
 
 export function renderDynamicH2Section(view: AppViewHost, parent: HTMLElement, file: TFile, sections: Record<string, string>, rawKey: string, flashSaved?: FlashSaved): void {
-  const { cleanLabel, tag } = parseHeaderKey(rawKey);
-  const cleanLower = cleanLabel.toLowerCase();
+  const h2 = dynamicH2Kind(rawKey);
+  const { cleanLabel } = h2;
 
-  if (tag === '#tasks' || cleanLower === 'tasks') {
+  if (h2.kind === 'tasks') {
     const taskList = parseTasksList(sections[rawKey] || '');
     view._renderTaskSection(parent, file, taskList, flashSaved, rawKey);
-  } else if (tag === '#milestones' || cleanLower === 'milestones') {
+  } else if (h2.kind === 'milestones') {
     const milestoneList = parseMilestones(sections[rawKey] || '');
     view._renderMilestoneSection(parent, file, milestoneList, flashSaved, rawKey);
-  } else if (tag.startsWith('#cross-')) {
-    const crossParts = tag.slice('#cross-'.length).split('-');
-    if (crossParts.length === 3) {
-      const [targetEntity, linkField, viewType] = crossParts;
-      const def = ENTITIES[targetEntity];
-      if (def) {
-        const parentName = file.basename;
-        const filteredList = listEntities(view.app, targetEntity).filter(e => {
-          const cache = view.app.metadataCache.getFileCache(e.file);
-          const fm = cache && cache.frontmatter || {};
-          const matchesLink = (val: unknown, name: string) => {
-            if (val == null) return false;
-            const cleanName = name.trim().toLowerCase();
-            const arr = Array.isArray(val) ? val : [val];
-            return arr.some(v => String(v).replace(/^\[\[|\]\]$/g, '').trim().toLowerCase() === cleanName);
-          };
-          return matchesLink(fm[linkField], parentName);
-        });
+  } else if (h2.kind === 'cross') {
+    const { targetEntity, linkField, viewType } = h2;
+    const def = ENTITIES[targetEntity];
+    if (def) {
+      const parentName = file.basename;
+      const filteredList = crossSectionRows(listEntities(view.app, targetEntity), linkField, parentName, frontmatterReader(view));
 
-        const card = parent.createDiv({ cls: 'cad-pd-card' });
-        card.style.gridColumn = '1 / -1';
-        const head = card.createDiv({ cls: 'cad-pd-card-head' });
-        head.createDiv({ cls: 'cad-pd-card-title', text: `${cleanLabel.toUpperCase()} · ${filteredList.length}` });
+      const card = parent.createDiv({ cls: 'cad-pd-card' });
+      card.style.gridColumn = '1 / -1';
+      const head = card.createDiv({ cls: 'cad-pd-card-head' });
+      head.createDiv({ cls: 'cad-pd-card-title', text: `${cleanLabel.toUpperCase()} · ${filteredList.length}` });
 
-        const addBtn = head.createEl('button', { cls: 'cad-btn cad-btn-sm', text: `+ Add ${def.label}` });
-        addBtn.addEventListener('click', () => {
-          view._createEntityFromPrompt(targetEntity, { [linkField]: `[[${parentName}]]` });
-        });
+      const addBtn = head.createEl('button', { cls: 'cad-btn cad-btn-sm', text: `+ Add ${def.label}` });
+      addBtn.addEventListener('click', () => {
+        view._createEntityFromPrompt(targetEntity, { [linkField]: `[[${parentName}]]` });
+      });
 
-        // View switcher: table / kanban / tile — saved back to the entity note
-        const viewSwitch = head.createDiv({ attr: { style: 'display: flex; gap: 3px; margin-left: 8px;' } });
-        const viewOptions = [
-          { v: 'table', icon: 'layout-list', title: 'Table View' },
-          { v: 'kanban', icon: 'kanban', title: 'Kanban Board' },
-          { v: 'tile', icon: 'layout-grid', title: 'Tile Grid' }
-        ];
-        viewOptions.forEach(({ v, icon, title }) => {
-          const vBtn = viewSwitch.createEl('button', {attr: { style: `padding: 4px 6px; display: inline-flex; align-items: center; justify-content: center; border-radius: 4px; cursor: pointer; border: 1px solid var(--border-color); background: ${v === viewType ? 'var(--interactive-accent)' : 'transparent'}; color: ${v === viewType ? 'var(--text-on-accent)' : 'var(--text-muted)'};` }});
-          vBtn.title = title;
-          try { setIcon(vBtn, icon); } catch (_) { }
+      // View switcher: table / kanban / tile — saved back to the entity note
+      const viewSwitch = head.createDiv({ attr: { style: 'display: flex; gap: 3px; margin-left: 8px;' } });
+      const viewOptions = [
+        { v: 'table', icon: 'layout-list', title: 'Table View' },
+        { v: 'kanban', icon: 'kanban', title: 'Kanban Board' },
+        { v: 'tile', icon: 'layout-grid', title: 'Tile Grid' }
+      ];
+      viewOptions.forEach(({ v, icon, title }) => {
+        const vBtn = viewSwitch.createEl('button', {attr: { style: `padding: 4px 6px; display: inline-flex; align-items: center; justify-content: center; border-radius: 4px; cursor: pointer; border: 1px solid var(--border-color); background: ${v === viewType ? 'var(--interactive-accent)' : 'transparent'}; color: ${v === viewType ? 'var(--text-on-accent)' : 'var(--text-muted)'};` }});
+        vBtn.title = title;
+        try { setIcon(vBtn, icon); } catch (_) { }
 
-          if (v !== viewType) {
-            vBtn.addEventListener('click', async () => {
-              const newTag = `#cross-${targetEntity}-${linkField}-${v}`;
-              const curContent = await view.app.vault.read(file);
-              const escaped = rawKey.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-              const newContent = curContent.replace(
-                new RegExp(`^(## ${escaped})$`, 'm'),
-                `## ${cleanLabel} ${newTag}`
-              );
-              await view.app.vault.modify(file, newContent);
-              view.render();
-            });
-          }
-        });
-
-        const body = card.createDiv({ attr: { style: 'padding: 12px;' } });
-        view._renderSingleCrossSection(body, targetEntity, linkField, viewType, parentName, filteredList);
-      }
-    }
-  } else if (tag.startsWith('#chart-')) {
-    // Format: #chart-{targetEntity}-{linkField}-{groupField}-{style}
-    const chartParts = tag.slice('#chart-'.length).split('-');
-    if (chartParts.length >= 4) {
-      const targetEntity = chartParts[0];
-      const linkField = chartParts[1];
-      const groupField = chartParts[2];
-      const chartStyle = chartParts.slice(3).join('-'); // in case style has no dash
-      const def = ENTITIES[targetEntity];
-      if (def) {
-        const parentName = file.basename;
-        const filteredList = listEntities(view.app, targetEntity).filter(e => {
-          const cache = view.app.metadataCache.getFileCache(e.file);
-          const fm = cache && cache.frontmatter || {};
-          const matchesLink = (val: unknown, name: string) => {
-            if (val == null) return false;
-            const cleanName = name.trim().toLowerCase();
-            const arr = Array.isArray(val) ? val : [val];
-            return arr.some(v => String(v).replace(/^\[\[|\]\]$/g, '').trim().toLowerCase() === cleanName);
-          };
-          return matchesLink(fm[linkField], parentName);
-        });
-
-        // Build counts grouped by groupField
-        const counts: Record<string, number> = {};
-        filteredList.forEach(e => {
-          const cache = view.app.metadataCache.getFileCache(e.file);
-          const fm = cache && cache.frontmatter || {};
-          let val = fm[groupField];
-          const vals = Array.isArray(val) ? val : [val == null ? '' : val];
-          vals.forEach(v => {
-            const label = String(v).replace(/^\[\[|\]\]$/g, '').trim() || 'Unspecified';
-            counts[label] = (counts[label] || 0) + 1;
+        if (v !== viewType) {
+          vBtn.addEventListener('click', async () => {
+            const newTag = `#cross-${targetEntity}-${linkField}-${v}`;
+            const curContent = await view.app.vault.read(file);
+            const escaped = rawKey.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const newContent = curContent.replace(
+              new RegExp(`^(## ${escaped})$`, 'm'),
+              `## ${cleanLabel} ${newTag}`
+            );
+            await view.app.vault.modify(file, newContent);
+            view.render();
           });
-        });
-        const chartData = Object.entries(counts).map(([label, count]) => ({ label, count })).sort((a, b) => b.count - a.count);
+        }
+      });
 
-        const card = parent.createDiv({ cls: 'cad-pd-card' });
-        card.style.gridColumn = '1 / -1';
-        const head = card.createDiv({ cls: 'cad-pd-card-head' });
-        head.createDiv({ cls: 'cad-pd-card-title', text: `${cleanLabel.toUpperCase()} · ${filteredList.length} ${def.plural}` });
-
-        // Chart style switcher — saved back to the entity note
-        const styleSwitch = head.createDiv({ attr: { style: 'display: flex; gap: 3px; margin-left: 8px;' } });
-        [{ v: 'donut', icon: '🍩' }, { v: 'bar', icon: '📊' }, { v: 'kpi', icon: '🗃️' }, { v: 'list', icon: '📋' }].forEach(({ v, icon }) => {
-          const sBtn = styleSwitch.createEl('button', {
-            text: icon,
-            attr: { style: `padding: 1px 5px; font-size: 0.85em; border-radius: 3px; cursor: pointer; border: 1px solid var(--border-color); background: ${v === chartStyle ? 'var(--interactive-accent)' : 'transparent'}; opacity: ${v === chartStyle ? '1' : '0.55'};` }
-});
-          sBtn.title = v;
-          if (v !== chartStyle) {
-            sBtn.addEventListener('click', async () => {
-              const newTag = '#chart-' + chartParts.slice(0, 3).join('-') + '-' + v;
-              const curContent = await view.app.vault.read(file);
-              const escaped = rawKey.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-              const newContent = curContent.replace(
-                new RegExp(`^(## ${escaped})$`, 'm'),
-                `## ${cleanLabel} ${newTag}`
-              );
-              await view.app.vault.modify(file, newContent);
-              view.render();
-            });
-          }
-        });
-
-        const body = card.createDiv({ cls: 'cad-dash-card-body', attr: { style: 'flex: 1; min-height: 180px; display: flex; flex-direction: column; justify-content: center; padding: 14px;' } });
-        view._drawChart(body.createDiv(), chartStyle, chartData);
-      }
+      const body = card.createDiv({ attr: { style: 'padding: 12px;' } });
+      view._renderSingleCrossSection(body, targetEntity, linkField, viewType, parentName, filteredList);
     }
-  } else {
+  } else if (h2.kind === 'chart') {
+    const { targetEntity, linkField, groupField, chartStyle } = h2;
+    const def = ENTITIES[targetEntity];
+    if (def) {
+      const parentName = file.basename;
+      const filteredList = crossSectionRows(listEntities(view.app, targetEntity), linkField, parentName, frontmatterReader(view));
+
+      const chartData = sectionChartData(filteredList, groupField, frontmatterReader(view));
+
+      const card = parent.createDiv({ cls: 'cad-pd-card' });
+      card.style.gridColumn = '1 / -1';
+      const head = card.createDiv({ cls: 'cad-pd-card-head' });
+      head.createDiv({ cls: 'cad-pd-card-title', text: `${cleanLabel.toUpperCase()} · ${filteredList.length} ${def.plural}` });
+
+      // Chart style switcher — saved back to the entity note
+      const styleSwitch = head.createDiv({ attr: { style: 'display: flex; gap: 3px; margin-left: 8px;' } });
+      [{ v: 'donut', icon: '🍩' }, { v: 'bar', icon: '📊' }, { v: 'kpi', icon: '🗃️' }, { v: 'list', icon: '📋' }].forEach(({ v, icon }) => {
+        const sBtn = styleSwitch.createEl('button', {
+          text: icon,
+          attr: { style: `padding: 1px 5px; font-size: 0.85em; border-radius: 3px; cursor: pointer; border: 1px solid var(--border-color); background: ${v === chartStyle ? 'var(--interactive-accent)' : 'transparent'}; opacity: ${v === chartStyle ? '1' : '0.55'};` }
+});
+        sBtn.title = v;
+        if (v !== chartStyle) {
+          sBtn.addEventListener('click', async () => {
+            const newTag = `#chart-${targetEntity}-${linkField}-${groupField}-${v}`;
+            const curContent = await view.app.vault.read(file);
+            const escaped = rawKey.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const newContent = curContent.replace(
+              new RegExp(`^(## ${escaped})$`, 'm'),
+              `## ${cleanLabel} ${newTag}`
+            );
+            await view.app.vault.modify(file, newContent);
+            view.render();
+          });
+        }
+      });
+
+      const body = card.createDiv({ cls: 'cad-dash-card-body', attr: { style: 'flex: 1; min-height: 180px; display: flex; flex-direction: column; justify-content: center; padding: 14px;' } });
+      view._drawChart(body.createDiv(), chartStyle, chartData);
+    }
+  } else if (h2.kind === 'text') {
     view._renderGenericTextSection(parent, file, sections, rawKey, flashSaved);
   }
 }

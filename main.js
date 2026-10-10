@@ -2954,6 +2954,53 @@ function dashCardSection(view, parent, title, rows, emptyMsg) {
 }
 
 // src/views/components/charts.ts
+var CHART_COLORS = ["#38bdf8", "#34d399", "#f43f5e", "#a855f7", "#f97316", "#06b6d4", "#eab308"];
+var KPI_ACCENTS = ["sky", "emerald", "rose", "purple", "warn", "mint"];
+function toChartData(counts) {
+  return Object.entries(counts).map(([label, count]) => ({ label, count })).sort((a, b) => b.count - a.count);
+}
+function sectionChartData(entities, groupField, frontmatterOf) {
+  const counts = {};
+  entities.forEach((e) => {
+    const val = frontmatterOf(e)[groupField];
+    const vals = Array.isArray(val) ? val : [val == null ? "" : val];
+    vals.forEach((v) => {
+      const label = String(v).replace(/^\[\[|\]\]$/g, "").trim() || "Unspecified";
+      counts[label] = (counts[label] || 0) + 1;
+    });
+  });
+  return toChartData(counts);
+}
+function donutGeometry(data) {
+  const total = data.reduce((sum, item) => sum + item.count, 0);
+  const r = 50;
+  const circ = 2 * Math.PI * r;
+  let currentOffset = 0;
+  const segments = data.map((item, index) => {
+    const pct = item.count / total;
+    const strokeLength = pct * circ;
+    const segment = { color: CHART_COLORS[index % CHART_COLORS.length], length: strokeLength, offset: currentOffset, percent: Math.round(pct * 100) };
+    currentOffset += strokeLength;
+    return segment;
+  });
+  return { total, r, circ, segments };
+}
+function barRows(data) {
+  const total = data.reduce((sum, item) => sum + item.count, 0);
+  const maxCount = Math.max(1, ...data.map((item) => item.count));
+  return data.map((item, index) => ({
+    color: CHART_COLORS[index % CHART_COLORS.length],
+    width: item.count / maxCount * 100,
+    percent: Math.round(item.count / total * 100)
+  }));
+}
+function kpiCards(data) {
+  const total = data.reduce((sum, item) => sum + item.count, 0);
+  return data.map((item, index) => ({
+    accent: KPI_ACCENTS[index % KPI_ACCENTS.length],
+    percent: total === 0 ? 0 : Math.round(item.count / total * 100)
+  }));
+}
 function drawChart(view, parent, style, data) {
   if (style === "donut") view._drawDonutChart(parent, data);
   else if (style === "bar") view._drawBarChart(parent, data);
@@ -2965,22 +3012,15 @@ function drawChartEmpty(view, parent) {
   el.style.cssText = "text-align: center; padding: 16px;";
 }
 function drawDonutChart(view, parent, data) {
-  const total = data.reduce((sum, item) => sum + item.count, 0);
+  const { total, r, circ, segments } = donutGeometry(data);
   if (total === 0) return view._drawChartEmpty(parent);
-  const r = 50;
-  const circ = 2 * Math.PI * r;
-  const colors = ["#38bdf8", "#34d399", "#f43f5e", "#a855f7", "#f97316", "#06b6d4", "#eab308"];
   const container = parent.createDiv({ cls: "cad-donut-chart-container" });
   container.style.cssText = "display: flex; align-items: center; justify-content: center; gap: 24px; padding: 12px;";
   const svgWrap = container.createDiv({ cls: "cad-donut-svg-wrap" });
   svgWrap.style.cssText = "position: relative; width: 140px; height: 140px; flex-shrink: 0;";
   const svg = svgWrap.createSvg("svg", { attr: { width: "140", height: "140", viewBox: "0 0 140 140" } });
   svg.createSvg("circle", { attr: { cx: "70", cy: "70", r: String(r), fill: "transparent", stroke: "var(--background-secondary)", "stroke-width": "12" } });
-  let currentOffset = 0;
-  data.forEach((item, index) => {
-    const pct = item.count / total;
-    const color = colors[index % colors.length];
-    const strokeLength = pct * circ;
+  segments.forEach((segment) => {
     svg.createSvg("circle", {
       cls: "cad-donut-segment",
       attr: {
@@ -2988,14 +3028,13 @@ function drawDonutChart(view, parent, data) {
         cy: "70",
         r: String(r),
         fill: "transparent",
-        stroke: color,
+        stroke: segment.color,
         "stroke-width": "12",
-        "stroke-dasharray": `${strokeLength} ${circ}`,
-        "stroke-dashoffset": String(-currentOffset),
+        "stroke-dasharray": `${segment.length} ${circ}`,
+        "stroke-dashoffset": String(-segment.offset),
         transform: "rotate(-90 70 70)"
       }
     });
-    currentOffset += strokeLength;
   });
   const center = svgWrap.createDiv({ cls: "cad-donut-center" });
   center.style.cssText = "position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; justify-content: center;";
@@ -3006,28 +3045,25 @@ function drawDonutChart(view, parent, data) {
   const legend = container.createDiv({ cls: "cad-donut-legend" });
   legend.style.cssText = "display: flex; flex-direction: column; gap: 6px; flex: 1;";
   data.forEach((item, index) => {
-    const pct = item.count / total;
-    const color = colors[index % colors.length];
+    const { color, percent } = segments[index];
     const row = legend.createDiv({ cls: "cad-donut-legend-item" });
     row.style.cssText = "display: flex; align-items: center; gap: 8px; font-size: 0.85em;";
     const swatch = row.createSpan({ cls: "cad-donut-legend-color" });
     swatch.style.cssText = `display: inline-block; width: 10px; height: 10px; border-radius: 50%; background-color: ${color}; flex-shrink: 0;`;
     const labelEl = row.createSpan({ cls: "cad-donut-legend-label", text: String(item.label) });
     labelEl.style.cssText = "flex: 1; color: var(--text-normal); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px;";
-    const countEl = row.createSpan({ cls: "cad-donut-legend-count", text: `${item.count} (${Math.round(pct * 100)}%)` });
+    const countEl = row.createSpan({ cls: "cad-donut-legend-count", text: `${item.count} (${percent}%)` });
     countEl.style.cssText = "font-weight: 700; color: var(--text-muted);";
   });
 }
 function drawBarChart(view, parent, data) {
   const total = data.reduce((sum, item) => sum + item.count, 0);
   if (total === 0) return view._drawChartEmpty(parent);
-  const maxCount = Math.max(1, ...data.map((item) => item.count));
-  const colors = ["#38bdf8", "#34d399", "#f43f5e", "#a855f7", "#f97316", "#06b6d4", "#eab308"];
+  const rows = barRows(data);
   const bars = parent.createDiv({ cls: "cad-stage-bars" });
   bars.style.cssText = "padding: 12px 0; display: flex; flex-direction: column; gap: 8px;";
   data.forEach((item, index) => {
-    const color = colors[index % colors.length];
-    const pct = item.count / maxCount * 100;
+    const { color, width, percent } = rows[index];
     const row = bars.createDiv({ cls: "cad-stage-bar-row" });
     row.style.cssText = "display: flex; align-items: center; margin-bottom: 0; padding: 4px 8px; border-radius: 6px;";
     const name = row.createDiv({ cls: "cad-stage-bar-name", text: String(item.label) });
@@ -3037,27 +3073,25 @@ function drawBarChart(view, parent, data) {
     const bar = row.createDiv({ cls: "cad-stage-bar" });
     bar.style.cssText = "flex: 1; background: var(--background-secondary); border-radius: 4px; height: 10px; overflow: hidden; position: relative;";
     const fill = bar.createDiv({ cls: "cad-stage-bar-fill" });
-    fill.style.cssText = `width: ${pct}%; background-color: ${color}; height: 100%; border-radius: 4px; transition: width 0.3s ease;`;
-    const value = row.createDiv({ cls: "cad-stage-bar-value", text: `${Math.round(item.count / total * 100)}%` });
+    fill.style.cssText = `width: ${width}%; background-color: ${color}; height: 100%; border-radius: 4px; transition: width 0.3s ease;`;
+    const value = row.createDiv({ cls: "cad-stage-bar-value", text: `${percent}%` });
     value.style.cssText = "margin-left: 12px; font-size: 0.8em; color: var(--text-faint); font-weight: 600; min-width: 36px; text-align: right;";
   });
 }
 function drawKpiGrid(view, parent, data) {
   if (data.length === 0) return view._drawChartEmpty(parent);
-  const total = data.reduce((sum, item) => sum + item.count, 0);
-  const colors = ["sky", "emerald", "rose", "purple", "warn", "mint"];
+  const cards = kpiCards(data);
   const grid = parent.createDiv({ cls: "cad-stat-grid" });
   grid.style.cssText = "grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; padding: 12px 0; margin: 0;";
   data.forEach((item, index) => {
-    const accent = colors[index % colors.length];
-    const pct = total === 0 ? 0 : Math.round(item.count / total * 100);
+    const { accent, percent } = cards[index];
     const card = grid.createDiv({ cls: "cad-stat-card", attr: { "data-accent": accent } });
     card.style.cssText = "padding: 10px 12px; display: flex; flex-direction: column; justify-content: center; min-height: 70px;";
     const label = card.createDiv({ cls: "cad-stat-label", text: String(item.label).toUpperCase() });
     label.style.cssText = "font-size: 0.65rem; letter-spacing: 0.08em; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100px;";
     const value = card.createDiv({ cls: "cad-stat-value", text: String(item.count) });
     value.style.cssText = "font-size: 1.25rem; font-weight: 800; margin: 2px 0; line-height: 1;";
-    const sub = card.createDiv({ cls: "cad-stat-sub", text: `${pct}% of total` });
+    const sub = card.createDiv({ cls: "cad-stat-sub", text: `${percent}% of total` });
     sub.style.cssText = "font-size: 9px; margin-top: 0;";
   });
 }
@@ -3195,6 +3229,46 @@ function getEntityFiles(view, entityKey) {
 
 // src/views/components/sections.ts
 var import_obsidian13 = require("obsidian");
+function linksTo(val, name) {
+  if (val == null) return false;
+  const cleanName = name.trim().toLowerCase();
+  const arr = Array.isArray(val) ? val : [val];
+  return arr.some((v) => String(v).replace(/^\[\[|\]\]$/g, "").trim().toLowerCase() === cleanName);
+}
+function crossSectionRows(entities, linkField, parentName, frontmatterOf) {
+  return entities.filter((e) => linksTo(frontmatterOf(e)[linkField], parentName));
+}
+function frontmatterReader(view) {
+  return (e) => {
+    const cache = view.app.metadataCache.getFileCache(e.file);
+    return cache && cache.frontmatter || {};
+  };
+}
+function dynamicH2Kind(rawKey) {
+  const { cleanLabel, tag } = parseHeaderKey(rawKey);
+  const cleanLower = cleanLabel.toLowerCase();
+  if (tag === "#tasks" || cleanLower === "tasks") return { kind: "tasks", cleanLabel };
+  if (tag === "#milestones" || cleanLower === "milestones") return { kind: "milestones", cleanLabel };
+  if (tag.startsWith("#cross-")) {
+    const crossParts = tag.slice("#cross-".length).split("-");
+    if (crossParts.length !== 3) return { kind: "malformed", cleanLabel };
+    const [targetEntity, linkField, viewType] = crossParts;
+    return { kind: "cross", cleanLabel, targetEntity, linkField, viewType };
+  }
+  if (tag.startsWith("#chart-")) {
+    const chartParts = tag.slice("#chart-".length).split("-");
+    if (chartParts.length < 4) return { kind: "malformed", cleanLabel };
+    return {
+      kind: "chart",
+      cleanLabel,
+      targetEntity: chartParts[0],
+      linkField: chartParts[1],
+      groupField: chartParts[2],
+      chartStyle: chartParts.slice(3).join("-")
+    };
+  }
+  return { kind: "text", cleanLabel };
+}
 function renderMarkdownTextCard(view, parent, file, sectionKey, label, initialValue, placeholder, flashSaved) {
   const card = parent.createDiv({ cls: "cad-pd-card" });
   const head = card.createDiv({ cls: "cad-pd-card-head" });
@@ -3247,20 +3321,7 @@ function renderGenericTextSection(view, parent, file, sections, key, flashSaved)
 function renderSingleCrossSection(view, parent, targetEntity, linkField, viewType, parentName, preFilteredList = null) {
   const def = ENTITIES[targetEntity];
   if (!def) return;
-  const filteredList = preFilteredList || listEntities(view.app, targetEntity).filter((e) => {
-    const cache = view.app.metadataCache.getFileCache(e.file);
-    const fm = cache && cache.frontmatter || {};
-    const matchesLink = (val, name) => {
-      if (val == null) return false;
-      const cleanName = name.trim().toLowerCase();
-      const arr = Array.isArray(val) ? val : [val];
-      return arr.some((v) => {
-        const cleanV = String(v).replace(/^\[\[|\]\]$/g, "").trim().toLowerCase();
-        return cleanV === cleanName;
-      });
-    };
-    return matchesLink(fm[linkField], parentName);
-  });
+  const filteredList = preFilteredList || crossSectionRows(listEntities(view.app, targetEntity), linkField, parentName, frontmatterReader(view));
   const secWrap = parent.createDiv({ attr: { style: "margin-top: 12px; margin-bottom: 12px;" } });
   if (filteredList.length === 0) {
     secWrap.createDiv({ cls: "cad-empty", text: "No linked items found." });
@@ -3485,23 +3546,10 @@ function renderCrossSections(view, parent, parentEntity, parentName) {
   const crossSections = view.plugin.settings.crossSections || [];
   const configs = crossSections.filter((c) => c.parentEntity === parentEntity);
   if (configs.length === 0) return;
-  const matchesLink = (val, name) => {
-    if (val == null) return false;
-    const cleanName = name.trim().toLowerCase();
-    const arr = Array.isArray(val) ? val : [val];
-    return arr.some((v) => {
-      const cleanV = String(v).replace(/^\[\[|\]\]$/g, "").trim().toLowerCase();
-      return cleanV === cleanName;
-    });
-  };
   configs.forEach((config) => {
     const def = ENTITIES[config.targetEntity];
     if (!def) return;
-    const filteredList = listEntities(view.app, config.targetEntity).filter((e) => {
-      const cache = view.app.metadataCache.getFileCache(e.file);
-      const fm = cache && cache.frontmatter || {};
-      return matchesLink(fm[config.linkField], parentName);
-    });
+    const filteredList = crossSectionRows(listEntities(view.app, config.targetEntity), config.linkField, parentName, frontmatterReader(view));
     const secWrap = parent.createDiv({ attr: { style: "margin-top: 24px; margin-bottom: 24px;" } });
     const head = secWrap.createDiv({ attr: { style: "display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px solid var(--border-color); padding-bottom: 6px;" } });
     head.createEl("h3", {
@@ -3564,134 +3612,94 @@ function renderCrossSections(view, parent, parentEntity, parentName) {
   });
 }
 function renderDynamicH2Section(view, parent, file, sections, rawKey, flashSaved) {
-  const { cleanLabel, tag } = parseHeaderKey(rawKey);
-  const cleanLower = cleanLabel.toLowerCase();
-  if (tag === "#tasks" || cleanLower === "tasks") {
+  const h2 = dynamicH2Kind(rawKey);
+  const { cleanLabel } = h2;
+  if (h2.kind === "tasks") {
     const taskList = parseTasksList(sections[rawKey] || "");
     view._renderTaskSection(parent, file, taskList, flashSaved, rawKey);
-  } else if (tag === "#milestones" || cleanLower === "milestones") {
+  } else if (h2.kind === "milestones") {
     const milestoneList = parseMilestones(sections[rawKey] || "");
     view._renderMilestoneSection(parent, file, milestoneList, flashSaved, rawKey);
-  } else if (tag.startsWith("#cross-")) {
-    const crossParts = tag.slice("#cross-".length).split("-");
-    if (crossParts.length === 3) {
-      const [targetEntity, linkField, viewType] = crossParts;
-      const def = ENTITIES[targetEntity];
-      if (def) {
-        const parentName = file.basename;
-        const filteredList = listEntities(view.app, targetEntity).filter((e) => {
-          const cache = view.app.metadataCache.getFileCache(e.file);
-          const fm = cache && cache.frontmatter || {};
-          const matchesLink = (val, name) => {
-            if (val == null) return false;
-            const cleanName = name.trim().toLowerCase();
-            const arr = Array.isArray(val) ? val : [val];
-            return arr.some((v) => String(v).replace(/^\[\[|\]\]$/g, "").trim().toLowerCase() === cleanName);
-          };
-          return matchesLink(fm[linkField], parentName);
-        });
-        const card = parent.createDiv({ cls: "cad-pd-card" });
-        card.style.gridColumn = "1 / -1";
-        const head = card.createDiv({ cls: "cad-pd-card-head" });
-        head.createDiv({ cls: "cad-pd-card-title", text: `${cleanLabel.toUpperCase()} \xB7 ${filteredList.length}` });
-        const addBtn = head.createEl("button", { cls: "cad-btn cad-btn-sm", text: `+ Add ${def.label}` });
-        addBtn.addEventListener("click", () => {
-          view._createEntityFromPrompt(targetEntity, { [linkField]: `[[${parentName}]]` });
-        });
-        const viewSwitch = head.createDiv({ attr: { style: "display: flex; gap: 3px; margin-left: 8px;" } });
-        const viewOptions = [
-          { v: "table", icon: "layout-list", title: "Table View" },
-          { v: "kanban", icon: "kanban", title: "Kanban Board" },
-          { v: "tile", icon: "layout-grid", title: "Tile Grid" }
-        ];
-        viewOptions.forEach(({ v, icon, title }) => {
-          const vBtn = viewSwitch.createEl("button", { attr: { style: `padding: 4px 6px; display: inline-flex; align-items: center; justify-content: center; border-radius: 4px; cursor: pointer; border: 1px solid var(--border-color); background: ${v === viewType ? "var(--interactive-accent)" : "transparent"}; color: ${v === viewType ? "var(--text-on-accent)" : "var(--text-muted)"};` } });
-          vBtn.title = title;
-          try {
-            (0, import_obsidian13.setIcon)(vBtn, icon);
-          } catch (_) {
-          }
-          if (v !== viewType) {
-            vBtn.addEventListener("click", async () => {
-              const newTag = `#cross-${targetEntity}-${linkField}-${v}`;
-              const curContent = await view.app.vault.read(file);
-              const escaped = rawKey.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-              const newContent = curContent.replace(
-                new RegExp(`^(## ${escaped})$`, "m"),
-                `## ${cleanLabel} ${newTag}`
-              );
-              await view.app.vault.modify(file, newContent);
-              view.render();
-            });
-          }
-        });
-        const body = card.createDiv({ attr: { style: "padding: 12px;" } });
-        view._renderSingleCrossSection(body, targetEntity, linkField, viewType, parentName, filteredList);
-      }
-    }
-  } else if (tag.startsWith("#chart-")) {
-    const chartParts = tag.slice("#chart-".length).split("-");
-    if (chartParts.length >= 4) {
-      const targetEntity = chartParts[0];
-      const linkField = chartParts[1];
-      const groupField = chartParts[2];
-      const chartStyle = chartParts.slice(3).join("-");
-      const def = ENTITIES[targetEntity];
-      if (def) {
-        const parentName = file.basename;
-        const filteredList = listEntities(view.app, targetEntity).filter((e) => {
-          const cache = view.app.metadataCache.getFileCache(e.file);
-          const fm = cache && cache.frontmatter || {};
-          const matchesLink = (val, name) => {
-            if (val == null) return false;
-            const cleanName = name.trim().toLowerCase();
-            const arr = Array.isArray(val) ? val : [val];
-            return arr.some((v) => String(v).replace(/^\[\[|\]\]$/g, "").trim().toLowerCase() === cleanName);
-          };
-          return matchesLink(fm[linkField], parentName);
-        });
-        const counts = {};
-        filteredList.forEach((e) => {
-          const cache = view.app.metadataCache.getFileCache(e.file);
-          const fm = cache && cache.frontmatter || {};
-          let val = fm[groupField];
-          const vals = Array.isArray(val) ? val : [val == null ? "" : val];
-          vals.forEach((v) => {
-            const label = String(v).replace(/^\[\[|\]\]$/g, "").trim() || "Unspecified";
-            counts[label] = (counts[label] || 0) + 1;
+  } else if (h2.kind === "cross") {
+    const { targetEntity, linkField, viewType } = h2;
+    const def = ENTITIES[targetEntity];
+    if (def) {
+      const parentName = file.basename;
+      const filteredList = crossSectionRows(listEntities(view.app, targetEntity), linkField, parentName, frontmatterReader(view));
+      const card = parent.createDiv({ cls: "cad-pd-card" });
+      card.style.gridColumn = "1 / -1";
+      const head = card.createDiv({ cls: "cad-pd-card-head" });
+      head.createDiv({ cls: "cad-pd-card-title", text: `${cleanLabel.toUpperCase()} \xB7 ${filteredList.length}` });
+      const addBtn = head.createEl("button", { cls: "cad-btn cad-btn-sm", text: `+ Add ${def.label}` });
+      addBtn.addEventListener("click", () => {
+        view._createEntityFromPrompt(targetEntity, { [linkField]: `[[${parentName}]]` });
+      });
+      const viewSwitch = head.createDiv({ attr: { style: "display: flex; gap: 3px; margin-left: 8px;" } });
+      const viewOptions = [
+        { v: "table", icon: "layout-list", title: "Table View" },
+        { v: "kanban", icon: "kanban", title: "Kanban Board" },
+        { v: "tile", icon: "layout-grid", title: "Tile Grid" }
+      ];
+      viewOptions.forEach(({ v, icon, title }) => {
+        const vBtn = viewSwitch.createEl("button", { attr: { style: `padding: 4px 6px; display: inline-flex; align-items: center; justify-content: center; border-radius: 4px; cursor: pointer; border: 1px solid var(--border-color); background: ${v === viewType ? "var(--interactive-accent)" : "transparent"}; color: ${v === viewType ? "var(--text-on-accent)" : "var(--text-muted)"};` } });
+        vBtn.title = title;
+        try {
+          (0, import_obsidian13.setIcon)(vBtn, icon);
+        } catch (_) {
+        }
+        if (v !== viewType) {
+          vBtn.addEventListener("click", async () => {
+            const newTag = `#cross-${targetEntity}-${linkField}-${v}`;
+            const curContent = await view.app.vault.read(file);
+            const escaped = rawKey.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+            const newContent = curContent.replace(
+              new RegExp(`^(## ${escaped})$`, "m"),
+              `## ${cleanLabel} ${newTag}`
+            );
+            await view.app.vault.modify(file, newContent);
+            view.render();
           });
-        });
-        const chartData = Object.entries(counts).map(([label, count]) => ({ label, count })).sort((a, b) => b.count - a.count);
-        const card = parent.createDiv({ cls: "cad-pd-card" });
-        card.style.gridColumn = "1 / -1";
-        const head = card.createDiv({ cls: "cad-pd-card-head" });
-        head.createDiv({ cls: "cad-pd-card-title", text: `${cleanLabel.toUpperCase()} \xB7 ${filteredList.length} ${def.plural}` });
-        const styleSwitch = head.createDiv({ attr: { style: "display: flex; gap: 3px; margin-left: 8px;" } });
-        [{ v: "donut", icon: "\u{1F369}" }, { v: "bar", icon: "\u{1F4CA}" }, { v: "kpi", icon: "\u{1F5C3}\uFE0F" }, { v: "list", icon: "\u{1F4CB}" }].forEach(({ v, icon }) => {
-          const sBtn = styleSwitch.createEl("button", {
-            text: icon,
-            attr: { style: `padding: 1px 5px; font-size: 0.85em; border-radius: 3px; cursor: pointer; border: 1px solid var(--border-color); background: ${v === chartStyle ? "var(--interactive-accent)" : "transparent"}; opacity: ${v === chartStyle ? "1" : "0.55"};` }
-          });
-          sBtn.title = v;
-          if (v !== chartStyle) {
-            sBtn.addEventListener("click", async () => {
-              const newTag = "#chart-" + chartParts.slice(0, 3).join("-") + "-" + v;
-              const curContent = await view.app.vault.read(file);
-              const escaped = rawKey.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-              const newContent = curContent.replace(
-                new RegExp(`^(## ${escaped})$`, "m"),
-                `## ${cleanLabel} ${newTag}`
-              );
-              await view.app.vault.modify(file, newContent);
-              view.render();
-            });
-          }
-        });
-        const body = card.createDiv({ cls: "cad-dash-card-body", attr: { style: "flex: 1; min-height: 180px; display: flex; flex-direction: column; justify-content: center; padding: 14px;" } });
-        view._drawChart(body.createDiv(), chartStyle, chartData);
-      }
+        }
+      });
+      const body = card.createDiv({ attr: { style: "padding: 12px;" } });
+      view._renderSingleCrossSection(body, targetEntity, linkField, viewType, parentName, filteredList);
     }
-  } else {
+  } else if (h2.kind === "chart") {
+    const { targetEntity, linkField, groupField, chartStyle } = h2;
+    const def = ENTITIES[targetEntity];
+    if (def) {
+      const parentName = file.basename;
+      const filteredList = crossSectionRows(listEntities(view.app, targetEntity), linkField, parentName, frontmatterReader(view));
+      const chartData = sectionChartData(filteredList, groupField, frontmatterReader(view));
+      const card = parent.createDiv({ cls: "cad-pd-card" });
+      card.style.gridColumn = "1 / -1";
+      const head = card.createDiv({ cls: "cad-pd-card-head" });
+      head.createDiv({ cls: "cad-pd-card-title", text: `${cleanLabel.toUpperCase()} \xB7 ${filteredList.length} ${def.plural}` });
+      const styleSwitch = head.createDiv({ attr: { style: "display: flex; gap: 3px; margin-left: 8px;" } });
+      [{ v: "donut", icon: "\u{1F369}" }, { v: "bar", icon: "\u{1F4CA}" }, { v: "kpi", icon: "\u{1F5C3}\uFE0F" }, { v: "list", icon: "\u{1F4CB}" }].forEach(({ v, icon }) => {
+        const sBtn = styleSwitch.createEl("button", {
+          text: icon,
+          attr: { style: `padding: 1px 5px; font-size: 0.85em; border-radius: 3px; cursor: pointer; border: 1px solid var(--border-color); background: ${v === chartStyle ? "var(--interactive-accent)" : "transparent"}; opacity: ${v === chartStyle ? "1" : "0.55"};` }
+        });
+        sBtn.title = v;
+        if (v !== chartStyle) {
+          sBtn.addEventListener("click", async () => {
+            const newTag = `#chart-${targetEntity}-${linkField}-${groupField}-${v}`;
+            const curContent = await view.app.vault.read(file);
+            const escaped = rawKey.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+            const newContent = curContent.replace(
+              new RegExp(`^(## ${escaped})$`, "m"),
+              `## ${cleanLabel} ${newTag}`
+            );
+            await view.app.vault.modify(file, newContent);
+            view.render();
+          });
+        }
+      });
+      const body = card.createDiv({ cls: "cad-dash-card-body", attr: { style: "flex: 1; min-height: 180px; display: flex; flex-direction: column; justify-content: center; padding: 14px;" } });
+      view._drawChart(body.createDiv(), chartStyle, chartData);
+    }
+  } else if (h2.kind === "text") {
     view._renderGenericTextSection(parent, file, sections, rawKey, flashSaved);
   }
 }
