@@ -373,7 +373,9 @@ export interface FakeEvent {
   metaKey?: boolean;
   ctrlKey?: boolean;
   defaultPrevented: boolean;
+  propagationStopped: boolean;
   preventDefault(): void;
+  stopPropagation(): void;
 }
 
 export class FakeElement {
@@ -560,8 +562,12 @@ export class FakeElement {
       type,
       ...init,
       defaultPrevented: false,
+      propagationStopped: false,
       preventDefault() {
         this.defaultPrevented = true;
+      },
+      stopPropagation() {
+        this.propagationStopped = true;
       },
     };
     for (const listener of this.listeners.get(type) ?? []) listener(event);
