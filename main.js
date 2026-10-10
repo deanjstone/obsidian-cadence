@@ -1309,6 +1309,40 @@ var CadenceChartSectionModal = class extends import_obsidian3.Modal {
 
 // src/modals/capture.ts
 var import_obsidian4 = require("obsidian");
+function buildCaptureResult(form) {
+  const text = form.text.trim();
+  if (!text) return null;
+  const result = { text, when: null, repeat: "none" };
+  if (form.scheduled && form.datetimeValue) {
+    const d = fromLocalDatetimeValue(form.datetimeValue);
+    if (d && !isNaN(d.getTime())) {
+      result.when = d.toISOString();
+      result.repeat = form.repeat || "none";
+    }
+  }
+  return result;
+}
+function defaultCaptureWhen(now) {
+  const dft = new Date(now.getTime() + 60 * 60 * 1e3);
+  dft.setMinutes(Math.ceil(dft.getMinutes() / 15) * 15, 0, 0);
+  return dft;
+}
+var QUICK_PICK_DELTA_MS = {
+  "+15m": 15 * 60 * 1e3,
+  "+1h": 60 * 60 * 1e3,
+  "+3h": 3 * 60 * 60 * 1e3
+};
+function quickPickTime(kind, now) {
+  if (kind === "Tomorrow 9am") {
+    const d2 = new Date(now.getTime());
+    d2.setDate(d2.getDate() + 1);
+    d2.setHours(9, 0, 0, 0);
+    return d2;
+  }
+  const d = new Date(now.getTime() + QUICK_PICK_DELTA_MS[kind]);
+  d.setSeconds(0, 0);
+  return d;
+}
 var CadenceCaptureModal = class extends import_obsidian4.Modal {
   constructor(app, opts) {
     super(app);
@@ -1353,36 +1387,27 @@ var CadenceCaptureModal = class extends import_obsidian4.Modal {
       const d = new Date(this.defaultWhen);
       if (!isNaN(d.getTime())) dateInput.value = toLocalDatetimeValue(d);
     } else {
-      const dft = new Date(Date.now() + 60 * 60 * 1e3);
-      dft.setMinutes(Math.ceil(dft.getMinutes() / 15) * 15, 0, 0);
-      dateInput.value = toLocalDatetimeValue(dft);
+      dateInput.value = toLocalDatetimeValue(defaultCaptureWhen(/* @__PURE__ */ new Date()));
     }
     const quick = schedFields.createDiv();
     quick.style.display = "flex";
     quick.style.gap = "6px";
     quick.style.marginTop = "8px";
     quick.style.flexWrap = "wrap";
-    const setQuick = (deltaMs) => {
-      const d = new Date(Date.now() + deltaMs);
-      d.setSeconds(0, 0);
-      dateInput.value = toLocalDatetimeValue(d);
+    const pick = (kind) => {
+      dateInput.value = toLocalDatetimeValue(quickPickTime(kind, /* @__PURE__ */ new Date()));
     };
-    const mkQ = (label, deltaMs) => {
-      const b = quick.createEl("button", { cls: "cad-btn cad-btn-sm", text: label });
+    const mkQ = (kind) => {
+      const b = quick.createEl("button", { cls: "cad-btn cad-btn-sm", text: kind });
       b.type = "button";
-      b.addEventListener("click", () => setQuick(deltaMs));
+      return b;
     };
-    mkQ("+15m", 15 * 60 * 1e3);
-    mkQ("+1h", 60 * 60 * 1e3);
-    mkQ("+3h", 3 * 60 * 60 * 1e3);
-    mkQ("Tomorrow 9am", () => {
+    for (const kind of ["+15m", "+1h", "+3h"]) mkQ(kind).addEventListener("click", () => pick(kind));
+    const tomorrow = mkQ("Tomorrow 9am");
+    tomorrow.addEventListener("click", () => {
+      dateInput.value = toLocalDatetimeValue(/* @__PURE__ */ new Date(NaN));
     });
-    quick.lastChild.addEventListener("click", () => {
-      const d = /* @__PURE__ */ new Date();
-      d.setDate(d.getDate() + 1);
-      d.setHours(9, 0, 0, 0);
-      dateInput.value = toLocalDatetimeValue(d);
-    });
+    tomorrow.addEventListener("click", () => pick("Tomorrow 9am"));
     const repeatRow = schedFields.createDiv({ cls: "cad-form-row" });
     repeatRow.style.marginTop = "10px";
     repeatRow.createDiv({ cls: "cad-form-label", text: "REPEAT" });
@@ -1409,18 +1434,15 @@ var CadenceCaptureModal = class extends import_obsidian4.Modal {
     const ok = row.createEl("button", { cls: "cad-btn primary", text: "Capture" });
     ok.type = "button";
     const submit = () => {
-      const text = textInput.value.trim();
-      if (!text) {
+      const result = buildCaptureResult({
+        text: textInput.value,
+        scheduled: schedCb.checked,
+        datetimeValue: dateInput.value,
+        repeat: repeatSelect.value
+      });
+      if (!result) {
         textInput.focus();
         return;
-      }
-      const result = { text, when: null, repeat: "none" };
-      if (schedCb.checked && dateInput.value) {
-        const d = fromLocalDatetimeValue(dateInput.value);
-        if (d && !isNaN(d.getTime())) {
-          result.when = d.toISOString();
-          result.repeat = repeatSelect.value || "none";
-        }
       }
       this._submitted = true;
       this.close();
@@ -1648,6 +1670,48 @@ var CadencePromptModal = class extends import_obsidian7.Modal {
 
 // src/modals/reminder-edit.ts
 var import_obsidian8 = require("obsidian");
+function buildReminderPatch(form, reminder) {
+  const text = form.text.trim();
+  if (!text) return null;
+  const fields = {
+    text,
+    notes: form.notes,
+    repeat: form.repeat || "none",
+    project: reminder.project || null
+  };
+  if (form.datetimeValue) {
+    const d = fromLocalDatetimeValue(form.datetimeValue);
+    if (d && !isNaN(d.getTime())) {
+      fields.when = d.toISOString();
+      if (fields.when !== reminder.when) fields.notified = false;
+    }
+  } else {
+    fields.when = null;
+    fields.notified = false;
+  }
+  return fields;
+}
+function filterReminderProjects(projects, query) {
+  const q = (query || "").toLowerCase();
+  return projects.filter((p) => p.name.toLowerCase().includes(q));
+}
+var ReminderProjectSuggestModal = class extends import_obsidian8.SuggestModal {
+  constructor(app, projs, onChoose) {
+    super(app);
+    this.projs = projs;
+    this.onChoose = onChoose;
+    this.setPlaceholder("Search projects to link this reminder to\u2026");
+  }
+  getSuggestions(query) {
+    return filterReminderProjects(this.projs, query);
+  }
+  renderSuggestion(item, el) {
+    el.setText("\u{1F4C1}  " + item.name);
+  }
+  onChooseSuggestion(item) {
+    this.onChoose(item);
+  }
+};
 var CadenceReminderEditModal = class extends import_obsidian8.Modal {
   constructor(app, plugin, reminder, opts) {
     super(app);
@@ -1756,26 +1820,15 @@ var CadenceReminderEditModal = class extends import_obsidian8.Modal {
     const save = actions.createEl("button", { cls: "cad-btn primary", text: this.isNew ? "Create reminder" : "Save" });
     save.type = "button";
     const submit = async () => {
-      const text = textInput.value.trim();
-      if (!text) {
+      const fields = buildReminderPatch({
+        text: textInput.value,
+        notes: notesArea.value,
+        repeat: repeatSel.value,
+        datetimeValue: dateInput.value
+      }, this.reminder);
+      if (!fields) {
         textInput.focus();
         return;
-      }
-      const fields = {
-        text,
-        notes: notesArea.value,
-        repeat: repeatSel.value || "none",
-        project: this.reminder.project || null
-      };
-      if (dateInput.value) {
-        const d = fromLocalDatetimeValue(dateInput.value);
-        if (d && !isNaN(d.getTime())) {
-          fields.when = d.toISOString();
-          if (fields.when !== this.reminder.when) fields.notified = false;
-        }
-      } else {
-        fields.when = null;
-        fields.notified = false;
       }
       if (this.isNew) {
         await this.plugin.addReminder(fields);
@@ -1814,24 +1867,10 @@ var CadenceReminderEditModal = class extends import_obsidian8.Modal {
     }
     const projects = projectFiles.map((f) => ({ file: f, name: projectNameFromPath(this.app, f.path) }));
     const reminder = this.reminder;
-    const picker = new class extends import_obsidian8.SuggestModal {
-      constructor(app, projs) {
-        super(app);
-        this.projs = projs;
-        this.setPlaceholder("Search projects to link this reminder to\u2026");
-      }
-      getSuggestions(query) {
-        const q = (query || "").toLowerCase();
-        return this.projs.filter((p) => p.name.toLowerCase().includes(q));
-      }
-      renderSuggestion(item, el) {
-        el.setText("\u{1F4C1}  " + item.name);
-      }
-      onChooseSuggestion(item) {
-        reminder.project = item.file.path;
-        rerender();
-      }
-    }(this.app, projects);
+    const picker = new ReminderProjectSuggestModal(this.app, projects, (item) => {
+      reminder.project = item.file.path;
+      rerender();
+    });
     picker.open();
   }
 };

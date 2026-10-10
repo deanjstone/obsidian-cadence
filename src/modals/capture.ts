@@ -11,6 +11,63 @@ export interface CaptureModalOptions {
   onSubmit?: (result: CaptureResult | null) => void;
 }
 
+/** Raw form values, as read from the modal's inputs. */
+export interface CaptureForm {
+  text: string;
+  /** The "Remind me" checkbox. */
+  scheduled: boolean;
+  /** The datetime-local input's value (local time, no zone). */
+  datetimeValue: string;
+  repeat: string;
+}
+
+/** The onSubmit payload, or null when the trimmed text is blank. The time
+    and repeat are dropped unless scheduled with a parseable time. */
+export function buildCaptureResult(form: CaptureForm): CaptureResult | null {
+  const text = form.text.trim();
+  if (!text) return null;
+  const result: CaptureResult = { text, when: null, repeat: 'none' };
+  if (form.scheduled && form.datetimeValue) {
+    const d = fromLocalDatetimeValue(form.datetimeValue);
+    if (d && !isNaN(d.getTime())) {
+      result.when = d.toISOString();
+      result.repeat = form.repeat || 'none';
+    }
+  }
+  return result;
+}
+
+/** The time input's default: now + 1 hour, rounded to the next quarter hour.
+    Seconds are dropped after rounding, so 10:00:45 + 1h gives 11:00
+    (flagged, not fixed). */
+export function defaultCaptureWhen(now: Date): Date {
+  const dft = new Date(now.getTime() + 60 * 60 * 1000);
+  dft.setMinutes(Math.ceil(dft.getMinutes() / 15) * 15, 0, 0);
+  return dft;
+}
+
+export type QuickPick = '+15m' | '+1h' | '+3h' | 'Tomorrow 9am';
+
+const QUICK_PICK_DELTA_MS: Record<Exclude<QuickPick, 'Tomorrow 9am'>, number> = {
+  '+15m': 15 * 60 * 1000,
+  '+1h': 60 * 60 * 1000,
+  '+3h': 3 * 60 * 60 * 1000,
+};
+
+/** The time a quick-pick button sets: an offset from now with seconds
+    dropped, or 9:00 tomorrow. */
+export function quickPickTime(kind: QuickPick, now: Date): Date {
+  if (kind === 'Tomorrow 9am') {
+    const d = new Date(now.getTime());
+    d.setDate(d.getDate() + 1);
+    d.setHours(9, 0, 0, 0);
+    return d;
+  }
+  const d = new Date(now.getTime() + QUICK_PICK_DELTA_MS[kind]);
+  d.setSeconds(0, 0);
+  return d;
+}
+
 /* ─────────── Quick-capture modal ─────────── */
 export class CadenceCaptureModal extends Modal {
   declare onSubmit: ((result: CaptureResult | null) => void) | undefined;
@@ -65,10 +122,7 @@ export class CadenceCaptureModal extends Modal {
       const d = new Date(this.defaultWhen);
       if (!isNaN(d.getTime())) dateInput.value = toLocalDatetimeValue(d);
     } else {
-      // Default to now + 1 hour, rounded to next 15min
-      const dft = new Date(Date.now() + 60 * 60 * 1000);
-      dft.setMinutes(Math.ceil(dft.getMinutes() / 15) * 15, 0, 0);
-      dateInput.value = toLocalDatetimeValue(dft);
+      dateInput.value = toLocalDatetimeValue(defaultCaptureWhen(new Date()));
     }
 
     // Quick-pick buttons
@@ -77,28 +131,20 @@ export class CadenceCaptureModal extends Modal {
     quick.style.gap = '6px';
     quick.style.marginTop = '8px';
     quick.style.flexWrap = 'wrap';
-    // Flagged, not fixed: 'Tomorrow 9am' passes a function as deltaMs, so
-    // setQuick writes NaN-NaN-… first; the listener below then overwrites it.
-    const setQuick = (deltaMs: number | (() => void)) => {
-      const d = new Date(Date.now() + (deltaMs as number));
-      d.setSeconds(0, 0);
-      dateInput.value = toLocalDatetimeValue(d);
+    const pick = (kind: QuickPick) => {
+      dateInput.value = toLocalDatetimeValue(quickPickTime(kind, new Date()));
     };
-    const mkQ = (label: string, deltaMs: number | (() => void)) => {
-      const b = quick.createEl('button', { cls: 'cad-btn cad-btn-sm', text: label });
+    const mkQ = (kind: QuickPick) => {
+      const b = quick.createEl('button', { cls: 'cad-btn cad-btn-sm', text: kind });
       b.type = 'button';
-      b.addEventListener('click', () => setQuick(deltaMs));
+      return b;
     };
-    mkQ('+15m', 15 * 60 * 1000);
-    mkQ('+1h', 60 * 60 * 1000);
-    mkQ('+3h', 3 * 60 * 60 * 1000);
-    mkQ('Tomorrow 9am', () => { });
-    quick.lastChild!.addEventListener('click', () => {
-      const d = new Date();
-      d.setDate(d.getDate() + 1);
-      d.setHours(9, 0, 0, 0);
-      dateInput.value = toLocalDatetimeValue(d);
-    });
+    for (const kind of ['+15m', '+1h', '+3h'] as const) mkQ(kind).addEventListener('click', () => pick(kind));
+    const tomorrow = mkQ('Tomorrow 9am');
+    // Flagged, not fixed: the legacy button first ran setQuick(() => {}),
+    // writing NaN-NaN-… (Date.now() + a function), before its real listener.
+    tomorrow.addEventListener('click', () => { dateInput.value = toLocalDatetimeValue(new Date(NaN)); });
+    tomorrow.addEventListener('click', () => pick('Tomorrow 9am'));
 
     const repeatRow = schedFields.createDiv({ cls: 'cad-form-row' });
     repeatRow.style.marginTop = '10px';
@@ -127,16 +173,13 @@ export class CadenceCaptureModal extends Modal {
     ok.type = 'button';
 
     const submit = () => {
-      const text = textInput.value.trim();
-      if (!text) { textInput.focus(); return; }
-      const result: CaptureResult = { text, when: null, repeat: 'none' };
-      if (schedCb.checked && dateInput.value) {
-        const d = fromLocalDatetimeValue(dateInput.value);
-        if (d && !isNaN(d.getTime())) {
-          result.when = d.toISOString();
-          result.repeat = repeatSelect.value || 'none';
-        }
-      }
+      const result = buildCaptureResult({
+        text: textInput.value,
+        scheduled: schedCb.checked,
+        datetimeValue: dateInput.value,
+        repeat: repeatSelect.value,
+      });
+      if (!result) { textInput.focus(); return; }
       this._submitted = true;
       this.close();
       // Throws when constructed without onSubmit (flagged, not fixed).

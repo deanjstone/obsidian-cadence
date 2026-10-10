@@ -23,6 +23,67 @@ export interface ReminderProjectChoice {
   name: string;
 }
 
+/** Raw form values, as read from the modal's inputs. */
+export interface ReminderForm {
+  text: string;
+  notes: string;
+  repeat: string;
+  /** The datetime-local input's value (local time, no zone). */
+  datetimeValue: string;
+}
+
+/** The fields saved through addReminder / updateReminder, or null when the
+    trimmed text is blank. A blank time unschedules and resets `notified`;
+    a changed time resets `notified`; an unparseable time omits both, so an
+    update keeps the old time (flagged, not fixed). */
+export function buildReminderPatch(form: ReminderForm, reminder: Partial<Reminder>): ReminderPatch | null {
+  const text = form.text.trim();
+  if (!text) return null;
+  const fields: ReminderPatch = {
+    text,
+    notes: form.notes,
+    repeat: form.repeat || 'none',
+    project: reminder.project || null,
+  };
+  if (form.datetimeValue) {
+    const d = fromLocalDatetimeValue(form.datetimeValue);
+    if (d && !isNaN(d.getTime())) {
+      fields.when = d.toISOString();
+      if (fields.when !== reminder.when) fields.notified = false;
+    }
+  } else {
+    fields.when = null;
+    fields.notified = false;
+  }
+  return fields;
+}
+
+/** Projects whose name contains the query, case-insensitively. */
+export function filterReminderProjects(projects: ReminderProjectChoice[], query: string | null | undefined): ReminderProjectChoice[] {
+  const q = (query || '').toLowerCase();
+  return projects.filter((p) => p.name.toLowerCase().includes(q));
+}
+
+/* Picker over the vault's project notes; onChoose links the reminder. */
+export class ReminderProjectSuggestModal extends SuggestModal<ReminderProjectChoice> {
+  declare projs: ReminderProjectChoice[];
+  declare onChoose: (item: ReminderProjectChoice) => void;
+
+  constructor(app: App, projs: ReminderProjectChoice[], onChoose: (item: ReminderProjectChoice) => void) {
+    super(app);
+    this.projs = projs;
+    this.onChoose = onChoose;
+    this.setPlaceholder('Search projects to link this reminder to…');
+  }
+  getSuggestions(query: string) {
+    return filterReminderProjects(this.projs, query);
+  }
+  renderSuggestion(item: ReminderProjectChoice, el: HTMLElement) { el.setText('📁  ' + item.name); }
+  onChooseSuggestion(item: ReminderProjectChoice) {
+    this.onChoose(item);
+  }
+}
+
 /* The Cadence view, as far as the project chip needs it. */
 interface ProjectDetailHost {
   openEntityDetail?: (entityKey: 'project', file: TFile) => void;
@@ -157,24 +218,13 @@ export class CadenceReminderEditModal extends Modal {
     save.type = 'button';
 
     const submit = async () => {
-      const text = textInput.value.trim();
-      if (!text) { textInput.focus(); return; }
-      const fields: ReminderPatch = {
-        text,
+      const fields = buildReminderPatch({
+        text: textInput.value,
         notes: notesArea.value,
-        repeat: repeatSel.value || 'none',
-        project: this.reminder.project || null,
-      };
-      if (dateInput.value) {
-        const d = fromLocalDatetimeValue(dateInput.value);
-        if (d && !isNaN(d.getTime())) {
-          fields.when = d.toISOString();
-          if (fields.when !== this.reminder.when) fields.notified = false;
-        }
-      } else {
-        fields.when = null;
-        fields.notified = false;
-      }
+        repeat: repeatSel.value,
+        datetimeValue: dateInput.value,
+      }, this.reminder);
+      if (!fields) { textInput.focus(); return; }
       if (this.isNew) {
         await this.plugin.addReminder(fields);
         new Notice(fields.when
@@ -213,23 +263,10 @@ export class CadenceReminderEditModal extends Modal {
     // Names are never null here: every path came from the vault.
     const projects = projectFiles.map((f) => ({ file: f, name: projectNameFromPath(this.app, f.path) }));
     const reminder = this.reminder;
-    const picker = new (class extends SuggestModal<ReminderProjectChoice> {
-      declare projs: ReminderProjectChoice[];
-      constructor(app: App, projs: ReminderProjectChoice[]) {
-        super(app);
-        this.projs = projs;
-        this.setPlaceholder('Search projects to link this reminder to…');
-      }
-      getSuggestions(query: string) {
-        const q = (query || '').toLowerCase();
-        return this.projs.filter((p) => p.name.toLowerCase().includes(q));
-      }
-      renderSuggestion(item: ReminderProjectChoice, el: HTMLElement) { el.setText('📁  ' + item.name); }
-      onChooseSuggestion(item: ReminderProjectChoice) {
-        reminder.project = item.file.path;
-        rerender();
-      }
-    })(this.app, projects as ReminderProjectChoice[]);
+    const picker = new ReminderProjectSuggestModal(this.app, projects as ReminderProjectChoice[], (item) => {
+      reminder.project = item.file.path;
+      rerender();
+    });
     picker.open();
   }
 }
