@@ -111,6 +111,10 @@ export class Vault {
     return [...this.files.values()].filter((f): f is TFile => f instanceof TFile && f.extension === 'md');
   }
 
+  getFiles(): TFile[] {
+    return [...this.files.values()].filter((f): f is TFile => f instanceof TFile);
+  }
+
   async create(path: string, content: string): Promise<TFile> {
     if (this.files.has(path)) throw new Error(`File already exists: ${path}`);
     const file = this.addFile({ path });
@@ -154,6 +158,11 @@ export class Vault {
 
 export class MetadataCache {
   private frontmatter = new Map<string, Frontmatter>();
+  /** What getTags() reports: `#tag` → count. Set directly in tests. */
+  tags: Record<string, number> = {};
+  getTags(): Record<string, number> {
+    return this.tags;
+  }
   setFrontmatter(file: TFile, fm: Frontmatter) {
     this.frontmatter.set(file.path, fm);
   }
@@ -319,7 +328,8 @@ export interface FakeEvent {
 }
 
 export class FakeElement {
-  readonly tagName: string;
+  /** Lower-case tag, as passed to createEl. */
+  readonly localName: string;
   parent: FakeElement | null = null;
   readonly children: FakeElement[] = [];
   readonly classes: string[] = [];
@@ -330,7 +340,10 @@ export class FakeElement {
   placeholder = '';
   title = '';
   checked = false;
+  disabled = false;
+  required = false;
   rows = 0;
+  readonly dataset: Record<string, string> = {};
   focusCount = 0;
   selectCount = 0;
   /** Every value assigned through the setter, in order (not createEl's). */
@@ -340,12 +353,17 @@ export class FakeElement {
   private selectedOption: FakeElement | null | undefined = undefined;
   private readonly listeners = new Map<string, Array<(event: FakeEvent) => void>>();
 
-  constructor(tagName: string) {
-    this.tagName = tagName;
+  constructor(localName: string) {
+    this.localName = localName;
+  }
+
+  /* Upper-case, as an HTML document's elements report it. */
+  get tagName(): string {
+    return this.localName.toUpperCase();
   }
 
   get options(): FakeElement[] {
-    return this.children.filter((c) => c.tagName === 'option');
+    return this.children.filter((c) => c.localName === 'option');
   }
 
   get lastChild(): FakeElement | null {
@@ -355,7 +373,7 @@ export class FakeElement {
   /* <option> only: reads and sets its parent <select>'s selection. */
   get selected(): boolean {
     const select = this.parent;
-    if (!select || select.tagName !== 'select' || select.selectedOption === null) return false;
+    if (!select || select.localName !== 'select' || select.selectedOption === null) return false;
     const options = select.options;
     const current = select.selectedOption && options.includes(select.selectedOption) ? select.selectedOption : options[0];
     return current === this;
@@ -363,13 +381,13 @@ export class FakeElement {
 
   set selected(selected: boolean) {
     const select = this.parent;
-    if (!select || select.tagName !== 'select') return;
+    if (!select || select.localName !== 'select') return;
     if (selected) select.selectedOption = this;
     else if (select.selectedOption === this) select.selectedOption = undefined;
   }
 
   get value(): string {
-    if (this.tagName !== 'select') return this.ownValue;
+    if (this.localName !== 'select') return this.ownValue;
     const options = this.options;
     if (this.selectedOption === null) return '';
     if (this.selectedOption === undefined || !options.includes(this.selectedOption)) return options[0]?.value ?? '';
@@ -378,7 +396,7 @@ export class FakeElement {
 
   set value(value: string) {
     this.valueWrites.push(String(value));
-    if (this.tagName !== 'select') {
+    if (this.localName !== 'select') {
       this.ownValue = String(value);
       return;
     }
@@ -457,7 +475,7 @@ export class FakeElement {
 
   /** Descendants (depth-first, document order) matching `tag`. */
   findAll(tag: string): FakeElement[] {
-    return this.children.flatMap((c) => [...(c.tagName === tag ? [c] : []), ...c.findAll(tag)]);
+    return this.children.flatMap((c) => [...(c.localName === tag ? [c] : []), ...c.findAll(tag)]);
   }
 }
 
@@ -470,7 +488,7 @@ export class Modal {
   app: App;
   contentEl: HTMLElement = fakeElement();
   titleEl: unknown = {};
-  modalEl: unknown = {};
+  modalEl: HTMLElement = fakeElement();
   constructor(app: App) {
     this.app = app;
   }
