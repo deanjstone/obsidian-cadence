@@ -1,5 +1,6 @@
 import { PluginSettingTab, Setting, type App } from 'obsidian';
 import { NAV_GROUPS, VIEW_TYPE_CADENCE_APP, type NavGroup } from '../constants/nav';
+import { CURRENCY_OPTIONS } from '../constants/settings';
 import type { Reminder } from '../types/reminders';
 import type { SettingTabSettings } from '../types/settings';
 import { renderCustomPagesSettings, type Option } from './custom-pages';
@@ -171,19 +172,7 @@ export function taskNotesStatus(active: boolean): { name: string; desc: string; 
     };
 }
 
-export const CURRENCY_OPTIONS: Array<{ code: string; label: string }> = [
-  { code: 'USD', label: 'USD — US Dollar' },
-  { code: 'EUR', label: 'EUR — Euro' },
-  { code: 'GBP', label: 'GBP — British Pound' },
-  { code: 'ZAR', label: 'ZAR — South African Rand' },
-  { code: 'AUD', label: 'AUD — Australian Dollar' },
-  { code: 'CAD', label: 'CAD — Canadian Dollar' },
-  { code: 'CHF', label: 'CHF — Swiss Franc' },
-  { code: 'JPY', label: 'JPY — Japanese Yen' },
-  { code: 'INR', label: 'INR — Indian Rupee' },
-  { code: 'BRL', label: 'BRL — Brazilian Real' },
-  { code: 'AED', label: 'AED — UAE Dirham' },
-];
+export { CURRENCY_OPTIONS };
 
 /* The week-start dropdown's value → settings.weekStartsOn: 0 for Sunday,
    1 for anything else. */
