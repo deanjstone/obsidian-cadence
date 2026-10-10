@@ -1,6 +1,7 @@
 import { vi } from "vitest";
 import { createMockApp, WorkspaceLeaf, type App, type FakeElement, type MockFileSpec } from "../mocks/obsidian";
-import { CadenceAppView } from "../../src/legacy/cadence.js";
+import { CadenceAppView } from "../../src/views/app-view";
+import type { AppViewPlugin } from "../../src/views/host";
 
 /* Builds a CadenceAppView against the mock App, with a plugin stub carrying
    just the settings the shell reads. Shared by the test/views/ files. */
@@ -39,7 +40,7 @@ export function makeAppView(opts: { settings?: Record<string, unknown>; files?: 
     },
   };
   const leaf = new WorkspaceLeaf(app);
-  const view: Any = new CadenceAppView(leaf, plugin);
+  const view: Any = new CadenceAppView(leaf, plugin as unknown as AppViewPlugin);
   const root = view.containerEl.children[1] as FakeElement;
   return { app, plugin, leaf, view, root };
 }

@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Notice, WorkspaceLeaf } from "../mocks/obsidian";
 import { CadenceCaptureModal } from "../../src/modals/capture";
 import { CadenceImportModal } from "../../src/modals/import-modal";
-import { CadenceAppView } from "../../src/legacy/cadence.js";
+import { CadenceAppView } from "../../src/views/app-view";
 import { flush, makeLoadedPlugin, makePlugin } from "../helpers/plugin";
 
 /* Characterization tests for CadencePlugin's shell: what onload wires up

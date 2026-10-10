@@ -1,13 +1,57 @@
-import { Notice, setIcon, type TAbstractFile, type TFile } from 'obsidian';
+import { ItemView, Notice, setIcon, type TAbstractFile, type TFile, type WorkspaceLeaf } from 'obsidian';
 import { ENTITIES } from '../constants/entities';
-import { BUILT_SURFACES, SURFACE_BY_ID, type NavSurface } from '../constants/nav';
-import type { EntityDef } from '../types/entities';
+import { BUILT_SURFACES, SURFACE_BY_ID, VIEW_TYPE_CADENCE_APP, type NavSurface } from '../constants/nav';
+import type { Entity, EntityDef, EntityKey, TaskNotesTask } from '../types/entities';
+import type { ChartStyle } from '../types/modals';
+import type { Reminder, ReminderBucket } from '../types/reminders';
 import { CadenceEntityCreateModal } from '../modals/entity-create';
 import { CadencePromptModal } from '../modals/prompt';
 import { dailyNotePath, startOfDay, weekDates } from '../utils/dates';
 import { createEntity, entityKeyFromFile, getFieldSuggestionSource } from '../utils/entities';
-import type { AppViewHost, AppViewPlugin, PromptOptions } from './host';
-import { routeFor } from './nav';
+import type { DailySections, Milestone, MilestoneInput, TaskItem } from '../utils/parsing';
+import { renderPlannerPane, togglePlannerTask, type PlannerDay } from './calendar';
+import { renderCompanyDetail } from './company-detail';
+import { dashCardSection, type DashCardRow } from './components/cards';
+import {
+  drawBarChart, drawChart, drawChartEmpty, drawDonutChart, drawKpiGrid, drawSimpleList, type ChartDatum,
+} from './components/charts';
+import { getEntityFiles, renderEntityLinks, renderEntityTable, renderOwnerLinks } from './components/entity-table';
+import {
+  renderCrossSections, renderDynamicH2Section, renderGenericTextSection, renderMarkdownTextCard, renderProjectTextSection,
+  renderSingleCrossSection, type FlashSaved, type ProjectTextSectionDef,
+} from './components/sections';
+import { renderCrmDashboard } from './crm-dashboard';
+import { renderEntityDetail } from './entity-detail';
+import { renderEntityList, type EntityListOptions } from './entity-list';
+import {
+  briefingHeadline, homeActivitiesCard, homeCard, homeInboxCard, homePartnersCard, homePipelineCard, homeProjectsCard,
+  homeTodayCard, homeUpcomingCard, homeWeekCard, loadBriefing, renderBriefing, renderHome, type BriefingItem,
+} from './home';
+import type { AppViewHost, AppViewPlugin, PromptOptions, TaskCompleteSource } from './host';
+import { inboxOverdueCount, renderInbox, renderInboxRow, renderProjectTasksSection } from './inbox';
+import { getEntityKanbanParams, renderEntityKanban } from './kanban';
+import {
+  migrateModeId, modeUsesEntityFolder, resolveSurface, routeFor, setMode, toggleCadenceDark, toggleGroup, toggleMobileNav,
+  visibleNavGroups,
+} from './nav';
+import { renderPRMAnalytics, renderTeam } from './prm';
+import {
+  renderMilestoneSection, renderProjectDetail, renderTaskSection, saveMilestones, saveProjectFrontmatter, saveTasks,
+} from './project-detail';
+import { renderProjectsDashboard, renderProjectsView } from './projects-dashboard';
+import { renderReportGraph } from './report-graph';
+import {
+  renderProductivity, renderReportActivity, renderReportPartners, renderReportPipeline, renderReportSales,
+} from './reports';
+import {
+  getTaskProjectLink, openTaskProjectPicker, propagateTaskComplete, setTaskProjectLink, taskLinkKey,
+  tickDailyNoteTaskByText, tickProjectTaskByText,
+} from './task-links';
+import {
+  getFilesUsingTemplateSection, propagateTemplateSectionAdd, propagateTemplateSectionDelete, renderTemplateDetail,
+  renderTemplateSectionWithDelete, renderTemplatesDashboard,
+} from './templates';
+import { appendTodayTask, quickAddTodayTask, renderTodayPane, saveTodayJournal, toggleTodayTask } from './today';
 
 /* Workspace.getActiveLeaf() and App.setting are not in the public
    obsidian.d.ts this repo builds against. */
@@ -20,12 +64,12 @@ interface SettingWindow {
 
 /* ─────────── The unified Cadence app view: shell ───────────
    CadenceAppView's constructor state, lifecycle, render() and the
-   cross-surface helpers, moved out of src/legacy/cadence.js. The class keeps
-   a one-line delegate for each function (see src/views/README.md). */
+   cross-surface helpers. CadenceAppView, at the end of this file, keeps a
+   one-line delegate for each function (see src/views/README.md). */
 
 export function initAppViewState(view: AppViewHost, plugin: AppViewPlugin): void {
   view.plugin = plugin;
-  // Migrate legacy mode IDs from older versions
+  // Migrate mode IDs saved by older versions
   const raw = plugin.settings.defaultTab || 'planner.today';
   view.mode = view._migrateModeId(raw);
   // Today state
@@ -265,7 +309,7 @@ export async function renderAppView(view: AppViewHost): Promise<void> {
     } else if (route.kind === 'entityList') {
       await view.renderEntityList(content, route.entityKey);
     } else if (route.kind === 'inherited') {
-      // QUIRK (kept): legacy called the inherited member of its route-table object.
+      // QUIRK (kept): the original called the inherited member of its route-table object.
       await ({} as Record<string, () => unknown>)[route.name]();
     } else {
       view.renderComingSoon(content, active);
@@ -427,4 +471,260 @@ export function planEntityLinks(
     }
   }
   return { extras, links };
+}
+
+/* ─────────── The unified Cadence app view ───────────
+   The class Obsidian instantiates for VIEW_TYPE_CADENCE_APP. Every method
+   beyond the View contract is a one-line delegate to a surface function, so
+   `this.x()` and `view.x()` call sites land on the same function, and a test
+   can spy on any surface through the instance. It is the one module that
+   imports every surface (src/views/README.md). */
+export class CadenceAppView extends ItemView implements AppViewHost {
+  declare plugin: AppViewPlugin;
+  declare mode: string;
+  declare todayFile: TFile | null;
+  declare todayParsed: DailySections | null;
+  declare todayTaskNotes?: TaskNotesTask[];
+  declare _journalSaveTimer: ReturnType<typeof setTimeout> | null;
+  declare _liveRenderTimer?: ReturnType<typeof setTimeout>;
+  declare plannerAnchor: Date;
+  declare detailFile: TFile | null;
+  declare detailEntityKey: string | null;
+  declare mobileNavOpen: boolean;
+  declare _isRendering?: boolean;
+  declare _needsRenderAgain?: boolean;
+
+  constructor(leaf: WorkspaceLeaf, plugin: AppViewPlugin) {
+    super(leaf);
+    initAppViewState(this, plugin);
+  }
+
+  _toggleMobileNav(force?: boolean) { return toggleMobileNav(this, force); }
+
+  openEntityDetail(entityKey: string, file: TFile) { return openEntityDetail(this, entityKey, file); }
+
+  openTemplateDetail(entityKey: string, file: TFile) { return openTemplateDetail(this, entityKey, file); }
+
+  openEntityDetailFromFile(file: TFile) { return openEntityDetailFromFile(this, file); }
+
+  closeEntityDetail() { return closeEntityDetail(this); }
+
+  _migrateModeId(id: string) { return migrateModeId(id, this.plugin.settings); }
+
+  _resolveSurface(id: string) { return resolveSurface(id, this.plugin.settings); }
+
+  getEntityKanbanParams(entityKey: string) { return getEntityKanbanParams(this, entityKey); }
+
+  /* Toggle Cadence-app dark mode. Scoped to `.cadence-app` only —
+     does not affect Obsidian's overall light/dark mode. Persisted in settings. */
+  _toggleCadenceDark() { return toggleCadenceDark(this); }
+
+  _visibleNavGroups() { return visibleNavGroups(this.plugin.settings); }
+
+  /* Link a daily-note task to a project. Keyed by (dailyPath, taskText). */
+  _taskLinkKey(dailyPath: string, text: string | null | undefined) { return taskLinkKey(dailyPath, text); }
+
+  _getTaskProjectLink(dailyPath: string, text: string) { return getTaskProjectLink(this, dailyPath, text); }
+
+  _setTaskProjectLink(dailyPath: string, text: string, projectPath: string | null) { return setTaskProjectLink(this, dailyPath, text, projectPath); }
+
+  _openTaskProjectPicker(dailyPath: string, text: string, currentLink: string | null) { return openTaskProjectPicker(this, dailyPath, text, currentLink); }
+
+  _inboxOverdueCount() { return inboxOverdueCount(this); }
+
+  getViewType() { return VIEW_TYPE_CADENCE_APP; }
+  getDisplayText() { return 'Cadence'; }
+  getIcon() { return 'sparkles'; }
+
+  setMode(m: string) { return setMode(this, m); }
+
+  toggleGroup(groupId: string) { return toggleGroup(this, groupId); }
+
+  onOpen() { return onOpenAppView(this); }
+
+  _modeUsesEntityFolder(path: string | null | undefined) { return modeUsesEntityFolder(path); }
+
+  render() { return renderAppView(this); }
+
+  renderComingSoon(root: HTMLElement, surface: NavSurface) { return renderComingSoon(this, root, surface); }
+
+  /* ── Generic page header ────────────────── */
+  _renderPageHeader(root: HTMLElement, title: string, subtitle?: string, actions?: (right: HTMLElement) => void) { return renderPageHeader(this, root, title, subtitle, actions); }
+
+  /* ── Generic entity LIST view ───────────── */
+  renderEntityList(root: HTMLElement, entityKey: string, opts?: EntityListOptions) { return renderEntityList(this, root, entityKey, opts); }
+
+  /* ── Entity DETAIL view (in-app form, autosaves to frontmatter) ── */
+  renderEntityDetail(root: HTMLElement, entityKey: string, file: TFile) { return renderEntityDetail(this, root, entityKey, file); }
+
+  _renderEntityTable(parent: HTMLElement, entityKey: EntityKey, filteredList: Entity[], columns: string[]) { return renderEntityTable(this, parent, entityKey, filteredList, columns); }
+
+  renderCompanyDetail(root: HTMLElement, file: TFile) { return renderCompanyDetail(this, root, file); }
+
+  /* ── Project DETAIL view (real PM surface) ─────── */
+  renderProjectDetail(root: HTMLElement, file: TFile) { return renderProjectDetail(this, root, file); }
+
+  _renderMilestoneSection(parent: HTMLElement, file: TFile, milestones: Milestone[], flashSaved?: FlashSaved, rawKey?: string) { return renderMilestoneSection(this, parent, file, milestones, flashSaved, rawKey); }
+
+  _commitMilestones(file: TFile, items: MilestoneInput[], flashSaved?: FlashSaved, skipRender?: boolean, rawKey?: string) { return saveMilestones(this, file, items, flashSaved, skipRender, rawKey); }
+
+  _renderTaskSection(parent: HTMLElement, file: TFile, tasks: TaskItem[], flashSaved?: FlashSaved, rawKey?: string) { return renderTaskSection(this, parent, file, tasks, flashSaved, rawKey); }
+
+  _commitTasks(file: TFile, items: Array<Partial<TaskItem>>, flashSaved?: FlashSaved, skipRender?: boolean, rawKey?: string) { return saveTasks(this, file, items, flashSaved, skipRender, rawKey); }
+
+  _writeProjectFrontmatter(file: TFile, patch: Record<string, unknown>, flashSaved?: FlashSaved) { return saveProjectFrontmatter(this, file, patch, flashSaved); }
+
+  _renderMarkdownTextCard(parent: HTMLElement, file: TFile, sectionKey: string, label: string, initialValue: string | undefined, placeholder?: string, flashSaved?: FlashSaved) { return renderMarkdownTextCard(this, parent, file, sectionKey, label, initialValue, placeholder, flashSaved); }
+
+  _renderProjectTextSection(parent: HTMLElement, file: TFile, sections: Record<string, string>, def: ProjectTextSectionDef, flashSaved?: FlashSaved) { return renderProjectTextSection(this, parent, file, sections, def, flashSaved); }
+
+  _renderGenericTextSection(parent: HTMLElement, file: TFile, sections: Record<string, string>, key: string, flashSaved?: FlashSaved) { return renderGenericTextSection(this, parent, file, sections, key, flashSaved); }
+
+  _renderSingleCrossSection(parent: HTMLElement, targetEntity: EntityKey, linkField: string, viewType: string, parentName: string, preFilteredList?: Entity[] | null) { return renderSingleCrossSection(this, parent, targetEntity, linkField, viewType, parentName, preFilteredList); }
+
+  _renderDynamicH2Section(parent: HTMLElement, file: TFile, sections: Record<string, string>, rawKey: string, flashSaved?: FlashSaved) { return renderDynamicH2Section(this, parent, file, sections, rawKey, flashSaved); }
+
+  _renderCrossSections(parent: HTMLElement, parentEntity: EntityKey, parentName: string) { return renderCrossSections(this, parent, parentEntity, parentName); }
+
+  _renderEntityLinks(parent: HTMLElement, val: unknown, targetEntityKey: string, prefix?: string) { return renderEntityLinks(this, parent, val, targetEntityKey, prefix); }
+
+  _renderOwnerLinks(parent: HTMLElement, ownerVal: unknown, showPrefix?: boolean) { return renderOwnerLinks(this, parent, ownerVal, showPrefix); }
+
+  /* ── Projects: rich card grid with milestone progress ─ */
+  renderProjectsView(root: HTMLElement) { return renderProjectsView(this, root); }
+
+  /* ── Home / Command Centre ───────────────── */
+  renderHome(root: HTMLElement) { return renderHome(this, root); }
+
+  _homeCard(parent: HTMLElement, title: string, action?: (head: HTMLElement) => void, tone?: string) { return homeCard(this, parent, title, action, tone); }
+
+  /* ── Top of the day — assistant-style daily briefing ── */
+  _renderBriefing(root: HTMLElement) { return renderBriefing(this, root); }
+
+  _briefingHeadline(items: BriefingItem[]) { return briefingHeadline(items); }
+
+  _computeBriefing() { return loadBriefing(this); }
+
+  _homeInboxCard(parent: HTMLElement) { return homeInboxCard(this, parent); }
+
+  _homeTodayCard(parent: HTMLElement) { return homeTodayCard(this, parent); }
+
+  _homeWeekCard(parent: HTMLElement) { return homeWeekCard(this, parent); }
+
+  _homeUpcomingCard(parent: HTMLElement) { return homeUpcomingCard(this, parent); }
+
+  _homePartnersCard(parent: HTMLElement) { return homePartnersCard(this, parent); }
+
+  _homeProjectsCard(parent: HTMLElement) { return homeProjectsCard(this, parent); }
+
+  _homePipelineCard(parent: HTMLElement) { return homePipelineCard(this, parent); }
+
+  _homeActivitiesCard(parent: HTMLElement) { return homeActivitiesCard(this, parent); }
+
+  renderTemplatesDashboard(root: HTMLElement) { return renderTemplatesDashboard(this, root); }
+
+  renderTemplateDetail(root: HTMLElement, entityKey: string, file: TFile | null) { return renderTemplateDetail(this, root, entityKey, file); }
+
+  _renderTemplateSectionWithDelete(parent: HTMLElement, file: TFile, sections: Record<string, string>, rawKey: string, flashSaved?: FlashSaved, allRawKeys?: string[]) { return renderTemplateSectionWithDelete(this, parent, file, sections, rawKey, flashSaved, allRawKeys); }
+
+  _getEntityFiles(entityKey: EntityKey | 'daily') { return getEntityFiles(this, entityKey); }
+
+  _getFilesUsingTemplateSection(entityKey: EntityKey | 'daily', rawKey: string) { return getFilesUsingTemplateSection(this, entityKey, rawKey); }
+
+  _propagateTemplateSectionAdd(entityKey: EntityKey | 'daily', cleanTitle: string, tag: string, defaultBody?: string) { return propagateTemplateSectionAdd(this, entityKey, cleanTitle, tag, defaultBody); }
+
+  _propagateTemplateSectionDelete(entityKey: EntityKey | 'daily', rawKey: string) { return propagateTemplateSectionDelete(this, entityKey, rawKey); }
+
+  /* ── Inbox (Planner reminders + captures) ── */
+  renderInbox(root: HTMLElement) { return renderInbox(this, root); }
+
+  _renderProjectTasksSection(root: HTMLElement) { return renderProjectTasksSection(this, root); }
+
+  _renderInboxRow(parent: HTMLElement, r: Reminder, bucket: ReminderBucket) { return renderInboxRow(this, parent, r, bucket); }
+
+  _quickAddTodayTask() { return quickAddTodayTask(this); }
+
+  /* ── Pipeline kanban (deals grouped by stage) ───── */
+  renderEntityKanban(root: HTMLElement, entityKey: string, groupBy: string, groups: string[]) { return renderEntityKanban(this, root, entityKey, groupBy, groups); }
+
+  /* Central chart dispatcher — replaces 4 duplicated if-elseif blocks at call sites. */
+  _drawChart(parent: HTMLElement, style: ChartStyle | string, data: ChartDatum[]) { return drawChart(this, parent, style, data); }
+
+  _drawChartEmpty(parent: HTMLElement) { return drawChartEmpty(this, parent); }
+
+  _drawDonutChart(parent: HTMLElement, data: ChartDatum[]) { return drawDonutChart(this, parent, data); }
+
+  _drawBarChart(parent: HTMLElement, data: ChartDatum[]) { return drawBarChart(this, parent, data); }
+
+  _drawKpiGrid(parent: HTMLElement, data: ChartDatum[]) { return drawKpiGrid(this, parent, data); }
+
+  _drawSimpleList(parent: HTMLElement, data: ChartDatum[]) { return drawSimpleList(this, parent, data); }
+
+  /* ── Projects Dashboard ─────────────────── */
+  renderProjectsDashboard(root: HTMLElement) { return renderProjectsDashboard(this, root); }
+
+  /* ── CRM Dashboard ──────────────────────── */
+  renderDashboard(root: HTMLElement) { return renderCrmDashboard(this, root); }
+
+  /* Reusable list card on the dashboard. */
+  _dashCardSection(parent: HTMLElement, title: string, rows: DashCardRow[] | null | undefined, emptyMsg?: string) { return dashCardSection(this, parent, title, rows, emptyMsg); }
+
+  /* ── Reports: Productivity (over daily notes) ── */
+  renderProductivity(root: HTMLElement) { return renderProductivity(this, root); }
+
+  /* ── Reports: Pipeline (deals breakdown) ──────── */
+  renderReportPipeline(root: HTMLElement) { return renderReportPipeline(this, root); }
+
+  /* ── Reports: Sales (closed deals) ─────────────── */
+  renderReportSales(root: HTMLElement) { return renderReportSales(this, root); }
+
+  /* ── Reports: Partners (deals attributed to partners) ─ */
+  renderReportPartners(root: HTMLElement) { return renderReportPartners(this, root); }
+
+  /* ── Reports: Activity (mix of activity types) ─ */
+  renderReportActivity(root: HTMLElement) { return renderReportActivity(this, root); }
+
+  /* ── Reports: Relationship Graph ────────── */
+  renderReportGraph(root: HTMLElement) { return renderReportGraph(this, root); }
+
+  /* ── PRM Analytics ──────────────────────── */
+  renderPRMAnalytics(root: HTMLElement) { return renderPRMAnalytics(this, root); }
+
+  /* ── Team (contacts where role contains "team") ─ */
+  renderTeam(root: HTMLElement) { return renderTeam(this, root); }
+
+  /* ── Settings (opens Obsidian settings → Cadence) ─ */
+  openSettingsTab(root: HTMLElement) { return openSettingsTab(this, root); }
+
+  /* ── Task completion propagation ──
+     When a task is ticked or unticked anywhere, mirror the state to:
+       - matching reminders by text (and via reminder.project to the linked project)
+       - matching task lines in today's daily note + the linked reminder's date note
+     Match is by exact (trimmed) task text. Renaming a task breaks the link. */
+  _propagateTaskComplete(text: string, done: boolean, source?: TaskCompleteSource) { return propagateTaskComplete(this, text, done, source); }
+
+  _tickProjectTaskByText(file: TFile, text: string, done: boolean) { return tickProjectTaskByText(this, file, text, done); }
+
+  _tickDailyNoteTaskByText(file: TFile, text: string, done: boolean) { return tickDailyNoteTaskByText(this, file, text, done); }
+
+  /* ── Cadence-styled prompt modal ─ */
+  _prompt(opts: PromptOptions) { return openPrompt(this, opts); }
+
+  _createEntityFromPrompt(entityKey: string, defaults?: Record<string, unknown>) { return createEntityFromPrompt(this, entityKey, defaults); }
+
+  /* ── Today pane ─────────────────────────── */
+  renderTodayPane(root: HTMLElement) { return renderTodayPane(this, root); }
+
+  toggleTodayTask(idx: number, checked: boolean) { return toggleTodayTask(this, idx, checked); }
+
+  appendTodayTask(text: string) { return appendTodayTask(this, text); }
+
+  saveTodayJournal(body: string | null | undefined) { return saveTodayJournal(this, body); }
+
+  /* ── Planner pane ───────────────────────── */
+  renderPlannerPane(root: HTMLElement) { return renderPlannerPane(this, root); }
+
+  togglePlannerTask(day: PlannerDay, idx: number, checked: boolean) { return togglePlannerTask(this, day, idx, checked); }
+
+  async onClose() { /* nothing */ }
 }

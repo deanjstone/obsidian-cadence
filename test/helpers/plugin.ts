@@ -1,6 +1,6 @@
 import { vi } from "vitest";
 import { createMockApp, type App, type MockFileSpec } from "../mocks/obsidian";
-import { CadencePlugin } from "../../src/legacy/cadence.js";
+import { CadencePlugin } from "../../src/main";
 
 /* Builds a CadencePlugin against the mock App. `data` is what loadData()
    returns. Shared by the test/plugin/ files. */
