@@ -212,6 +212,9 @@ describe("renderPRMAnalytics: funnel and conversion", () => {
     const { view, root } = setup(files);
     await view.renderPRMAnalytics(root);
     expect(convCard(root).children[1].children[0].children[0].children[1].text).toBe("33%");
+    const twoOfThree = setup([deal("A", { stage: "Won", partner: "X" }), deal("B", { stage: "Won", partner: "X" }), deal("C", { partner: "X" })]);
+    await twoOfThree.view.renderPRMAnalytics(twoOfThree.root);
+    expect(convCard(twoOfThree.root).children[1].children[0].children[0].children[1].text).toBe("67%");
     const empty = setup([]);
     await empty.view.renderPRMAnalytics(empty.root);
     const wrap = convCard(empty.root).children[1].children[0];

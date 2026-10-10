@@ -230,6 +230,13 @@ describe("renderReportGraph: physics", () => {
     expect([c[1], c[2]]).toEqual([d[1], d[2]]);
   });
 
+  it("nodes 155px apart still repel, by (160 - 155) × 0.04", async () => {
+    const { frame } = await rendered([note("Cadence/Contacts/A.md"), note("Cadence/Contacts/B.md")], { random: [0.5, 0.5, 0.81, 0.5] });
+    // A (400, 225) and B (555, 225).
+    const [a] = ops(frame(), "arc");
+    expect(a[1]).toBeCloseTo(400 - 0.2, 10);
+  });
+
   it("a link pulls its ends toward 65px apart at 0.009 per px", async () => {
     const links = { "Cadence/Contacts/A.md": { "Cadence/Contacts/B.md": 1 } };
     // A (150, 225) and B (650, 225): 500px apart, so no repulsion; pull (500 - 65) × 0.009 = 3.915.
@@ -289,6 +296,15 @@ describe("renderReportGraph: pointer", () => {
     canvas.trigger("mousedown", pointer(650, 350));
     canvas.trigger("mouseup", pointer(650, 350));
     expect(opened.mock.calls).toEqual([["contact", file("Cadence/Contacts/Jane.md")], ["note", file("Cadence/Loose.md")]]);
+  });
+
+  it("a pointer that moves more than 4px between press and release opens nothing", async () => {
+    const { canvas, opened } = await rendered([JANE], { random: [0.5, 0.5] });
+    canvas.trigger("mousemove", pointer(400, 225));
+    canvas.trigger("mousedown", pointer(400, 225));
+    canvas.trigger("mousemove", pointer(404, 228));
+    canvas.trigger("mouseup", pointer(404, 228));
+    expect(opened).not.toHaveBeenCalled();
   });
 
   it("QUIRK: a press and release with no mousemove opens nothing, since only mousemove sets the hovered node", async () => {
@@ -353,6 +369,17 @@ describe("renderReportGraph: pointer", () => {
     expect(frame()[3]).toEqual(["scale", 4, 4]);
     for (let i = 0; i < 40; i++) canvas.trigger("wheel", { ...pointer(0, 0), deltaY: 1000 });
     expect(frame()[3]).toEqual(["scale", 0.15, 0.15]);
+  });
+
+  it("a second wheel step zooms about the pointer from the current zoom and pan", async () => {
+    const { canvas, frame } = await rendered([], {});
+    canvas.trigger("wheel", { ...pointer(0, 0), deltaY: -400 });
+    canvas.trigger("wheel", { ...pointer(200, 100), deltaY: -400 });
+    const k = Math.exp(0.3);
+    const [, , translate, scale] = frame();
+    expect(scale[1]).toBeCloseTo(k * k, 10);
+    expect(translate[1]).toBeCloseTo(200 - 200 * k, 10);
+    expect(translate[2]).toBeCloseTo(100 - 100 * k, 10);
   });
 
   it("labels and rings scale against the zoom so they keep their screen size", async () => {

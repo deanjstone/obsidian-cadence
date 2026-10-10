@@ -111,6 +111,10 @@ describe("layoutGraph", () => {
     const d = node("d", 480, 200);
     layoutGraph({ nodes: [c, d], links: [] }, SIZE);
     expect([c.x, d.x]).toEqual([320 + 80 * 0.0003, 480 - 80 * 0.0003]);
+    const g = node("g", 400, 200);
+    const h = node("h", 555, 200);
+    layoutGraph({ nodes: [g, h], links: [] }, SIZE);
+    expect(g.x).toBeCloseTo(400 - 0.2, 12);
     const e = node("e", 400, 200);
     const f = node("f", 400, 200);
     layoutGraph({ nodes: [e, f], links: [] }, SIZE);
@@ -174,5 +178,9 @@ describe("toGraphPoint, nodeAt and zoomAt", () => {
     expect(zoomAt({ x: 0, y: 0, k: 3.9 }, mouse, -1000).k).toBe(4);
     expect(zoomAt({ x: 0, y: 0, k: 0.2 }, mouse, 1000).k).toBe(0.15);
     expect(zoomAt(t, mouse, 0)).toEqual(t);
+    const zoomedIn = { x: -50, y: 30, k: 2 };
+    const again = zoomAt(zoomedIn, mouse, -400);
+    expect(again.k).toBeCloseTo(2 * k, 12);
+    expect(toGraphPoint(mouse, again).x).toBeCloseTo(toGraphPoint(mouse, zoomedIn).x, 10);
   });
 });
