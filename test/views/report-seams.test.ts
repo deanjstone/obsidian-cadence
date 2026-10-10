@@ -290,4 +290,9 @@ describe("productivityReport", () => {
     const report = productivityReport(notes({ "2026-10-11": "## Today\n- [x] a" }), new Date(NOW), settings);
     expect(report.totalDone).toBe(1);
   });
+
+  it("leaves a note dated after today out of the trend", () => {
+    const report = productivityReport(notes({ "2026-10-08": "## Today\n- [x] a" }), new Date(Date.UTC(2026, 9, 7, 12)), settings);
+    expect(report.weeks.at(-1)!.title).toBe("Week of Oct 5 — 0 done, 0 open");
+  });
 });

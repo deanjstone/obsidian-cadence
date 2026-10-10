@@ -201,4 +201,17 @@ describe("renderProductivity: by weekday", () => {
     await view.renderProductivity(root);
     expect(weekdays(root)[6]).toEqual(["sky", "67%", "SUN", "2/3"]);
   });
+
+  it("skips a folder at a daily note's path", async () => {
+    const { view, root } = setup([{ path: "daily/2026-10-11.md/inner.md", body: "## Today\n- [x] a" }]);
+    await view.renderProductivity(root);
+    expect(stats(root).map((s) => s[2])).toEqual(["0%", "0d", "0/30", "0"]);
+  });
+
+  it("QUIRK: a line matching both patterns is open and done over 30 days, but done only in the trend", async () => {
+    const { view, root } = setup([note("2026-10-11", "## Today\n- [x] see [ ] here")]);
+    await view.renderProductivity(root);
+    expect(stats(root)[0]).toEqual(["emerald", "COMPLETION", "50%", "1/2 tasks"]);
+    expect(bars(root.children[5]).at(-1)![3]).toBe("Week of Oct 5 — 1 done, 0 open");
+  });
 });

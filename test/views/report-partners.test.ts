@@ -185,4 +185,10 @@ describe("renderReportPartners: certification expiries", () => {
     await view.renderReportPartners(root);
     expect(section(sections, "CERTS EXPIRING")[2].map((r: Any) => r.title)).toEqual(["E0", "E1", "E2", "E3", "E4", "E5", "E6", "E7"]);
   });
+
+  it("QUIRK: a partner deal at a lower-case 'won' is a partner deal but not partner revenue", async () => {
+    const { view, root } = setup([deal("X", { stage: "won", value: 70, partner: "[[Acme]]" })]);
+    await view.renderReportPartners(root);
+    expect(stats(root).slice(1, 3)).toEqual([["mint", "PARTNER DEALS", "1", cur(70)], ["emerald", "PARTNER REV", cur(0), "0 won"]]);
+  });
 });

@@ -189,4 +189,10 @@ describe("renderReportSales: top wins and owners", () => {
     await view.renderReportSales(root);
     expect(sections.mock.calls.map((c: Any[]) => [c[1], c[2]])).toEqual([["TOP WINS · top 6", []], ["OWNER LEADERBOARD · top 6 by revenue", []]]);
   });
+
+  it("counts a win only in its own year's month", async () => {
+    const { view, root } = setup([deal("Y", { stage: "Won", value: 10 }, Date.UTC(2025, 9, 5))]);
+    await view.renderReportSales(root);
+    expect(bars(root).at(-1)).toEqual(["Oct", "0%", "empty", `Oct — ${cur(0)} · 0 deals`]);
+  });
 });
