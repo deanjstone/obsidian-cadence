@@ -513,6 +513,15 @@ describe("Custom Entity Properties: options and source", () => {
     expect([empty.text, empty.style.color]).toEqual(["Aucun dossier", "var(--text-faint)"]);
   });
 
+  it("shows the picker, with no folder, for a bare `folder` source", () => {
+    addVendor([{ key: "refs", label: "Refs", type: "multitext", suggestionSource: "folder" }]);
+    const { editor } = shown({ entity: "crm_vendor" });
+    const c = cell(editor(), "refs");
+    expect(c.findAll("select")[0].value).toBe("folder");
+    const wrap = c.findAll("div")[1];
+    expect([wrap.style.display, wrap.children[0].text]).toEqual(["flex", "Aucun dossier"]);
+  });
+
   it("switching to a fixed source hides the picker and saves it; switching to Folder… only shows it", async () => {
     addVendor([{ key: "refs", label: "Refs", type: "multitext", suggestionSource: "folder:Cadence/Contacts" }]);
     const { editor, calls } = shown({ entity: "crm_vendor" });

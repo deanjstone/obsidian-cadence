@@ -342,6 +342,7 @@ describe("App", () => {
     expect(component<ToggleComponent>(row).value).toBe(false);
     await component<ToggleComponent>(row).change(true);
     expect(plugin.settings.openOnStartup).toBe(true);
+    expect(component<ToggleComponent>(settingByName(shown({ settings: { openOnStartup: true } }).container, "Open Cadence on Obsidian startup")).value).toBe(true);
     expect(calls).toEqual(["save"]);
   });
 
