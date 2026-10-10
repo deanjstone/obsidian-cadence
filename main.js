@@ -1960,355 +1960,9 @@ var CadenceWidgetCreateModal = class extends import_obsidian9.Modal {
   }
 };
 
-// src/legacy/cadence.js
-var DEFAULT_SETTINGS = {
-  dailyNoteFolder: "daily",
-  dailyNoteFormat: "YYYY-MM-DD",
-  journalHeading: "## Journal",
-  tasksHeading: "## Today",
-  taskManagementSystem: "native",
-  weekStartsOn: 1,
-  defaultTab: "home",
-  openOnStartup: true,
-  collapsedGroups: {},
-  currency: "USD",
-  cadenceAppDark: false,
-  taskProjectLinks: {},
-  modules: {
-    crm: true,
-    prm: false,
-    planner: true,
-    projects: true
-  },
-  desktopNotifications: true,
-  reminders: [],
-  customPages: [],
-  pageLayouts: {},
-  pageKanbanGroupBy: {},
-  crossSections: [],
-  cadenceApiUrl: "",
-  cadenceApiToken: "",
-  projectDashboardWidgets: [],
-  crmDashboardWidgets: [],
-  prmDashboardWidgets: [],
-  customEntities: {
-    project: [
-      { key: "name", label: "Name", primary: true, type: "text" },
-      { key: "status", label: "Status", type: "enum", options: ["active", "on_hold", "backlog", "done", "cancelled"] },
-      { key: "priority", label: "Priority", type: "enum", options: ["low", "medium", "high"] },
-      { key: "owner", label: "Owner", type: "multitext", suggestionSource: "folder:Cadence/Contacts" },
-      { key: "started", label: "Started", type: "date" },
-      { key: "due", label: "Due", type: "date" },
-      { key: "tags", label: "Tags", type: "tags" }
-    ],
-    contact: [
-      { key: "name", label: "Name", primary: true, type: "text" },
-      { key: "email", label: "Email", type: "multitext", isList: true, suggestionSource: "none" },
-      { key: "phone", label: "Phone", isList: true, type: "multitext", suggestionSource: "none" },
-      { key: "company", label: "Company", isList: true, type: "multitext", suggestionSource: "folder:Cadence/Companies" },
-      { key: "role", label: "Role", isList: true, type: "multitext" },
-      { key: "project", label: "Project", type: "multitext", suggestionSource: "folder:Cadence/Projects" },
-      { key: "lastContact", label: "Last contact", type: "date" },
-      { key: "tags", label: "Tags", type: "tags" }
-    ],
-    deal: [
-      { key: "title", label: "Title", primary: true, type: "text" },
-      { key: "stage", label: "Stage", type: "enum", options: ["Lead", "Qualified", "Proposal", "Negotiation", "Won", "Lost"] },
-      { key: "value", label: "Value", type: "currency" },
-      { key: "company", label: "Company", type: "multitext", suggestionSource: "folder:Cadence/Companies" },
-      { key: "contact", label: "Contact", type: "multitext", suggestionSource: "folder:Cadence/Contacts" },
-      { key: "closeBy", label: "Close by", type: "date" },
-      { key: "project", label: "Project", type: "multitext", suggestionSource: "folder:Cadence/Projects" },
-      { key: "owner", label: "Owner", type: "multitext", suggestionSource: "folder:Cadence/Contacts" }
-    ],
-    company: [
-      { key: "name", label: "Name", primary: true, type: "text" },
-      { key: "domain", label: "Domain", isList: true, type: "multitext" },
-      { key: "industry", label: "Industry", isList: true, type: "multitext" },
-      { key: "size", label: "Size", type: "text" },
-      { key: "owner", label: "Owner", type: "multitext", suggestionSource: "folder:Cadence/Contacts" },
-      { key: "tags", label: "Tags", type: "tags" }
-    ],
-    activity: [
-      { key: "subject", label: "Subject", primary: true, type: "text" },
-      { key: "type", label: "Type", type: "enum", options: ["Call", "Email", "Meeting", "Note", "Task"] },
-      { key: "when", label: "When", type: "date" },
-      { key: "with", label: "With", type: "multitext", suggestionSource: "folder:Cadence/Contacts" },
-      { key: "company", label: "Company", type: "multitext", suggestionSource: "folder:Cadence/Companies" },
-      { key: "project", label: "Project", type: "multitext", suggestionSource: "folder:Cadence/Projects" }
-    ],
-    partner: [
-      { key: "name", label: "Name", primary: true },
-      { key: "tier", label: "Tier", type: "enum", options: ["Gold", "Silver", "Bronze", "Standard"] },
-      { key: "status", label: "Status", type: "enum", options: ["Active", "Onboarding", "Inactive", "Churned"] },
-      { key: "owner", label: "Owner", type: "multitext", suggestionSource: "folder:Cadence/Contacts" },
-      { key: "region", label: "Region" }
-    ],
-    registration: [
-      { key: "title", label: "Title", primary: true },
-      { key: "partner", label: "Partner" },
-      { key: "status", label: "Status", type: "enum", options: ["Submitted", "Approved", "Rejected", "Expired"] },
-      { key: "value", label: "Value", type: "currency" },
-      { key: "submitted", label: "Submitted", type: "date" },
-      { key: "expires", label: "Expires", type: "date" }
-    ],
-    commission: [
-      { key: "reference", label: "Ref", primary: true },
-      { key: "partner", label: "Partner" },
-      { key: "amount", label: "Amount", type: "currency" },
-      { key: "status", label: "Status", type: "enum", options: ["Pending", "Earned", "Paid", "Disputed"] },
-      { key: "period", label: "Period" },
-      { key: "paidOn", label: "Paid on", type: "date" }
-    ],
-    lead: [
-      { key: "name", label: "Name", primary: true },
-      { key: "company", label: "Company", type: "multitext", suggestionSource: "folder:Cadence/Companies" },
-      { key: "source", label: "Source" },
-      { key: "status", label: "Status", type: "enum", options: ["New", "Contacted", "Qualified", "Disqualified", "Converted"] },
-      { key: "assigned", label: "Assigned" }
-    ],
-    certification: [
-      { key: "name", label: "Name", primary: true },
-      { key: "partner", label: "Partner" },
-      { key: "level", label: "Level" },
-      { key: "issued", label: "Issued", type: "date" },
-      { key: "expires", label: "Expires", type: "date" }
-    ],
-    sequence: [
-      { key: "name", label: "Name", primary: true },
-      { key: "audience", label: "Audience" },
-      { key: "steps", label: "Steps", type: "number" },
-      { key: "active", label: "Active", type: "number" },
-      { key: "status", label: "Status", type: "enum", options: ["Draft", "Active", "Paused", "Archived"] }
-    ]
-  }
-};
-var CURRENCY_OPTIONS = [
-  { code: "USD", label: "USD \u2014 US Dollar" },
-  { code: "EUR", label: "EUR \u2014 Euro" },
-  { code: "GBP", label: "GBP \u2014 British Pound" },
-  { code: "ZAR", label: "ZAR \u2014 South African Rand" },
-  { code: "AUD", label: "AUD \u2014 Australian Dollar" },
-  { code: "CAD", label: "CAD \u2014 Canadian Dollar" },
-  { code: "CHF", label: "CHF \u2014 Swiss Franc" },
-  { code: "JPY", label: "JPY \u2014 Japanese Yen" },
-  { code: "INR", label: "INR \u2014 Indian Rupee" },
-  { code: "BRL", label: "BRL \u2014 Brazilian Real" },
-  { code: "AED", label: "AED \u2014 UAE Dirham" }
-];
-var CadenceImportModal = class extends obsidian.Modal {
-  constructor(app, opts) {
-    super(app);
-    this.entityKey = opts && opts.entityKey || "contact";
-    this.onSubmit = opts && opts.onSubmit || (() => {
-    });
-    this.csvText = "";
-    this.headers = [];
-    this.rows = [];
-    this.mapping = {};
-  }
-  onOpen() {
-    const { contentEl } = this;
-    contentEl.empty();
-    contentEl.addClass("cad-import-modal");
-    contentEl.createEl("h3", { cls: "cad-create-title", text: "Import from CSV" });
-    const entityRow = contentEl.createDiv({ cls: "cad-create-row" });
-    entityRow.createDiv({ cls: "cad-create-label", text: "IMPORT AS" });
-    const entitySelect = entityRow.createEl("select", { cls: "cad-create-input" });
-    Object.entries(ENTITIES).forEach(([key, def]) => {
-      const o = entitySelect.createEl("option", { value: key, text: def.plural });
-      if (key === this.entityKey) o.selected = true;
-    });
-    entitySelect.addEventListener("change", () => {
-      this.entityKey = entitySelect.value;
-      this._autoDetectMapping();
-      this._renderPreview();
-    });
-    const csvRow = contentEl.createDiv({ cls: "cad-create-row" });
-    csvRow.style.alignItems = "flex-start";
-    csvRow.createDiv({ cls: "cad-create-label", text: "CSV DATA" });
-    const csvWrap = csvRow.createDiv();
-    csvWrap.style.display = "flex";
-    csvWrap.style.flexDirection = "column";
-    csvWrap.style.gap = "8px";
-    const tabs = csvWrap.createDiv();
-    tabs.style.display = "flex";
-    tabs.style.gap = "6px";
-    const pasteBtn = tabs.createEl("button", { cls: "cad-btn cad-btn-sm", text: "Paste" });
-    pasteBtn.type = "button";
-    const fileBtn = tabs.createEl("button", { cls: "cad-btn cad-btn-sm", text: "Pick .csv from vault" });
-    fileBtn.type = "button";
-    const ta = csvWrap.createEl("textarea", { cls: "cad-create-input" });
-    ta.rows = 8;
-    ta.placeholder = "Paste CSV here, including a header row\u2026";
-    ta.style.fontFamily = "var(--font-monospace-theme, var(--font-monospace))";
-    ta.style.fontSize = "12px";
-    ta.style.resize = "vertical";
-    ta.addEventListener("input", () => {
-      this.csvText = ta.value;
-      this._parse();
-      this._renderPreview();
-    });
-    pasteBtn.addEventListener("click", () => ta.focus());
-    fileBtn.addEventListener("click", async () => {
-      const csvFiles = this.app.vault.getFiles().filter((f) => f.path.toLowerCase().endsWith(".csv"));
-      if (!csvFiles.length) {
-        new obsidian.Notice("No .csv files found in vault. Drop one in the vault first.");
-        return;
-      }
-      const picker = new class extends obsidian.SuggestModal {
-        constructor(app, files, onPick) {
-          super(app);
-          this.files = files;
-          this.onPick = onPick;
-          this.setPlaceholder("Search .csv files\u2026");
-        }
-        getSuggestions(q) {
-          return this.files.filter((f) => f.path.toLowerCase().includes(q.toLowerCase()));
-        }
-        renderSuggestion(file, el) {
-          el.setText(file.path);
-        }
-        onChooseSuggestion(file) {
-          this.onPick(file);
-        }
-      }(this.app, csvFiles, async (file) => {
-        try {
-          const text = await this.app.vault.read(file);
-          ta.value = text;
-          this.csvText = text;
-          this._parse();
-          this._renderPreview();
-        } catch (e) {
-          new obsidian.Notice(`Failed to read ${file.path}: ${e.message}`);
-        }
-      });
-      picker.open();
-    });
-    this.previewEl = contentEl.createDiv({ cls: "cad-import-preview" });
-    this._renderPreview();
-    const actions = contentEl.createDiv({ cls: "cad-create-actions" });
-    const cancel = actions.createEl("button", { cls: "cad-btn", text: "Cancel" });
-    cancel.type = "button";
-    cancel.addEventListener("click", () => this.close());
-    this.importBtn = actions.createEl("button", { cls: "cad-btn primary", text: "Import" });
-    this.importBtn.type = "button";
-    this.importBtn.disabled = true;
-    this.importBtn.addEventListener("click", () => this._submitImport());
-  }
-  _parse() {
-    if (!this.csvText.trim()) {
-      this.headers = [];
-      this.rows = [];
-      return;
-    }
-    const all = parseCSV(this.csvText);
-    if (!all.length) {
-      this.headers = [];
-      this.rows = [];
-      return;
-    }
-    this.headers = all[0].map((h) => String(h).trim());
-    this.rows = all.slice(1);
-    this._autoDetectMapping();
-  }
-  _autoDetectMapping() {
-    this.mapping = autoDetectCsvMapping(ENTITIES[this.entityKey], this.headers);
-  }
-  _renderPreview() {
-    this.previewEl.empty();
-    if (!this.headers.length) {
-      this.previewEl.createDiv({ cls: "cad-empty", text: "Paste or pick a CSV to preview\u2026" });
-      if (this.importBtn) this.importBtn.disabled = true;
-      return;
-    }
-    const def = ENTITIES[this.entityKey];
-    const head = this.previewEl.createDiv({ cls: "cad-create-label" });
-    head.style.marginTop = "14px";
-    head.setText("COLUMN MAPPING");
-    const tableWrap = this.previewEl.createDiv({ cls: "cad-import-table-wrap" });
-    const table = tableWrap.createEl("table", { cls: "cad-import-table" });
-    const thr = table.createEl("thead").createEl("tr");
-    thr.createEl("th", { text: "CSV column" });
-    thr.createEl("th", { text: "Maps to" });
-    thr.createEl("th", { text: "Sample" });
-    const tbody = table.createEl("tbody");
-    this.headers.forEach((h, i) => {
-      const tr = tbody.createEl("tr");
-      tr.createEl("td", { text: h });
-      const mc = tr.createEl("td");
-      const sel = mc.createEl("select", { cls: "cad-create-input cad-import-select" });
-      sel.createEl("option", { value: "", text: "\u2014 skip \u2014" });
-      def.fields.forEach((f) => {
-        const o = sel.createEl("option", { value: f.key, text: f.label });
-        if (this.mapping[h] === f.key) o.selected = true;
-      });
-      sel.addEventListener("change", () => {
-        this.mapping[h] = sel.value || null;
-        this._renderPreview();
-      });
-      const sample = tr.createEl("td");
-      const samples = this.rows.slice(0, 2).map((r) => String(r[i] || "").trim()).filter(Boolean);
-      sample.setText(samples.join(" \xB7 ").slice(0, 60));
-      sample.title = samples.join("\n");
-    });
-    const summary = this.previewEl.createDiv({ cls: "cad-import-summary" });
-    const primaryKey = def.fields[0].key;
-    const primaryMapped = Object.values(this.mapping).includes(primaryKey);
-    if (!primaryMapped) {
-      summary.addClass("cad-import-summary-warn");
-      summary.setText(`No CSV column maps to "${def.fields[0].label}" \u2014 required to name the file. Pick a column above.`);
-      if (this.importBtn) this.importBtn.disabled = true;
-    } else {
-      const mappedCount = Object.values(this.mapping).filter(Boolean).length;
-      summary.setText(`Will create ${this.rows.length} ${this.rows.length === 1 ? def.label.toLowerCase() : def.plural.toLowerCase()} in ${def.folder}/  \xB7  ${mappedCount} column${mappedCount === 1 ? "" : "s"} mapped`);
-      if (this.importBtn) this.importBtn.disabled = false;
-    }
-  }
-  async _submitImport() {
-    const def = ENTITIES[this.entityKey];
-    const primaryKey = def.fields[0].key;
-    const primaryHeader = Object.entries(this.mapping).find(([_, v]) => v === primaryKey);
-    if (!primaryHeader) return;
-    const primaryColIdx = this.headers.indexOf(primaryHeader[0]);
-    this.importBtn.disabled = true;
-    this.importBtn.setText("Importing\u2026");
-    const start = Date.now();
-    let created = 0;
-    let failed = 0;
-    for (const row of this.rows) {
-      const primaryValue = String(row[primaryColIdx] || "").trim();
-      if (!primaryValue) {
-        failed++;
-        continue;
-      }
-      try {
-        const file = await createEntity(this.app, this.entityKey, primaryValue);
-        const extras = csvRowExtras(def, this.mapping, this.headers, row, primaryKey);
-        if (Object.keys(extras).length) {
-          await this.app.fileManager.processFrontMatter(file, (fm) => {
-            Object.entries(extras).forEach(([k, v]) => {
-              if (v == null || v === "") return;
-              if (Array.isArray(v) && v.length === 0) return;
-              fm[k] = v;
-            });
-          });
-        }
-        created++;
-      } catch (e) {
-        failed++;
-      }
-    }
-    const elapsed = ((Date.now() - start) / 1e3).toFixed(1);
-    new obsidian.Notice(`Imported ${created} ${def.plural.toLowerCase()} in ${elapsed}s${failed ? ` \xB7 ${failed} skipped` : ""}`, 5e3);
-    this.close();
-    this.onSubmit({ created, failed, entityKey: this.entityKey });
-  }
-  onClose() {
-    this.contentEl.empty();
-  }
-};
-var CadenceEntityCreateModal = class extends obsidian.Modal {
+// src/modals/entity-create.ts
+var import_obsidian10 = require("obsidian");
+var CadenceEntityCreateModal = class extends import_obsidian10.Modal {
   constructor(app, entityKey, opts) {
     super(app);
     this.entityKey = entityKey;
@@ -2560,6 +2214,358 @@ var CadenceEntityCreateModal = class extends obsidian.Modal {
     this.contentEl.empty();
   }
 };
+
+// src/modals/import-modal.ts
+var import_obsidian11 = require("obsidian");
+var CadenceImportModal = class extends import_obsidian11.Modal {
+  constructor(app, opts) {
+    super(app);
+    this.entityKey = opts && opts.entityKey || "contact";
+    this.onSubmit = opts && opts.onSubmit || (() => {
+    });
+    this.csvText = "";
+    this.headers = [];
+    this.rows = [];
+    this.mapping = {};
+  }
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.addClass("cad-import-modal");
+    contentEl.createEl("h3", { cls: "cad-create-title", text: "Import from CSV" });
+    const entityRow = contentEl.createDiv({ cls: "cad-create-row" });
+    entityRow.createDiv({ cls: "cad-create-label", text: "IMPORT AS" });
+    const entitySelect = entityRow.createEl("select", { cls: "cad-create-input" });
+    Object.entries(ENTITIES).forEach(([key, def]) => {
+      const o = entitySelect.createEl("option", { value: key, text: def.plural });
+      if (key === this.entityKey) o.selected = true;
+    });
+    entitySelect.addEventListener("change", () => {
+      this.entityKey = entitySelect.value;
+      this._autoDetectMapping();
+      this._renderPreview();
+    });
+    const csvRow = contentEl.createDiv({ cls: "cad-create-row" });
+    csvRow.style.alignItems = "flex-start";
+    csvRow.createDiv({ cls: "cad-create-label", text: "CSV DATA" });
+    const csvWrap = csvRow.createDiv();
+    csvWrap.style.display = "flex";
+    csvWrap.style.flexDirection = "column";
+    csvWrap.style.gap = "8px";
+    const tabs = csvWrap.createDiv();
+    tabs.style.display = "flex";
+    tabs.style.gap = "6px";
+    const pasteBtn = tabs.createEl("button", { cls: "cad-btn cad-btn-sm", text: "Paste" });
+    pasteBtn.type = "button";
+    const fileBtn = tabs.createEl("button", { cls: "cad-btn cad-btn-sm", text: "Pick .csv from vault" });
+    fileBtn.type = "button";
+    const ta = csvWrap.createEl("textarea", { cls: "cad-create-input" });
+    ta.rows = 8;
+    ta.placeholder = "Paste CSV here, including a header row\u2026";
+    ta.style.fontFamily = "var(--font-monospace-theme, var(--font-monospace))";
+    ta.style.fontSize = "12px";
+    ta.style.resize = "vertical";
+    ta.addEventListener("input", () => {
+      this.csvText = ta.value;
+      this._parse();
+      this._renderPreview();
+    });
+    pasteBtn.addEventListener("click", () => ta.focus());
+    fileBtn.addEventListener("click", async () => {
+      const csvFiles = this.app.vault.getFiles().filter((f) => f.path.toLowerCase().endsWith(".csv"));
+      if (!csvFiles.length) {
+        new import_obsidian11.Notice("No .csv files found in vault. Drop one in the vault first.");
+        return;
+      }
+      const picker = new class extends import_obsidian11.SuggestModal {
+        constructor(app, files, onPick) {
+          super(app);
+          this.files = files;
+          this.onPick = onPick;
+          this.setPlaceholder("Search .csv files\u2026");
+        }
+        getSuggestions(q) {
+          return this.files.filter((f) => f.path.toLowerCase().includes(q.toLowerCase()));
+        }
+        renderSuggestion(file, el) {
+          el.setText(file.path);
+        }
+        onChooseSuggestion(file) {
+          this.onPick(file);
+        }
+      }(this.app, csvFiles, async (file) => {
+        try {
+          const text = await this.app.vault.read(file);
+          ta.value = text;
+          this.csvText = text;
+          this._parse();
+          this._renderPreview();
+        } catch (e) {
+          new import_obsidian11.Notice(`Failed to read ${file.path}: ${e.message}`);
+        }
+      });
+      picker.open();
+    });
+    this.previewEl = contentEl.createDiv({ cls: "cad-import-preview" });
+    this._renderPreview();
+    const actions = contentEl.createDiv({ cls: "cad-create-actions" });
+    const cancel = actions.createEl("button", { cls: "cad-btn", text: "Cancel" });
+    cancel.type = "button";
+    cancel.addEventListener("click", () => this.close());
+    this.importBtn = actions.createEl("button", { cls: "cad-btn primary", text: "Import" });
+    this.importBtn.type = "button";
+    this.importBtn.disabled = true;
+    this.importBtn.addEventListener("click", () => this._submitImport());
+  }
+  _parse() {
+    if (!this.csvText.trim()) {
+      this.headers = [];
+      this.rows = [];
+      return;
+    }
+    const all = parseCSV(this.csvText);
+    if (!all.length) {
+      this.headers = [];
+      this.rows = [];
+      return;
+    }
+    this.headers = all[0].map((h) => String(h).trim());
+    this.rows = all.slice(1);
+    this._autoDetectMapping();
+  }
+  _autoDetectMapping() {
+    this.mapping = autoDetectCsvMapping(ENTITIES[this.entityKey], this.headers);
+  }
+  _renderPreview() {
+    this.previewEl.empty();
+    if (!this.headers.length) {
+      this.previewEl.createDiv({ cls: "cad-empty", text: "Paste or pick a CSV to preview\u2026" });
+      if (this.importBtn) this.importBtn.disabled = true;
+      return;
+    }
+    const def = ENTITIES[this.entityKey];
+    const head = this.previewEl.createDiv({ cls: "cad-create-label" });
+    head.style.marginTop = "14px";
+    head.setText("COLUMN MAPPING");
+    const tableWrap = this.previewEl.createDiv({ cls: "cad-import-table-wrap" });
+    const table = tableWrap.createEl("table", { cls: "cad-import-table" });
+    const thr = table.createEl("thead").createEl("tr");
+    thr.createEl("th", { text: "CSV column" });
+    thr.createEl("th", { text: "Maps to" });
+    thr.createEl("th", { text: "Sample" });
+    const tbody = table.createEl("tbody");
+    this.headers.forEach((h, i) => {
+      const tr = tbody.createEl("tr");
+      tr.createEl("td", { text: h });
+      const mc = tr.createEl("td");
+      const sel = mc.createEl("select", { cls: "cad-create-input cad-import-select" });
+      sel.createEl("option", { value: "", text: "\u2014 skip \u2014" });
+      def.fields.forEach((f) => {
+        const o = sel.createEl("option", { value: f.key, text: f.label });
+        if (this.mapping[h] === f.key) o.selected = true;
+      });
+      sel.addEventListener("change", () => {
+        this.mapping[h] = sel.value || null;
+        this._renderPreview();
+      });
+      const sample = tr.createEl("td");
+      const samples = this.rows.slice(0, 2).map((r) => String(r[i] || "").trim()).filter(Boolean);
+      sample.setText(samples.join(" \xB7 ").slice(0, 60));
+      sample.title = samples.join("\n");
+    });
+    const summary = this.previewEl.createDiv({ cls: "cad-import-summary" });
+    const primaryKey = def.fields[0].key;
+    const primaryMapped = Object.values(this.mapping).includes(primaryKey);
+    if (!primaryMapped) {
+      summary.addClass("cad-import-summary-warn");
+      summary.setText(`No CSV column maps to "${def.fields[0].label}" \u2014 required to name the file. Pick a column above.`);
+      if (this.importBtn) this.importBtn.disabled = true;
+    } else {
+      const mappedCount = Object.values(this.mapping).filter(Boolean).length;
+      summary.setText(`Will create ${this.rows.length} ${this.rows.length === 1 ? def.label.toLowerCase() : def.plural.toLowerCase()} in ${def.folder}/  \xB7  ${mappedCount} column${mappedCount === 1 ? "" : "s"} mapped`);
+      if (this.importBtn) this.importBtn.disabled = false;
+    }
+  }
+  async _submitImport() {
+    const def = ENTITIES[this.entityKey];
+    const primaryKey = def.fields[0].key;
+    const primaryHeader = Object.entries(this.mapping).find(([_, v]) => v === primaryKey);
+    if (!primaryHeader) return;
+    const primaryColIdx = this.headers.indexOf(primaryHeader[0]);
+    this.importBtn.disabled = true;
+    this.importBtn.setText("Importing\u2026");
+    const start = Date.now();
+    let created = 0;
+    let failed = 0;
+    for (const row of this.rows) {
+      const primaryValue = String(row[primaryColIdx] || "").trim();
+      if (!primaryValue) {
+        failed++;
+        continue;
+      }
+      try {
+        const file = await createEntity(this.app, this.entityKey, primaryValue);
+        const extras = csvRowExtras(def, this.mapping, this.headers, row, primaryKey);
+        if (Object.keys(extras).length) {
+          await this.app.fileManager.processFrontMatter(file, (fm) => {
+            Object.entries(extras).forEach(([k, v]) => {
+              if (v == null || v === "") return;
+              if (Array.isArray(v) && v.length === 0) return;
+              fm[k] = v;
+            });
+          });
+        }
+        created++;
+      } catch (e) {
+        failed++;
+      }
+    }
+    const elapsed = ((Date.now() - start) / 1e3).toFixed(1);
+    new import_obsidian11.Notice(`Imported ${created} ${def.plural.toLowerCase()} in ${elapsed}s${failed ? ` \xB7 ${failed} skipped` : ""}`, 5e3);
+    this.close();
+    this.onSubmit({ created, failed, entityKey: this.entityKey });
+  }
+  onClose() {
+    this.contentEl.empty();
+  }
+};
+
+// src/legacy/cadence.js
+var DEFAULT_SETTINGS = {
+  dailyNoteFolder: "daily",
+  dailyNoteFormat: "YYYY-MM-DD",
+  journalHeading: "## Journal",
+  tasksHeading: "## Today",
+  taskManagementSystem: "native",
+  weekStartsOn: 1,
+  defaultTab: "home",
+  openOnStartup: true,
+  collapsedGroups: {},
+  currency: "USD",
+  cadenceAppDark: false,
+  taskProjectLinks: {},
+  modules: {
+    crm: true,
+    prm: false,
+    planner: true,
+    projects: true
+  },
+  desktopNotifications: true,
+  reminders: [],
+  customPages: [],
+  pageLayouts: {},
+  pageKanbanGroupBy: {},
+  crossSections: [],
+  cadenceApiUrl: "",
+  cadenceApiToken: "",
+  projectDashboardWidgets: [],
+  crmDashboardWidgets: [],
+  prmDashboardWidgets: [],
+  customEntities: {
+    project: [
+      { key: "name", label: "Name", primary: true, type: "text" },
+      { key: "status", label: "Status", type: "enum", options: ["active", "on_hold", "backlog", "done", "cancelled"] },
+      { key: "priority", label: "Priority", type: "enum", options: ["low", "medium", "high"] },
+      { key: "owner", label: "Owner", type: "multitext", suggestionSource: "folder:Cadence/Contacts" },
+      { key: "started", label: "Started", type: "date" },
+      { key: "due", label: "Due", type: "date" },
+      { key: "tags", label: "Tags", type: "tags" }
+    ],
+    contact: [
+      { key: "name", label: "Name", primary: true, type: "text" },
+      { key: "email", label: "Email", type: "multitext", isList: true, suggestionSource: "none" },
+      { key: "phone", label: "Phone", isList: true, type: "multitext", suggestionSource: "none" },
+      { key: "company", label: "Company", isList: true, type: "multitext", suggestionSource: "folder:Cadence/Companies" },
+      { key: "role", label: "Role", isList: true, type: "multitext" },
+      { key: "project", label: "Project", type: "multitext", suggestionSource: "folder:Cadence/Projects" },
+      { key: "lastContact", label: "Last contact", type: "date" },
+      { key: "tags", label: "Tags", type: "tags" }
+    ],
+    deal: [
+      { key: "title", label: "Title", primary: true, type: "text" },
+      { key: "stage", label: "Stage", type: "enum", options: ["Lead", "Qualified", "Proposal", "Negotiation", "Won", "Lost"] },
+      { key: "value", label: "Value", type: "currency" },
+      { key: "company", label: "Company", type: "multitext", suggestionSource: "folder:Cadence/Companies" },
+      { key: "contact", label: "Contact", type: "multitext", suggestionSource: "folder:Cadence/Contacts" },
+      { key: "closeBy", label: "Close by", type: "date" },
+      { key: "project", label: "Project", type: "multitext", suggestionSource: "folder:Cadence/Projects" },
+      { key: "owner", label: "Owner", type: "multitext", suggestionSource: "folder:Cadence/Contacts" }
+    ],
+    company: [
+      { key: "name", label: "Name", primary: true, type: "text" },
+      { key: "domain", label: "Domain", isList: true, type: "multitext" },
+      { key: "industry", label: "Industry", isList: true, type: "multitext" },
+      { key: "size", label: "Size", type: "text" },
+      { key: "owner", label: "Owner", type: "multitext", suggestionSource: "folder:Cadence/Contacts" },
+      { key: "tags", label: "Tags", type: "tags" }
+    ],
+    activity: [
+      { key: "subject", label: "Subject", primary: true, type: "text" },
+      { key: "type", label: "Type", type: "enum", options: ["Call", "Email", "Meeting", "Note", "Task"] },
+      { key: "when", label: "When", type: "date" },
+      { key: "with", label: "With", type: "multitext", suggestionSource: "folder:Cadence/Contacts" },
+      { key: "company", label: "Company", type: "multitext", suggestionSource: "folder:Cadence/Companies" },
+      { key: "project", label: "Project", type: "multitext", suggestionSource: "folder:Cadence/Projects" }
+    ],
+    partner: [
+      { key: "name", label: "Name", primary: true },
+      { key: "tier", label: "Tier", type: "enum", options: ["Gold", "Silver", "Bronze", "Standard"] },
+      { key: "status", label: "Status", type: "enum", options: ["Active", "Onboarding", "Inactive", "Churned"] },
+      { key: "owner", label: "Owner", type: "multitext", suggestionSource: "folder:Cadence/Contacts" },
+      { key: "region", label: "Region" }
+    ],
+    registration: [
+      { key: "title", label: "Title", primary: true },
+      { key: "partner", label: "Partner" },
+      { key: "status", label: "Status", type: "enum", options: ["Submitted", "Approved", "Rejected", "Expired"] },
+      { key: "value", label: "Value", type: "currency" },
+      { key: "submitted", label: "Submitted", type: "date" },
+      { key: "expires", label: "Expires", type: "date" }
+    ],
+    commission: [
+      { key: "reference", label: "Ref", primary: true },
+      { key: "partner", label: "Partner" },
+      { key: "amount", label: "Amount", type: "currency" },
+      { key: "status", label: "Status", type: "enum", options: ["Pending", "Earned", "Paid", "Disputed"] },
+      { key: "period", label: "Period" },
+      { key: "paidOn", label: "Paid on", type: "date" }
+    ],
+    lead: [
+      { key: "name", label: "Name", primary: true },
+      { key: "company", label: "Company", type: "multitext", suggestionSource: "folder:Cadence/Companies" },
+      { key: "source", label: "Source" },
+      { key: "status", label: "Status", type: "enum", options: ["New", "Contacted", "Qualified", "Disqualified", "Converted"] },
+      { key: "assigned", label: "Assigned" }
+    ],
+    certification: [
+      { key: "name", label: "Name", primary: true },
+      { key: "partner", label: "Partner" },
+      { key: "level", label: "Level" },
+      { key: "issued", label: "Issued", type: "date" },
+      { key: "expires", label: "Expires", type: "date" }
+    ],
+    sequence: [
+      { key: "name", label: "Name", primary: true },
+      { key: "audience", label: "Audience" },
+      { key: "steps", label: "Steps", type: "number" },
+      { key: "active", label: "Active", type: "number" },
+      { key: "status", label: "Status", type: "enum", options: ["Draft", "Active", "Paused", "Archived"] }
+    ]
+  }
+};
+var CURRENCY_OPTIONS = [
+  { code: "USD", label: "USD \u2014 US Dollar" },
+  { code: "EUR", label: "EUR \u2014 Euro" },
+  { code: "GBP", label: "GBP \u2014 British Pound" },
+  { code: "ZAR", label: "ZAR \u2014 South African Rand" },
+  { code: "AUD", label: "AUD \u2014 Australian Dollar" },
+  { code: "CAD", label: "CAD \u2014 Canadian Dollar" },
+  { code: "CHF", label: "CHF \u2014 Swiss Franc" },
+  { code: "JPY", label: "JPY \u2014 Japanese Yen" },
+  { code: "INR", label: "INR \u2014 Indian Rupee" },
+  { code: "BRL", label: "BRL \u2014 Brazilian Real" },
+  { code: "AED", label: "AED \u2014 UAE Dirham" }
+];
 var CadenceAppView = class extends obsidian.ItemView {
   constructor(leaf, plugin) {
     super(leaf);

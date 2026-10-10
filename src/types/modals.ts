@@ -56,3 +56,19 @@ export interface ReminderPatch {
   when?: string | null;
   notified?: boolean;
 }
+
+/** CSV import onSubmit payload: notes created, and rows skipped (blank
+    primary value) or failed. */
+export interface ImportResult {
+  created: number;
+  failed: number;
+  entityKey: EntityKey;
+}
+
+/** Entity create onSubmit payload. `name` is the trimmed primary value;
+    `values` holds every non-empty field, the primary one untrimmed. */
+export interface EntityCreateResult {
+  name: string;
+  /** Strings, wiki-link or plain string lists, or numbers. */
+  values: Record<string, unknown>;
+}

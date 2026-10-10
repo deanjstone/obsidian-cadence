@@ -223,7 +223,7 @@ export function createMockApp(files: MockFileSpec[] = []): App {
 export class Notice {
   static readonly messages: string[] = [];
   message: string;
-  constructor(message: string) {
+  constructor(message: string, _duration?: number) {
     this.message = message;
     Notice.messages.push(message);
   }

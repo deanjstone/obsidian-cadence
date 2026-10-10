@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createMockApp, Notice, TFile, type App } from "../mocks/obsidian";
-import { CadenceImportModal } from "../../src/legacy/cadence.js";
+import { CadenceImportModal } from "../../src/modals/import-modal";
 
 /* Characterization tests for the CSV import modal's state logic: parsing,
    column auto-mapping and the per-row frontmatter it writes. Rendering is

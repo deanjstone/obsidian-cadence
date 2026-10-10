@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createMockApp, Notice, TFile, type App, type FakeElement } from "../mocks/obsidian";
 import { buttonByText, contentOf, optionTexts, optionValues } from "../helpers/dom";
-import { CadenceImportModal } from "../../src/legacy/cadence.js";
+import { CadenceImportModal } from "../../src/modals/import-modal";
 
 /* Characterization tests for the CSV import modal's render path: the entity
    selector, the CSV textarea, the mapping preview and the Import/Cancel

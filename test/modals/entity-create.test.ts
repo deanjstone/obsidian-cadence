@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createMockApp, type App, type FakeElement } from "../mocks/obsidian";
 import { buttonByText, contentOf, optionValues } from "../helpers/dom";
 import { ENTITIES } from "../../src/constants/entities";
-import { CadenceEntityCreateModal } from "../../src/legacy/cadence.js";
+import { CadenceEntityCreateModal } from "../../src/modals/entity-create";
 
 /* Characterization tests for the entity create modal: one input per field,
    the enum smart defaults, caller defaults, and the { name, values } payload
@@ -40,7 +40,7 @@ function openCreate(entityKey: string, opts: Record<string, unknown> = {}) {
 
 describe("CadenceEntityCreateModal onOpen", () => {
   it("throws when constructed without an options object", () => {
-    expect(() => new CadenceEntityCreateModal(app, "contact")).toThrow(TypeError);
+    expect(() => new (CadenceEntityCreateModal as Any)(app, "contact")).toThrow(TypeError);
   });
 
   it("throws on open for an unknown entity key", () => {

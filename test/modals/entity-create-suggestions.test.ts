@@ -3,7 +3,7 @@ import { createMockApp, type App, type FakeElement } from "../mocks/obsidian";
 import { companyAcme, contactJane, partnerInitech, projectWebsite } from "../fixtures/vault";
 import { contentOf } from "../helpers/dom";
 import { ENTITIES } from "../../src/constants/entities";
-import { CadenceEntityCreateModal } from "../../src/legacy/cadence.js";
+import { CadenceEntityCreateModal } from "../../src/modals/entity-create";
 
 /* Characterization tests for the entity create modal's typeahead: which
    fields get a suggestion box, where each suggestion source reads from,
