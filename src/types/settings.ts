@@ -38,4 +38,8 @@ export interface AppViewSettings extends DailyNoteSettings {
   reminders?: Reminder[];
   /** Settings-driven cross sections on entity detail forms. */
   crossSections?: CrossSectionConfig[];
+  /** Entity-list layout ('table' | 'kanban' | 'cards'), keyed by surface id. */
+  pageLayouts?: Record<string, string>;
+  /** Kanban group-by field, keyed by entity key. */
+  pageKanbanGroupBy?: Record<string, string>;
 }
