@@ -30,8 +30,8 @@ function toChartData(counts: Record<string, number>): ChartDatum[] {
 /* A dashboard widget's data: entities counted by the widget's groupBy
    field, read through entityValue. Wiki-link brackets are stripped. Each
    item of a list value counts once and blank items are skipped. A blank
-   scalar counts as 'Unspecified'. The CRM, Projects and PRM dashboards
-   each inline this loop; their tickets adopt this function. */
+   scalar counts as 'Unspecified'. The Projects, CRM and PRM dashboards
+   each inline this loop; #17 and #20 swap this function in. */
 export function chartData(entities: Entity[], widget: Pick<WidgetConfig, 'groupBy'>, def: EntityDef): ChartDatum[] {
   const fieldKey = widget.groupBy;
   const counts: Record<string, number> = {};
