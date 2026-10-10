@@ -22,19 +22,18 @@ export interface AppViewPlugin extends ReminderStore {
   openQuickCapture(): void;
   /** Any subset of a reminder's fields, e.g. `{ done }` or `{ when, notified }`. */
   updateReminder(id: string, patch: Partial<Reminder>): Promise<unknown>;
-  snoozeReminder(id: string, ms: number): Promise<void>;
-  completeReminder(id: string): Promise<void>;
+  snoozeReminder(id: string, ms: number): Promise<unknown>;
+  completeReminder(id: string): Promise<unknown>;
 }
 
 /* The CadenceAppView instance a surface function receives as `view`.
 
-   Surfaces move out of src/legacy/cadence.js as `fn(view: AppViewHost, …)`,
-   and CadenceAppView keeps a one-line delegate for each. A surface reaches
-   another surface only through `view.x()`, which lands on that delegate, so
-   no surface imports another. Members are added here only when a moved
-   surface reads or calls them. The plugin-entry ticket makes the class
-   `implements AppViewHost`, so tsc then checks this contract. See
-   src/views/README.md. */
+   Each surface is `fn(view: AppViewHost, …)`, and CadenceAppView
+   (src/views/app-view.ts) keeps a one-line delegate for each. A surface
+   reaches another surface only through `view.x()`, which lands on that
+   delegate, so no surface imports another. A member is here only when a
+   surface reads or calls it. The class `implements AppViewHost`, so tsc
+   checks this contract. See src/views/README.md. */
 export interface AppViewHost {
   /* ── View state ── */
   app: App;

@@ -1,8 +1,8 @@
 # `src/views/` — the app view seam
 
-`CadenceAppView` (in `src/legacy/cadence.js`) stays one class until the plugin-entry ticket. Each surface moves out of it as exported functions that take the view as their first argument. The class keeps a one-line delegate for each moved method, so every `this.x()` call site still works.
+`CadenceAppView` is one class, at the end of `src/views/app-view.ts`. Each surface is a set of exported functions that take the view as their first argument. The class keeps a one-line delegate for each, so every `this.x()` and `view.x()` call site lands on the same function.
 
-Set by [#10](https://github.com/deanjstone/obsidian-cadence/issues/10). The view tickets on map [#1](https://github.com/deanjstone/obsidian-cadence/issues/1) follow it.
+Set by [#10](https://github.com/deanjstone/obsidian-cadence/issues/10). The view tickets on map [#1](https://github.com/deanjstone/obsidian-cadence/issues/1) followed it, and [#23](https://github.com/deanjstone/obsidian-cadence/issues/23) moved the classes out of the old hand-written file, which is now gone. "The end state" below records where everything landed.
 
 ## The pattern
 
@@ -17,21 +17,21 @@ export async function renderHome(view: AppViewHost, root: HTMLElement): Promise<
 }
 ```
 
-```js
-// src/legacy/cadence.js, inside class CadenceAppView
-renderHome(root) { return renderHome(this, root); }
+```ts
+// src/views/app-view.ts, inside class CadenceAppView
+renderHome(root: HTMLElement) { return renderHome(this, root); }
 ```
 
 The delegate has no `async` and no default parameters. It returns what the function returns, and the function keeps the original `async` and defaults. `return` passes the promise through, so callers that `await this.renderHome(...)` behave as before.
 
 ## Rules
 
-1. **Move the body verbatim.** The only change is `this` → `view`, plus `obsidian.X` → a named import from `'obsidian'`. Add types, but don't change the logic. Fix indentation if the legacy body had it wrong.
+1. **Move the body verbatim.** The only change is `this` → `view`, plus `obsidian.X` → a named import from `'obsidian'`. Add types, but don't change the logic. Fix indentation if the original body had it wrong.
 2. **Never import another surface's function.** Cross-surface calls go through `view.x()`, which lands on that surface's delegate. Each view ticket then depends only on this seam, not on the other view tickets.
 3. **Pure logic takes plain data, not `view`.** Examples are `migrateModeId(id, settings)`, `routeFor(mode, customPages)` and `planEntityLinks(def, defaults, values)`. Pure functions are the unit-test target.
 4. **Add an `AppViewHost` member only when your surface reads or calls it.** Add it to `host.ts` in the same PR. Until #20, members owned by a later ticket went in a "Called by the shell, owned by later view tickets" block, typed from how the callers used them. Every routed surface has now moved, so that block is gone.
 5. **Keep the underscore names on the class and on `AppViewHost`** (`_renderPageHeader`, `_createEntityFromPrompt`, …). Name the exported function without the underscore (`renderPageHeader`). If the plain name would be ambiguous or would shadow a global, pick a specific one: `render` → `renderAppView`, `onOpen` → `onOpenAppView`, `_prompt` → `openPrompt`, and the constructor body → `initAppViewState`.
-6. **The plugin-entry ticket makes the class `implements AppViewHost`,** so `tsc` checks the whole contract once. Until then the legacy class is untyped JS. `host.ts` is the only place the contract is written down, so keep it accurate.
+6. **The class `implements AppViewHost`** ([#23](https://github.com/deanjstone/obsidian-cadence/issues/23)), so `tsc` checks the whole contract against the delegates. `host.ts` is the only place the contract is written down, so keep it accurate.
 
 Members that are Obsidian's `View` contract and have no logic stay on the class: `getViewType`, `getDisplayText`, `getIcon` and `onClose`.
 
@@ -41,7 +41,7 @@ Members that are Obsidian's `View` contract and have no logic stay on the class:
 |---|---|
 | `host.ts` | `AppViewHost` (the view state and every member a moved surface uses), `AppViewPlugin` and `PromptOptions` |
 | `nav.ts` | `migrateModeId`, `resolveSurface`, `visibleNavGroups`, `modeUsesEntityFolder`, `routeFor` (pure), plus `toggleMobileNav`, `toggleCadenceDark`, `setMode` and `toggleGroup` |
-| `app-view.ts` | `initAppViewState`, `onOpenAppView`, `renderAppView`, the entity-detail open/close functions, `renderComingSoon`, `renderPageHeader`, `openSettingsTab`, `openPrompt`, `createEntityFromPrompt` and the pure `planEntityLinks` |
+| `app-view.ts` | the `CadenceAppView` class, plus `initAppViewState`, `onOpenAppView`, `renderAppView`, the entity-detail open/close functions, `renderComingSoon`, `renderPageHeader`, `openSettingsTab`, `openPrompt`, `createEntityFromPrompt` and the pure `planEntityLinks` |
 | `components/charts.ts` | `drawChart`, `drawChartEmpty`, `drawDonutChart`, `drawBarChart`, `drawKpiGrid`, `drawSimpleList`, plus the pure `chartData`, `sectionChartData`, `donutGeometry`, `barRows`, `kpiCards` and the dashboard widget helpers `dashboardWidgets`, `removeWidget` and `WIDGET_STYLE_OPTIONS` |
 | `components/cards.ts` | `dashCardSection`, plus the `DashCardRow`, `StatCard` and `MiniStat` types |
 | `components/entity-table.ts` | `renderEntityLinks`, `renderOwnerLinks`, `renderEntityTable` and `getEntityFiles` |
@@ -71,6 +71,7 @@ Members that are Obsidian's `View` contract and have no logic stay on the class:
 | `../plugin/settings.ts` | `loadSettings`, `saveSettings` and `registerCustomPropertyTypes`, plus the pure `CORE_ENTITY_KEYS`, `PROPERTY_TYPE_ENTITIES`, `fillSettingDefaults`, `customEntityNames`, `reconstructEntities` and `propertyTypeFor` |
 | `../plugin/contact-project-sync.ts` | `syncContactProjectRelationships` and `handleProjectDeletion`, plus the pure `extractEntitiesFromValue`, `isContactField`, `isProjectField`, `noteLinks`, `collectValidLinks`, `autoCreateName`, `projectLinkValue`, `writeProjectLinks`, `addProjectLink`, `removeProjectLink` and `contactProjectsPlan` |
 | `../constants/settings.ts` | `DEFAULT_SETTINGS` and `CURRENCY_OPTIONS` (`setting-tab.ts` re-exports it) |
+| `../main.ts` | the `CadencePlugin` class (`onload`, `onunload`, `openApp`, `openQuickCapture`, `refreshOpenViews` and the delegates) and the `QuickCapturePrefill` type. esbuild bundles it into the root `main.js` |
 
 Use one file per major surface (`home.ts`, `today.ts`, `planner.ts`, `inbox.ts`, `entity-list.ts`, …), as in the map's module layout. Named exports only.
 
@@ -96,7 +97,7 @@ Components that several surfaces share live in `components/` ([#11](https://gith
 
 `CadenceSettingTab` ([#21](https://github.com/deanjstone/obsidian-cadence/issues/21)) follows the same seam with three differences, all because it is a `PluginSettingTab` with one caller rather than the app view:
 
-1. **The whole class moved, not just its bodies.** The tab has no cross-surface callers, so there are no delegates to keep. `src/settings/setting-tab.ts` holds the class, `src/legacy/cadence.js` imports it for `addSettingTab`, and the class name stays `CadenceSettingTab`, which the registration-parity snapshot records. `plugin` is a `declare` field, so esbuild emits no class field for it.
+1. **The whole class moved, not just its bodies.** The tab has no cross-surface callers, so there are no delegates to keep. `src/settings/setting-tab.ts` holds the class, `src/main.ts` imports it for `addSettingTab`, and the class name stays `CadenceSettingTab`, which the registration-parity snapshot records. `plugin` is a `declare` field, so esbuild emits no class field for it.
 2. **The host is `SettingTabHost`** (`src/settings/host.ts`): `app`, `plugin` (a `SettingTabPlugin` with `settings`, `saveSettings`, `refreshOpenViews` and `registerCustomPropertyTypes`), `containerEl` and `display()`. `display()` draws the `h2`, then calls one `renderXSettings(tab, containerEl)` per section, in order: Modules, Reminders, App, Cloud sync (in `setting-tab.ts`), Custom Navigation Pages (`custom-pages.ts`) and Custom Entity Properties (`entity-properties.ts`). A section redraws the page with `tab.display()`. `setting-tab.ts` imports the two section renderers directly, because they are parts of one surface, not other surfaces.
 3. **Edits change the live registry, not a copy.** The property editor edits `ENTITIES` in place, and each save copies every schema into `settings.customEntities` (`snapshotCustomEntities`). So its seam, `applyPropertyEdit(entities, entityKey, edit)`, mutates the registry it is given and returns `{ ok, migrations, notice, rerender }`. The migrations are data (`{ kind: 'key' | 'type', … }`), which the surface runs in order through `migrateFrontmatterKey` and `migrateFrontmatterType` in `src/utils/entities.ts`. A test passes a plain registry. `addCustomPage(settings, entities, form, now)` and `deleteCustomPage(settings, entities, pageId)` change the settings and the registry the same way. (#15 already took the name `applyFieldEdit`, for the detail views' frontmatter write.)
 
@@ -108,7 +109,7 @@ The tests drive the tab through `test/helpers/setting-tab.ts` (`makeSettingTab`,
 
 `CadencePlugin`'s logic ([#22](https://github.com/deanjstone/obsidian-cadence/issues/22)) follows the view seam, adapted the way the setting tab was, for a class that is neither a view nor a one-caller tab:
 
-1. **The class stays in `src/legacy/cadence.js` and keeps one-line delegates.** Unlike the setting tab, the plugin has many callers (`onload`, the app view, the setting tab, the modals), all of which call `plugin.x()`. So the methods move out and the class keeps `addReminder(partial) { return addReminder(this, partial); }` for each, until the plugin-entry ticket ([#23](https://github.com/deanjstone/obsidian-cadence/issues/23)). `_fireReminder` becomes `fireReminder` (rule 5). `onload`, `onunload`, `openApp`, `openQuickCapture` and `refreshOpenViews` stay on the class for #23.
+1. **The class keeps one-line delegates.** Unlike the setting tab, the plugin has many callers (`onload`, the app view, the setting tab, the modals), all of which call `plugin.x()`. So the methods moved out and the class keeps `addReminder(partial: ReminderInput) { return addReminder(this, partial); }` for each. `_fireReminder` becomes `fireReminder` (rule 5). `onload`, `onunload`, `openApp`, `openQuickCapture` and `refreshOpenViews` stay on the class, in `src/main.ts` since [#23](https://github.com/deanjstone/obsidian-cadence/issues/23).
 2. **The host is `PluginHost`** (`src/plugin/host.ts`): `app`, `settings` (a `PluginSettings`), `_syncInProgress`, `loadData`, `saveData`, `saveSettings`, `refreshOpenViews`, `updateReminder` and `_fireReminder`. Calls between moved functions go through it (`snoozeReminder` calls `plugin.updateReminder`, `tickReminders` calls `plugin._fireReminder`), so a spy on the class still sees them, as rule 2 has views do.
 3. **The plain data:**
    - **Reminders** take the clock: `dueReminders(reminders, now)` and `advanceReminder(reminder, now)` (the next occurrence, built on `nextRepeat`), `newReminder(partial, now)` and `snoozePatch(ms, now)`. The ticker fires and marks each due reminder, then appends the next occurrences.
@@ -116,6 +117,18 @@ The tests drive the tab through `test/helpers/setting-tab.ts` (`makeSettingTab`,
    - **The sync** reads each note as a `SyncNote` (`{ entityKey, basename, frontmatter }`). `noteLinks` and `collectValidLinks` give the contact–project pairs a note backs, and `contactProjectsPlan`, `addProjectLink`, `removeProjectLink` and `writeProjectLinks` give the `project` value to write. The surface keeps the vault reads, `createEntity`, `processFrontMatter` and the notices. The one `extractEntitiesFromValue` replaces the two inline copies.
 
 The tests build the plugin with `test/helpers/plugin.ts` (`makePlugin`, `makeLoadedPlugin`, `fakeNotification`). The sync tests run `onload`, then fire its handlers with the mock's `app.metadataCache.trigger('changed', file)` and `app.vault.trigger('delete', file)`, and read the frontmatter back (`fileManager.processed` logs each write). `ENTITIES` is shared module state, so restore it after each test with `snapshotEntities`/`restoreEntities`.
+
+## The end state
+
+[#23](https://github.com/deanjstone/obsidian-cadence/issues/23) moved the last two classes out of the hand-written file and deleted it:
+
+- **`CadencePlugin` is in `src/main.ts`**, a named export, and the file still ends with `module.exports = CadencePlugin`. Obsidian reads `module.exports` as the plugin class, as it did from the original `main.js`, so the bundle keeps that shape. The registration-parity smoke test checks it (`exportIsClass`). The named export adds esbuild's `__toCommonJS` header, which that last line then replaces. The tests import the class from `src/main`.
+- **`CadenceAppView` is at the end of `src/views/app-view.ts`.** It is the one module that imports every surface. Rule 2 still holds for the surfaces themselves.
+- **Both classes keep their one-line delegates as class methods.** The other choice was to drop them and have callers import the functions directly. That was rejected for three reasons:
+  - `AppViewHost`, `PluginHost`, `AppViewPlugin` and `SettingTabPlugin` are contracts of methods on an instance. Every surface calls `view.x()`, and the engine, the tab and the modals call `plugin.x()`. Dropping a delegate would mean rewriting each caller to import the function, which is what rule 2 forbids.
+  - The tests spy on the instance (`stubSurfaces`, `makeLoadedPlugin`), and the calls between moved functions go through the host so that a spy sees them.
+  - The esbuild-normalised classes are identical to the originals, so the emitted code does not change.
+- **The classes are typed in place.** `CadenceAppView implements AppViewHost`, and `CadencePlugin implements PluginHost, AppViewPlugin, SettingTabPlugin`, so `tsc` checks each delegate against its contract. Their state is declared with `declare` fields, as in the setting tab, so esbuild emits no class fields. A class field would also overwrite what `ItemView`'s constructor set. Where Obsidian types `leaf.view` as a plain `View`, the shell casts inline (`(leaf.view as CadenceAppView).mode`). esbuild erases the cast, so the emitted code does not change.
 
 ## How a view ticket applies the loop
 
@@ -131,7 +144,7 @@ The tests build the plugin with `test/helpers/plugin.ts` (`makePlugin`, `makeLoa
 
 ### Evidence for the PR
 
-- **Verbatim check.** Pass each legacy method body (with `this` → `view`) and each moved function through esbuild's `transformSync`, which strips the types and normalises the formatting, then compare the function bodies. #10's script is in its PR description, and #11's handles default parameters.
+- **Verbatim check.** Pass each original method body (with `this` → `view`) and each moved function through esbuild's `transformSync`, which strips the types and normalises the formatting, then compare the function bodies. #10's script is in its PR description, and #11's handles default parameters.
   - If you rewrite `this` → `view` mechanically, skip string literals. #11's rewrite turned "Open this note" into "Open view note", and only a characterization test caught it.
 - **Mutation check.** Make a handful of one-line mutations to the extracted module, and confirm that each one breaks at least one test. If one survives, add the missing characterization test and say so in the PR.
 - **A seam that builds click handlers** returns a target as data instead (`{ kind: 'mode', mode }`, `{ kind: 'file', file }`), and the surface function maps targets to `view.x()` calls. `computeBriefing` and `loadBriefing` ([#12](https://github.com/deanjstone/obsidian-cadence/issues/12)) are the example. That keeps the seam free of `view` and lets a test compare the whole result with `toEqual`.

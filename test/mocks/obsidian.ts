@@ -226,9 +226,12 @@ export interface EventRef {
 
 export class WorkspaceLeaf {
   app: App;
+  /** The view the leaf shows; null until setViewState() (tests set it directly). */
+  view: unknown = null;
   constructor(app: App) {
     this.app = app;
   }
+  async setViewState(_state: unknown) {}
 }
 
 export class Workspace {
@@ -244,9 +247,16 @@ export class Workspace {
   on(name: string, callback: (...args: any[]) => unknown) {
     return { name, callback };
   }
-  getLeavesOfType(_type: string): unknown[] {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tests stand plain { view } objects in for leaves
+  getLeavesOfType(_type: string): any[] {
     return [];
   }
+  /* The plugin shell's leaf calls. Tests that check them replace them on the instance. */
+  getLeaf(_kind?: unknown): WorkspaceLeaf {
+    return new WorkspaceLeaf(null as unknown as App);
+  }
+  revealLeaf(_leaf: WorkspaceLeaf) {}
+  detachLeavesOfType(_type: string) {}
   getActiveLeaf(): unknown {
     return this.activeLeaf;
   }
@@ -314,7 +324,7 @@ export class Component {
 
 export class Plugin extends Component {
   app: App;
-  manifest: unknown;
+  manifest: { id: string };
   readonly registered = {
     commands: [] as Array<Record<string, unknown>>,
     views: [] as string[],
@@ -324,7 +334,7 @@ export class Plugin extends Component {
     intervals: 0,
   };
   private data: unknown;
-  constructor(app: App, manifest: unknown, data: unknown = null) {
+  constructor(app: App, manifest: { id: string }, data: unknown = null) {
     super();
     this.app = app;
     this.manifest = manifest;
@@ -334,7 +344,7 @@ export class Plugin extends Component {
     this.registered.commands.push(command);
     return command;
   }
-  registerView(type: string, _factory: unknown) {
+  registerView(type: string, _factory: (leaf: WorkspaceLeaf) => unknown) {
     this.registered.views.push(type);
   }
   addRibbonIcon(icon: string, title: string, _callback: unknown) {

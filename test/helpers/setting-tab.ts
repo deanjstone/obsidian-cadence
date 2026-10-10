@@ -1,7 +1,7 @@
 import { vi } from "vitest";
 import { createMockApp, type App, type FakeElement, type MockFileSpec, type Setting } from "../mocks/obsidian";
 import { ENTITIES } from "../../src/constants/entities";
-import { CadenceSettingTab } from "../../src/legacy/cadence.js";
+import { CadenceSettingTab } from "../../src/settings/setting-tab";
 
 /* Builds a CadenceSettingTab against the mock App, with a plugin stub that
    records saves, view refreshes and property-type registrations in one

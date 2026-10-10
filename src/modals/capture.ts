@@ -141,7 +141,7 @@ export class CadenceCaptureModal extends Modal {
     };
     for (const kind of ['+15m', '+1h', '+3h'] as const) mkQ(kind).addEventListener('click', () => pick(kind));
     const tomorrow = mkQ('Tomorrow 9am');
-    // Flagged, not fixed: the legacy button first ran setQuick(() => {}),
+    // Flagged, not fixed: the original button first ran setQuick(() => {}),
     // writing NaN-NaN-… (Date.now() + a function), before its real listener.
     tomorrow.addEventListener('click', () => { dateInput.value = toLocalDatetimeValue(new Date(NaN)); });
     tomorrow.addEventListener('click', () => pick('Tomorrow 9am'));

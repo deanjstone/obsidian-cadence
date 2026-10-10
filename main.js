@@ -1,11 +1,13 @@
 /* Cadence — built from src/ by esbuild (pnpm build). Do not edit main.js directly. */
 "use strict";
-var __create = Object.create;
 var __defProp = Object.defineProperty;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __getOwnPropNames = Object.getOwnPropertyNames;
-var __getProtoOf = Object.getPrototypeOf;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __export = (target, all) => {
+  for (var name in all)
+    __defProp(target, name, { get: all[name], enumerable: true });
+};
 var __copyProps = (to, from, except, desc) => {
   if (from && typeof from === "object" || typeof from === "function") {
     for (let key of __getOwnPropNames(from))
@@ -14,17 +16,133 @@ var __copyProps = (to, from, except, desc) => {
   }
   return to;
 };
-var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(
-  // If the importer is in node compatibility mode or this is not an ESM
-  // file that has been converted to a CommonJS file using a Babel-
-  // compatible transform (i.e. "__esModule" has not been set), then set
-  // "default" to the CommonJS "module.exports" for node compatibility.
-  isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
-  mod
-));
+var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
-// src/legacy/cadence.js
-var obsidian = __toESM(require("obsidian"));
+// src/main.ts
+var main_exports = {};
+__export(main_exports, {
+  CadencePlugin: () => CadencePlugin
+});
+module.exports = __toCommonJS(main_exports);
+var import_obsidian32 = require("obsidian");
+
+// src/constants/nav.ts
+var VIEW_TYPE_CADENCE_APP = "cadence-app";
+var NAV_GROUPS = [
+  {
+    id: "home_group",
+    label: "",
+    items: [
+      { id: "home", label: "Home", icon: "home", desc: "Command centre \u2014 today, projects, pipeline and upcoming, all on one screen." }
+    ]
+  },
+  {
+    id: "planner",
+    label: "Planner",
+    module: "planner",
+    items: [
+      { id: "planner.inbox", label: "Inbox", icon: "inbox", module: "planner", desc: "Universal capture + reminders. Anything you toss in here surfaces at the right time." },
+      { id: "planner.today", label: "Today", icon: "sun", module: "planner", desc: "Diary view of today's daily note." },
+      { id: "planner.calendar", label: "Calendar", icon: "calendar-days", module: "planner", desc: "Week view across daily notes." }
+    ]
+  },
+  {
+    id: "projects",
+    label: "Projects",
+    module: "projects",
+    items: [
+      { id: "projects.dashboard", label: "Dashboard", icon: "layout-grid", module: "projects", desc: "Projects Dashboard \u2014 high-level stats, status Kanban, priority Kanban, and customizable analytical widgets." },
+      { id: "projects.projects", label: "Projects", icon: "folder-kanban", module: "projects", desc: "Active projects with milestones, owners, statuses \u2014 kanban over project notes." }
+    ]
+  },
+  {
+    id: "crm",
+    label: "CRM",
+    module: "crm",
+    items: [
+      { id: "crm.dashboard", label: "Dashboard", icon: "layout-grid", module: "crm", desc: "Overview cards \u2014 today's tasks, deal momentum, recent contacts, week stats." },
+      { id: "crm.pipeline", label: "Pipeline", icon: "trending-up", module: "crm", desc: "Sales pipeline. Deals as markdown notes with stage, value and contact frontmatter." },
+      { id: "crm.contacts", label: "Contacts", icon: "users", module: "crm", desc: "People as markdown notes \u2014 name, email, company, last-talked-to cadence, tags." },
+      { id: "crm.companies", label: "Companies", icon: "building-2", module: "crm", desc: "Companies as markdown notes \u2014 domain, size, industry, related contacts and deals." },
+      { id: "crm.activities", label: "Activities", icon: "calendar", module: "crm", desc: "Cross-cutting activity timeline \u2014 calls, meetings, notes against any contact or deal." }
+    ]
+  },
+  {
+    id: "prm",
+    label: "PRM",
+    module: "prm",
+    items: [
+      { id: "prm.partners", label: "Partners", icon: "handshake", module: "prm", desc: "Partner organisations \u2014 relationship status, named contacts, joint pipeline." },
+      { id: "prm.registrations", label: "Registrations", icon: "clipboard-check", module: "prm", desc: "Deal registrations submitted by partners \u2014 status, expiry, attached deals." },
+      { id: "prm.commissions", label: "Commissions", icon: "wallet", module: "prm", desc: "Commission ledger across partners \u2014 earned, pending, paid, by quarter." },
+      { id: "prm.leads", label: "Leads", icon: "target", module: "prm", desc: "Lead distribution \u2014 round-robin/queue assignment to partners or reps." },
+      { id: "prm.certifications", label: "Certifications", icon: "award", module: "prm", desc: "Partner certifications \u2014 track expiries, renewals, training completion." },
+      { id: "prm.analytics", label: "Analytics", icon: "bar-chart-3", module: "prm", desc: "PRM analytics \u2014 partner-sourced revenue, top performers, lifecycle funnel." }
+    ]
+  },
+  {
+    id: "workflow",
+    label: "Workflow",
+    items: [
+      { id: "workflow.sequences", label: "Sequences", icon: "zap", desc: "Multi-step outreach sequences \u2014 templates, cadence steps, who's in which step." }
+    ]
+  },
+  {
+    id: "reports",
+    label: "Reports",
+    items: [
+      { id: "reports.pipeline", label: "Pipeline", icon: "trending-up", module: "crm", desc: "Pipeline coverage and weighted forecast \u2014 by stage, owner, source." },
+      { id: "reports.sales", label: "Sales", icon: "bar-chart-3", module: "crm", desc: "Closed won / lost trends \u2014 quota attainment, win rate, average cycle." },
+      { id: "reports.partners", label: "Partners", icon: "handshake", module: "prm", desc: "Partner contribution \u2014 sourced vs influenced revenue, top tiers." },
+      { id: "reports.activity", label: "Activity", icon: "pie-chart", module: "crm", desc: "Activity mix \u2014 calls, meetings, emails by rep and account." },
+      { id: "reports.productivity", label: "Productivity", icon: "sun", desc: "Personal productivity \u2014 completion rate, streaks, focus blocks, journal volume." },
+      { id: "reports.graph", label: "Graph View", icon: "network", desc: "Relationship graph showing connections between contacts, companies, partners, projects, deals, and activities." }
+    ]
+  },
+  {
+    id: "misc",
+    label: "",
+    items: [
+      { id: "team", label: "Team", icon: "user-cog", desc: "Team members, roles, seats \u2014 admin view of your Cadence workspace." },
+      { id: "templates", label: "Templates", icon: "file-text", desc: "Manage your entity templates." },
+      { id: "settings", label: "Settings", icon: "settings-2", desc: "Cadence app settings \u2014 folders, headings, week start, API connection." }
+    ]
+  }
+];
+var ALL_SURFACES = NAV_GROUPS.flatMap((g) => g.items);
+var SURFACE_BY_ID = Object.fromEntries(ALL_SURFACES.map((s) => [s.id, s]));
+var BUILT_SURFACES = /* @__PURE__ */ new Set([
+  "home",
+  "planner.inbox",
+  "planner.today",
+  "planner.calendar",
+  "projects.dashboard",
+  "projects.projects",
+  "crm.dashboard",
+  "crm.pipeline",
+  "crm.contacts",
+  "crm.companies",
+  "crm.activities",
+  "prm.partners",
+  "prm.registrations",
+  "prm.commissions",
+  "prm.leads",
+  "prm.certifications",
+  "prm.analytics",
+  "workflow.sequences",
+  "reports.pipeline",
+  "reports.sales",
+  "reports.partners",
+  "reports.activity",
+  "reports.graph",
+  "reports.productivity",
+  "team",
+  "templates",
+  "settings"
+]);
+
+// src/modals/capture.ts
+var import_obsidian = require("obsidian");
 
 // src/utils/dates.ts
 function pad(n) {
@@ -83,81 +201,322 @@ function fromLocalDatetimeValue(s) {
   return new Date(s);
 }
 
-// src/modals/csv-import-mapping.ts
-function autoDetectCsvMapping(def, headers) {
-  const mapping = {};
-  if (!def || !headers.length) return mapping;
-  const norm = (s) => String(s).toLowerCase().replace(/[^a-z0-9]/g, "");
-  const keyByNorm = {};
-  def.fields.forEach((f) => {
-    keyByNorm[norm(f.key)] = f.key;
-    keyByNorm[norm(f.label)] = f.key;
-  });
-  const synonyms = {
-    "fullname": "name",
-    "displayname": "name",
-    "contact": "name",
-    "companyname": "company",
-    "organisation": "company",
-    "organization": "company",
-    "phone": "name",
-    // not great — leave unmapped
-    "mail": "email",
-    "emailaddress": "email",
-    "amount": "value",
-    "price": "value",
-    "mrr": "value",
-    "arr": "value",
-    "closedate": "closeBy",
-    "expectedclose": "closeBy",
-    "lastcontacted": "lastContact",
-    "lastcontact": "lastContact"
-  };
-  headers.forEach((h) => {
-    const n = norm(h);
-    if (!n) {
-      mapping[h] = null;
-      return;
+// src/modals/capture.ts
+function buildCaptureResult(form) {
+  const text = form.text.trim();
+  if (!text) return null;
+  const result = { text, when: null, repeat: "none" };
+  if (form.scheduled && form.datetimeValue) {
+    const d = fromLocalDatetimeValue(form.datetimeValue);
+    if (d && !isNaN(d.getTime())) {
+      result.when = d.toISOString();
+      result.repeat = form.repeat || "none";
     }
-    if (keyByNorm[n]) {
-      mapping[h] = keyByNorm[n];
-      return;
-    }
-    if (synonyms[n] && def.fields.some((f) => f.key === synonyms[n])) {
-      mapping[h] = synonyms[n];
-      return;
-    }
-    const fuzzy = def.fields.find((f) => n.includes(norm(f.key)) || norm(f.key).includes(n));
-    mapping[h] = fuzzy ? fuzzy.key : null;
-  });
-  return mapping;
+  }
+  return result;
 }
-function csvRowExtras(def, mapping, headers, row, primaryKey) {
-  const extras = {};
-  Object.entries(mapping).forEach(([header, key]) => {
-    if (!key || key === primaryKey) return;
-    const idx = headers.indexOf(header);
-    let val = String(row[idx] || "").trim();
-    if (!val) return;
-    const fdef = def.fields.find((f) => f.key === key);
-    if (fdef) {
-      if (fdef.type === "number" || fdef.type === "currency") {
-        const cleaned = val.replace(/[^\d.\-]/g, "");
-        const n = Number(cleaned);
-        if (isNaN(n)) return;
-        val = n;
-      } else if (fdef.type === "tags") {
-        val = val.split(/[,;]/).map((s) => s.trim()).filter(Boolean);
-        if (!val.length) return;
-      } else if (fdef.type === "date") {
-        const d = new Date(val);
-        if (!isNaN(d.getTime())) val = d.toISOString().slice(0, 10);
+function defaultCaptureWhen(now) {
+  const dft = new Date(now.getTime() + 60 * 60 * 1e3);
+  dft.setMinutes(Math.ceil(dft.getMinutes() / 15) * 15, 0, 0);
+  return dft;
+}
+var QUICK_PICK_DELTA_MS = {
+  "+15m": 15 * 60 * 1e3,
+  "+1h": 60 * 60 * 1e3,
+  "+3h": 3 * 60 * 60 * 1e3
+};
+function quickPickTime(kind, now) {
+  if (kind === "Tomorrow 9am") {
+    const d2 = new Date(now.getTime());
+    d2.setDate(d2.getDate() + 1);
+    d2.setHours(9, 0, 0, 0);
+    return d2;
+  }
+  const d = new Date(now.getTime() + QUICK_PICK_DELTA_MS[kind]);
+  d.setSeconds(0, 0);
+  return d;
+}
+var CadenceCaptureModal = class extends import_obsidian.Modal {
+  constructor(app, opts) {
+    super(app);
+    this.onSubmit = opts.onSubmit;
+    this.defaultText = opts.defaultText || "";
+    this.defaultWhen = opts.defaultWhen || null;
+    this.defaultRepeat = opts.defaultRepeat || "none";
+    this._submitted = false;
+  }
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.addClass("cad-capture-modal");
+    contentEl.createEl("h3", { text: "Quick capture" });
+    const textRow = contentEl.createDiv({ cls: "cad-form-row" });
+    textRow.createDiv({ cls: "cad-form-label", text: "WHAT" });
+    const textInput = textRow.createEl("input", { type: "text", cls: "cad-form-input" });
+    textInput.placeholder = "What needs doing?";
+    textInput.value = this.defaultText;
+    const schedToggleRow = contentEl.createDiv();
+    schedToggleRow.style.marginTop = "14px";
+    schedToggleRow.style.display = "flex";
+    schedToggleRow.style.alignItems = "center";
+    schedToggleRow.style.gap = "8px";
+    const schedCb = schedToggleRow.createEl("input", { type: "checkbox" });
+    const schedLbl = schedToggleRow.createEl("label", { text: "Remind me" });
+    schedLbl.style.fontSize = "13px";
+    schedLbl.style.cursor = "pointer";
+    schedLbl.addEventListener("click", () => {
+      schedCb.checked = !schedCb.checked;
+      schedCb.dispatchEvent(new Event("change"));
+    });
+    const schedFields = contentEl.createDiv({ cls: "cad-capture-sched" });
+    schedFields.style.display = "none";
+    schedFields.style.marginTop = "12px";
+    schedFields.style.gap = "12px";
+    schedFields.style.display = "none";
+    const dateRow = schedFields.createDiv({ cls: "cad-form-row" });
+    dateRow.createDiv({ cls: "cad-form-label", text: "WHEN" });
+    const dateInput = dateRow.createEl("input", { type: "datetime-local", cls: "cad-form-input" });
+    if (this.defaultWhen) {
+      const d = new Date(this.defaultWhen);
+      if (!isNaN(d.getTime())) dateInput.value = toLocalDatetimeValue(d);
+    } else {
+      dateInput.value = toLocalDatetimeValue(defaultCaptureWhen(/* @__PURE__ */ new Date()));
+    }
+    const quick = schedFields.createDiv();
+    quick.style.display = "flex";
+    quick.style.gap = "6px";
+    quick.style.marginTop = "8px";
+    quick.style.flexWrap = "wrap";
+    const pick = (kind) => {
+      dateInput.value = toLocalDatetimeValue(quickPickTime(kind, /* @__PURE__ */ new Date()));
+    };
+    const mkQ = (kind) => {
+      const b = quick.createEl("button", { cls: "cad-btn cad-btn-sm", text: kind });
+      b.type = "button";
+      return b;
+    };
+    for (const kind of ["+15m", "+1h", "+3h"]) mkQ(kind).addEventListener("click", () => pick(kind));
+    const tomorrow = mkQ("Tomorrow 9am");
+    tomorrow.addEventListener("click", () => {
+      dateInput.value = toLocalDatetimeValue(/* @__PURE__ */ new Date(NaN));
+    });
+    tomorrow.addEventListener("click", () => pick("Tomorrow 9am"));
+    const repeatRow = schedFields.createDiv({ cls: "cad-form-row" });
+    repeatRow.style.marginTop = "10px";
+    repeatRow.createDiv({ cls: "cad-form-label", text: "REPEAT" });
+    const repeatSelect = repeatRow.createEl("select", { cls: "cad-form-input" });
+    [["none", "No repeat"], ["daily", "Daily"], ["weekly", "Weekly"]].forEach(([v, l]) => {
+      const o = repeatSelect.createEl("option", { value: v, text: l });
+      if (v === this.defaultRepeat) o.selected = true;
+    });
+    schedCb.addEventListener("change", () => {
+      schedFields.style.display = schedCb.checked ? "block" : "none";
+    });
+    if (this.defaultWhen) {
+      schedCb.checked = true;
+      schedFields.style.display = "block";
+    }
+    const row = contentEl.createDiv();
+    row.style.display = "flex";
+    row.style.justifyContent = "flex-end";
+    row.style.gap = "8px";
+    row.style.marginTop = "18px";
+    const cancel = row.createEl("button", { cls: "cad-btn", text: "Cancel" });
+    cancel.type = "button";
+    cancel.addEventListener("click", () => this.close());
+    const ok = row.createEl("button", { cls: "cad-btn primary", text: "Capture" });
+    ok.type = "button";
+    const submit = () => {
+      const result = buildCaptureResult({
+        text: textInput.value,
+        scheduled: schedCb.checked,
+        datetimeValue: dateInput.value,
+        repeat: repeatSelect.value
+      });
+      if (!result) {
+        textInput.focus();
+        return;
       }
-    }
-    extras[key] = val;
-  });
-  return extras;
-}
+      this._submitted = true;
+      this.close();
+      this.onSubmit(result);
+    };
+    ok.addEventListener("click", submit);
+    textInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        submit();
+      }
+      if (e.key === "Escape") this.close();
+    });
+    setTimeout(() => textInput.focus(), 0);
+  }
+  onClose() {
+    if (!this._submitted && this.onSubmit) this.onSubmit(null);
+    this.contentEl.empty();
+  }
+};
+
+// src/modals/import-modal.ts
+var import_obsidian3 = require("obsidian");
+
+// src/constants/entities.ts
+var ENTITIES = {
+  contact: {
+    folder: "Cadence/Contacts",
+    label: "Contact",
+    plural: "Contacts",
+    fields: [
+      { key: "name", label: "Name", primary: true },
+      { key: "email", label: "Email", type: "email", isList: true },
+      { key: "phone", label: "Phone", isList: true },
+      { key: "company", label: "Company", isList: true },
+      { key: "role", label: "Role", isList: true },
+      { key: "lastContact", label: "Last contact", type: "date" },
+      { key: "tags", label: "Tags", type: "tags" }
+    ],
+    columns: ["name", "company", "email", "phone", "role", "lastContact"]
+  },
+  company: {
+    folder: "Cadence/Companies",
+    label: "Company",
+    plural: "Companies",
+    fields: [
+      { key: "name", label: "Name", primary: true },
+      { key: "domain", label: "Domain", isList: true },
+      { key: "industry", label: "Industry", isList: true },
+      { key: "size", label: "Size" },
+      { key: "owner", label: "Owner" },
+      { key: "tags", label: "Tags", type: "tags" }
+    ],
+    columns: ["name", "domain", "industry", "size", "owner"]
+  },
+  partner: {
+    folder: "Cadence/Partners",
+    label: "Partner",
+    plural: "Partners",
+    fields: [
+      { key: "name", label: "Name", primary: true },
+      { key: "tier", label: "Tier", type: "enum", options: ["Gold", "Silver", "Bronze", "Standard"] },
+      { key: "status", label: "Status", type: "enum", options: ["Active", "Onboarding", "Inactive", "Churned"] },
+      { key: "owner", label: "Owner" },
+      { key: "region", label: "Region" }
+    ],
+    columns: ["name", "tier", "status", "region", "owner"]
+  },
+  registration: {
+    folder: "Cadence/Registrations",
+    label: "Registration",
+    plural: "Registrations",
+    fields: [
+      { key: "title", label: "Title", primary: true },
+      { key: "partner", label: "Partner" },
+      { key: "status", label: "Status", type: "enum", options: ["Submitted", "Approved", "Rejected", "Expired"] },
+      { key: "value", label: "Value", type: "currency" },
+      { key: "submitted", label: "Submitted", type: "date" },
+      { key: "expires", label: "Expires", type: "date" }
+    ],
+    columns: ["title", "partner", "status", "value", "expires"]
+  },
+  commission: {
+    folder: "Cadence/Commissions",
+    label: "Commission",
+    plural: "Commissions",
+    fields: [
+      { key: "reference", label: "Ref", primary: true },
+      { key: "partner", label: "Partner" },
+      { key: "amount", label: "Amount", type: "currency" },
+      { key: "status", label: "Status", type: "enum", options: ["Pending", "Earned", "Paid", "Disputed"] },
+      { key: "period", label: "Period" },
+      { key: "paidOn", label: "Paid on", type: "date" }
+    ],
+    columns: ["reference", "partner", "amount", "status", "period", "paidOn"]
+  },
+  lead: {
+    folder: "Cadence/Leads",
+    label: "Lead",
+    plural: "Leads",
+    fields: [
+      { key: "name", label: "Name", primary: true },
+      { key: "company", label: "Company" },
+      { key: "source", label: "Source" },
+      { key: "status", label: "Status", type: "enum", options: ["New", "Contacted", "Qualified", "Disqualified", "Converted"] },
+      { key: "assigned", label: "Assigned" }
+    ],
+    columns: ["name", "company", "source", "status", "assigned"]
+  },
+  certification: {
+    folder: "Cadence/Certifications",
+    label: "Certification",
+    plural: "Certifications",
+    fields: [
+      { key: "name", label: "Name", primary: true },
+      { key: "partner", label: "Partner" },
+      { key: "level", label: "Level" },
+      { key: "issued", label: "Issued", type: "date" },
+      { key: "expires", label: "Expires", type: "date" }
+    ],
+    columns: ["name", "partner", "level", "issued", "expires"]
+  },
+  activity: {
+    folder: "Cadence/Activities",
+    label: "Activity",
+    plural: "Activities",
+    fields: [
+      { key: "subject", label: "Subject", primary: true },
+      { key: "type", label: "Type", type: "enum", options: ["Call", "Email", "Meeting", "Note", "Task"] },
+      { key: "when", label: "When", type: "date" },
+      { key: "with", label: "With" },
+      { key: "company", label: "Company" },
+      { key: "related", label: "Related" }
+    ],
+    columns: ["when", "type", "subject", "with", "company", "related"]
+  },
+  sequence: {
+    folder: "Cadence/Sequences",
+    label: "Sequence",
+    plural: "Sequences",
+    fields: [
+      { key: "name", label: "Name", primary: true },
+      { key: "audience", label: "Audience" },
+      { key: "steps", label: "Steps", type: "number" },
+      { key: "active", label: "Active", type: "number" },
+      { key: "status", label: "Status", type: "enum", options: ["Draft", "Active", "Paused", "Archived"] }
+    ],
+    columns: ["name", "audience", "steps", "active", "status"]
+  },
+  project: {
+    folder: "Cadence/Projects",
+    label: "Project",
+    plural: "Projects",
+    fields: [
+      { key: "name", label: "Name", primary: true },
+      { key: "status", label: "Status", type: "enum", options: ["active", "on_hold", "backlog", "done", "cancelled"] },
+      { key: "priority", label: "Priority", type: "enum", options: ["low", "medium", "high"] },
+      { key: "owner", label: "Owner" },
+      { key: "started", label: "Started", type: "date" },
+      { key: "due", label: "Due", type: "date" },
+      { key: "tags", label: "Tags", type: "tags" }
+    ],
+    columns: ["name", "status", "owner", "due"]
+  },
+  deal: {
+    folder: "Cadence/Pipeline",
+    label: "Deal",
+    plural: "Deals",
+    fields: [
+      { key: "title", label: "Title", primary: true },
+      { key: "stage", label: "Stage", type: "enum", options: ["Lead", "Qualified", "Proposal", "Negotiation", "Won", "Lost"] },
+      { key: "value", label: "Value", type: "currency" },
+      { key: "company", label: "Company" },
+      { key: "contact", label: "Contact" },
+      { key: "owner", label: "Owner" },
+      { key: "closeBy", label: "Close by", type: "date" }
+    ],
+    columns: ["title", "stage", "value", "company", "closeBy"]
+  }
+};
+var DEAL_STAGES = ["Lead", "Qualified", "Proposal", "Negotiation", "Won", "Lost"];
 
 // src/utils/csv.ts
 function parseCSV(text) {
@@ -221,6 +580,9 @@ function parseCSV(text) {
   }
   return rows.filter((r) => !(r.length === 1 && r[0] === ""));
 }
+
+// src/utils/entities.ts
+var import_obsidian2 = require("obsidian");
 
 // src/utils/parsing.ts
 function parseLinkValues(val) {
@@ -389,362 +751,6 @@ function replaceSection(content, heading, newBody) {
   const bodyLines = newBody.split("\n");
   return [...before, ...bodyLines, "", ...after].join("\n").replace(/\n{3,}/g, "\n\n");
 }
-
-// src/utils/reminders.ts
-function reminderId() {
-  return "rem_" + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
-}
-function nextRepeat(when, repeat) {
-  if (!when) return null;
-  const d = when instanceof Date ? when : new Date(when);
-  if (repeat === "daily") return new Date(d.getTime() + 864e5);
-  if (repeat === "weekly") return new Date(d.getTime() + 7 * 864e5);
-  return null;
-}
-function reminderBucket(when) {
-  if (!when) return "later";
-  const now = Date.now();
-  const w = new Date(when).getTime();
-  if (w <= now + 60 * 60 * 1e3) return "now";
-  const today = startOfDay(/* @__PURE__ */ new Date()).getTime();
-  const tomorrow = today + 864e5;
-  if (w < tomorrow) return "today";
-  const weekEnd = today + 7 * 864e5;
-  if (w < weekEnd) return "week";
-  return "later";
-}
-function findProjectTaskReminder(plugin, projectPath, taskText) {
-  if (!projectPath || !taskText) return null;
-  const all = plugin.settings.reminders || [];
-  return all.find((r) => !r.done && r.project === projectPath && r.text === taskText) || null;
-}
-function reminderTimeStr(when) {
-  if (!when) return "";
-  const d = new Date(when);
-  if (isNaN(d.getTime())) return "";
-  const today = startOfDay(/* @__PURE__ */ new Date()).getTime();
-  const dDay = startOfDay(d).getTime();
-  const time = d.toLocaleTimeString(void 0, { hour: "2-digit", minute: "2-digit" });
-  if (dDay === today) return time;
-  if (dDay === today + 864e5) return `Tomorrow ${time}`;
-  if (dDay - today < 7 * 864e5 && dDay > today) {
-    return d.toLocaleDateString(void 0, { weekday: "short" }) + " " + time;
-  }
-  return d.toLocaleDateString(void 0, { month: "short", day: "numeric" }) + " " + time;
-}
-
-// src/constants/entities.ts
-var ENTITIES = {
-  contact: {
-    folder: "Cadence/Contacts",
-    label: "Contact",
-    plural: "Contacts",
-    fields: [
-      { key: "name", label: "Name", primary: true },
-      { key: "email", label: "Email", type: "email", isList: true },
-      { key: "phone", label: "Phone", isList: true },
-      { key: "company", label: "Company", isList: true },
-      { key: "role", label: "Role", isList: true },
-      { key: "lastContact", label: "Last contact", type: "date" },
-      { key: "tags", label: "Tags", type: "tags" }
-    ],
-    columns: ["name", "company", "email", "phone", "role", "lastContact"]
-  },
-  company: {
-    folder: "Cadence/Companies",
-    label: "Company",
-    plural: "Companies",
-    fields: [
-      { key: "name", label: "Name", primary: true },
-      { key: "domain", label: "Domain", isList: true },
-      { key: "industry", label: "Industry", isList: true },
-      { key: "size", label: "Size" },
-      { key: "owner", label: "Owner" },
-      { key: "tags", label: "Tags", type: "tags" }
-    ],
-    columns: ["name", "domain", "industry", "size", "owner"]
-  },
-  partner: {
-    folder: "Cadence/Partners",
-    label: "Partner",
-    plural: "Partners",
-    fields: [
-      { key: "name", label: "Name", primary: true },
-      { key: "tier", label: "Tier", type: "enum", options: ["Gold", "Silver", "Bronze", "Standard"] },
-      { key: "status", label: "Status", type: "enum", options: ["Active", "Onboarding", "Inactive", "Churned"] },
-      { key: "owner", label: "Owner" },
-      { key: "region", label: "Region" }
-    ],
-    columns: ["name", "tier", "status", "region", "owner"]
-  },
-  registration: {
-    folder: "Cadence/Registrations",
-    label: "Registration",
-    plural: "Registrations",
-    fields: [
-      { key: "title", label: "Title", primary: true },
-      { key: "partner", label: "Partner" },
-      { key: "status", label: "Status", type: "enum", options: ["Submitted", "Approved", "Rejected", "Expired"] },
-      { key: "value", label: "Value", type: "currency" },
-      { key: "submitted", label: "Submitted", type: "date" },
-      { key: "expires", label: "Expires", type: "date" }
-    ],
-    columns: ["title", "partner", "status", "value", "expires"]
-  },
-  commission: {
-    folder: "Cadence/Commissions",
-    label: "Commission",
-    plural: "Commissions",
-    fields: [
-      { key: "reference", label: "Ref", primary: true },
-      { key: "partner", label: "Partner" },
-      { key: "amount", label: "Amount", type: "currency" },
-      { key: "status", label: "Status", type: "enum", options: ["Pending", "Earned", "Paid", "Disputed"] },
-      { key: "period", label: "Period" },
-      { key: "paidOn", label: "Paid on", type: "date" }
-    ],
-    columns: ["reference", "partner", "amount", "status", "period", "paidOn"]
-  },
-  lead: {
-    folder: "Cadence/Leads",
-    label: "Lead",
-    plural: "Leads",
-    fields: [
-      { key: "name", label: "Name", primary: true },
-      { key: "company", label: "Company" },
-      { key: "source", label: "Source" },
-      { key: "status", label: "Status", type: "enum", options: ["New", "Contacted", "Qualified", "Disqualified", "Converted"] },
-      { key: "assigned", label: "Assigned" }
-    ],
-    columns: ["name", "company", "source", "status", "assigned"]
-  },
-  certification: {
-    folder: "Cadence/Certifications",
-    label: "Certification",
-    plural: "Certifications",
-    fields: [
-      { key: "name", label: "Name", primary: true },
-      { key: "partner", label: "Partner" },
-      { key: "level", label: "Level" },
-      { key: "issued", label: "Issued", type: "date" },
-      { key: "expires", label: "Expires", type: "date" }
-    ],
-    columns: ["name", "partner", "level", "issued", "expires"]
-  },
-  activity: {
-    folder: "Cadence/Activities",
-    label: "Activity",
-    plural: "Activities",
-    fields: [
-      { key: "subject", label: "Subject", primary: true },
-      { key: "type", label: "Type", type: "enum", options: ["Call", "Email", "Meeting", "Note", "Task"] },
-      { key: "when", label: "When", type: "date" },
-      { key: "with", label: "With" },
-      { key: "company", label: "Company" },
-      { key: "related", label: "Related" }
-    ],
-    columns: ["when", "type", "subject", "with", "company", "related"]
-  },
-  sequence: {
-    folder: "Cadence/Sequences",
-    label: "Sequence",
-    plural: "Sequences",
-    fields: [
-      { key: "name", label: "Name", primary: true },
-      { key: "audience", label: "Audience" },
-      { key: "steps", label: "Steps", type: "number" },
-      { key: "active", label: "Active", type: "number" },
-      { key: "status", label: "Status", type: "enum", options: ["Draft", "Active", "Paused", "Archived"] }
-    ],
-    columns: ["name", "audience", "steps", "active", "status"]
-  },
-  project: {
-    folder: "Cadence/Projects",
-    label: "Project",
-    plural: "Projects",
-    fields: [
-      { key: "name", label: "Name", primary: true },
-      { key: "status", label: "Status", type: "enum", options: ["active", "on_hold", "backlog", "done", "cancelled"] },
-      { key: "priority", label: "Priority", type: "enum", options: ["low", "medium", "high"] },
-      { key: "owner", label: "Owner" },
-      { key: "started", label: "Started", type: "date" },
-      { key: "due", label: "Due", type: "date" },
-      { key: "tags", label: "Tags", type: "tags" }
-    ],
-    columns: ["name", "status", "owner", "due"]
-  },
-  deal: {
-    folder: "Cadence/Pipeline",
-    label: "Deal",
-    plural: "Deals",
-    fields: [
-      { key: "title", label: "Title", primary: true },
-      { key: "stage", label: "Stage", type: "enum", options: ["Lead", "Qualified", "Proposal", "Negotiation", "Won", "Lost"] },
-      { key: "value", label: "Value", type: "currency" },
-      { key: "company", label: "Company" },
-      { key: "contact", label: "Contact" },
-      { key: "owner", label: "Owner" },
-      { key: "closeBy", label: "Close by", type: "date" }
-    ],
-    columns: ["title", "stage", "value", "company", "closeBy"]
-  }
-};
-var DEAL_STAGES = ["Lead", "Qualified", "Proposal", "Negotiation", "Won", "Lost"];
-
-// src/constants/nav.ts
-var VIEW_TYPE_CADENCE_APP = "cadence-app";
-var NAV_GROUPS = [
-  {
-    id: "home_group",
-    label: "",
-    items: [
-      { id: "home", label: "Home", icon: "home", desc: "Command centre \u2014 today, projects, pipeline and upcoming, all on one screen." }
-    ]
-  },
-  {
-    id: "planner",
-    label: "Planner",
-    module: "planner",
-    items: [
-      { id: "planner.inbox", label: "Inbox", icon: "inbox", module: "planner", desc: "Universal capture + reminders. Anything you toss in here surfaces at the right time." },
-      { id: "planner.today", label: "Today", icon: "sun", module: "planner", desc: "Diary view of today's daily note." },
-      { id: "planner.calendar", label: "Calendar", icon: "calendar-days", module: "planner", desc: "Week view across daily notes." }
-    ]
-  },
-  {
-    id: "projects",
-    label: "Projects",
-    module: "projects",
-    items: [
-      { id: "projects.dashboard", label: "Dashboard", icon: "layout-grid", module: "projects", desc: "Projects Dashboard \u2014 high-level stats, status Kanban, priority Kanban, and customizable analytical widgets." },
-      { id: "projects.projects", label: "Projects", icon: "folder-kanban", module: "projects", desc: "Active projects with milestones, owners, statuses \u2014 kanban over project notes." }
-    ]
-  },
-  {
-    id: "crm",
-    label: "CRM",
-    module: "crm",
-    items: [
-      { id: "crm.dashboard", label: "Dashboard", icon: "layout-grid", module: "crm", desc: "Overview cards \u2014 today's tasks, deal momentum, recent contacts, week stats." },
-      { id: "crm.pipeline", label: "Pipeline", icon: "trending-up", module: "crm", desc: "Sales pipeline. Deals as markdown notes with stage, value and contact frontmatter." },
-      { id: "crm.contacts", label: "Contacts", icon: "users", module: "crm", desc: "People as markdown notes \u2014 name, email, company, last-talked-to cadence, tags." },
-      { id: "crm.companies", label: "Companies", icon: "building-2", module: "crm", desc: "Companies as markdown notes \u2014 domain, size, industry, related contacts and deals." },
-      { id: "crm.activities", label: "Activities", icon: "calendar", module: "crm", desc: "Cross-cutting activity timeline \u2014 calls, meetings, notes against any contact or deal." }
-    ]
-  },
-  {
-    id: "prm",
-    label: "PRM",
-    module: "prm",
-    items: [
-      { id: "prm.partners", label: "Partners", icon: "handshake", module: "prm", desc: "Partner organisations \u2014 relationship status, named contacts, joint pipeline." },
-      { id: "prm.registrations", label: "Registrations", icon: "clipboard-check", module: "prm", desc: "Deal registrations submitted by partners \u2014 status, expiry, attached deals." },
-      { id: "prm.commissions", label: "Commissions", icon: "wallet", module: "prm", desc: "Commission ledger across partners \u2014 earned, pending, paid, by quarter." },
-      { id: "prm.leads", label: "Leads", icon: "target", module: "prm", desc: "Lead distribution \u2014 round-robin/queue assignment to partners or reps." },
-      { id: "prm.certifications", label: "Certifications", icon: "award", module: "prm", desc: "Partner certifications \u2014 track expiries, renewals, training completion." },
-      { id: "prm.analytics", label: "Analytics", icon: "bar-chart-3", module: "prm", desc: "PRM analytics \u2014 partner-sourced revenue, top performers, lifecycle funnel." }
-    ]
-  },
-  {
-    id: "workflow",
-    label: "Workflow",
-    items: [
-      { id: "workflow.sequences", label: "Sequences", icon: "zap", desc: "Multi-step outreach sequences \u2014 templates, cadence steps, who's in which step." }
-    ]
-  },
-  {
-    id: "reports",
-    label: "Reports",
-    items: [
-      { id: "reports.pipeline", label: "Pipeline", icon: "trending-up", module: "crm", desc: "Pipeline coverage and weighted forecast \u2014 by stage, owner, source." },
-      { id: "reports.sales", label: "Sales", icon: "bar-chart-3", module: "crm", desc: "Closed won / lost trends \u2014 quota attainment, win rate, average cycle." },
-      { id: "reports.partners", label: "Partners", icon: "handshake", module: "prm", desc: "Partner contribution \u2014 sourced vs influenced revenue, top tiers." },
-      { id: "reports.activity", label: "Activity", icon: "pie-chart", module: "crm", desc: "Activity mix \u2014 calls, meetings, emails by rep and account." },
-      { id: "reports.productivity", label: "Productivity", icon: "sun", desc: "Personal productivity \u2014 completion rate, streaks, focus blocks, journal volume." },
-      { id: "reports.graph", label: "Graph View", icon: "network", desc: "Relationship graph showing connections between contacts, companies, partners, projects, deals, and activities." }
-    ]
-  },
-  {
-    id: "misc",
-    label: "",
-    items: [
-      { id: "team", label: "Team", icon: "user-cog", desc: "Team members, roles, seats \u2014 admin view of your Cadence workspace." },
-      { id: "templates", label: "Templates", icon: "file-text", desc: "Manage your entity templates." },
-      { id: "settings", label: "Settings", icon: "settings-2", desc: "Cadence app settings \u2014 folders, headings, week start, API connection." }
-    ]
-  }
-];
-var ALL_SURFACES = NAV_GROUPS.flatMap((g) => g.items);
-var SURFACE_BY_ID = Object.fromEntries(ALL_SURFACES.map((s) => [s.id, s]));
-var BUILT_SURFACES = /* @__PURE__ */ new Set([
-  "home",
-  "planner.inbox",
-  "planner.today",
-  "planner.calendar",
-  "projects.dashboard",
-  "projects.projects",
-  "crm.dashboard",
-  "crm.pipeline",
-  "crm.contacts",
-  "crm.companies",
-  "crm.activities",
-  "prm.partners",
-  "prm.registrations",
-  "prm.commissions",
-  "prm.leads",
-  "prm.certifications",
-  "prm.analytics",
-  "workflow.sequences",
-  "reports.pipeline",
-  "reports.sales",
-  "reports.partners",
-  "reports.activity",
-  "reports.graph",
-  "reports.productivity",
-  "team",
-  "templates",
-  "settings"
-]);
-
-// src/utils/daily-notes.ts
-var import_obsidian = require("obsidian");
-async function ensureDailyNote(app, settings, date = /* @__PURE__ */ new Date()) {
-  const path = dailyNotePath(settings, date);
-  let file = app.vault.getAbstractFileByPath(path);
-  if (file) return file;
-  const folder = (settings.dailyNoteFolder || "").replace(/\/$/, "");
-  if (folder && !app.vault.getAbstractFileByPath(folder)) {
-    try {
-      await app.vault.createFolder(folder);
-    } catch (_) {
-    }
-  }
-  let template = "";
-  const dailyTemplatePath = "Cadence/Templates/daily.md";
-  const dailyTemplateFile = app.vault.getAbstractFileByPath(dailyTemplatePath);
-  if (dailyTemplateFile && dailyTemplateFile instanceof import_obsidian.TFile) {
-    const rawTemplate = await app.vault.read(dailyTemplateFile);
-    const now = /* @__PURE__ */ new Date();
-    const timeStr = now.toLocaleTimeString(void 0, { hour: "2-digit", minute: "2-digit" });
-    template = rawTemplate.replace(/\{\{name\}\}/gi, ymd(date)).replace(/\{\{title\}\}/gi, ymd(date)).replace(/\{\{date\}\}/gi, ymd(date)).replace(/\{\{time\}\}/gi, timeStr);
-  } else {
-    template = [
-      `# ${ymd(date)}`,
-      "",
-      settings.tasksHeading,
-      "- [ ] ",
-      "",
-      settings.journalHeading,
-      "",
-      ""
-    ].join("\n");
-  }
-  file = await app.vault.create(path, template);
-  return file;
-}
-
-// src/utils/entities.ts
-var import_obsidian2 = require("obsidian");
 
 // src/utils/vault.ts
 async function ensureFolderSync(app, path) {
@@ -1123,6 +1129,885 @@ function projectNameFromPath(app, path) {
   return fmName || file.basename;
 }
 
+// src/modals/csv-import-mapping.ts
+function autoDetectCsvMapping(def, headers) {
+  const mapping = {};
+  if (!def || !headers.length) return mapping;
+  const norm = (s) => String(s).toLowerCase().replace(/[^a-z0-9]/g, "");
+  const keyByNorm = {};
+  def.fields.forEach((f) => {
+    keyByNorm[norm(f.key)] = f.key;
+    keyByNorm[norm(f.label)] = f.key;
+  });
+  const synonyms = {
+    "fullname": "name",
+    "displayname": "name",
+    "contact": "name",
+    "companyname": "company",
+    "organisation": "company",
+    "organization": "company",
+    "phone": "name",
+    // not great — leave unmapped
+    "mail": "email",
+    "emailaddress": "email",
+    "amount": "value",
+    "price": "value",
+    "mrr": "value",
+    "arr": "value",
+    "closedate": "closeBy",
+    "expectedclose": "closeBy",
+    "lastcontacted": "lastContact",
+    "lastcontact": "lastContact"
+  };
+  headers.forEach((h) => {
+    const n = norm(h);
+    if (!n) {
+      mapping[h] = null;
+      return;
+    }
+    if (keyByNorm[n]) {
+      mapping[h] = keyByNorm[n];
+      return;
+    }
+    if (synonyms[n] && def.fields.some((f) => f.key === synonyms[n])) {
+      mapping[h] = synonyms[n];
+      return;
+    }
+    const fuzzy = def.fields.find((f) => n.includes(norm(f.key)) || norm(f.key).includes(n));
+    mapping[h] = fuzzy ? fuzzy.key : null;
+  });
+  return mapping;
+}
+function csvRowExtras(def, mapping, headers, row, primaryKey) {
+  const extras = {};
+  Object.entries(mapping).forEach(([header, key]) => {
+    if (!key || key === primaryKey) return;
+    const idx = headers.indexOf(header);
+    let val = String(row[idx] || "").trim();
+    if (!val) return;
+    const fdef = def.fields.find((f) => f.key === key);
+    if (fdef) {
+      if (fdef.type === "number" || fdef.type === "currency") {
+        const cleaned = val.replace(/[^\d.\-]/g, "");
+        const n = Number(cleaned);
+        if (isNaN(n)) return;
+        val = n;
+      } else if (fdef.type === "tags") {
+        val = val.split(/[,;]/).map((s) => s.trim()).filter(Boolean);
+        if (!val.length) return;
+      } else if (fdef.type === "date") {
+        const d = new Date(val);
+        if (!isNaN(d.getTime())) val = d.toISOString().slice(0, 10);
+      }
+    }
+    extras[key] = val;
+  });
+  return extras;
+}
+
+// src/modals/import-modal.ts
+function csvColumnSamples(rows, index) {
+  return rows.slice(0, 2).map((r) => String(r[index] || "").trim()).filter(Boolean);
+}
+function csvImportSummary(def, mapping, rowCount) {
+  const primaryMapped = Object.values(mapping).includes(def.fields[0].key);
+  if (!primaryMapped) {
+    return { ready: false, text: `No CSV column maps to "${def.fields[0].label}" \u2014 required to name the file. Pick a column above.` };
+  }
+  const mappedCount = Object.values(mapping).filter(Boolean).length;
+  return {
+    ready: true,
+    text: `Will create ${rowCount} ${rowCount === 1 ? def.label.toLowerCase() : def.plural.toLowerCase()} in ${def.folder}/  \xB7  ${mappedCount} column${mappedCount === 1 ? "" : "s"} mapped`
+  };
+}
+function filterCsvFiles(files, query) {
+  return files.filter((f) => f.path.toLowerCase().includes(query.toLowerCase()));
+}
+var CsvFileSuggestModal = class extends import_obsidian3.SuggestModal {
+  constructor(app, files, onPick) {
+    super(app);
+    this.files = files;
+    this.onPick = onPick;
+    this.setPlaceholder("Search .csv files\u2026");
+  }
+  getSuggestions(q) {
+    return filterCsvFiles(this.files, q);
+  }
+  renderSuggestion(file, el) {
+    el.setText(file.path);
+  }
+  onChooseSuggestion(file) {
+    this.onPick(file);
+  }
+};
+var CadenceImportModal = class extends import_obsidian3.Modal {
+  constructor(app, opts) {
+    super(app);
+    this.entityKey = opts && opts.entityKey || "contact";
+    this.onSubmit = opts && opts.onSubmit || (() => {
+    });
+    this.csvText = "";
+    this.headers = [];
+    this.rows = [];
+    this.mapping = {};
+  }
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.addClass("cad-import-modal");
+    contentEl.createEl("h3", { cls: "cad-create-title", text: "Import from CSV" });
+    const entityRow = contentEl.createDiv({ cls: "cad-create-row" });
+    entityRow.createDiv({ cls: "cad-create-label", text: "IMPORT AS" });
+    const entitySelect = entityRow.createEl("select", { cls: "cad-create-input" });
+    Object.entries(ENTITIES).forEach(([key, def]) => {
+      const o = entitySelect.createEl("option", { value: key, text: def.plural });
+      if (key === this.entityKey) o.selected = true;
+    });
+    entitySelect.addEventListener("change", () => {
+      this.entityKey = entitySelect.value;
+      this._autoDetectMapping();
+      this._renderPreview();
+    });
+    const csvRow = contentEl.createDiv({ cls: "cad-create-row" });
+    csvRow.style.alignItems = "flex-start";
+    csvRow.createDiv({ cls: "cad-create-label", text: "CSV DATA" });
+    const csvWrap = csvRow.createDiv();
+    csvWrap.style.display = "flex";
+    csvWrap.style.flexDirection = "column";
+    csvWrap.style.gap = "8px";
+    const tabs = csvWrap.createDiv();
+    tabs.style.display = "flex";
+    tabs.style.gap = "6px";
+    const pasteBtn = tabs.createEl("button", { cls: "cad-btn cad-btn-sm", text: "Paste" });
+    pasteBtn.type = "button";
+    const fileBtn = tabs.createEl("button", { cls: "cad-btn cad-btn-sm", text: "Pick .csv from vault" });
+    fileBtn.type = "button";
+    const ta = csvWrap.createEl("textarea", { cls: "cad-create-input" });
+    ta.rows = 8;
+    ta.placeholder = "Paste CSV here, including a header row\u2026";
+    ta.style.fontFamily = "var(--font-monospace-theme, var(--font-monospace))";
+    ta.style.fontSize = "12px";
+    ta.style.resize = "vertical";
+    ta.addEventListener("input", () => {
+      this.csvText = ta.value;
+      this._parse();
+      this._renderPreview();
+    });
+    pasteBtn.addEventListener("click", () => ta.focus());
+    fileBtn.addEventListener("click", async () => {
+      const csvFiles = this.app.vault.getFiles().filter((f) => f.path.toLowerCase().endsWith(".csv"));
+      if (!csvFiles.length) {
+        new import_obsidian3.Notice("No .csv files found in vault. Drop one in the vault first.");
+        return;
+      }
+      const picker = new CsvFileSuggestModal(this.app, csvFiles, async (file) => {
+        try {
+          const text = await this.app.vault.read(file);
+          ta.value = text;
+          this.csvText = text;
+          this._parse();
+          this._renderPreview();
+        } catch (e) {
+          new import_obsidian3.Notice(`Failed to read ${file.path}: ${e.message}`);
+        }
+      });
+      picker.open();
+    });
+    this.previewEl = contentEl.createDiv({ cls: "cad-import-preview" });
+    this._renderPreview();
+    const actions = contentEl.createDiv({ cls: "cad-create-actions" });
+    const cancel = actions.createEl("button", { cls: "cad-btn", text: "Cancel" });
+    cancel.type = "button";
+    cancel.addEventListener("click", () => this.close());
+    this.importBtn = actions.createEl("button", { cls: "cad-btn primary", text: "Import" });
+    this.importBtn.type = "button";
+    this.importBtn.disabled = true;
+    this.importBtn.addEventListener("click", () => this._submitImport());
+  }
+  _parse() {
+    if (!this.csvText.trim()) {
+      this.headers = [];
+      this.rows = [];
+      return;
+    }
+    const all = parseCSV(this.csvText);
+    if (!all.length) {
+      this.headers = [];
+      this.rows = [];
+      return;
+    }
+    this.headers = all[0].map((h) => String(h).trim());
+    this.rows = all.slice(1);
+    this._autoDetectMapping();
+  }
+  _autoDetectMapping() {
+    this.mapping = autoDetectCsvMapping(ENTITIES[this.entityKey], this.headers);
+  }
+  _renderPreview() {
+    this.previewEl.empty();
+    if (!this.headers.length) {
+      this.previewEl.createDiv({ cls: "cad-empty", text: "Paste or pick a CSV to preview\u2026" });
+      if (this.importBtn) this.importBtn.disabled = true;
+      return;
+    }
+    const def = ENTITIES[this.entityKey];
+    const head = this.previewEl.createDiv({ cls: "cad-create-label" });
+    head.style.marginTop = "14px";
+    head.setText("COLUMN MAPPING");
+    const tableWrap = this.previewEl.createDiv({ cls: "cad-import-table-wrap" });
+    const table = tableWrap.createEl("table", { cls: "cad-import-table" });
+    const thr = table.createEl("thead").createEl("tr");
+    thr.createEl("th", { text: "CSV column" });
+    thr.createEl("th", { text: "Maps to" });
+    thr.createEl("th", { text: "Sample" });
+    const tbody = table.createEl("tbody");
+    this.headers.forEach((h, i) => {
+      const tr = tbody.createEl("tr");
+      tr.createEl("td", { text: h });
+      const mc = tr.createEl("td");
+      const sel = mc.createEl("select", { cls: "cad-create-input cad-import-select" });
+      sel.createEl("option", { value: "", text: "\u2014 skip \u2014" });
+      def.fields.forEach((f) => {
+        const o = sel.createEl("option", { value: f.key, text: f.label });
+        if (this.mapping[h] === f.key) o.selected = true;
+      });
+      sel.addEventListener("change", () => {
+        this.mapping[h] = sel.value || null;
+        this._renderPreview();
+      });
+      const sample = tr.createEl("td");
+      const samples = csvColumnSamples(this.rows, i);
+      sample.setText(samples.join(" \xB7 ").slice(0, 60));
+      sample.title = samples.join("\n");
+    });
+    const summary = this.previewEl.createDiv({ cls: "cad-import-summary" });
+    const { ready, text } = csvImportSummary(def, this.mapping, this.rows.length);
+    if (!ready) summary.addClass("cad-import-summary-warn");
+    summary.setText(text);
+    if (this.importBtn) this.importBtn.disabled = !ready;
+  }
+  async _submitImport() {
+    const def = ENTITIES[this.entityKey];
+    const primaryKey = def.fields[0].key;
+    const primaryHeader = Object.entries(this.mapping).find(([_, v]) => v === primaryKey);
+    if (!primaryHeader) return;
+    const primaryColIdx = this.headers.indexOf(primaryHeader[0]);
+    this.importBtn.disabled = true;
+    this.importBtn.setText("Importing\u2026");
+    const start = Date.now();
+    let created = 0;
+    let failed = 0;
+    for (const row of this.rows) {
+      const primaryValue = String(row[primaryColIdx] || "").trim();
+      if (!primaryValue) {
+        failed++;
+        continue;
+      }
+      try {
+        const file = await createEntity(this.app, this.entityKey, primaryValue);
+        const extras = csvRowExtras(def, this.mapping, this.headers, row, primaryKey);
+        if (Object.keys(extras).length) {
+          await this.app.fileManager.processFrontMatter(file, (fm) => {
+            Object.entries(extras).forEach(([k, v]) => {
+              if (v == null || v === "") return;
+              if (Array.isArray(v) && v.length === 0) return;
+              fm[k] = v;
+            });
+          });
+        }
+        created++;
+      } catch (e) {
+        failed++;
+      }
+    }
+    const elapsed = ((Date.now() - start) / 1e3).toFixed(1);
+    new import_obsidian3.Notice(`Imported ${created} ${def.plural.toLowerCase()} in ${elapsed}s${failed ? ` \xB7 ${failed} skipped` : ""}`, 5e3);
+    this.close();
+    this.onSubmit({ created, failed, entityKey: this.entityKey });
+  }
+  onClose() {
+    this.contentEl.empty();
+  }
+};
+
+// src/plugin/contact-project-sync.ts
+var import_obsidian4 = require("obsidian");
+function extractEntitiesFromValue(value) {
+  if (value == null) return [];
+  const results = [];
+  const processStr = (str) => {
+    str = String(str).trim();
+    if (!str) return;
+    if (str.includes("[[")) {
+      const regex = /\[\[(.*?)\]\]/g;
+      let match;
+      while ((match = regex.exec(str)) !== null) {
+        let target = match[1].trim();
+        if (target.includes("|")) {
+          target = target.split("|")[0].trim();
+        }
+        if (target) results.push(target);
+      }
+    } else if (str.includes(",")) {
+      str.split(",").forEach((s) => {
+        const item = s.trim();
+        if (item) results.push(item);
+      });
+    } else {
+      results.push(str);
+    }
+  };
+  if (Array.isArray(value)) {
+    value.forEach((val) => processStr(val));
+  } else {
+    processStr(value);
+  }
+  return results;
+}
+function isContactField(key, entityKey, entities) {
+  if (["owner", "contact", "contacts", "with", "assigned"].includes(key.toLowerCase())) return true;
+  if (entityKey && entities[entityKey]) {
+    const fdef = entities[entityKey].fields.find((field) => field.key === key);
+    if (fdef) {
+      const sug = fdef.suggestionSource || getFieldSuggestionSource(fdef);
+      if (sug === "contact" || sug === "folder:Cadence/Contacts") return true;
+    }
+  }
+  return false;
+}
+function isProjectField(key, entityKey, entities) {
+  if (["project", "projects", "related"].includes(key.toLowerCase())) return true;
+  if (entityKey && entities[entityKey]) {
+    const fdef = entities[entityKey].fields.find((field) => field.key === key);
+    if (fdef) {
+      const sug = fdef.suggestionSource || getFieldSuggestionSource(fdef);
+      if (sug === "project" || sug === "folder:Cadence/Projects") return true;
+    }
+  }
+  return false;
+}
+function noteLinks(note, contactNames, projectNames, entities) {
+  const foundContacts = /* @__PURE__ */ new Set();
+  const foundProjects = /* @__PURE__ */ new Set();
+  if (note.entityKey === "contact") {
+    foundContacts.add(note.basename.toLowerCase());
+  } else if (note.entityKey === "project") {
+    foundProjects.add(note.basename.toLowerCase());
+  }
+  for (const [key, val] of Object.entries(note.frontmatter)) {
+    if (key === "type") continue;
+    const extracted = extractEntitiesFromValue(val);
+    for (const name of extracted) {
+      if (!name) continue;
+      const nameLower = name.toLowerCase();
+      if (isContactField(key, note.entityKey, entities) || contactNames.has(nameLower)) {
+        foundContacts.add(nameLower);
+      }
+      if (isProjectField(key, note.entityKey, entities) || projectNames.has(nameLower)) {
+        foundProjects.add(nameLower);
+      }
+    }
+  }
+  return { contacts: foundContacts, projects: foundProjects };
+}
+function collectValidLinks(notes, contactNames, projectNames, entities) {
+  const validLinks = /* @__PURE__ */ new Set();
+  for (const note of notes) {
+    if (note.entityKey === "contact") continue;
+    const { contacts, projects } = noteLinks(note, contactNames, projectNames, entities);
+    if (contacts.size > 0 && projects.size > 0) {
+      for (const c of contacts) {
+        for (const p of projects) {
+          validLinks.add(`${c}|${p}`);
+        }
+      }
+    }
+  }
+  return validLinks;
+}
+function autoCreateName(nameLower, basenames) {
+  return basenames.find((b) => b.toLowerCase() === nameLower) || nameLower.charAt(0).toUpperCase() + nameLower.slice(1);
+}
+function projectLinkValue(names) {
+  if (names.length === 0) return null;
+  if (names.length === 1) return `[[${names[0]}]]`;
+  return names.map((p) => `[[${p}]]`);
+}
+function writeProjectLinks(fm, names) {
+  const value = projectLinkValue(names);
+  if (value === null) {
+    delete fm.project;
+  } else {
+    fm.project = value;
+  }
+}
+function addProjectLink(current, projectName) {
+  if (current.some((p) => p.toLowerCase() === projectName.toLowerCase())) return current;
+  return [...current, projectName];
+}
+function removeProjectLink(current, projectName) {
+  return current.filter((p) => p.toLowerCase() !== projectName.toLowerCase());
+}
+function contactProjectsPlan(existing, target) {
+  const existingLower = existing.map((p) => p.toLowerCase());
+  const targetLower = target.map((p) => p.toLowerCase());
+  const needsUpdate = existingLower.some((p) => !targetLower.includes(p)) || targetLower.some((p) => !existingLower.includes(p));
+  if (!needsUpdate) return null;
+  return {
+    names: target,
+    added: target.filter((p) => !existing.some((ep) => ep.toLowerCase() === p.toLowerCase())),
+    removed: existing.filter((ep) => !target.some((p) => p.toLowerCase() === ep.toLowerCase()))
+  };
+}
+async function syncContactProjectRelationships(plugin, changedFile) {
+  if (plugin._syncInProgress) return;
+  if (!changedFile || !changedFile.path.toLowerCase().endsWith(".md")) return;
+  if (!plugin.app.vault.getAbstractFileByPath(changedFile.path)) return;
+  try {
+    plugin._syncInProgress = true;
+    const contactFiles = listEntityFiles(plugin.app, "contact");
+    const projectFiles = listEntityFiles(plugin.app, "project");
+    const contactMap = /* @__PURE__ */ new Map();
+    for (const f of contactFiles) {
+      contactMap.set(f.basename.toLowerCase(), f);
+    }
+    const projectMap = /* @__PURE__ */ new Map();
+    for (const f of projectFiles) {
+      projectMap.set(f.basename.toLowerCase(), f);
+    }
+    const frontmatterOf = (f) => (plugin.app.metadataCache.getFileCache(f) || {}).frontmatter || {};
+    const autoCreate = async (entityKey, nameLower, allFiles, map) => {
+      try {
+        const originalName = autoCreateName(nameLower, allFiles.map((f) => f.basename));
+        const file = await createEntity(plugin.app, entityKey, originalName);
+        map.set(nameLower, file);
+        new import_obsidian4.Notice(`Fiche ${entityKey === "contact" ? "contact" : "projet"} cr\xE9\xE9e automatiquement pour "${originalName}".`);
+      } catch (e) {
+        console.error(`Cadence: Failed to auto-create ${entityKey} ${nameLower}`, e);
+      }
+    };
+    const changedEntityKey = entityKeyFromFile(plugin.app, changedFile);
+    if (changedEntityKey === "contact") {
+      const currentProjectsOfContact = new Set(
+        extractEntitiesFromValue(frontmatterOf(changedFile).project).map((p) => p.toLowerCase())
+      );
+      for (const p of currentProjectsOfContact) {
+        if (!projectMap.has(p)) {
+          await autoCreate("project", p, plugin.app.vault.getMarkdownFiles(), projectMap);
+        }
+      }
+    } else if (changedEntityKey === "project") {
+      const projectLower = changedFile.basename.toLowerCase();
+      const projectFm = frontmatterOf(changedFile);
+      const projectContacts = [];
+      for (const [key, val] of Object.entries(projectFm)) {
+        if (key === "type") continue;
+        if (isContactField(key, "project", ENTITIES)) {
+          projectContacts.push(...extractEntitiesFromValue(val));
+        }
+      }
+      const currentContactsOfProject = new Set(projectContacts.map((c) => c.toLowerCase()));
+      for (const c of currentContactsOfProject) {
+        if (!contactMap.has(c)) {
+          await autoCreate("contact", c, plugin.app.vault.getMarkdownFiles(), contactMap);
+        }
+      }
+      for (const [contactLower, contactFile] of contactMap.entries()) {
+        const contactProjects = extractEntitiesFromValue(frontmatterOf(contactFile).project);
+        const listsProject = contactProjects.some((p) => p.toLowerCase() === projectLower);
+        const projectListsContact = currentContactsOfProject.has(contactLower);
+        if (projectListsContact && !listsProject) {
+          await plugin.app.fileManager.processFrontMatter(contactFile, (cfm) => {
+            const currentProjects = extractEntitiesFromValue(cfm.project);
+            if (!currentProjects.some((p) => p.toLowerCase() === projectLower)) {
+              writeProjectLinks(cfm, addProjectLink(currentProjects, changedFile.basename));
+            }
+          });
+          new import_obsidian4.Notice(`Lien automatique : Projet "${changedFile.basename}" associ\xE9 au contact "${contactFile.basename}".`);
+        } else if (!projectListsContact && listsProject) {
+          let hasOtherSource = false;
+          const allFiles = plugin.app.vault.getMarkdownFiles();
+          for (const f of allFiles) {
+            if (f.path === changedFile.path || f.path === contactFile.path) continue;
+            const cache = plugin.app.metadataCache.getFileCache(f);
+            if (!cache || !cache.frontmatter) continue;
+            const note = { entityKey: entityKeyFromFile(plugin.app, f), basename: f.basename, frontmatter: cache.frontmatter };
+            const { contacts, projects } = noteLinks(note, contactMap, projectMap, ENTITIES);
+            if (contacts.has(contactLower) && projects.has(projectLower)) {
+              hasOtherSource = true;
+              break;
+            }
+          }
+          if (!hasOtherSource) {
+            await plugin.app.fileManager.processFrontMatter(contactFile, (cfm) => {
+              writeProjectLinks(cfm, removeProjectLink(extractEntitiesFromValue(cfm.project), projectLower));
+            });
+            new import_obsidian4.Notice(`Lien automatique : Projet "${changedFile.basename}" dissoci\xE9 du contact "${contactFile.basename}".`);
+          }
+        }
+      }
+    } else {
+      const allFiles = plugin.app.vault.getMarkdownFiles();
+      const notes = [];
+      for (const f of allFiles) {
+        const entityKey = entityKeyFromFile(plugin.app, f);
+        if (entityKey === "contact") continue;
+        const cache = plugin.app.metadataCache.getFileCache(f);
+        if (!cache || !cache.frontmatter) continue;
+        notes.push({ entityKey, basename: f.basename, frontmatter: cache.frontmatter });
+      }
+      const validLinks = collectValidLinks(notes, contactMap, projectMap, ENTITIES);
+      for (const link of validLinks) {
+        const [c, p] = link.split("|");
+        if (!contactMap.get(c)) await autoCreate("contact", c, allFiles, contactMap);
+        if (!projectMap.get(p)) await autoCreate("project", p, allFiles, projectMap);
+      }
+      for (const [contactLower, contactFile] of contactMap.entries()) {
+        const existingProjects = extractEntitiesFromValue(frontmatterOf(contactFile).project);
+        const projectNamesToLink = /* @__PURE__ */ new Set();
+        for (const link of validLinks) {
+          const [c, p] = link.split("|");
+          if (c === contactLower) {
+            const pFile = projectMap.get(p);
+            if (pFile) {
+              projectNamesToLink.add(pFile.basename);
+            }
+          }
+        }
+        const plan = contactProjectsPlan(existingProjects, Array.from(projectNamesToLink));
+        if (plan) {
+          await plugin.app.fileManager.processFrontMatter(contactFile, (cfm) => {
+            writeProjectLinks(cfm, plan.names);
+          });
+          if (plan.added.length > 0) {
+            new import_obsidian4.Notice(`Lien automatique : Projet "${plan.added.join(", ")}" associ\xE9 \xE0 "${contactFile.basename}".`);
+          }
+          if (plan.removed.length > 0) {
+            new import_obsidian4.Notice(`Lien automatique : Projet "${plan.removed.join(", ")}" dissoci\xE9 de "${contactFile.basename}".`);
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.error("Cadence: Error in syncContactProjectRelationships", e);
+  } finally {
+    plugin._syncInProgress = false;
+  }
+}
+async function handleProjectDeletion(plugin, file) {
+  if (plugin._syncInProgress) return;
+  if (!file || !file.path || !file.path.toLowerCase().endsWith(".md")) return;
+  const projectFolder = ENTITIES.project ? ENTITIES.project.folder : "Cadence/Projects";
+  if (!file.path.startsWith(projectFolder + "/")) return;
+  const projectName = file.basename;
+  if (!projectName) return;
+  try {
+    plugin._syncInProgress = true;
+    const contactFiles = listEntityFiles(plugin.app, "contact");
+    for (const contactFile of contactFiles) {
+      const contactCache = plugin.app.metadataCache.getFileCache(contactFile) || {};
+      const contactFm = contactCache.frontmatter || {};
+      const existingProjectsVal = contactFm.project;
+      if (!existingProjectsVal) continue;
+      const existingProjectNames = extractEntitiesFromValue(existingProjectsVal);
+      const hasProject = existingProjectNames.some((p) => p.toLowerCase() === projectName.toLowerCase());
+      if (hasProject) {
+        const remainingProjects = removeProjectLink(existingProjectNames, projectName);
+        await plugin.app.fileManager.processFrontMatter(contactFile, (cfm) => {
+          writeProjectLinks(cfm, remainingProjects);
+        });
+        new import_obsidian4.Notice(`Lien automatique : Projet "${projectName}" supprim\xE9 du contact "${contactFile.basename}".`);
+      }
+    }
+  } catch (e) {
+    console.error("Cadence: Error in handleProjectDeletion", e);
+  } finally {
+    plugin._syncInProgress = false;
+  }
+}
+
+// src/plugin/reminders-engine.ts
+var import_obsidian5 = require("obsidian");
+
+// src/utils/reminders.ts
+function reminderId() {
+  return "rem_" + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+}
+function nextRepeat(when, repeat) {
+  if (!when) return null;
+  const d = when instanceof Date ? when : new Date(when);
+  if (repeat === "daily") return new Date(d.getTime() + 864e5);
+  if (repeat === "weekly") return new Date(d.getTime() + 7 * 864e5);
+  return null;
+}
+function reminderBucket(when) {
+  if (!when) return "later";
+  const now = Date.now();
+  const w = new Date(when).getTime();
+  if (w <= now + 60 * 60 * 1e3) return "now";
+  const today = startOfDay(/* @__PURE__ */ new Date()).getTime();
+  const tomorrow = today + 864e5;
+  if (w < tomorrow) return "today";
+  const weekEnd = today + 7 * 864e5;
+  if (w < weekEnd) return "week";
+  return "later";
+}
+function findProjectTaskReminder(plugin, projectPath, taskText) {
+  if (!projectPath || !taskText) return null;
+  const all = plugin.settings.reminders || [];
+  return all.find((r) => !r.done && r.project === projectPath && r.text === taskText) || null;
+}
+function reminderTimeStr(when) {
+  if (!when) return "";
+  const d = new Date(when);
+  if (isNaN(d.getTime())) return "";
+  const today = startOfDay(/* @__PURE__ */ new Date()).getTime();
+  const dDay = startOfDay(d).getTime();
+  const time = d.toLocaleTimeString(void 0, { hour: "2-digit", minute: "2-digit" });
+  if (dDay === today) return time;
+  if (dDay === today + 864e5) return `Tomorrow ${time}`;
+  if (dDay - today < 7 * 864e5 && dDay > today) {
+    return d.toLocaleDateString(void 0, { weekday: "short" }) + " " + time;
+  }
+  return d.toLocaleDateString(void 0, { month: "short", day: "numeric" }) + " " + time;
+}
+
+// src/plugin/reminders-engine.ts
+function newReminder(partial, now) {
+  return {
+    id: reminderId(),
+    text: partial.text,
+    when: partial.when || null,
+    repeat: partial.repeat || "none",
+    notes: partial.notes || "",
+    project: partial.project || null,
+    // file path of linked project, if any
+    notified: false,
+    done: false,
+    createdAt: now.toISOString()
+  };
+}
+function isDue(r, now) {
+  if (r.done || r.notified) return false;
+  if (!r.when) return false;
+  const w = new Date(r.when).getTime();
+  return !(isNaN(w) || w > now);
+}
+function dueReminders(reminders, now) {
+  return reminders.filter((r) => isDue(r, now));
+}
+function advanceReminder(r, now) {
+  const next = nextRepeat(new Date(r.when), r.repeat);
+  if (!next) return null;
+  return {
+    id: reminderId(),
+    text: r.text,
+    when: next.toISOString(),
+    repeat: r.repeat,
+    notified: false,
+    done: false,
+    createdAt: now.toISOString()
+  };
+}
+function snoozePatch(ms, now) {
+  const target = new Date(now + ms);
+  return {
+    when: target.toISOString(),
+    notified: false
+  };
+}
+var COMPLETE_PATCH = { done: true, notified: true };
+async function addReminder(plugin, partial) {
+  const r = newReminder(partial, /* @__PURE__ */ new Date());
+  if (!Array.isArray(plugin.settings.reminders)) plugin.settings.reminders = [];
+  plugin.settings.reminders.push(r);
+  await plugin.saveSettings();
+  plugin.refreshOpenViews();
+  return r;
+}
+async function updateReminder(plugin, id, patch) {
+  const i = (plugin.settings.reminders || []).findIndex((r) => r.id === id);
+  if (i < 0) return null;
+  plugin.settings.reminders[i] = Object.assign({}, plugin.settings.reminders[i], patch);
+  await plugin.saveSettings();
+  plugin.refreshOpenViews();
+  return plugin.settings.reminders[i];
+}
+async function deleteReminder(plugin, id) {
+  plugin.settings.reminders = (plugin.settings.reminders || []).filter((r) => r.id !== id);
+  await plugin.saveSettings();
+  plugin.refreshOpenViews();
+}
+async function snoozeReminder(plugin, id, ms) {
+  return plugin.updateReminder(id, snoozePatch(ms, Date.now()));
+}
+async function completeReminder(plugin, id) {
+  return plugin.updateReminder(id, { ...COMPLETE_PATCH });
+}
+function tickReminders(plugin) {
+  if (!Array.isArray(plugin.settings.reminders)) return;
+  const due = dueReminders(plugin.settings.reminders, Date.now());
+  const additions = [];
+  for (const r of due) {
+    plugin._fireReminder(r);
+    r.notified = true;
+    const next = advanceReminder(r, /* @__PURE__ */ new Date());
+    if (next) additions.push(next);
+  }
+  if (additions.length) plugin.settings.reminders.push(...additions);
+  if (due.length) {
+    plugin.saveSettings().then(() => plugin.refreshOpenViews());
+  }
+}
+function fireReminder(plugin, r) {
+  new import_obsidian5.Notice(`\u23F0  ${r.text}`, 8e3);
+  if (plugin.settings.desktopNotifications && typeof Notification !== "undefined") {
+    try {
+      if (Notification.permission === "granted") {
+        new Notification("Cadence reminder", { body: r.text });
+      }
+    } catch (_) {
+    }
+  }
+}
+
+// src/constants/settings.ts
+var DEFAULT_SETTINGS = {
+  dailyNoteFolder: "daily",
+  dailyNoteFormat: "YYYY-MM-DD",
+  journalHeading: "## Journal",
+  tasksHeading: "## Today",
+  taskManagementSystem: "native",
+  weekStartsOn: 1,
+  defaultTab: "home",
+  openOnStartup: true,
+  collapsedGroups: {},
+  currency: "USD",
+  cadenceAppDark: false,
+  taskProjectLinks: {},
+  modules: {
+    crm: true,
+    prm: false,
+    planner: true,
+    projects: true
+  },
+  desktopNotifications: true,
+  reminders: [],
+  customPages: [],
+  pageLayouts: {},
+  pageKanbanGroupBy: {},
+  crossSections: [],
+  cadenceApiUrl: "",
+  cadenceApiToken: "",
+  projectDashboardWidgets: [],
+  crmDashboardWidgets: [],
+  prmDashboardWidgets: [],
+  customEntities: {
+    project: [
+      { key: "name", label: "Name", primary: true, type: "text" },
+      { key: "status", label: "Status", type: "enum", options: ["active", "on_hold", "backlog", "done", "cancelled"] },
+      { key: "priority", label: "Priority", type: "enum", options: ["low", "medium", "high"] },
+      { key: "owner", label: "Owner", type: "multitext", suggestionSource: "folder:Cadence/Contacts" },
+      { key: "started", label: "Started", type: "date" },
+      { key: "due", label: "Due", type: "date" },
+      { key: "tags", label: "Tags", type: "tags" }
+    ],
+    contact: [
+      { key: "name", label: "Name", primary: true, type: "text" },
+      { key: "email", label: "Email", type: "multitext", isList: true, suggestionSource: "none" },
+      { key: "phone", label: "Phone", isList: true, type: "multitext", suggestionSource: "none" },
+      { key: "company", label: "Company", isList: true, type: "multitext", suggestionSource: "folder:Cadence/Companies" },
+      { key: "role", label: "Role", isList: true, type: "multitext" },
+      { key: "project", label: "Project", type: "multitext", suggestionSource: "folder:Cadence/Projects" },
+      { key: "lastContact", label: "Last contact", type: "date" },
+      { key: "tags", label: "Tags", type: "tags" }
+    ],
+    deal: [
+      { key: "title", label: "Title", primary: true, type: "text" },
+      { key: "stage", label: "Stage", type: "enum", options: ["Lead", "Qualified", "Proposal", "Negotiation", "Won", "Lost"] },
+      { key: "value", label: "Value", type: "currency" },
+      { key: "company", label: "Company", type: "multitext", suggestionSource: "folder:Cadence/Companies" },
+      { key: "contact", label: "Contact", type: "multitext", suggestionSource: "folder:Cadence/Contacts" },
+      { key: "closeBy", label: "Close by", type: "date" },
+      { key: "project", label: "Project", type: "multitext", suggestionSource: "folder:Cadence/Projects" },
+      { key: "owner", label: "Owner", type: "multitext", suggestionSource: "folder:Cadence/Contacts" }
+    ],
+    company: [
+      { key: "name", label: "Name", primary: true, type: "text" },
+      { key: "domain", label: "Domain", isList: true, type: "multitext" },
+      { key: "industry", label: "Industry", isList: true, type: "multitext" },
+      { key: "size", label: "Size", type: "text" },
+      { key: "owner", label: "Owner", type: "multitext", suggestionSource: "folder:Cadence/Contacts" },
+      { key: "tags", label: "Tags", type: "tags" }
+    ],
+    activity: [
+      { key: "subject", label: "Subject", primary: true, type: "text" },
+      { key: "type", label: "Type", type: "enum", options: ["Call", "Email", "Meeting", "Note", "Task"] },
+      { key: "when", label: "When", type: "date" },
+      { key: "with", label: "With", type: "multitext", suggestionSource: "folder:Cadence/Contacts" },
+      { key: "company", label: "Company", type: "multitext", suggestionSource: "folder:Cadence/Companies" },
+      { key: "project", label: "Project", type: "multitext", suggestionSource: "folder:Cadence/Projects" }
+    ],
+    partner: [
+      { key: "name", label: "Name", primary: true },
+      { key: "tier", label: "Tier", type: "enum", options: ["Gold", "Silver", "Bronze", "Standard"] },
+      { key: "status", label: "Status", type: "enum", options: ["Active", "Onboarding", "Inactive", "Churned"] },
+      { key: "owner", label: "Owner", type: "multitext", suggestionSource: "folder:Cadence/Contacts" },
+      { key: "region", label: "Region" }
+    ],
+    registration: [
+      { key: "title", label: "Title", primary: true },
+      { key: "partner", label: "Partner" },
+      { key: "status", label: "Status", type: "enum", options: ["Submitted", "Approved", "Rejected", "Expired"] },
+      { key: "value", label: "Value", type: "currency" },
+      { key: "submitted", label: "Submitted", type: "date" },
+      { key: "expires", label: "Expires", type: "date" }
+    ],
+    commission: [
+      { key: "reference", label: "Ref", primary: true },
+      { key: "partner", label: "Partner" },
+      { key: "amount", label: "Amount", type: "currency" },
+      { key: "status", label: "Status", type: "enum", options: ["Pending", "Earned", "Paid", "Disputed"] },
+      { key: "period", label: "Period" },
+      { key: "paidOn", label: "Paid on", type: "date" }
+    ],
+    lead: [
+      { key: "name", label: "Name", primary: true },
+      { key: "company", label: "Company", type: "multitext", suggestionSource: "folder:Cadence/Companies" },
+      { key: "source", label: "Source" },
+      { key: "status", label: "Status", type: "enum", options: ["New", "Contacted", "Qualified", "Disqualified", "Converted"] },
+      { key: "assigned", label: "Assigned" }
+    ],
+    certification: [
+      { key: "name", label: "Name", primary: true },
+      { key: "partner", label: "Partner" },
+      { key: "level", label: "Level" },
+      { key: "issued", label: "Issued", type: "date" },
+      { key: "expires", label: "Expires", type: "date" }
+    ],
+    sequence: [
+      { key: "name", label: "Name", primary: true },
+      { key: "audience", label: "Audience" },
+      { key: "steps", label: "Steps", type: "number" },
+      { key: "active", label: "Active", type: "number" },
+      { key: "status", label: "Status", type: "enum", options: ["Draft", "Active", "Paused", "Archived"] }
+    ]
+  }
+};
+var CURRENCY_OPTIONS = [
+  { code: "USD", label: "USD \u2014 US Dollar" },
+  { code: "EUR", label: "EUR \u2014 Euro" },
+  { code: "GBP", label: "GBP \u2014 British Pound" },
+  { code: "ZAR", label: "ZAR \u2014 South African Rand" },
+  { code: "AUD", label: "AUD \u2014 Australian Dollar" },
+  { code: "CAD", label: "CAD \u2014 Canadian Dollar" },
+  { code: "CHF", label: "CHF \u2014 Swiss Franc" },
+  { code: "JPY", label: "JPY \u2014 Japanese Yen" },
+  { code: "INR", label: "INR \u2014 Indian Rupee" },
+  { code: "BRL", label: "BRL \u2014 Brazilian Real" },
+  { code: "AED", label: "AED \u2014 UAE Dirham" }
+];
+
 // src/utils/format.ts
 function pctBand(pct) {
   if (pct < 25) return "rose";
@@ -1158,813 +2043,1190 @@ function fmtValue(val, type) {
   return String(val);
 }
 
-// src/utils/tasknotes.ts
-function listTaskNotesTasks(app) {
-  const folderPath = "TaskNotes/Tasks";
-  const folder = app.vault.getAbstractFileByPath(folderPath);
-  if (!folder || !folder.children) return [];
-  const tasks = [];
-  const walk = (node) => {
-    for (const child of node.children) {
-      if (child.children) walk(child);
-      else if (typeof child.path === "string" && child.path.toLowerCase().endsWith(".md")) {
-        const cache = app.metadataCache.getFileCache(child);
-        const fm = cache && cache.frontmatter || {};
-        tasks.push({
-          file: child,
-          title: fm.title || child.basename,
-          status: fm.status || "open",
-          scheduled: fm.scheduled || "",
-          due: fm.due || "",
-          priority: fm.priority || "normal",
-          projects: fm.projects || "",
-          done: fm.status === "done"
-        });
-      }
-    }
-  };
-  walk(folder);
-  return tasks;
-}
-function listTaskNotesTasksForFile(app, file) {
-  const allTasks = listTaskNotesTasks(app);
-  const name = file.basename;
-  return allTasks.filter((t) => {
-    if (!t.projects) return false;
-    const links = parseLinkValues(t.projects);
-    return links.some((l) => l.target === name);
-  });
-}
-async function toggleTaskNotesTask(app, taskFile, checked) {
-  await app.fileManager.processFrontMatter(taskFile, (fm) => {
-    fm.status = checked ? "done" : "open";
-  });
-}
-async function appendTaskNotesTask(app, text, date = /* @__PURE__ */ new Date()) {
-  const ymdStr = ymd(date);
-  const folderPath = "TaskNotes/Tasks";
-  await ensureFolderSync(app, folderPath);
-  const cleanTitle = text.replace(/[\\/:*?"<>|]/g, "").trim();
-  let filename = `${folderPath}/${cleanTitle}.md`;
-  let file = app.vault.getAbstractFileByPath(filename);
-  let counter = 1;
-  while (file) {
-    filename = `${folderPath}/${cleanTitle} (${counter}).md`;
-    file = app.vault.getAbstractFileByPath(filename);
-    counter++;
+// src/plugin/settings.ts
+var CORE_ENTITY_KEYS = ["contact", "company", "partner", "registration", "commission", "lead", "certification", "activity", "sequence", "project", "deal"];
+var PROPERTY_TYPE_ENTITIES = ["project", "deal", "contact", "company", "activity"];
+function fillSettingDefaults(settings, defaults) {
+  if (!settings.customEntities) {
+    settings.customEntities = {};
   }
-  const content = `---
-title: ${text}
-status: open
-scheduled: ${ymdStr}
-priority: normal
----
-`;
-  await app.vault.create(filename, content);
-}
-
-// src/modals/chart-section.ts
-var import_obsidian3 = require("obsidian");
-function buildChartSectionConfig(form) {
-  return {
-    targetEntity: form.targetEntity,
-    linkField: form.linkField,
-    groupField: form.groupField,
-    style: form.style
-  };
-}
-function chartSectionDefaults(fieldKeys, parentEntity) {
-  const parentDef = ENTITIES[parentEntity];
-  const linkField = parentDef ? fieldKeys.find((k) => k === parentEntity || k === parentDef.label.toLowerCase()) : void 0;
-  const groupField = fieldKeys.find((k) => ["stage", "status", "type", "priority"].includes(k));
-  return { linkField, groupField };
-}
-var CadenceChartSectionModal = class extends import_obsidian3.Modal {
-  constructor(app, parentEntity, onSubmit) {
-    super(app);
-    this.parentEntity = parentEntity;
-    this.onSubmit = onSubmit;
-  }
-  onOpen() {
-    const { contentEl } = this;
-    contentEl.empty();
-    contentEl.addClass("cad-prompt-modal");
-    contentEl.createEl("h3", { text: "Add Analytics Chart Block" });
-    const style = "display: block; font-weight: 500; font-size: 0.85em; margin-bottom: 4px; margin-top: 12px;";
-    const selStyle = (el) => {
-      el.style.width = "100%";
-      el.style.padding = "6px 8px";
-      el.style.background = "var(--background-primary)";
-      el.style.color = "var(--text-normal)";
-      el.style.border = "1px solid var(--border-color)";
-      el.style.borderRadius = "4px";
-    };
-    contentEl.createEl("label", { text: "Entity to chart:", style });
-    const selTarget = contentEl.createEl("select");
-    selStyle(selTarget);
-    Object.entries(ENTITIES).forEach(([key, def]) => {
-      selTarget.createEl("option", { value: key, text: def.plural });
-    });
-    contentEl.createEl("label", { text: "Link field (field on target that references this entity):", style });
-    const selLink = contentEl.createEl("select");
-    selStyle(selLink);
-    contentEl.createEl("label", { text: "Group by field (property to chart):", style });
-    const selGroup = contentEl.createEl("select");
-    selStyle(selGroup);
-    const refreshFields = () => {
-      const targetKey = selTarget.value;
-      const def = ENTITIES[targetKey];
-      if (!def) return;
-      selLink.empty();
-      selGroup.empty();
-      def.fields.forEach((f) => {
-        if (!f.primary) {
-          selLink.createEl("option", { value: f.key, text: `${f.label} (${f.key})` });
-          selGroup.createEl("option", { value: f.key, text: `${f.label} (${f.key})` });
-        }
-      });
-      const { linkField, groupField } = chartSectionDefaults(Array.from(selLink.options).map((o) => o.value), this.parentEntity);
-      if (linkField !== void 0) selLink.value = linkField;
-      if (groupField !== void 0) selGroup.value = groupField;
-    };
-    refreshFields();
-    selTarget.addEventListener("change", refreshFields);
-    contentEl.createEl("label", { text: "Chart Style:", style });
-    const selStyle2 = contentEl.createEl("select");
-    selStyle(selStyle2);
-    [
-      { value: "donut", text: "Donut Chart \u{1F369}" },
-      { value: "bar", text: "Horizontal Bar Chart \u{1F4CA}" },
-      { value: "kpi", text: "KPI Cards Grid \u{1F5C3}\uFE0F" },
-      { value: "list", text: "Simple List \u{1F4CB}" }
-    ].forEach((opt) => selStyle2.createEl("option", { value: opt.value, text: opt.text }));
-    const row = contentEl.createDiv({ attr: { style: "display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px;" } });
-    row.createEl("button", { text: "Cancel" }).addEventListener("click", () => this.close());
-    const ok = row.createEl("button", { text: "Add Chart", cls: "mod-cta" });
-    ok.addEventListener("click", () => {
-      this.onSubmit(buildChartSectionConfig({
-        targetEntity: selTarget.value,
-        linkField: selLink.value,
-        groupField: selGroup.value,
-        style: selStyle2.value
-      }));
-      this.close();
-    });
-  }
-};
-
-// src/modals/capture.ts
-var import_obsidian4 = require("obsidian");
-function buildCaptureResult(form) {
-  const text = form.text.trim();
-  if (!text) return null;
-  const result = { text, when: null, repeat: "none" };
-  if (form.scheduled && form.datetimeValue) {
-    const d = fromLocalDatetimeValue(form.datetimeValue);
-    if (d && !isNaN(d.getTime())) {
-      result.when = d.toISOString();
-      result.repeat = form.repeat || "none";
+  for (const [entityKey, defaultFields] of Object.entries(defaults.customEntities)) {
+    if (!settings.customEntities[entityKey] || settings.customEntities[entityKey].length === 0) {
+      settings.customEntities[entityKey] = JSON.parse(JSON.stringify(defaultFields));
     }
   }
-  return result;
-}
-function defaultCaptureWhen(now) {
-  const dft = new Date(now.getTime() + 60 * 60 * 1e3);
-  dft.setMinutes(Math.ceil(dft.getMinutes() / 15) * 15, 0, 0);
-  return dft;
-}
-var QUICK_PICK_DELTA_MS = {
-  "+15m": 15 * 60 * 1e3,
-  "+1h": 60 * 60 * 1e3,
-  "+3h": 3 * 60 * 60 * 1e3
-};
-function quickPickTime(kind, now) {
-  if (kind === "Tomorrow 9am") {
-    const d2 = new Date(now.getTime());
-    d2.setDate(d2.getDate() + 1);
-    d2.setHours(9, 0, 0, 0);
-    return d2;
+  if (!settings.projectDashboardWidgets || settings.projectDashboardWidgets.length === 0) {
+    settings.projectDashboardWidgets = [
+      { id: "w1", title: "Projects by Status", groupBy: "status", style: "donut" },
+      { id: "w2", title: "Projects by Priority", groupBy: "priority", style: "bar" }
+    ];
   }
-  const d = new Date(now.getTime() + QUICK_PICK_DELTA_MS[kind]);
-  d.setSeconds(0, 0);
-  return d;
-}
-var CadenceCaptureModal = class extends import_obsidian4.Modal {
-  constructor(app, opts) {
-    super(app);
-    this.onSubmit = opts.onSubmit;
-    this.defaultText = opts.defaultText || "";
-    this.defaultWhen = opts.defaultWhen || null;
-    this.defaultRepeat = opts.defaultRepeat || "none";
-    this._submitted = false;
+  if (!settings.crmDashboardWidgets || settings.crmDashboardWidgets.length === 0) {
+    settings.crmDashboardWidgets = [
+      { id: "c1", title: "Deals by Stage", groupBy: "stage", style: "donut" },
+      { id: "c2", title: "Deals by Owner", groupBy: "owner", style: "bar" }
+    ];
   }
-  onOpen() {
-    const { contentEl } = this;
-    contentEl.empty();
-    contentEl.addClass("cad-capture-modal");
-    contentEl.createEl("h3", { text: "Quick capture" });
-    const textRow = contentEl.createDiv({ cls: "cad-form-row" });
-    textRow.createDiv({ cls: "cad-form-label", text: "WHAT" });
-    const textInput = textRow.createEl("input", { type: "text", cls: "cad-form-input" });
-    textInput.placeholder = "What needs doing?";
-    textInput.value = this.defaultText;
-    const schedToggleRow = contentEl.createDiv();
-    schedToggleRow.style.marginTop = "14px";
-    schedToggleRow.style.display = "flex";
-    schedToggleRow.style.alignItems = "center";
-    schedToggleRow.style.gap = "8px";
-    const schedCb = schedToggleRow.createEl("input", { type: "checkbox" });
-    const schedLbl = schedToggleRow.createEl("label", { text: "Remind me" });
-    schedLbl.style.fontSize = "13px";
-    schedLbl.style.cursor = "pointer";
-    schedLbl.addEventListener("click", () => {
-      schedCb.checked = !schedCb.checked;
-      schedCb.dispatchEvent(new Event("change"));
-    });
-    const schedFields = contentEl.createDiv({ cls: "cad-capture-sched" });
-    schedFields.style.display = "none";
-    schedFields.style.marginTop = "12px";
-    schedFields.style.gap = "12px";
-    schedFields.style.display = "none";
-    const dateRow = schedFields.createDiv({ cls: "cad-form-row" });
-    dateRow.createDiv({ cls: "cad-form-label", text: "WHEN" });
-    const dateInput = dateRow.createEl("input", { type: "datetime-local", cls: "cad-form-input" });
-    if (this.defaultWhen) {
-      const d = new Date(this.defaultWhen);
-      if (!isNaN(d.getTime())) dateInput.value = toLocalDatetimeValue(d);
+  if (!settings.prmDashboardWidgets || settings.prmDashboardWidgets.length === 0) {
+    settings.prmDashboardWidgets = [
+      { id: "p1", title: "Partners by Tier", groupBy: "tier", style: "donut" },
+      { id: "p2", title: "Partners by Status", groupBy: "status", style: "bar" }
+    ];
+  }
+}
+function customEntityNames(entityKey, customPage) {
+  let label, plural;
+  if (customPage) {
+    plural = customPage.label;
+    if (plural.endsWith("s") && plural.length > 1) {
+      label = plural.substring(0, plural.length - 1);
+    } else if (plural.endsWith("S") && plural.length > 1) {
+      label = plural.substring(0, plural.length - 1);
     } else {
-      dateInput.value = toLocalDatetimeValue(defaultCaptureWhen(/* @__PURE__ */ new Date()));
-    }
-    const quick = schedFields.createDiv();
-    quick.style.display = "flex";
-    quick.style.gap = "6px";
-    quick.style.marginTop = "8px";
-    quick.style.flexWrap = "wrap";
-    const pick = (kind) => {
-      dateInput.value = toLocalDatetimeValue(quickPickTime(kind, /* @__PURE__ */ new Date()));
-    };
-    const mkQ = (kind) => {
-      const b = quick.createEl("button", { cls: "cad-btn cad-btn-sm", text: kind });
-      b.type = "button";
-      return b;
-    };
-    for (const kind of ["+15m", "+1h", "+3h"]) mkQ(kind).addEventListener("click", () => pick(kind));
-    const tomorrow = mkQ("Tomorrow 9am");
-    tomorrow.addEventListener("click", () => {
-      dateInput.value = toLocalDatetimeValue(/* @__PURE__ */ new Date(NaN));
-    });
-    tomorrow.addEventListener("click", () => pick("Tomorrow 9am"));
-    const repeatRow = schedFields.createDiv({ cls: "cad-form-row" });
-    repeatRow.style.marginTop = "10px";
-    repeatRow.createDiv({ cls: "cad-form-label", text: "REPEAT" });
-    const repeatSelect = repeatRow.createEl("select", { cls: "cad-form-input" });
-    [["none", "No repeat"], ["daily", "Daily"], ["weekly", "Weekly"]].forEach(([v, l]) => {
-      const o = repeatSelect.createEl("option", { value: v, text: l });
-      if (v === this.defaultRepeat) o.selected = true;
-    });
-    schedCb.addEventListener("change", () => {
-      schedFields.style.display = schedCb.checked ? "block" : "none";
-    });
-    if (this.defaultWhen) {
-      schedCb.checked = true;
-      schedFields.style.display = "block";
-    }
-    const row = contentEl.createDiv();
-    row.style.display = "flex";
-    row.style.justifyContent = "flex-end";
-    row.style.gap = "8px";
-    row.style.marginTop = "18px";
-    const cancel = row.createEl("button", { cls: "cad-btn", text: "Cancel" });
-    cancel.type = "button";
-    cancel.addEventListener("click", () => this.close());
-    const ok = row.createEl("button", { cls: "cad-btn primary", text: "Capture" });
-    ok.type = "button";
-    const submit = () => {
-      const result = buildCaptureResult({
-        text: textInput.value,
-        scheduled: schedCb.checked,
-        datetimeValue: dateInput.value,
-        repeat: repeatSelect.value
-      });
-      if (!result) {
-        textInput.focus();
-        return;
-      }
-      this._submitted = true;
-      this.close();
-      this.onSubmit(result);
-    };
-    ok.addEventListener("click", submit);
-    textInput.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        submit();
-      }
-      if (e.key === "Escape") this.close();
-    });
-    setTimeout(() => textInput.focus(), 0);
-  }
-  onClose() {
-    if (!this._submitted && this.onSubmit) this.onSubmit(null);
-    this.contentEl.empty();
-  }
-};
-
-// src/modals/confirm.ts
-var import_obsidian5 = require("obsidian");
-var CadenceConfirmModal = class extends import_obsidian5.Modal {
-  constructor(app, opts) {
-    super(app);
-    this.title = opts.title || "Confirm Action";
-    this.message = opts.message || "Are you sure?";
-    this.confirmLabel = opts.confirmLabel || "Confirm";
-    this.cancelLabel = opts.cancelLabel || "Cancel";
-    this.onConfirm = opts.onConfirm;
-    this.onCancel = opts.onCancel;
-    this._responded = false;
-  }
-  onOpen() {
-    const { contentEl } = this;
-    contentEl.empty();
-    contentEl.addClass("cad-prompt-modal");
-    contentEl.addClass("cad-confirm-modal");
-    contentEl.createEl("h3", { text: this.title });
-    const msg = contentEl.createEl("p", { text: this.message });
-    msg.style.fontSize = "14px";
-    msg.style.marginTop = "8px";
-    msg.style.marginBottom = "20px";
-    msg.style.color = "var(--text-muted)";
-    const row = contentEl.createDiv();
-    row.style.display = "flex";
-    row.style.justifyContent = "flex-end";
-    row.style.gap = "8px";
-    const cancelBtn = row.createEl("button", { text: this.cancelLabel, cls: "cad-btn" });
-    cancelBtn.addEventListener("click", () => {
-      this._responded = true;
-      this.close();
-      if (this.onCancel) this.onCancel();
-    });
-    const confirmBtn = row.createEl("button", { text: this.confirmLabel, cls: "cad-btn primary danger" });
-    confirmBtn.addEventListener("click", () => {
-      this._responded = true;
-      this.close();
-      if (this.onConfirm) this.onConfirm();
-    });
-    setTimeout(() => confirmBtn.focus(), 50);
-  }
-  onClose() {
-    if (!this._responded && this.onCancel) {
-      this.onCancel();
-    }
-  }
-};
-
-// src/modals/cross-section.ts
-var import_obsidian6 = require("obsidian");
-function buildCrossSectionConfig(form) {
-  return {
-    id: "xs_" + Math.random().toString(36).slice(2, 10),
-    parentEntity: form.parentEntity,
-    targetEntity: form.targetEntity,
-    linkField: form.linkField,
-    viewType: form.viewType
-  };
-}
-var CadenceCrossSectionModal = class extends import_obsidian6.Modal {
-  constructor(app, parentEntity, onSubmit) {
-    super(app);
-    this.parentEntity = parentEntity;
-    this.onSubmit = onSubmit;
-  }
-  onOpen() {
-    const { contentEl } = this;
-    contentEl.empty();
-    contentEl.addClass("cad-prompt-modal");
-    contentEl.createEl("h3", { text: "Add Cross-Linked Section" });
-    contentEl.createEl("label", { text: "Target Entity to display:", attr: { style: "display: block; font-weight: 500; font-size: 0.85em; margin-bottom: 4px; margin-top: 12px;" } });
-    const selectTarget = contentEl.createEl("select");
-    selectTarget.style.width = "100%";
-    selectTarget.style.padding = "6px 8px";
-    selectTarget.style.background = "var(--background-primary)";
-    selectTarget.style.color = "var(--text-normal)";
-    selectTarget.style.border = "1px solid var(--border-color)";
-    selectTarget.style.borderRadius = "4px";
-    Object.entries(ENTITIES).forEach(([key, def]) => {
-      if (key === this.parentEntity) return;
-      selectTarget.createEl("option", { value: key, text: def.plural });
-    });
-    contentEl.createEl("label", { text: "Linked Field (in target entity):", attr: { style: "display: block; font-weight: 500; font-size: 0.85em; margin-bottom: 4px; margin-top: 12px;" } });
-    const selectField = contentEl.createEl("select");
-    selectField.style.width = "100%";
-    selectField.style.padding = "6px 8px";
-    selectField.style.background = "var(--background-primary)";
-    selectField.style.color = "var(--text-normal)";
-    selectField.style.border = "1px solid var(--border-color)";
-    selectField.style.borderRadius = "4px";
-    const populateFields = () => {
-      selectField.empty();
-      const target = selectTarget.value;
-      const def = ENTITIES[target];
-      if (def && def.fields) {
-        def.fields.forEach((f) => {
-          if (f.primary) return;
-          selectField.createEl("option", { value: f.key, text: `${f.label} (${f.key})` });
-        });
-      }
-    };
-    selectTarget.addEventListener("change", populateFields);
-    populateFields();
-    contentEl.createEl("label", { text: "Display View Layout:", attr: { style: "display: block; font-weight: 500; font-size: 0.85em; margin-bottom: 4px; margin-top: 12px;" } });
-    const selectView = contentEl.createEl("select");
-    selectView.style.width = "100%";
-    selectView.style.padding = "6px 8px";
-    selectView.style.background = "var(--background-primary)";
-    selectView.style.color = "var(--text-normal)";
-    selectView.style.border = "1px solid var(--border-color)";
-    selectView.style.borderRadius = "4px";
-    [
-      { value: "table", text: "Table \u{1F4CB}" },
-      { value: "tile", text: "Tiles / Cards \u{1F3B4}" },
-      { value: "kanban", text: "Kanban Board \u{1F5C2}\uFE0F" }
-    ].forEach((opt) => {
-      selectView.createEl("option", { value: opt.value, text: opt.text });
-    });
-    const submit = () => {
-      this.onSubmit(buildCrossSectionConfig({
-        parentEntity: this.parentEntity,
-        targetEntity: selectTarget.value,
-        linkField: selectField.value,
-        viewType: selectView.value
-      }));
-      this.close();
-    };
-    const row = contentEl.createDiv();
-    row.style.display = "flex";
-    row.style.justifyContent = "flex-end";
-    row.style.gap = "8px";
-    row.style.marginTop = "18px";
-    const cancel = row.createEl("button", { text: "Cancel" });
-    cancel.addEventListener("click", () => this.close());
-    const ok = row.createEl("button", { text: "Add Section", cls: "mod-cta" });
-    ok.addEventListener("click", submit);
-  }
-};
-
-// src/modals/prompt.ts
-var import_obsidian7 = require("obsidian");
-var CadencePromptModal = class extends import_obsidian7.Modal {
-  constructor(app, opts) {
-    super(app);
-    this.title = opts.title || "Enter a name";
-    this.placeholder = opts.placeholder || "";
-    this.defaultValue = opts.defaultValue || "";
-    this.cta = opts.cta || "Create";
-    this.onSubmit = opts.onSubmit;
-    this._submitted = false;
-  }
-  onOpen() {
-    const { contentEl } = this;
-    contentEl.empty();
-    contentEl.addClass("cad-prompt-modal");
-    contentEl.createEl("h3", { text: this.title });
-    const input = contentEl.createEl("input", { type: "text" });
-    input.placeholder = this.placeholder;
-    input.value = this.defaultValue;
-    input.style.width = "100%";
-    input.style.padding = "8px 10px";
-    input.style.fontSize = "14px";
-    input.style.marginTop = "4px";
-    const submit = () => {
-      const v = input.value.trim();
-      if (!v) {
-        input.focus();
-        return;
-      }
-      this._submitted = true;
-      this.close();
-      this.onSubmit(v);
-    };
-    input.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        submit();
-      }
-      if (e.key === "Escape") {
-        e.preventDefault();
-        this.close();
-      }
-    });
-    const row = contentEl.createDiv();
-    row.style.display = "flex";
-    row.style.justifyContent = "flex-end";
-    row.style.gap = "8px";
-    row.style.marginTop = "14px";
-    const cancel = row.createEl("button", { text: "Cancel" });
-    cancel.addEventListener("click", () => this.close());
-    const ok = row.createEl("button", { text: this.cta, cls: "mod-cta" });
-    ok.addEventListener("click", submit);
-    setTimeout(() => {
-      input.focus();
-      input.select();
-    }, 0);
-  }
-  onClose() {
-    if (!this._submitted && this.onSubmit) this.onSubmit(null);
-    this.contentEl.empty();
-  }
-};
-
-// src/modals/reminder-edit.ts
-var import_obsidian8 = require("obsidian");
-function buildReminderPatch(form, reminder) {
-  const text = form.text.trim();
-  if (!text) return null;
-  const fields = {
-    text,
-    notes: form.notes,
-    repeat: form.repeat || "none",
-    project: reminder.project || null
-  };
-  if (form.datetimeValue) {
-    const d = fromLocalDatetimeValue(form.datetimeValue);
-    if (d && !isNaN(d.getTime())) {
-      fields.when = d.toISOString();
-      if (fields.when !== reminder.when) fields.notified = false;
+      label = plural;
     }
   } else {
-    fields.when = null;
-    fields.notified = false;
+    label = entityKey === entityKey.toUpperCase() ? entityKey : entityKey.charAt(0).toUpperCase() + entityKey.slice(1);
+    plural = label + "s";
   }
-  return fields;
+  return { label, plural };
 }
-function filterReminderProjects(projects, query) {
-  const q = (query || "").toLowerCase();
-  return projects.filter((p) => p.name.toLowerCase().includes(q));
-}
-var ReminderProjectSuggestModal = class extends import_obsidian8.SuggestModal {
-  constructor(app, projs, onChoose) {
-    super(app);
-    this.projs = projs;
-    this.onChoose = onChoose;
-    this.setPlaceholder("Search projects to link this reminder to\u2026");
-  }
-  getSuggestions(query) {
-    return filterReminderProjects(this.projs, query);
-  }
-  renderSuggestion(item, el) {
-    el.setText("\u{1F4C1}  " + item.name);
-  }
-  onChooseSuggestion(item) {
-    this.onChoose(item);
-  }
-};
-var CadenceReminderEditModal = class extends import_obsidian8.Modal {
-  constructor(app, plugin, reminder, opts) {
-    super(app);
-    this.plugin = plugin;
-    this.reminder = reminder;
-    this.isNew = opts && opts.isNew || false;
-    this._submitted = false;
-  }
-  onOpen() {
-    const { contentEl } = this;
-    contentEl.empty();
-    contentEl.addClass("cad-create-modal");
-    contentEl.addClass("cad-reminder-edit-modal");
-    contentEl.createEl("h3", { cls: "cad-create-title", text: this.isNew ? "New reminder" : "Edit reminder" });
-    const form = contentEl.createDiv({ cls: "cad-create-form" });
-    const textRow = form.createDiv({ cls: "cad-create-row" });
-    textRow.createDiv({ cls: "cad-create-label", text: "WHAT *" });
-    const textInput = textRow.createEl("input", { type: "text", cls: "cad-create-input" });
-    textInput.value = this.reminder.text || "";
-    textInput.placeholder = "What needs doing?";
-    const whenRow = form.createDiv({ cls: "cad-create-row" });
-    whenRow.createDiv({ cls: "cad-create-label", text: "WHEN" });
-    const whenWrap = whenRow.createDiv();
-    whenWrap.style.display = "flex";
-    whenWrap.style.gap = "8px";
-    whenWrap.style.alignItems = "center";
-    const dateInput = whenWrap.createEl("input", { type: "datetime-local", cls: "cad-create-input" });
-    dateInput.style.flex = "1";
-    if (this.reminder.when) {
-      const d = new Date(this.reminder.when);
-      if (!isNaN(d.getTime())) dateInput.value = toLocalDatetimeValue(d);
-    }
-    const clearBtn = whenWrap.createEl("button", { cls: "cad-btn cad-btn-sm", text: "Clear" });
-    clearBtn.type = "button";
-    clearBtn.title = "Move to unscheduled";
-    clearBtn.addEventListener("click", () => {
-      dateInput.value = "";
-    });
-    const repeatRow = form.createDiv({ cls: "cad-create-row" });
-    repeatRow.createDiv({ cls: "cad-create-label", text: "REPEAT" });
-    const repeatSel = repeatRow.createEl("select", { cls: "cad-create-input" });
-    [["none", "No repeat"], ["daily", "Daily"], ["weekly", "Weekly"]].forEach(([v, l]) => {
-      const o = repeatSel.createEl("option", { value: v, text: l });
-      if (v === (this.reminder.repeat || "none")) o.selected = true;
-    });
-    const projectRow = form.createDiv({ cls: "cad-create-row" });
-    projectRow.createDiv({ cls: "cad-create-label", text: "PROJECT" });
-    const projectField = projectRow.createDiv({ cls: "cad-rem-project-field" });
-    const renderProjectField = () => {
-      projectField.empty();
-      if (this.reminder.project) {
-        const chip = projectField.createEl("a", { cls: "cad-rem-project-chip", text: "\u{1F4C1} " + (projectNameFromPath(this.app, this.reminder.project) || "Project") });
-        chip.title = "Open project (closes this modal)";
-        chip.addEventListener("click", (e) => {
-          e.preventDefault();
-          const file = this.app.vault.getAbstractFileByPath(this.reminder.project);
-          if (file && file instanceof import_obsidian8.TFile) {
-            this._submitted = true;
-            this.close();
-            const leaf = this.app.workspace.getLeavesOfType(VIEW_TYPE_CADENCE_APP)[0];
-            if (leaf && leaf.view && typeof leaf.view.openEntityDetail === "function") {
-              leaf.view.openEntityDetail("project", file);
-            }
-          }
-        });
-        const changeBtn = projectField.createEl("button", { cls: "cad-btn cad-btn-sm", text: "Change" });
-        changeBtn.type = "button";
-        changeBtn.addEventListener("click", () => this._openReminderProjectPicker(renderProjectField));
-        const removeBtn = projectField.createEl("button", { cls: "cad-btn cad-btn-sm cad-btn-danger", text: "Remove" });
-        removeBtn.type = "button";
-        removeBtn.addEventListener("click", () => {
-          this.reminder.project = null;
-          renderProjectField();
-        });
-      } else {
-        const linkBtn = projectField.createEl("button", { cls: "cad-btn cad-btn-sm", text: "\u{1F4C1} Link to project" });
-        linkBtn.type = "button";
-        linkBtn.addEventListener("click", () => this._openReminderProjectPicker(renderProjectField));
+function reconstructEntities(settings, entities) {
+  const activeCustomEntityKeys = (settings.customPages || []).map((p) => p.entityKey);
+  for (const entityKey of Object.keys(settings.customEntities)) {
+    if (!CORE_ENTITY_KEYS.includes(entityKey) && !activeCustomEntityKeys.includes(entityKey)) {
+      delete settings.customEntities[entityKey];
+      if (entities[entityKey]) {
+        delete entities[entityKey];
       }
-    };
-    renderProjectField();
-    const notesRow = form.createDiv({ cls: "cad-create-row" });
-    notesRow.style.alignItems = "flex-start";
-    notesRow.createDiv({ cls: "cad-create-label", text: "NOTES" });
-    const notesArea = notesRow.createEl("textarea", { cls: "cad-create-input" });
-    notesArea.rows = 6;
-    notesArea.placeholder = "Context, follow-ups, what happened, related links\u2026";
-    notesArea.value = this.reminder.notes || "";
-    notesArea.style.resize = "vertical";
-    notesArea.style.fontFamily = "inherit";
-    const actions = contentEl.createDiv({ cls: "cad-create-actions" });
-    if (!this.isNew) {
-      const del = actions.createEl("button", { cls: "cad-btn cad-btn-danger", text: "Delete" });
-      del.type = "button";
-      del.style.marginRight = "auto";
-      del.addEventListener("click", async () => {
-        if (!confirm("Delete this reminder?")) return;
-        await this.plugin.deleteReminder(this.reminder.id);
-        this._submitted = true;
-        this.close();
+    }
+  }
+  if (settings.customEntities) {
+    for (const [entityKey, customFields] of Object.entries(settings.customEntities)) {
+      if (entities[entityKey]) {
+        entities[entityKey].fields = customFields;
+      } else {
+        const customPages = settings.customPages || [];
+        const customPage = customPages.find((p) => p.entityKey === entityKey);
+        const { label, plural } = customEntityNames(entityKey, customPage);
+        entities[entityKey] = {
+          folder: `Cadence/${plural}`,
+          label,
+          plural,
+          fields: customFields,
+          columns: [customFields[0]?.key || "name"]
+        };
+      }
+    }
+  }
+  for (const [entityKey, def] of Object.entries(entities)) {
+    if (entityKey === "activity") continue;
+    const hasType = def.fields.some((f) => f.key === "type");
+    if (!hasType) {
+      def.fields.push({
+        key: "type",
+        label: "Type",
+        type: "text"
       });
     }
-    const cancel = actions.createEl("button", { cls: "cad-btn", text: "Cancel" });
-    cancel.type = "button";
-    cancel.addEventListener("click", () => this.close());
-    const save = actions.createEl("button", { cls: "cad-btn primary", text: this.isNew ? "Create reminder" : "Save" });
-    save.type = "button";
-    const submit = async () => {
-      const fields = buildReminderPatch({
-        text: textInput.value,
-        notes: notesArea.value,
-        repeat: repeatSel.value,
-        datetimeValue: dateInput.value
-      }, this.reminder);
-      if (!fields) {
-        textInput.focus();
+    if (settings.customEntities[entityKey]) {
+      const hasSetType = settings.customEntities[entityKey].some((f) => f.key === "type");
+      if (!hasSetType) {
+        settings.customEntities[entityKey].push({
+          key: "type",
+          label: "Type",
+          type: "text"
+        });
+      }
+    }
+  }
+}
+function propertyTypeFor(f) {
+  if (f.primary) return "text";
+  const ftype = f.type || "text";
+  let obsType = "text";
+  if (ftype === "date") obsType = "date";
+  else if (ftype === "number" || ftype === "currency") obsType = "number";
+  else if (ftype === "tags") obsType = "tags";
+  else if (ftype === "multitext") obsType = "multitext";
+  else if (f.isList) obsType = "multitext";
+  return obsType;
+}
+async function loadSettings(plugin) {
+  const loadedData = await plugin.loadData() || {};
+  plugin.settings = Object.assign({}, DEFAULT_SETTINGS, loadedData);
+  fillSettingDefaults(plugin.settings, DEFAULT_SETTINGS);
+  setCurrentCurrency(plugin.settings.currency || "USD");
+  reconstructEntities(plugin.settings, ENTITIES);
+}
+async function saveSettings(plugin) {
+  await plugin.saveData(plugin.settings);
+  setCurrentCurrency(plugin.settings.currency || "USD");
+}
+function registerCustomPropertyTypes(plugin) {
+  try {
+    const manager = plugin.app.metadataTypeManager;
+    if (manager && typeof manager.setType === "function") {
+      manager.setType("type", "multitext");
+      for (const key of PROPERTY_TYPE_ENTITIES) {
+        const def = ENTITIES[key];
+        if (!def || !def.fields) continue;
+        for (const f of def.fields) {
+          manager.setType(f.key, propertyTypeFor(f));
+        }
+      }
+    }
+  } catch (e) {
+    console.warn("Cadence: Failed to register property types", e);
+  }
+}
+
+// src/settings/setting-tab.ts
+var import_obsidian8 = require("obsidian");
+
+// src/settings/custom-pages.ts
+var import_obsidian6 = require("obsidian");
+var SECTION_OPTIONS = [
+  { value: "planner", label: "Planner" },
+  { value: "projects", label: "Projects" },
+  { value: "crm", label: "CRM" },
+  { value: "prm", label: "PRM" },
+  { value: "workflow", label: "Workflow" },
+  { value: "reports", label: "Reports" }
+];
+var LAYOUT_OPTIONS = [
+  { value: "table", label: "Table view \u2630" },
+  { value: "kanban", label: "Kanban board \u{1F5C2}" },
+  { value: "cards", label: "Card grid \u2683" }
+];
+var LAYOUT_LABELS = {
+  "table": "Table View \u2630",
+  "kanban": "Kanban Board \u{1F5C2}",
+  "cards": "Card Grid \u2683"
+};
+var ICON_OPTIONS = [
+  { value: "file-text", label: "\u{1F4C4} Document (Default)" },
+  { value: "folder-kanban", label: "\u{1F4C1} Folder / Projects" },
+  { value: "users", label: "\u{1F465} Users / Contacts" },
+  { value: "building-2", label: "\u{1F3E2} Building / Companies" },
+  { value: "trending-up", label: "\u{1F4C8} Trending / Sales" },
+  { value: "handshake", label: "\u{1F91D} Handshake / Partners" },
+  { value: "target", label: "\u{1F3AF} Target / Leads" },
+  { value: "zap", label: "\u26A1 Lightning / Sequences" },
+  { value: "wallet", label: "\u{1F4BC} Wallet / Commissions" },
+  { value: "clipboard-check", label: "\u{1F4CB} Clipboard / Registrations" },
+  { value: "award", label: "\u{1F3C6} Award / Certifications" },
+  { value: "calendar", label: "\u{1F4C5} Calendar / Activities" },
+  { value: "star", label: "\u2B50 Star / VIP" },
+  { value: "tag", label: "\u{1F3F7}\uFE0F Tag / Categories" },
+  { value: "compass", label: "\u{1F9ED} Compass / Areas" },
+  { value: "database", label: "\u{1F5C4}\uFE0F Database / Items" },
+  { value: "check-square", label: "\u2611\uFE0F Checkbox / Tasks" }
+];
+var SECTION_LABELS = Object.fromEntries(SECTION_OPTIONS.map((o) => [o.value, o.label]));
+function sectionLabel(sectionId) {
+  return SECTION_LABELS[sectionId] || sectionId;
+}
+function customPageLayoutLabel(layout) {
+  return LAYOUT_LABELS[layout || "table"];
+}
+function customPageRows(customPages, entities) {
+  return customPages.slice().sort((a, b) => a.label.localeCompare(b.label)).map((p) => ({
+    page: p,
+    label: p.label,
+    section: sectionLabel(p.sectionId),
+    entity: entities[p.entityKey] ? entities[p.entityKey].label : p.entityKey,
+    layout: customPageLayoutLabel(p.defaultLayout)
+  }));
+}
+function customPageEntityKey(label, sectionId) {
+  let singular = label;
+  if (singular.endsWith("s") && singular.length > 1) {
+    singular = singular.substring(0, singular.length - 1);
+  } else if (singular.endsWith("S") && singular.length > 1) {
+    singular = singular.substring(0, singular.length - 1);
+  }
+  return { singular, entityKey: sectionId + "_" + singular.toLowerCase().replace(/\s+/g, "_") };
+}
+function customEntityLabel(singular) {
+  return singular === singular.toUpperCase() ? singular : singular.charAt(0).toUpperCase() + singular.slice(1);
+}
+function addCustomPage(settings, entities, form, now) {
+  const val = (form.label || "").trim();
+  if (!val) return { notice: "Please enter a page label." };
+  const { singular, entityKey } = customPageEntityKey(val, form.sectionId);
+  if (!settings.customEntities) {
+    settings.customEntities = {};
+  }
+  let newFields;
+  if (settings.customEntities[entityKey]) {
+    newFields = settings.customEntities[entityKey];
+  } else {
+    newFields = [
+      { key: "name", label: "Name", primary: true, type: "text" },
+      { key: "type", label: "Type", type: "text" }
+    ];
+    settings.customEntities[entityKey] = newFields;
+  }
+  entities[entityKey] = {
+    folder: `Cadence/${val}`,
+    label: customEntityLabel(singular),
+    plural: val,
+    fields: newFields,
+    columns: ["name"]
+  };
+  const newPage = {
+    id: `custom.${now}`,
+    label: val,
+    icon: form.icon || "file-text",
+    entityKey,
+    defaultLayout: form.layout,
+    sectionId: form.sectionId
+  };
+  const pages = settings.customPages || [];
+  pages.push(newPage);
+  settings.customPages = pages;
+  if (!settings.pageLayouts) settings.pageLayouts = {};
+  settings.pageLayouts[newPage.id] = newPage.defaultLayout;
+  return { notice: `Page "${val}" added successfully.`, page: newPage };
+}
+function deleteCustomPage(settings, entities, pageId) {
+  const originalIndex = settings.customPages.findIndex((page) => page.id === pageId);
+  if (originalIndex < 0) return false;
+  const entityKey = settings.customPages[originalIndex].entityKey;
+  settings.customPages.splice(originalIndex, 1);
+  if (settings.customEntities && settings.customEntities[entityKey]) {
+    delete settings.customEntities[entityKey];
+  }
+  if (entities[entityKey]) {
+    delete entities[entityKey];
+  }
+  return true;
+}
+function renderCustomPagesSettings(tab, containerEl) {
+  containerEl.createEl("h3", { text: "Custom Navigation Pages" });
+  containerEl.createEl("p", {
+    text: "Add custom pages to specific sections of your navigation sidebar. You can choose which entity they display and their default layout mode (Table, Kanban, or Card Grid).",
+    cls: "setting-item-description"
+  });
+  const customPagesDiv = containerEl.createDiv({ cls: "cad-custom-pages-container" });
+  const renderCustomPagesList = () => {
+    customPagesDiv.empty();
+    const rows = customPageRows(tab.plugin.settings.customPages || [], ENTITIES);
+    if (rows.length === 0) {
+      customPagesDiv.createEl("p", { text: "No custom pages added yet.", cls: "setting-item-description" });
+    } else {
+      const table = customPagesDiv.createEl("table", { cls: "cad-prop-table" });
+      table.style.width = "100%";
+      table.style.marginBottom = "16px";
+      const thead = table.createEl("thead");
+      const hr = thead.createEl("tr");
+      hr.createEl("th", { text: "Label" });
+      hr.createEl("th", { text: "Section" });
+      hr.createEl("th", { text: "Entity Type" });
+      hr.createEl("th", { text: "Default Layout" });
+      hr.createEl("th", { text: "Actions" });
+      const tbody = table.createEl("tbody");
+      rows.forEach((row) => {
+        const tr = tbody.createEl("tr");
+        tr.createEl("td", { text: row.label });
+        tr.createEl("td", { text: row.section });
+        tr.createEl("td", { text: row.entity });
+        tr.createEl("td", { text: row.layout });
+        const actionsTd = tr.createEl("td");
+        const delBtn = actionsTd.createEl("button", { cls: "cad-btn", text: "Delete" });
+        delBtn.style.color = "var(--text-error)";
+        delBtn.style.padding = "2px 8px";
+        delBtn.style.height = "auto";
+        delBtn.addEventListener("click", async () => {
+          if (deleteCustomPage(tab.plugin.settings, ENTITIES, row.page.id)) {
+            await tab.plugin.saveSettings();
+            tab.plugin.refreshOpenViews();
+            tab.display();
+          }
+        });
+      });
+    }
+    const addForm = customPagesDiv.createDiv({ cls: "cad-custom-page-add-form" });
+    addForm.style.border = "1px dashed var(--border-color)";
+    addForm.style.borderRadius = "8px";
+    addForm.style.padding = "12px";
+    addForm.style.marginTop = "16px";
+    addForm.style.background = "var(--background-primary-alt)";
+    addForm.createEl("h4", { text: "+ Add Custom Navigation Page", attr: { style: "margin-top: 0;" } });
+    const formRow = addForm.createDiv();
+    formRow.style.display = "flex";
+    formRow.style.flexWrap = "wrap";
+    formRow.style.gap = "12px";
+    formRow.style.alignItems = "flex-end";
+    const labelStyle = "display: block; font-size: 0.85em; margin-bottom: 4px; font-weight: 500;";
+    const labelWrap = formRow.createDiv();
+    labelWrap.style.flex = "1";
+    labelWrap.style.minWidth = "150px";
+    labelWrap.createEl("label", { text: "Label:", attr: { style: labelStyle } });
+    const labelInput = labelWrap.createEl("input", { type: "text", placeholder: "e.g. VIP Contacts" });
+    labelInput.style.width = "100%";
+    labelInput.style.padding = "4px 8px";
+    const selectField = (label, options) => {
+      const wrap = formRow.createDiv();
+      wrap.style.minWidth = "120px";
+      wrap.createEl("label", { text: label, attr: { style: labelStyle } });
+      const select = wrap.createEl("select");
+      select.style.width = "100%";
+      options.forEach((opt) => {
+        select.createEl("option", { value: opt.value, text: opt.label });
+      });
+      return select;
+    };
+    const sectionSelect = selectField("Sidebar Section:", SECTION_OPTIONS);
+    const layoutSelect = selectField("Default Layout:", LAYOUT_OPTIONS);
+    const iconSelect = selectField("Icon:", ICON_OPTIONS);
+    const btnWrap = formRow.createDiv();
+    const addBtn = btnWrap.createEl("button", { cls: "cad-btn primary", text: "Add Page" });
+    addBtn.style.padding = "6px 12px";
+    addBtn.style.height = "auto";
+    addBtn.addEventListener("click", async () => {
+      const result = addCustomPage(tab.plugin.settings, ENTITIES, {
+        label: labelInput.value,
+        sectionId: sectionSelect.value,
+        layout: layoutSelect.value,
+        icon: iconSelect.value
+      }, Date.now());
+      if (!result.page) {
+        new import_obsidian6.Notice(result.notice);
         return;
       }
-      if (this.isNew) {
-        await this.plugin.addReminder(fields);
-        new import_obsidian8.Notice(fields.when ? `Reminder set \xB7 ${reminderTimeStr(fields.when)}` : "Captured to Inbox");
-      } else {
-        await this.plugin.updateReminder(this.reminder.id, fields);
-      }
-      this._submitted = true;
-      this.close();
-    };
-    save.addEventListener("click", submit);
-    notesArea.addEventListener("keydown", (e) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
-        e.preventDefault();
-        submit();
-      }
-      if (e.key === "Escape") this.close();
+      await tab.plugin.saveSettings();
+      tab.plugin.refreshOpenViews();
+      new import_obsidian6.Notice(result.notice);
+      tab.display();
     });
-    textInput.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        submit();
-      }
-      if (e.key === "Escape") this.close();
-    });
-    setTimeout(() => textInput.focus(), 0);
+  };
+  renderCustomPagesList();
+}
+
+// src/settings/entity-properties.ts
+var import_obsidian7 = require("obsidian");
+var CORE_ENTITY_KEYS2 = ["contact", "company", "partner", "registration", "commission", "lead", "certification", "activity", "sequence", "project", "deal"];
+var CORE_ENTITY_SECTIONS = {
+  project: "Projects",
+  deal: "CRM",
+  contact: "CRM",
+  company: "CRM",
+  activity: "CRM",
+  partner: "PRM",
+  registration: "PRM",
+  commission: "PRM",
+  lead: "PRM",
+  certification: "PRM",
+  sequence: "Workflow"
+};
+function entityPickerLabel(key, ent, customPages) {
+  let label = CORE_ENTITY_SECTIONS[key];
+  if (!label) {
+    const customPage = customPages.find((p) => p.entityKey === key);
+    if (customPage) label = sectionLabel(customPage.sectionId);
   }
-  onClose() {
-    this.contentEl.empty();
-  }
-  _openReminderProjectPicker(rerender) {
-    const projectFiles = listEntityFiles(this.app, "project");
-    if (!projectFiles.length) {
-      new import_obsidian8.Notice("No projects yet. Create one in Planner \u2192 Projects first.");
-      return;
+  if (!label) return ent.label;
+  const capSection = label.charAt(0).toUpperCase() + label.slice(1);
+  return `${capSection}/${ent.label}`;
+}
+function entityPickerOptions(entities, customPages) {
+  return Object.entries(entities).map(([key, ent]) => ({ value: key, label: entityPickerLabel(key, ent, customPages) })).sort((a, b) => a.label.localeCompare(b.label));
+}
+function isPermanentlyLocked(entityKey, field) {
+  if (field.primary) return true;
+  const k = field.key;
+  if (entityKey === "project" && (k === "status" || k === "priority")) return true;
+  if (entityKey === "deal" && k === "stage") return true;
+  return false;
+}
+function isFieldLocked(entityKey, field) {
+  if (isPermanentlyLocked(entityKey, field)) return true;
+  if (field.locked === void 0) {
+    if (field.key === "type") {
+      field.locked = true;
+    } else {
+      field.locked = CORE_ENTITY_KEYS2.includes(entityKey);
     }
-    const projects = projectFiles.map((f) => ({ file: f, name: projectNameFromPath(this.app, f.path) }));
-    const reminder = this.reminder;
-    const picker = new ReminderProjectSuggestModal(this.app, projects, (item) => {
-      reminder.project = item.file.path;
-      rerender();
+  }
+  return !!field.locked;
+}
+function snapshotCustomEntities(settings, entities) {
+  if (!settings.customEntities) {
+    settings.customEntities = {};
+  }
+  for (const [ek, ent] of Object.entries(entities)) {
+    settings.customEntities[ek] = JSON.parse(JSON.stringify(ent.fields));
+  }
+}
+function copyPropertyShape(target, source) {
+  target.label = source.label;
+  target.type = source.type;
+  if (source.options) {
+    target.options = JSON.parse(JSON.stringify(source.options));
+  } else {
+    delete target.options;
+  }
+  if (source.suggestionSource) {
+    target.suggestionSource = source.suggestionSource;
+  } else {
+    delete target.suggestionSource;
+  }
+}
+function syncSharedProperties(entities, sourceField) {
+  if (sourceField.key === "type") return;
+  for (const ent of Object.values(entities)) {
+    ent.fields.forEach((f) => {
+      if (f.key === sourceField.key && f !== sourceField) copyPropertyShape(f, sourceField);
     });
-    picker.open();
+  }
+}
+function fieldKeySuggestions(entities, frontmatters) {
+  const keys = /* @__PURE__ */ new Set();
+  for (const ent of Object.values(entities)) {
+    ent.fields.forEach((f) => keys.add(f.key));
+  }
+  for (const fm of frontmatters) {
+    Object.keys(fm).forEach((k) => {
+      if (k !== "position") keys.add(k);
+    });
+  }
+  return keys;
+}
+function filterKeySuggestions(keys, typed) {
+  const q = typed.trim().toLowerCase();
+  return [...keys].filter((k) => !q || k.toLowerCase().includes(q)).sort();
+}
+function sanitizeFieldKey(raw) {
+  return raw.trim().toLowerCase().replace(/[^a-z0-9_]/g, "");
+}
+function parseEnumOptions(raw) {
+  return raw.split(",").map((s) => s.trim()).filter(Boolean);
+}
+var FIELD_TYPE_OPTIONS = [
+  { value: "text", label: "Text" },
+  { value: "multitext", label: "List / Multiple Links" },
+  { value: "date", label: "Date" },
+  { value: "number", label: "Number" },
+  { value: "currency", label: "Currency" },
+  { value: "tags", label: "Tags" },
+  { value: "enum", label: "Select (Enum)" }
+];
+var TYPE_FIELD_TYPE_OPTIONS = [
+  { value: "text", label: "Text" },
+  { value: "enum", label: "Select (Enum)" }
+];
+function fieldTypeOptions(field) {
+  const types = field.key === "type" ? TYPE_FIELD_TYPE_OPTIONS : FIELD_TYPE_OPTIONS;
+  return types.map((t) => ({ ...t, selected: field.type === t.value || !field.type && t.value === "text" }));
+}
+function optionsCellKind(field) {
+  if (field.primary || field.type === "date" || field.type === "currency") return "none";
+  if (field.type === "enum") return "enum";
+  if (field.type === "multitext" || field.type === "tags") return "source";
+  return "none";
+}
+var SOURCE_OPTIONS = [
+  { value: "history", label: "History / Shared" },
+  { value: "tags", label: "Obsidian Tags" },
+  { value: "none", label: "None" },
+  { value: "folder", label: "Folder\u2026" }
+];
+function sourceState(field) {
+  const activeSource = field.suggestionSource || getFieldSuggestionSource(field);
+  const isCustomFolder = !!(activeSource && activeSource.startsWith("folder:"));
+  let selected = null;
+  SOURCE_OPTIONS.forEach((s) => {
+    if (!isCustomFolder && s.value === activeSource) selected = s.value;
+    else if (isCustomFolder && s.value === "folder") selected = s.value;
+  });
+  return { selected, isCustomFolder, folderPath: isCustomFolder ? activeSource.slice("folder:".length) : "" };
+}
+function folderSource(path) {
+  return path ? `folder:${path}` : "none";
+}
+function folderBadge(path) {
+  return { text: path || "Aucun dossier", color: path ? "var(--text-normal)" : "var(--text-faint)" };
+}
+function vaultFolderPaths(allFolders, markdownFiles) {
+  const folderSet = /* @__PURE__ */ new Set();
+  if (!allFolders || !allFolders.length) {
+    markdownFiles().forEach((f) => {
+      const parts = f.path.split("/");
+      for (let i = 1; i < parts.length; i++) {
+        folderSet.add(parts.slice(0, i).join("/"));
+      }
+    });
+  } else {
+    allFolders.forEach((f) => {
+      const p = typeof f === "string" ? f : f.path || "";
+      if (p) folderSet.add(p);
+    });
+  }
+  return Array.from(folderSet).sort();
+}
+function filterFolders(folders, query) {
+  const ql = query.toLowerCase();
+  return ql ? folders.filter((f) => f.toLowerCase().includes(ql)) : folders;
+}
+function nextPropertyKey(fields) {
+  let counter = 1;
+  let newKey = `new_property_${counter}`;
+  while (fields.some((f) => f.key === newKey)) {
+    counter++;
+    newKey = `new_property_${counter}`;
+  }
+  return newKey;
+}
+function moveField(fields, from, to, isLocked) {
+  const candidateFields = [...fields];
+  const [draggedItem] = candidateFields.splice(from, 1);
+  candidateFields.splice(to, 0, draggedItem);
+  for (let i = 0; i < fields.length; i++) {
+    if (isLocked(fields[i])) {
+      if (!candidateFields[i] || candidateFields[i].key !== fields[i].key) return null;
+    }
+  }
+  return candidateFields;
+}
+function applyPropertyEdit(entities, entityKey, edit) {
+  const def = entities[entityKey];
+  const migrations = [];
+  switch (edit.kind) {
+    case "label": {
+      edit.field.label = edit.value.trim() || edit.field.key;
+      syncSharedProperties(entities, edit.field);
+      return { ok: true, migrations, rerender: false };
+    }
+    case "options": {
+      edit.field.options = parseEnumOptions(edit.value);
+      syncSharedProperties(entities, edit.field);
+      return { ok: true, migrations, rerender: false };
+    }
+    case "source": {
+      edit.field.suggestionSource = edit.value;
+      syncSharedProperties(entities, edit.field);
+      return { ok: true, migrations, rerender: false };
+    }
+    case "lock": {
+      edit.field.locked = edit.locked;
+      return { ok: true, migrations, rerender: true };
+    }
+    case "key": {
+      const { field } = edit;
+      const sanitized = sanitizeFieldKey(edit.value);
+      if (!sanitized) return { ok: false, notice: "Technical key cannot be empty and must be alphanumeric." };
+      if (def.fields.some((f, idx) => idx !== edit.index && f.key === sanitized)) {
+        return { ok: false, notice: "This technical key is already in use." };
+      }
+      const oldKey = field.key;
+      migrations.push({ kind: "key", entityKey, oldKey, newKey: sanitized });
+      for (const [ek, ent] of Object.entries(entities)) {
+        if (ek === entityKey) continue;
+        const targetField = ent.fields.find((f) => f.key === oldKey);
+        if (targetField) {
+          migrations.push({ kind: "key", entityKey: ek, oldKey, newKey: sanitized });
+          targetField.key = sanitized;
+        }
+      }
+      field.key = sanitized;
+      const matchingField = Object.values(entities).flatMap((ent) => ent.fields).find((f) => f.key === sanitized && f !== field);
+      if (matchingField) {
+        copyPropertyShape(field, matchingField);
+        return { ok: true, migrations, notice: `Linked key to existing property "${sanitized}".`, rerender: true };
+      }
+      syncSharedProperties(entities, field);
+      return { ok: true, migrations, rerender: true };
+    }
+    case "type": {
+      const { field } = edit;
+      const oldType = field.type || "text";
+      const newType = edit.value;
+      migrations.push({ kind: "type", entityKey, fieldKey: field.key, oldType, newType });
+      if (field.key !== "type") {
+        for (const [ek, ent] of Object.entries(entities)) {
+          if (ek === entityKey) continue;
+          const targetField = ent.fields.find((f) => f.key === field.key);
+          if (targetField) {
+            migrations.push({ kind: "type", entityKey: ek, fieldKey: field.key, oldType, newType });
+            targetField.type = newType;
+          }
+        }
+      }
+      field.type = newType;
+      syncSharedProperties(entities, field);
+      return { ok: true, migrations, rerender: true };
+    }
+    case "remove": {
+      def.fields.splice(edit.index, 1);
+      return { ok: true, migrations, rerender: true };
+    }
+    case "add": {
+      def.fields.push({
+        key: nextPropertyKey(def.fields),
+        label: "New Property",
+        type: "text"
+      });
+      return { ok: true, migrations, rerender: true };
+    }
+    case "move": {
+      const candidateFields = moveField(def.fields, edit.from, edit.to, (f) => isFieldLocked(entityKey, f));
+      if (!candidateFields) {
+        return { ok: false, notice: "Impossible de r\xE9ordonner : les propri\xE9t\xE9s verrouill\xE9es (\u{1F512}) doivent conserver leur position initiale." };
+      }
+      def.fields = candidateFields;
+      return { ok: true, migrations, rerender: true };
+    }
+  }
+}
+var FolderSuggestModal = class extends import_obsidian7.SuggestModal {
+  folders;
+  onChoose;
+  constructor(app, folders, onChoose) {
+    super(app);
+    this.folders = folders;
+    this.onChoose = onChoose;
+    this.setPlaceholder("Rechercher un dossier du vault\u2026");
+  }
+  getSuggestions(q) {
+    return filterFolders(this.folders, q);
+  }
+  renderSuggestion(folder, el) {
+    el.createEl("span", { text: "\u{1F4C1} " });
+    el.createEl("span", { text: folder });
+  }
+  onChooseSuggestion(folder) {
+    this.onChoose(folder);
   }
 };
+function renderEntityPropertiesSettings(tab, containerEl) {
+  containerEl.createEl("h3", { text: "Custom Entity Properties" });
+  containerEl.createEl("p", {
+    text: "Customize the properties for each core entity (Projects, Pipelines/Deals, Contacts, Companies, and Activities). Critical system properties required for the calendar, Kanban, and dashboard features are locked against deletion or type changes, but their display labels can still be customized.",
+    cls: "setting-item-description"
+  });
+  let selectedEntityKey = "project";
+  new import_obsidian7.Setting(containerEl).setName("Select entity").setDesc("Choose which entity to customize.").addDropdown((d) => {
+    entityPickerOptions(ENTITIES, tab.plugin.settings.customPages || []).forEach(({ value, label }) => {
+      d.addOption(value, label);
+    });
+    d.setValue(selectedEntityKey);
+    d.onChange((v) => {
+      selectedEntityKey = v;
+      renderPropEditor();
+    });
+  });
+  const propEditorDiv = containerEl.createDiv({ cls: "cad-prop-editor-container" });
+  const renderPropEditor = () => {
+    propEditorDiv.empty();
+    const def = ENTITIES[selectedEntityKey];
+    if (!def) return;
+    propEditorDiv.createEl("h4", { text: `Properties for: ${def.label}` });
+    const table = propEditorDiv.createEl("table", { cls: "cad-prop-table" });
+    const thead = table.createEl("thead");
+    const headerRow = thead.createEl("tr");
+    headerRow.createEl("th", { text: "", cls: "cad-prop-drag-header" });
+    headerRow.createEl("th", { text: "Label (Display name)" });
+    headerRow.createEl("th", { text: "Technical Key (Frontmatter)" });
+    headerRow.createEl("th", { text: "Type" });
+    headerRow.createEl("th", { text: "Options / Source" });
+    headerRow.createEl("th", { text: "" });
+    const tbody = table.createEl("tbody");
+    const saveAndSync = async () => {
+      snapshotCustomEntities(tab.plugin.settings, ENTITIES);
+      await tab.plugin.saveSettings();
+      tab.plugin.registerCustomPropertyTypes();
+      tab.plugin.refreshOpenViews();
+    };
+    const commit = async (result) => {
+      for (const m of result.migrations) {
+        if (m.kind === "key") await migrateFrontmatterKey(tab.app, m.entityKey, m.oldKey, m.newKey);
+        else await migrateFrontmatterType(tab.app, m.entityKey, m.fieldKey, m.oldType, m.newType);
+      }
+      if (result.notice) new import_obsidian7.Notice(result.notice);
+      await saveAndSync();
+      if (result.rerender) renderPropEditor();
+    };
+    const edit = (change) => applyPropertyEdit(ENTITIES, selectedEntityKey, change);
+    let draggedIndex = null;
+    def.fields.forEach((field, index) => {
+      const tr = tbody.createEl("tr");
+      tr.addClass("cad-prop-row");
+      const permLocked = isPermanentlyLocked(selectedEntityKey, field);
+      const locked = isFieldLocked(selectedEntityKey, field);
+      const tdDrag = tr.createEl("td", { cls: "cad-prop-drag-cell" });
+      if (permLocked) {
+        tdDrag.createEl("span", { text: "\u{1F512}", cls: "cad-prop-lock-icon" });
+        tr.addClass("cad-prop-row-locked");
+      } else if (locked) {
+        const lockSpan = tdDrag.createEl("span", { text: "\u{1F510}", cls: "cad-prop-lock-icon" });
+        lockSpan.style.cursor = "pointer";
+        lockSpan.title = "Click to unlock this property";
+        lockSpan.addEventListener("click", async (e) => {
+          e.stopPropagation();
+          await commit(edit({ kind: "lock", field, locked: false }));
+        });
+        tr.addClass("cad-prop-row-locked");
+      } else {
+        tdDrag.createEl("span", { text: "\u22EE\u22EE", cls: "cad-prop-drag-handle" });
+        const unlockSpan = tdDrag.createEl("span", { text: "\u{1F513}", cls: "cad-prop-unlock-icon" });
+        unlockSpan.style.cursor = "pointer";
+        unlockSpan.style.marginLeft = "6px";
+        unlockSpan.title = "Click to lock this property";
+        unlockSpan.addEventListener("click", async (e) => {
+          e.stopPropagation();
+          await commit(edit({ kind: "lock", field, locked: true }));
+        });
+        tr.setAttribute("draggable", "true");
+        tr.addClass("cad-prop-row-draggable");
+        tr.addEventListener("dragstart", (e) => {
+          draggedIndex = index;
+          tr.addClass("cad-drag-active");
+          e.dataTransfer.setData("text/plain", index.toString());
+          e.dataTransfer.effectAllowed = "move";
+        });
+        tr.addEventListener("dragend", () => {
+          tbody.querySelectorAll(".cad-prop-row").forEach((r) => {
+            r.removeClass("cad-drag-active");
+            r.removeClass("cad-drag-hover");
+          });
+          draggedIndex = null;
+        });
+      }
+      tr.addEventListener("dragover", (e) => {
+        if (draggedIndex !== null && draggedIndex !== index) {
+          e.preventDefault();
+          tr.addClass("cad-drag-hover");
+        }
+      });
+      tr.addEventListener("dragleave", () => {
+        tr.removeClass("cad-drag-hover");
+      });
+      tr.addEventListener("drop", async (e) => {
+        tr.removeClass("cad-drag-hover");
+        if (draggedIndex === null || draggedIndex === index) return;
+        e.preventDefault();
+        const result = applyPropertyEdit(ENTITIES, selectedEntityKey, { kind: "move", from: draggedIndex, to: index });
+        if (!result.ok) {
+          new import_obsidian7.Notice(result.notice);
+          return;
+        }
+        await commit(result);
+      });
+      const tdLabel = tr.createEl("td");
+      const inputLabel = tdLabel.createEl("input", {
+        type: "text",
+        value: field.label || "",
+        cls: "cad-prop-input"
+      });
+      inputLabel.addEventListener("change", async () => {
+        await commit(edit({ kind: "label", field, value: inputLabel.value }));
+      });
+      const tdKey = tr.createEl("td");
+      const keyWrap = tdKey.createDiv({ cls: "cad-key-wrap" });
+      const datalistId = `cad-key-dl-${selectedEntityKey}-${index}`;
+      const datalist = keyWrap.createEl("datalist");
+      datalist.id = datalistId;
+      const frontmatters = [];
+      try {
+        const vaultFiles = tab.app.vault.getMarkdownFiles().slice(0, 200);
+        for (const vf of vaultFiles) {
+          const cache = tab.app.metadataCache.getFileCache(vf);
+          if (cache && cache.frontmatter) frontmatters.push(cache.frontmatter);
+        }
+      } catch (_) {
+      }
+      const _allSuggestionKeys = fieldKeySuggestions(ENTITIES, frontmatters);
+      _allSuggestionKeys.forEach((k) => datalist.createEl("option", { value: k }));
+      const inputKey = keyWrap.createEl("input", {
+        type: "text",
+        value: field.key || "",
+        cls: "cad-prop-input"
+      });
+      inputKey.setAttribute("list", datalistId);
+      inputKey.setAttribute("autocomplete", "off");
+      if (locked || field.key === "type") {
+        inputKey.disabled = true;
+      } else {
+        inputKey.disabled = false;
+        inputKey.addEventListener("input", () => {
+          datalist.empty();
+          filterKeySuggestions(_allSuggestionKeys, inputKey.value).forEach((k) => datalist.createEl("option", { value: k }));
+        });
+        inputKey.addEventListener("change", async () => {
+          const result = applyPropertyEdit(ENTITIES, selectedEntityKey, { kind: "key", field, index, value: inputKey.value });
+          if (!result.ok) {
+            new import_obsidian7.Notice(result.notice);
+            inputKey.value = field.key;
+            return;
+          }
+          await commit(result);
+        });
+      }
+      const tdType = tr.createEl("td");
+      const selectType = tdType.createEl("select", { cls: "cad-prop-input" });
+      fieldTypeOptions(field).forEach((t) => {
+        const opt = selectType.createEl("option", { value: t.value, text: t.label });
+        if (t.selected) {
+          opt.selected = true;
+        }
+      });
+      if (locked) {
+        selectType.disabled = true;
+      } else {
+        selectType.disabled = false;
+        selectType.addEventListener("change", async () => {
+          await commit(edit({ kind: "type", field, value: selectType.value }));
+        });
+      }
+      const tdOptions = tr.createEl("td");
+      const optionsKind = optionsCellKind(field);
+      if (optionsKind === "enum") {
+        const inputOptions = tdOptions.createEl("input", {
+          type: "text",
+          value: field.options ? field.options.join(", ") : "",
+          placeholder: "Option A, Option B...",
+          cls: "cad-prop-input"
+        });
+        inputOptions.addEventListener("change", async () => {
+          await commit(edit({ kind: "options", field, value: inputOptions.value }));
+        });
+      } else if (optionsKind === "source") {
+        const sourceWrap = tdOptions.createDiv({ cls: "cad-source-wrap" });
+        const selectSource = sourceWrap.createEl("select", { cls: "cad-prop-input" });
+        const { selected, isCustomFolder, folderPath: currentFolderPath } = sourceState(field);
+        SOURCE_OPTIONS.forEach((s) => {
+          const opt = selectSource.createEl("option", { value: s.value, text: s.label });
+          if (s.value === selected) opt.selected = true;
+        });
+        const folderPickerWrap = sourceWrap.createDiv({ cls: "cad-folder-picker-wrap" });
+        folderPickerWrap.style.marginTop = "4px";
+        folderPickerWrap.style.display = selectSource.value === "folder" || isCustomFolder ? "flex" : "none";
+        folderPickerWrap.style.alignItems = "center";
+        folderPickerWrap.style.gap = "6px";
+        const folderBadgeEl = folderPickerWrap.createEl("span", { cls: "cad-folder-badge" });
+        const badge = folderBadge(currentFolderPath);
+        folderBadgeEl.setText(badge.text);
+        folderBadgeEl.style.flex = "1";
+        folderBadgeEl.style.fontSize = "12px";
+        folderBadgeEl.style.color = badge.color;
+        folderBadgeEl.style.fontFamily = "var(--font-monospace)";
+        folderBadgeEl.style.overflow = "hidden";
+        folderBadgeEl.style.textOverflow = "ellipsis";
+        folderBadgeEl.style.whiteSpace = "nowrap";
+        let _folderPath = currentFolderPath;
+        const pickFolderBtn = folderPickerWrap.createEl("button", {
+          cls: "cad-btn cad-btn-sm cad-folder-pick-btn",
+          text: "\u{1F4C2} Choisir"
+        });
+        pickFolderBtn.type = "button";
+        pickFolderBtn.style.flexShrink = "0";
+        pickFolderBtn.style.whiteSpace = "nowrap";
+        const saveFolderSource = async (path) => {
+          _folderPath = path;
+          const chosen = folderBadge(path);
+          folderBadgeEl.setText(chosen.text);
+          folderBadgeEl.style.color = chosen.color;
+          await commit(edit({ kind: "source", field, value: folderSource(path) }));
+        };
+        const saveSugSource = async () => {
+          const v = selectSource.value;
+          await commit(edit({ kind: "source", field, value: v === "folder" ? folderSource(_folderPath) : v }));
+        };
+        pickFolderBtn.addEventListener("click", () => {
+          const vault = tab.app.vault;
+          const folders = vaultFolderPaths(vault.getAllFolders ? vault.getAllFolders() : [], () => vault.getMarkdownFiles());
+          new FolderSuggestModal(tab.app, folders, (folder) => {
+            saveFolderSource(folder);
+          }).open();
+        });
+        selectSource.addEventListener("change", async () => {
+          const show = selectSource.value === "folder";
+          folderPickerWrap.style.display = show ? "flex" : "none";
+          if (!show) {
+            _folderPath = "";
+            folderBadgeEl.setText(folderBadge("").text);
+            await saveSugSource();
+          }
+        });
+      } else {
+        const disabledInput = tdOptions.createEl("input", {
+          type: "text",
+          cls: "cad-prop-input"
+        });
+        disabledInput.disabled = true;
+        disabledInput.placeholder = "\u2014";
+      }
+      const tdDelete = tr.createEl("td");
+      const btnDelete = tdDelete.createEl("button", {
+        text: "\xD7",
+        cls: "cad-prop-btn-delete"
+      });
+      if (locked || field.key === "type") {
+        btnDelete.disabled = true;
+      } else {
+        btnDelete.disabled = false;
+        btnDelete.addEventListener("click", async () => {
+          await commit(edit({ kind: "remove", index }));
+        });
+      }
+    });
+    const btnAdd = propEditorDiv.createEl("button", {
+      text: "+ Add property",
+      cls: "cad-prop-btn-add"
+    });
+    btnAdd.addEventListener("click", async () => {
+      await commit(edit({ kind: "add" }));
+    });
+  };
+  renderPropEditor();
+}
 
-// src/modals/widget-create.ts
-var import_obsidian9 = require("obsidian");
-function buildWidgetConfig(form) {
-  const title = form.title.trim();
-  if (!title) return null;
-  return {
-    id: `widget.${Date.now()}`,
-    title,
-    groupBy: form.groupBy,
-    style: form.style
+// src/settings/setting-tab.ts
+var CadenceSettingTab = class extends import_obsidian8.PluginSettingTab {
+  constructor(app, plugin) {
+    super(app, plugin);
+    this.plugin = plugin;
+  }
+  display() {
+    const { containerEl } = this;
+    containerEl.empty();
+    containerEl.createEl("h2", { text: "Cadence" });
+    renderModulesSettings(this, containerEl);
+    renderReminderSettings(this, containerEl);
+    renderAppSettings(this, containerEl);
+    renderCloudSyncSettings(this, containerEl);
+    renderCustomPagesSettings(this, containerEl);
+    renderEntityPropertiesSettings(this, containerEl);
+  }
+};
+var MODULE_TOGGLES = [
+  { key: "planner", label: "Planner", desc: "Inbox, Today, Calendar." },
+  { key: "projects", label: "Projects", desc: "Projects with milestones, tasks, and status tracking." },
+  { key: "crm", label: "CRM", desc: "Dashboard, Pipeline, Contacts, Companies, Activities + CRM-driven Reports." },
+  { key: "prm", label: "PRM", desc: "Partners, Registrations, Commissions, Leads, Certifications, Analytics + Partner reports." }
+];
+function ensureModules(settings) {
+  if (!settings.modules) {
+    settings.modules = { crm: true, prm: true, planner: true, projects: true };
+  }
+  if (settings.modules.projects === void 0) {
+    settings.modules.projects = true;
+  }
+  return settings.modules;
+}
+function renderModulesSettings(tab, containerEl) {
+  containerEl.createEl("h3", { text: "Modules" });
+  containerEl.createEl("p", {
+    text: "Toggle entire sections of the app. Disabled modules disappear from the left nav and from Reports that depend on them.",
+    cls: "setting-item-description"
+  });
+  MODULE_TOGGLES.forEach((m) => {
+    new import_obsidian8.Setting(containerEl).setName(m.label).setDesc(m.desc).addToggle((t) => t.setValue(ensureModules(tab.plugin.settings)[m.key] !== false).onChange(async (v) => {
+      ensureModules(tab.plugin.settings)[m.key] = v;
+      await tab.plugin.saveSettings();
+      tab.plugin.refreshOpenViews();
+    }));
+  });
+}
+function shouldRequestPermission(enabled, notification) {
+  return !!(enabled && notification !== void 0 && notification.permission === "default");
+}
+function notificationPermissionDesc(notification) {
+  return notification === void 0 ? "Notifications API not available in this environment." : `Current status: ${notification.permission}`;
+}
+function completedReminderCount(reminders) {
+  return (reminders || []).filter((r) => r.done).length;
+}
+function openReminders(reminders) {
+  return (reminders || []).filter((r) => !r.done);
+}
+var notificationApi = () => typeof Notification === "undefined" ? void 0 : Notification;
+function renderReminderSettings(tab, containerEl) {
+  containerEl.createEl("h3", { text: "Reminders" });
+  new import_obsidian8.Setting(containerEl).setName("Desktop notifications").setDesc("In addition to the in-app banner, fire a system notification when a reminder is due. Requires browser permission.").addToggle((t) => t.setValue(!!tab.plugin.settings.desktopNotifications).onChange(async (v) => {
+    tab.plugin.settings.desktopNotifications = v;
+    await tab.plugin.saveSettings();
+    if (shouldRequestPermission(v, notificationApi())) {
+      try {
+        await Notification.requestPermission();
+      } catch (_) {
+      }
+    }
+  }));
+  new import_obsidian8.Setting(containerEl).setName("Notification permission").setDesc(notificationPermissionDesc(notificationApi())).addButton((b) => b.setButtonText("Request permission").onClick(async () => {
+    if (typeof Notification === "undefined") return;
+    try {
+      await Notification.requestPermission();
+      tab.display();
+    } catch (_) {
+    }
+  }));
+  new import_obsidian8.Setting(containerEl).setName("Clear completed reminders").setDesc(`${completedReminderCount(tab.plugin.settings.reminders)} completed reminders stored.`).addButton((b) => b.setButtonText("Clear").onClick(async () => {
+    tab.plugin.settings.reminders = openReminders(tab.plugin.settings.reminders);
+    await tab.plugin.saveSettings();
+    tab.plugin.refreshOpenViews();
+    tab.display();
+  }));
+}
+var TASK_SYSTEM_OPTIONS = [
+  { value: "native", label: "Native (Cadence)" },
+  { value: "tasknotes", label: "TaskNotes" }
+];
+var TASKNOTES_URL = "https://github.com/callumalpass/obsidian-tasknotes";
+function taskNotesStatus(active) {
+  return active ? {
+    name: "TaskNotes Status",
+    desc: "TaskNotes is currently installed, activated and successfully connected to Cadence.",
+    text: "\u{1F7E2} Active and Connected",
+    color: "#27ae60"
+  } : {
+    name: "TaskNotes not detected",
+    desc: "The TaskNotes plugin is not enabled or installed in your Obsidian vault.",
+    text: "\u{1F534} Inactive / Not installed",
+    color: "#c0392b"
   };
 }
-var CadenceWidgetCreateModal = class extends import_obsidian9.Modal {
-  constructor(app, entityKey, onSubmit) {
-    super(app);
-    if (typeof entityKey === "function") {
-      this.onSubmit = entityKey;
-      this.entityKey = "project";
-    } else {
-      this.entityKey = entityKey || "project";
-      this.onSubmit = onSubmit;
+function weekStartsOnFromOption(value) {
+  return Number(value) === 0 ? 0 : 1;
+}
+function defaultTabOptions(groups) {
+  return groups.flatMap((g) => g.items.map((s) => {
+    const prefix = g.label ? `${g.label} \xB7 ` : "";
+    return { value: s.id, label: prefix + s.label };
+  }));
+}
+function defaultTabValue(settings) {
+  return settings.defaultTab || "planner.today";
+}
+function renderAppSettings(tab, containerEl) {
+  containerEl.createEl("h3", { text: "App" });
+  new import_obsidian8.Setting(containerEl).setName("Task management system").setDesc("Choose between the native Cadence manager (using daily notes) or the external TaskNotes plugin.").addDropdown((d) => {
+    TASK_SYSTEM_OPTIONS.forEach((o) => d.addOption(o.value, o.label));
+    d.setValue(tab.plugin.settings.taskManagementSystem || "native").onChange(async (v) => {
+      tab.plugin.settings.taskManagementSystem = v;
+      await tab.plugin.saveSettings();
+      tab.display();
+      tab.plugin.refreshOpenViews();
+    });
+  });
+  if (tab.plugin.settings.taskManagementSystem === "tasknotes") {
+    const isTaskNotesActive = tab.app.plugins.enabledPlugins.has("tasknotes");
+    const status = taskNotesStatus(isTaskNotesActive);
+    const statusSetting = new import_obsidian8.Setting(containerEl).setName(status.name).setDesc(status.desc);
+    const statusSpan = statusSetting.controlEl.createSpan({
+      text: status.text
+    });
+    statusSpan.style.color = status.color;
+    statusSpan.style.fontWeight = "bold";
+    if (!isTaskNotesActive) {
+      new import_obsidian8.Setting(containerEl).setName("Download TaskNotes").setDesc("Click the button below to open the TaskNotes plugin GitHub page to install it on your Obsidian.").addButton((btn) => btn.setButtonText("Download TaskNotes").onClick(() => {
+        window.open(TASKNOTES_URL, "_blank");
+      }));
     }
   }
-  onOpen() {
-    const { contentEl } = this;
-    contentEl.empty();
-    contentEl.addClass("cad-prompt-modal");
-    contentEl.createEl("h3", { text: "Add Custom Chart Widget" });
-    contentEl.createEl("label", { text: "Chart Title:", attr: { style: "display: block; font-weight: 500; font-size: 0.85em; margin-bottom: 4px; margin-top: 12px;" } });
-    const inputTitle = contentEl.createEl("input", { type: "text", placeholder: `e.g. ${this.entityKey.toUpperCase()} by Group` });
-    inputTitle.style.width = "100%";
-    inputTitle.style.padding = "6px 8px";
-    const entityLabel = ENTITIES[this.entityKey] ? ENTITIES[this.entityKey].plural || this.entityKey : this.entityKey;
-    contentEl.createEl("label", { text: `Group ${entityLabel.toUpperCase()} by Property:`, attr: { style: "display: block; font-weight: 500; font-size: 0.85em; margin-bottom: 4px; margin-top: 12px;" } });
-    const selectProp = contentEl.createEl("select");
-    selectProp.style.width = "100%";
-    selectProp.style.padding = "6px 8px";
-    selectProp.style.background = "var(--background-primary)";
-    selectProp.style.color = "var(--text-normal)";
-    selectProp.style.border = "1px solid var(--border-color)";
-    selectProp.style.borderRadius = "4px";
-    const fields = ENTITIES[this.entityKey] ? ENTITIES[this.entityKey].fields || [] : [];
-    fields.forEach((f) => {
-      if (f.primary) return;
-      selectProp.createEl("option", { value: f.key, text: `${f.label} (${f.key})` });
+  new import_obsidian8.Setting(containerEl).setName("Daily note folder").setDesc('Folder under which daily notes live, e.g. "daily" or "Journal/Daily".').addText((t) => t.setPlaceholder("daily").setValue(tab.plugin.settings.dailyNoteFolder).onChange(async (v) => {
+    tab.plugin.settings.dailyNoteFolder = v;
+    await tab.plugin.saveSettings();
+  }));
+  new import_obsidian8.Setting(containerEl).setName("Tasks heading").setDesc('The H2 inside each daily note where tasks live. Default "## Today".').addText((t) => t.setValue(tab.plugin.settings.tasksHeading).onChange(async (v) => {
+    tab.plugin.settings.tasksHeading = v;
+    await tab.plugin.saveSettings();
+  }));
+  new import_obsidian8.Setting(containerEl).setName("Journal heading").setDesc(`The H2 where today's journal entry lives. Default "## Journal".`).addText((t) => t.setValue(tab.plugin.settings.journalHeading).onChange(async (v) => {
+    tab.plugin.settings.journalHeading = v;
+    await tab.plugin.saveSettings();
+  }));
+  new import_obsidian8.Setting(containerEl).setName("Currency").setDesc("Used to format money values across Pipeline, Reports and Commissions.").addDropdown((d) => {
+    CURRENCY_OPTIONS.forEach((c) => d.addOption(c.code, c.label));
+    d.setValue(tab.plugin.settings.currency || "USD");
+    d.onChange(async (v) => {
+      tab.plugin.settings.currency = v;
+      await tab.plugin.saveSettings();
+      tab.app.workspace.getLeavesOfType(VIEW_TYPE_CADENCE_APP).forEach((leaf) => {
+        if (leaf.view && typeof leaf.view.render === "function") leaf.view.render();
+      });
     });
-    contentEl.createEl("label", { text: "Chart Style:", attr: { style: "display: block; font-weight: 500; font-size: 0.85em; margin-bottom: 4px; margin-top: 12px;" } });
-    const selectStyle = contentEl.createEl("select");
-    selectStyle.style.width = "100%";
-    selectStyle.style.padding = "6px 8px";
-    selectStyle.style.background = "var(--background-primary)";
-    selectStyle.style.color = "var(--text-normal)";
-    selectStyle.style.border = "1px solid var(--border-color)";
-    selectStyle.style.borderRadius = "4px";
-    [
-      { value: "donut", text: "Donut Chart \u{1F369}" },
-      { value: "bar", text: "Horizontal Bar Chart \u{1F4CA}" },
-      { value: "kpi", text: "KPI Cards Grid \u{1F5C3}\uFE0F" },
-      { value: "list", text: "Simple List \u{1F4CB}" }
-    ].forEach((opt) => {
-      selectStyle.createEl("option", { value: opt.value, text: opt.text });
+  });
+  new import_obsidian8.Setting(containerEl).setName("Week starts on").setDesc("First day of the week shown in the Planner tab.").addDropdown((d) => d.addOption("1", "Monday").addOption("0", "Sunday").setValue(String(tab.plugin.settings.weekStartsOn)).onChange(async (v) => {
+    tab.plugin.settings.weekStartsOn = weekStartsOnFromOption(v);
+    await tab.plugin.saveSettings();
+  }));
+  new import_obsidian8.Setting(containerEl).setName("Open Cadence on Obsidian startup").setDesc("Auto-open the Cadence Home command centre when Obsidian launches.").addToggle((t) => t.setValue(!!tab.plugin.settings.openOnStartup).onChange(async (v) => {
+    tab.plugin.settings.openOnStartup = v;
+    await tab.plugin.saveSettings();
+  }));
+  new import_obsidian8.Setting(containerEl).setName("Default tab").setDesc("Which surface opens first when you launch the Cadence app.").addDropdown((d) => {
+    defaultTabOptions(NAV_GROUPS).forEach((o) => d.addOption(o.value, o.label));
+    d.setValue(defaultTabValue(tab.plugin.settings));
+    d.onChange(async (v) => {
+      tab.plugin.settings.defaultTab = v;
+      await tab.plugin.saveSettings();
     });
-    const submit = () => {
-      const config = buildWidgetConfig({ title: inputTitle.value, groupBy: selectProp.value, style: selectStyle.value });
-      if (!config) {
-        new import_obsidian9.Notice("Please enter a chart title.");
-        inputTitle.focus();
-        return;
-      }
-      this.onSubmit(config);
-      this.close();
-    };
-    const row = contentEl.createDiv();
-    row.style.display = "flex";
-    row.style.justifyContent = "flex-end";
-    row.style.gap = "8px";
-    row.style.marginTop = "18px";
-    const cancel = row.createEl("button", { text: "Cancel" });
-    cancel.addEventListener("click", () => this.close());
-    const ok = row.createEl("button", { text: "Create Widget", cls: "mod-cta" });
-    ok.addEventListener("click", submit);
-    setTimeout(() => inputTitle.focus(), 0);
+  });
+}
+function renderCloudSyncSettings(tab, containerEl) {
+  containerEl.createEl("h3", { text: "Cloud sync \u2014 coming soon" });
+  const cloudDesc = containerEl.createEl("p", { cls: "setting-item-description" });
+  cloudDesc.appendText("Future option to two-way sync your vault with a live Cadence instance, so contacts, deals and partners stay aligned across desktop and mobile. ");
+  cloudDesc.createEl("strong", { text: "Not active yet." });
+  cloudDesc.appendText(" These fields are persisted but unused until the sync feature ships in a later release.");
+  new import_obsidian8.Setting(containerEl).setName("Cadence base URL").setDesc("Coming soon").addText((t) => {
+    t.setPlaceholder("https://your-cadence-instance").setValue(tab.plugin.settings.cadenceApiUrl).onChange(async (v) => {
+      tab.plugin.settings.cadenceApiUrl = v;
+      await tab.plugin.saveSettings();
+    });
+    t.inputEl.disabled = true;
+  });
+  new import_obsidian8.Setting(containerEl).setName("API token").setDesc("Coming soon").addText((t) => {
+    t.setPlaceholder("paste JWT here when sync ships").setValue(tab.plugin.settings.cadenceApiToken).onChange(async (v) => {
+      tab.plugin.settings.cadenceApiToken = v;
+      await tab.plugin.saveSettings();
+    });
+    t.inputEl.disabled = true;
+  });
+}
+
+// src/utils/daily-notes.ts
+var import_obsidian9 = require("obsidian");
+async function ensureDailyNote(app, settings, date = /* @__PURE__ */ new Date()) {
+  const path = dailyNotePath(settings, date);
+  let file = app.vault.getAbstractFileByPath(path);
+  if (file) return file;
+  const folder = (settings.dailyNoteFolder || "").replace(/\/$/, "");
+  if (folder && !app.vault.getAbstractFileByPath(folder)) {
+    try {
+      await app.vault.createFolder(folder);
+    } catch (_) {
+    }
   }
-};
+  let template = "";
+  const dailyTemplatePath = "Cadence/Templates/daily.md";
+  const dailyTemplateFile = app.vault.getAbstractFileByPath(dailyTemplatePath);
+  if (dailyTemplateFile && dailyTemplateFile instanceof import_obsidian9.TFile) {
+    const rawTemplate = await app.vault.read(dailyTemplateFile);
+    const now = /* @__PURE__ */ new Date();
+    const timeStr = now.toLocaleTimeString(void 0, { hour: "2-digit", minute: "2-digit" });
+    template = rawTemplate.replace(/\{\{name\}\}/gi, ymd(date)).replace(/\{\{title\}\}/gi, ymd(date)).replace(/\{\{date\}\}/gi, ymd(date)).replace(/\{\{time\}\}/gi, timeStr);
+  } else {
+    template = [
+      `# ${ymd(date)}`,
+      "",
+      settings.tasksHeading,
+      "- [ ] ",
+      "",
+      settings.journalHeading,
+      "",
+      ""
+    ].join("\n");
+  }
+  file = await app.vault.create(path, template);
+  return file;
+}
+
+// src/views/app-view.ts
+var import_obsidian31 = require("obsidian");
 
 // src/modals/entity-create.ts
 var import_obsidian10 = require("obsidian");
@@ -2238,2371 +3500,72 @@ var CadenceEntityCreateModal = class extends import_obsidian10.Modal {
   }
 };
 
-// src/modals/import-modal.ts
+// src/modals/prompt.ts
 var import_obsidian11 = require("obsidian");
-function csvColumnSamples(rows, index) {
-  return rows.slice(0, 2).map((r) => String(r[index] || "").trim()).filter(Boolean);
-}
-function csvImportSummary(def, mapping, rowCount) {
-  const primaryMapped = Object.values(mapping).includes(def.fields[0].key);
-  if (!primaryMapped) {
-    return { ready: false, text: `No CSV column maps to "${def.fields[0].label}" \u2014 required to name the file. Pick a column above.` };
-  }
-  const mappedCount = Object.values(mapping).filter(Boolean).length;
-  return {
-    ready: true,
-    text: `Will create ${rowCount} ${rowCount === 1 ? def.label.toLowerCase() : def.plural.toLowerCase()} in ${def.folder}/  \xB7  ${mappedCount} column${mappedCount === 1 ? "" : "s"} mapped`
-  };
-}
-function filterCsvFiles(files, query) {
-  return files.filter((f) => f.path.toLowerCase().includes(query.toLowerCase()));
-}
-var CsvFileSuggestModal = class extends import_obsidian11.SuggestModal {
-  constructor(app, files, onPick) {
-    super(app);
-    this.files = files;
-    this.onPick = onPick;
-    this.setPlaceholder("Search .csv files\u2026");
-  }
-  getSuggestions(q) {
-    return filterCsvFiles(this.files, q);
-  }
-  renderSuggestion(file, el) {
-    el.setText(file.path);
-  }
-  onChooseSuggestion(file) {
-    this.onPick(file);
-  }
-};
-var CadenceImportModal = class extends import_obsidian11.Modal {
+var CadencePromptModal = class extends import_obsidian11.Modal {
   constructor(app, opts) {
     super(app);
-    this.entityKey = opts && opts.entityKey || "contact";
-    this.onSubmit = opts && opts.onSubmit || (() => {
-    });
-    this.csvText = "";
-    this.headers = [];
-    this.rows = [];
-    this.mapping = {};
+    this.title = opts.title || "Enter a name";
+    this.placeholder = opts.placeholder || "";
+    this.defaultValue = opts.defaultValue || "";
+    this.cta = opts.cta || "Create";
+    this.onSubmit = opts.onSubmit;
+    this._submitted = false;
   }
   onOpen() {
     const { contentEl } = this;
     contentEl.empty();
-    contentEl.addClass("cad-import-modal");
-    contentEl.createEl("h3", { cls: "cad-create-title", text: "Import from CSV" });
-    const entityRow = contentEl.createDiv({ cls: "cad-create-row" });
-    entityRow.createDiv({ cls: "cad-create-label", text: "IMPORT AS" });
-    const entitySelect = entityRow.createEl("select", { cls: "cad-create-input" });
-    Object.entries(ENTITIES).forEach(([key, def]) => {
-      const o = entitySelect.createEl("option", { value: key, text: def.plural });
-      if (key === this.entityKey) o.selected = true;
-    });
-    entitySelect.addEventListener("change", () => {
-      this.entityKey = entitySelect.value;
-      this._autoDetectMapping();
-      this._renderPreview();
-    });
-    const csvRow = contentEl.createDiv({ cls: "cad-create-row" });
-    csvRow.style.alignItems = "flex-start";
-    csvRow.createDiv({ cls: "cad-create-label", text: "CSV DATA" });
-    const csvWrap = csvRow.createDiv();
-    csvWrap.style.display = "flex";
-    csvWrap.style.flexDirection = "column";
-    csvWrap.style.gap = "8px";
-    const tabs = csvWrap.createDiv();
-    tabs.style.display = "flex";
-    tabs.style.gap = "6px";
-    const pasteBtn = tabs.createEl("button", { cls: "cad-btn cad-btn-sm", text: "Paste" });
-    pasteBtn.type = "button";
-    const fileBtn = tabs.createEl("button", { cls: "cad-btn cad-btn-sm", text: "Pick .csv from vault" });
-    fileBtn.type = "button";
-    const ta = csvWrap.createEl("textarea", { cls: "cad-create-input" });
-    ta.rows = 8;
-    ta.placeholder = "Paste CSV here, including a header row\u2026";
-    ta.style.fontFamily = "var(--font-monospace-theme, var(--font-monospace))";
-    ta.style.fontSize = "12px";
-    ta.style.resize = "vertical";
-    ta.addEventListener("input", () => {
-      this.csvText = ta.value;
-      this._parse();
-      this._renderPreview();
-    });
-    pasteBtn.addEventListener("click", () => ta.focus());
-    fileBtn.addEventListener("click", async () => {
-      const csvFiles = this.app.vault.getFiles().filter((f) => f.path.toLowerCase().endsWith(".csv"));
-      if (!csvFiles.length) {
-        new import_obsidian11.Notice("No .csv files found in vault. Drop one in the vault first.");
+    contentEl.addClass("cad-prompt-modal");
+    contentEl.createEl("h3", { text: this.title });
+    const input = contentEl.createEl("input", { type: "text" });
+    input.placeholder = this.placeholder;
+    input.value = this.defaultValue;
+    input.style.width = "100%";
+    input.style.padding = "8px 10px";
+    input.style.fontSize = "14px";
+    input.style.marginTop = "4px";
+    const submit = () => {
+      const v = input.value.trim();
+      if (!v) {
+        input.focus();
         return;
       }
-      const picker = new CsvFileSuggestModal(this.app, csvFiles, async (file) => {
-        try {
-          const text = await this.app.vault.read(file);
-          ta.value = text;
-          this.csvText = text;
-          this._parse();
-          this._renderPreview();
-        } catch (e) {
-          new import_obsidian11.Notice(`Failed to read ${file.path}: ${e.message}`);
-        }
-      });
-      picker.open();
+      this._submitted = true;
+      this.close();
+      this.onSubmit(v);
+    };
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        submit();
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        this.close();
+      }
     });
-    this.previewEl = contentEl.createDiv({ cls: "cad-import-preview" });
-    this._renderPreview();
-    const actions = contentEl.createDiv({ cls: "cad-create-actions" });
-    const cancel = actions.createEl("button", { cls: "cad-btn", text: "Cancel" });
-    cancel.type = "button";
+    const row = contentEl.createDiv();
+    row.style.display = "flex";
+    row.style.justifyContent = "flex-end";
+    row.style.gap = "8px";
+    row.style.marginTop = "14px";
+    const cancel = row.createEl("button", { text: "Cancel" });
     cancel.addEventListener("click", () => this.close());
-    this.importBtn = actions.createEl("button", { cls: "cad-btn primary", text: "Import" });
-    this.importBtn.type = "button";
-    this.importBtn.disabled = true;
-    this.importBtn.addEventListener("click", () => this._submitImport());
-  }
-  _parse() {
-    if (!this.csvText.trim()) {
-      this.headers = [];
-      this.rows = [];
-      return;
-    }
-    const all = parseCSV(this.csvText);
-    if (!all.length) {
-      this.headers = [];
-      this.rows = [];
-      return;
-    }
-    this.headers = all[0].map((h) => String(h).trim());
-    this.rows = all.slice(1);
-    this._autoDetectMapping();
-  }
-  _autoDetectMapping() {
-    this.mapping = autoDetectCsvMapping(ENTITIES[this.entityKey], this.headers);
-  }
-  _renderPreview() {
-    this.previewEl.empty();
-    if (!this.headers.length) {
-      this.previewEl.createDiv({ cls: "cad-empty", text: "Paste or pick a CSV to preview\u2026" });
-      if (this.importBtn) this.importBtn.disabled = true;
-      return;
-    }
-    const def = ENTITIES[this.entityKey];
-    const head = this.previewEl.createDiv({ cls: "cad-create-label" });
-    head.style.marginTop = "14px";
-    head.setText("COLUMN MAPPING");
-    const tableWrap = this.previewEl.createDiv({ cls: "cad-import-table-wrap" });
-    const table = tableWrap.createEl("table", { cls: "cad-import-table" });
-    const thr = table.createEl("thead").createEl("tr");
-    thr.createEl("th", { text: "CSV column" });
-    thr.createEl("th", { text: "Maps to" });
-    thr.createEl("th", { text: "Sample" });
-    const tbody = table.createEl("tbody");
-    this.headers.forEach((h, i) => {
-      const tr = tbody.createEl("tr");
-      tr.createEl("td", { text: h });
-      const mc = tr.createEl("td");
-      const sel = mc.createEl("select", { cls: "cad-create-input cad-import-select" });
-      sel.createEl("option", { value: "", text: "\u2014 skip \u2014" });
-      def.fields.forEach((f) => {
-        const o = sel.createEl("option", { value: f.key, text: f.label });
-        if (this.mapping[h] === f.key) o.selected = true;
-      });
-      sel.addEventListener("change", () => {
-        this.mapping[h] = sel.value || null;
-        this._renderPreview();
-      });
-      const sample = tr.createEl("td");
-      const samples = csvColumnSamples(this.rows, i);
-      sample.setText(samples.join(" \xB7 ").slice(0, 60));
-      sample.title = samples.join("\n");
-    });
-    const summary = this.previewEl.createDiv({ cls: "cad-import-summary" });
-    const { ready, text } = csvImportSummary(def, this.mapping, this.rows.length);
-    if (!ready) summary.addClass("cad-import-summary-warn");
-    summary.setText(text);
-    if (this.importBtn) this.importBtn.disabled = !ready;
-  }
-  async _submitImport() {
-    const def = ENTITIES[this.entityKey];
-    const primaryKey = def.fields[0].key;
-    const primaryHeader = Object.entries(this.mapping).find(([_, v]) => v === primaryKey);
-    if (!primaryHeader) return;
-    const primaryColIdx = this.headers.indexOf(primaryHeader[0]);
-    this.importBtn.disabled = true;
-    this.importBtn.setText("Importing\u2026");
-    const start = Date.now();
-    let created = 0;
-    let failed = 0;
-    for (const row of this.rows) {
-      const primaryValue = String(row[primaryColIdx] || "").trim();
-      if (!primaryValue) {
-        failed++;
-        continue;
-      }
-      try {
-        const file = await createEntity(this.app, this.entityKey, primaryValue);
-        const extras = csvRowExtras(def, this.mapping, this.headers, row, primaryKey);
-        if (Object.keys(extras).length) {
-          await this.app.fileManager.processFrontMatter(file, (fm) => {
-            Object.entries(extras).forEach(([k, v]) => {
-              if (v == null || v === "") return;
-              if (Array.isArray(v) && v.length === 0) return;
-              fm[k] = v;
-            });
-          });
-        }
-        created++;
-      } catch (e) {
-        failed++;
-      }
-    }
-    const elapsed = ((Date.now() - start) / 1e3).toFixed(1);
-    new import_obsidian11.Notice(`Imported ${created} ${def.plural.toLowerCase()} in ${elapsed}s${failed ? ` \xB7 ${failed} skipped` : ""}`, 5e3);
-    this.close();
-    this.onSubmit({ created, failed, entityKey: this.entityKey });
+    const ok = row.createEl("button", { text: this.cta, cls: "mod-cta" });
+    ok.addEventListener("click", submit);
+    setTimeout(() => {
+      input.focus();
+      input.select();
+    }, 0);
   }
   onClose() {
+    if (!this._submitted && this.onSubmit) this.onSubmit(null);
     this.contentEl.empty();
   }
 };
 
-// src/settings/setting-tab.ts
-var import_obsidian14 = require("obsidian");
-
-// src/constants/settings.ts
-var DEFAULT_SETTINGS = {
-  dailyNoteFolder: "daily",
-  dailyNoteFormat: "YYYY-MM-DD",
-  journalHeading: "## Journal",
-  tasksHeading: "## Today",
-  taskManagementSystem: "native",
-  weekStartsOn: 1,
-  defaultTab: "home",
-  openOnStartup: true,
-  collapsedGroups: {},
-  currency: "USD",
-  cadenceAppDark: false,
-  taskProjectLinks: {},
-  modules: {
-    crm: true,
-    prm: false,
-    planner: true,
-    projects: true
-  },
-  desktopNotifications: true,
-  reminders: [],
-  customPages: [],
-  pageLayouts: {},
-  pageKanbanGroupBy: {},
-  crossSections: [],
-  cadenceApiUrl: "",
-  cadenceApiToken: "",
-  projectDashboardWidgets: [],
-  crmDashboardWidgets: [],
-  prmDashboardWidgets: [],
-  customEntities: {
-    project: [
-      { key: "name", label: "Name", primary: true, type: "text" },
-      { key: "status", label: "Status", type: "enum", options: ["active", "on_hold", "backlog", "done", "cancelled"] },
-      { key: "priority", label: "Priority", type: "enum", options: ["low", "medium", "high"] },
-      { key: "owner", label: "Owner", type: "multitext", suggestionSource: "folder:Cadence/Contacts" },
-      { key: "started", label: "Started", type: "date" },
-      { key: "due", label: "Due", type: "date" },
-      { key: "tags", label: "Tags", type: "tags" }
-    ],
-    contact: [
-      { key: "name", label: "Name", primary: true, type: "text" },
-      { key: "email", label: "Email", type: "multitext", isList: true, suggestionSource: "none" },
-      { key: "phone", label: "Phone", isList: true, type: "multitext", suggestionSource: "none" },
-      { key: "company", label: "Company", isList: true, type: "multitext", suggestionSource: "folder:Cadence/Companies" },
-      { key: "role", label: "Role", isList: true, type: "multitext" },
-      { key: "project", label: "Project", type: "multitext", suggestionSource: "folder:Cadence/Projects" },
-      { key: "lastContact", label: "Last contact", type: "date" },
-      { key: "tags", label: "Tags", type: "tags" }
-    ],
-    deal: [
-      { key: "title", label: "Title", primary: true, type: "text" },
-      { key: "stage", label: "Stage", type: "enum", options: ["Lead", "Qualified", "Proposal", "Negotiation", "Won", "Lost"] },
-      { key: "value", label: "Value", type: "currency" },
-      { key: "company", label: "Company", type: "multitext", suggestionSource: "folder:Cadence/Companies" },
-      { key: "contact", label: "Contact", type: "multitext", suggestionSource: "folder:Cadence/Contacts" },
-      { key: "closeBy", label: "Close by", type: "date" },
-      { key: "project", label: "Project", type: "multitext", suggestionSource: "folder:Cadence/Projects" },
-      { key: "owner", label: "Owner", type: "multitext", suggestionSource: "folder:Cadence/Contacts" }
-    ],
-    company: [
-      { key: "name", label: "Name", primary: true, type: "text" },
-      { key: "domain", label: "Domain", isList: true, type: "multitext" },
-      { key: "industry", label: "Industry", isList: true, type: "multitext" },
-      { key: "size", label: "Size", type: "text" },
-      { key: "owner", label: "Owner", type: "multitext", suggestionSource: "folder:Cadence/Contacts" },
-      { key: "tags", label: "Tags", type: "tags" }
-    ],
-    activity: [
-      { key: "subject", label: "Subject", primary: true, type: "text" },
-      { key: "type", label: "Type", type: "enum", options: ["Call", "Email", "Meeting", "Note", "Task"] },
-      { key: "when", label: "When", type: "date" },
-      { key: "with", label: "With", type: "multitext", suggestionSource: "folder:Cadence/Contacts" },
-      { key: "company", label: "Company", type: "multitext", suggestionSource: "folder:Cadence/Companies" },
-      { key: "project", label: "Project", type: "multitext", suggestionSource: "folder:Cadence/Projects" }
-    ],
-    partner: [
-      { key: "name", label: "Name", primary: true },
-      { key: "tier", label: "Tier", type: "enum", options: ["Gold", "Silver", "Bronze", "Standard"] },
-      { key: "status", label: "Status", type: "enum", options: ["Active", "Onboarding", "Inactive", "Churned"] },
-      { key: "owner", label: "Owner", type: "multitext", suggestionSource: "folder:Cadence/Contacts" },
-      { key: "region", label: "Region" }
-    ],
-    registration: [
-      { key: "title", label: "Title", primary: true },
-      { key: "partner", label: "Partner" },
-      { key: "status", label: "Status", type: "enum", options: ["Submitted", "Approved", "Rejected", "Expired"] },
-      { key: "value", label: "Value", type: "currency" },
-      { key: "submitted", label: "Submitted", type: "date" },
-      { key: "expires", label: "Expires", type: "date" }
-    ],
-    commission: [
-      { key: "reference", label: "Ref", primary: true },
-      { key: "partner", label: "Partner" },
-      { key: "amount", label: "Amount", type: "currency" },
-      { key: "status", label: "Status", type: "enum", options: ["Pending", "Earned", "Paid", "Disputed"] },
-      { key: "period", label: "Period" },
-      { key: "paidOn", label: "Paid on", type: "date" }
-    ],
-    lead: [
-      { key: "name", label: "Name", primary: true },
-      { key: "company", label: "Company", type: "multitext", suggestionSource: "folder:Cadence/Companies" },
-      { key: "source", label: "Source" },
-      { key: "status", label: "Status", type: "enum", options: ["New", "Contacted", "Qualified", "Disqualified", "Converted"] },
-      { key: "assigned", label: "Assigned" }
-    ],
-    certification: [
-      { key: "name", label: "Name", primary: true },
-      { key: "partner", label: "Partner" },
-      { key: "level", label: "Level" },
-      { key: "issued", label: "Issued", type: "date" },
-      { key: "expires", label: "Expires", type: "date" }
-    ],
-    sequence: [
-      { key: "name", label: "Name", primary: true },
-      { key: "audience", label: "Audience" },
-      { key: "steps", label: "Steps", type: "number" },
-      { key: "active", label: "Active", type: "number" },
-      { key: "status", label: "Status", type: "enum", options: ["Draft", "Active", "Paused", "Archived"] }
-    ]
-  }
-};
-var CURRENCY_OPTIONS = [
-  { code: "USD", label: "USD \u2014 US Dollar" },
-  { code: "EUR", label: "EUR \u2014 Euro" },
-  { code: "GBP", label: "GBP \u2014 British Pound" },
-  { code: "ZAR", label: "ZAR \u2014 South African Rand" },
-  { code: "AUD", label: "AUD \u2014 Australian Dollar" },
-  { code: "CAD", label: "CAD \u2014 Canadian Dollar" },
-  { code: "CHF", label: "CHF \u2014 Swiss Franc" },
-  { code: "JPY", label: "JPY \u2014 Japanese Yen" },
-  { code: "INR", label: "INR \u2014 Indian Rupee" },
-  { code: "BRL", label: "BRL \u2014 Brazilian Real" },
-  { code: "AED", label: "AED \u2014 UAE Dirham" }
-];
-
-// src/settings/custom-pages.ts
+// src/views/calendar.ts
 var import_obsidian12 = require("obsidian");
-var SECTION_OPTIONS = [
-  { value: "planner", label: "Planner" },
-  { value: "projects", label: "Projects" },
-  { value: "crm", label: "CRM" },
-  { value: "prm", label: "PRM" },
-  { value: "workflow", label: "Workflow" },
-  { value: "reports", label: "Reports" }
-];
-var LAYOUT_OPTIONS = [
-  { value: "table", label: "Table view \u2630" },
-  { value: "kanban", label: "Kanban board \u{1F5C2}" },
-  { value: "cards", label: "Card grid \u2683" }
-];
-var LAYOUT_LABELS = {
-  "table": "Table View \u2630",
-  "kanban": "Kanban Board \u{1F5C2}",
-  "cards": "Card Grid \u2683"
-};
-var ICON_OPTIONS = [
-  { value: "file-text", label: "\u{1F4C4} Document (Default)" },
-  { value: "folder-kanban", label: "\u{1F4C1} Folder / Projects" },
-  { value: "users", label: "\u{1F465} Users / Contacts" },
-  { value: "building-2", label: "\u{1F3E2} Building / Companies" },
-  { value: "trending-up", label: "\u{1F4C8} Trending / Sales" },
-  { value: "handshake", label: "\u{1F91D} Handshake / Partners" },
-  { value: "target", label: "\u{1F3AF} Target / Leads" },
-  { value: "zap", label: "\u26A1 Lightning / Sequences" },
-  { value: "wallet", label: "\u{1F4BC} Wallet / Commissions" },
-  { value: "clipboard-check", label: "\u{1F4CB} Clipboard / Registrations" },
-  { value: "award", label: "\u{1F3C6} Award / Certifications" },
-  { value: "calendar", label: "\u{1F4C5} Calendar / Activities" },
-  { value: "star", label: "\u2B50 Star / VIP" },
-  { value: "tag", label: "\u{1F3F7}\uFE0F Tag / Categories" },
-  { value: "compass", label: "\u{1F9ED} Compass / Areas" },
-  { value: "database", label: "\u{1F5C4}\uFE0F Database / Items" },
-  { value: "check-square", label: "\u2611\uFE0F Checkbox / Tasks" }
-];
-var SECTION_LABELS = Object.fromEntries(SECTION_OPTIONS.map((o) => [o.value, o.label]));
-function sectionLabel(sectionId) {
-  return SECTION_LABELS[sectionId] || sectionId;
-}
-function customPageLayoutLabel(layout) {
-  return LAYOUT_LABELS[layout || "table"];
-}
-function customPageRows(customPages, entities) {
-  return customPages.slice().sort((a, b) => a.label.localeCompare(b.label)).map((p) => ({
-    page: p,
-    label: p.label,
-    section: sectionLabel(p.sectionId),
-    entity: entities[p.entityKey] ? entities[p.entityKey].label : p.entityKey,
-    layout: customPageLayoutLabel(p.defaultLayout)
-  }));
-}
-function customPageEntityKey(label, sectionId) {
-  let singular = label;
-  if (singular.endsWith("s") && singular.length > 1) {
-    singular = singular.substring(0, singular.length - 1);
-  } else if (singular.endsWith("S") && singular.length > 1) {
-    singular = singular.substring(0, singular.length - 1);
-  }
-  return { singular, entityKey: sectionId + "_" + singular.toLowerCase().replace(/\s+/g, "_") };
-}
-function customEntityLabel(singular) {
-  return singular === singular.toUpperCase() ? singular : singular.charAt(0).toUpperCase() + singular.slice(1);
-}
-function addCustomPage(settings, entities, form, now) {
-  const val = (form.label || "").trim();
-  if (!val) return { notice: "Please enter a page label." };
-  const { singular, entityKey } = customPageEntityKey(val, form.sectionId);
-  if (!settings.customEntities) {
-    settings.customEntities = {};
-  }
-  let newFields;
-  if (settings.customEntities[entityKey]) {
-    newFields = settings.customEntities[entityKey];
-  } else {
-    newFields = [
-      { key: "name", label: "Name", primary: true, type: "text" },
-      { key: "type", label: "Type", type: "text" }
-    ];
-    settings.customEntities[entityKey] = newFields;
-  }
-  entities[entityKey] = {
-    folder: `Cadence/${val}`,
-    label: customEntityLabel(singular),
-    plural: val,
-    fields: newFields,
-    columns: ["name"]
-  };
-  const newPage = {
-    id: `custom.${now}`,
-    label: val,
-    icon: form.icon || "file-text",
-    entityKey,
-    defaultLayout: form.layout,
-    sectionId: form.sectionId
-  };
-  const pages = settings.customPages || [];
-  pages.push(newPage);
-  settings.customPages = pages;
-  if (!settings.pageLayouts) settings.pageLayouts = {};
-  settings.pageLayouts[newPage.id] = newPage.defaultLayout;
-  return { notice: `Page "${val}" added successfully.`, page: newPage };
-}
-function deleteCustomPage(settings, entities, pageId) {
-  const originalIndex = settings.customPages.findIndex((page) => page.id === pageId);
-  if (originalIndex < 0) return false;
-  const entityKey = settings.customPages[originalIndex].entityKey;
-  settings.customPages.splice(originalIndex, 1);
-  if (settings.customEntities && settings.customEntities[entityKey]) {
-    delete settings.customEntities[entityKey];
-  }
-  if (entities[entityKey]) {
-    delete entities[entityKey];
-  }
-  return true;
-}
-function renderCustomPagesSettings(tab, containerEl) {
-  containerEl.createEl("h3", { text: "Custom Navigation Pages" });
-  containerEl.createEl("p", {
-    text: "Add custom pages to specific sections of your navigation sidebar. You can choose which entity they display and their default layout mode (Table, Kanban, or Card Grid).",
-    cls: "setting-item-description"
-  });
-  const customPagesDiv = containerEl.createDiv({ cls: "cad-custom-pages-container" });
-  const renderCustomPagesList = () => {
-    customPagesDiv.empty();
-    const rows = customPageRows(tab.plugin.settings.customPages || [], ENTITIES);
-    if (rows.length === 0) {
-      customPagesDiv.createEl("p", { text: "No custom pages added yet.", cls: "setting-item-description" });
-    } else {
-      const table = customPagesDiv.createEl("table", { cls: "cad-prop-table" });
-      table.style.width = "100%";
-      table.style.marginBottom = "16px";
-      const thead = table.createEl("thead");
-      const hr = thead.createEl("tr");
-      hr.createEl("th", { text: "Label" });
-      hr.createEl("th", { text: "Section" });
-      hr.createEl("th", { text: "Entity Type" });
-      hr.createEl("th", { text: "Default Layout" });
-      hr.createEl("th", { text: "Actions" });
-      const tbody = table.createEl("tbody");
-      rows.forEach((row) => {
-        const tr = tbody.createEl("tr");
-        tr.createEl("td", { text: row.label });
-        tr.createEl("td", { text: row.section });
-        tr.createEl("td", { text: row.entity });
-        tr.createEl("td", { text: row.layout });
-        const actionsTd = tr.createEl("td");
-        const delBtn = actionsTd.createEl("button", { cls: "cad-btn", text: "Delete" });
-        delBtn.style.color = "var(--text-error)";
-        delBtn.style.padding = "2px 8px";
-        delBtn.style.height = "auto";
-        delBtn.addEventListener("click", async () => {
-          if (deleteCustomPage(tab.plugin.settings, ENTITIES, row.page.id)) {
-            await tab.plugin.saveSettings();
-            tab.plugin.refreshOpenViews();
-            tab.display();
-          }
-        });
-      });
-    }
-    const addForm = customPagesDiv.createDiv({ cls: "cad-custom-page-add-form" });
-    addForm.style.border = "1px dashed var(--border-color)";
-    addForm.style.borderRadius = "8px";
-    addForm.style.padding = "12px";
-    addForm.style.marginTop = "16px";
-    addForm.style.background = "var(--background-primary-alt)";
-    addForm.createEl("h4", { text: "+ Add Custom Navigation Page", attr: { style: "margin-top: 0;" } });
-    const formRow = addForm.createDiv();
-    formRow.style.display = "flex";
-    formRow.style.flexWrap = "wrap";
-    formRow.style.gap = "12px";
-    formRow.style.alignItems = "flex-end";
-    const labelStyle = "display: block; font-size: 0.85em; margin-bottom: 4px; font-weight: 500;";
-    const labelWrap = formRow.createDiv();
-    labelWrap.style.flex = "1";
-    labelWrap.style.minWidth = "150px";
-    labelWrap.createEl("label", { text: "Label:", attr: { style: labelStyle } });
-    const labelInput = labelWrap.createEl("input", { type: "text", placeholder: "e.g. VIP Contacts" });
-    labelInput.style.width = "100%";
-    labelInput.style.padding = "4px 8px";
-    const selectField = (label, options) => {
-      const wrap = formRow.createDiv();
-      wrap.style.minWidth = "120px";
-      wrap.createEl("label", { text: label, attr: { style: labelStyle } });
-      const select = wrap.createEl("select");
-      select.style.width = "100%";
-      options.forEach((opt) => {
-        select.createEl("option", { value: opt.value, text: opt.label });
-      });
-      return select;
-    };
-    const sectionSelect = selectField("Sidebar Section:", SECTION_OPTIONS);
-    const layoutSelect = selectField("Default Layout:", LAYOUT_OPTIONS);
-    const iconSelect = selectField("Icon:", ICON_OPTIONS);
-    const btnWrap = formRow.createDiv();
-    const addBtn = btnWrap.createEl("button", { cls: "cad-btn primary", text: "Add Page" });
-    addBtn.style.padding = "6px 12px";
-    addBtn.style.height = "auto";
-    addBtn.addEventListener("click", async () => {
-      const result = addCustomPage(tab.plugin.settings, ENTITIES, {
-        label: labelInput.value,
-        sectionId: sectionSelect.value,
-        layout: layoutSelect.value,
-        icon: iconSelect.value
-      }, Date.now());
-      if (!result.page) {
-        new import_obsidian12.Notice(result.notice);
-        return;
-      }
-      await tab.plugin.saveSettings();
-      tab.plugin.refreshOpenViews();
-      new import_obsidian12.Notice(result.notice);
-      tab.display();
-    });
-  };
-  renderCustomPagesList();
-}
-
-// src/settings/entity-properties.ts
-var import_obsidian13 = require("obsidian");
-var CORE_ENTITY_KEYS = ["contact", "company", "partner", "registration", "commission", "lead", "certification", "activity", "sequence", "project", "deal"];
-var CORE_ENTITY_SECTIONS = {
-  project: "Projects",
-  deal: "CRM",
-  contact: "CRM",
-  company: "CRM",
-  activity: "CRM",
-  partner: "PRM",
-  registration: "PRM",
-  commission: "PRM",
-  lead: "PRM",
-  certification: "PRM",
-  sequence: "Workflow"
-};
-function entityPickerLabel(key, ent, customPages) {
-  let label = CORE_ENTITY_SECTIONS[key];
-  if (!label) {
-    const customPage = customPages.find((p) => p.entityKey === key);
-    if (customPage) label = sectionLabel(customPage.sectionId);
-  }
-  if (!label) return ent.label;
-  const capSection = label.charAt(0).toUpperCase() + label.slice(1);
-  return `${capSection}/${ent.label}`;
-}
-function entityPickerOptions(entities, customPages) {
-  return Object.entries(entities).map(([key, ent]) => ({ value: key, label: entityPickerLabel(key, ent, customPages) })).sort((a, b) => a.label.localeCompare(b.label));
-}
-function isPermanentlyLocked(entityKey, field) {
-  if (field.primary) return true;
-  const k = field.key;
-  if (entityKey === "project" && (k === "status" || k === "priority")) return true;
-  if (entityKey === "deal" && k === "stage") return true;
-  return false;
-}
-function isFieldLocked(entityKey, field) {
-  if (isPermanentlyLocked(entityKey, field)) return true;
-  if (field.locked === void 0) {
-    if (field.key === "type") {
-      field.locked = true;
-    } else {
-      field.locked = CORE_ENTITY_KEYS.includes(entityKey);
-    }
-  }
-  return !!field.locked;
-}
-function snapshotCustomEntities(settings, entities) {
-  if (!settings.customEntities) {
-    settings.customEntities = {};
-  }
-  for (const [ek, ent] of Object.entries(entities)) {
-    settings.customEntities[ek] = JSON.parse(JSON.stringify(ent.fields));
-  }
-}
-function copyPropertyShape(target, source) {
-  target.label = source.label;
-  target.type = source.type;
-  if (source.options) {
-    target.options = JSON.parse(JSON.stringify(source.options));
-  } else {
-    delete target.options;
-  }
-  if (source.suggestionSource) {
-    target.suggestionSource = source.suggestionSource;
-  } else {
-    delete target.suggestionSource;
-  }
-}
-function syncSharedProperties(entities, sourceField) {
-  if (sourceField.key === "type") return;
-  for (const ent of Object.values(entities)) {
-    ent.fields.forEach((f) => {
-      if (f.key === sourceField.key && f !== sourceField) copyPropertyShape(f, sourceField);
-    });
-  }
-}
-function fieldKeySuggestions(entities, frontmatters) {
-  const keys = /* @__PURE__ */ new Set();
-  for (const ent of Object.values(entities)) {
-    ent.fields.forEach((f) => keys.add(f.key));
-  }
-  for (const fm of frontmatters) {
-    Object.keys(fm).forEach((k) => {
-      if (k !== "position") keys.add(k);
-    });
-  }
-  return keys;
-}
-function filterKeySuggestions(keys, typed) {
-  const q = typed.trim().toLowerCase();
-  return [...keys].filter((k) => !q || k.toLowerCase().includes(q)).sort();
-}
-function sanitizeFieldKey(raw) {
-  return raw.trim().toLowerCase().replace(/[^a-z0-9_]/g, "");
-}
-function parseEnumOptions(raw) {
-  return raw.split(",").map((s) => s.trim()).filter(Boolean);
-}
-var FIELD_TYPE_OPTIONS = [
-  { value: "text", label: "Text" },
-  { value: "multitext", label: "List / Multiple Links" },
-  { value: "date", label: "Date" },
-  { value: "number", label: "Number" },
-  { value: "currency", label: "Currency" },
-  { value: "tags", label: "Tags" },
-  { value: "enum", label: "Select (Enum)" }
-];
-var TYPE_FIELD_TYPE_OPTIONS = [
-  { value: "text", label: "Text" },
-  { value: "enum", label: "Select (Enum)" }
-];
-function fieldTypeOptions(field) {
-  const types = field.key === "type" ? TYPE_FIELD_TYPE_OPTIONS : FIELD_TYPE_OPTIONS;
-  return types.map((t) => ({ ...t, selected: field.type === t.value || !field.type && t.value === "text" }));
-}
-function optionsCellKind(field) {
-  if (field.primary || field.type === "date" || field.type === "currency") return "none";
-  if (field.type === "enum") return "enum";
-  if (field.type === "multitext" || field.type === "tags") return "source";
-  return "none";
-}
-var SOURCE_OPTIONS = [
-  { value: "history", label: "History / Shared" },
-  { value: "tags", label: "Obsidian Tags" },
-  { value: "none", label: "None" },
-  { value: "folder", label: "Folder\u2026" }
-];
-function sourceState(field) {
-  const activeSource = field.suggestionSource || getFieldSuggestionSource(field);
-  const isCustomFolder = !!(activeSource && activeSource.startsWith("folder:"));
-  let selected = null;
-  SOURCE_OPTIONS.forEach((s) => {
-    if (!isCustomFolder && s.value === activeSource) selected = s.value;
-    else if (isCustomFolder && s.value === "folder") selected = s.value;
-  });
-  return { selected, isCustomFolder, folderPath: isCustomFolder ? activeSource.slice("folder:".length) : "" };
-}
-function folderSource(path) {
-  return path ? `folder:${path}` : "none";
-}
-function folderBadge(path) {
-  return { text: path || "Aucun dossier", color: path ? "var(--text-normal)" : "var(--text-faint)" };
-}
-function vaultFolderPaths(allFolders, markdownFiles) {
-  const folderSet = /* @__PURE__ */ new Set();
-  if (!allFolders || !allFolders.length) {
-    markdownFiles().forEach((f) => {
-      const parts = f.path.split("/");
-      for (let i = 1; i < parts.length; i++) {
-        folderSet.add(parts.slice(0, i).join("/"));
-      }
-    });
-  } else {
-    allFolders.forEach((f) => {
-      const p = typeof f === "string" ? f : f.path || "";
-      if (p) folderSet.add(p);
-    });
-  }
-  return Array.from(folderSet).sort();
-}
-function filterFolders(folders, query) {
-  const ql = query.toLowerCase();
-  return ql ? folders.filter((f) => f.toLowerCase().includes(ql)) : folders;
-}
-function nextPropertyKey(fields) {
-  let counter = 1;
-  let newKey = `new_property_${counter}`;
-  while (fields.some((f) => f.key === newKey)) {
-    counter++;
-    newKey = `new_property_${counter}`;
-  }
-  return newKey;
-}
-function moveField(fields, from, to, isLocked) {
-  const candidateFields = [...fields];
-  const [draggedItem] = candidateFields.splice(from, 1);
-  candidateFields.splice(to, 0, draggedItem);
-  for (let i = 0; i < fields.length; i++) {
-    if (isLocked(fields[i])) {
-      if (!candidateFields[i] || candidateFields[i].key !== fields[i].key) return null;
-    }
-  }
-  return candidateFields;
-}
-function applyPropertyEdit(entities, entityKey, edit) {
-  const def = entities[entityKey];
-  const migrations = [];
-  switch (edit.kind) {
-    case "label": {
-      edit.field.label = edit.value.trim() || edit.field.key;
-      syncSharedProperties(entities, edit.field);
-      return { ok: true, migrations, rerender: false };
-    }
-    case "options": {
-      edit.field.options = parseEnumOptions(edit.value);
-      syncSharedProperties(entities, edit.field);
-      return { ok: true, migrations, rerender: false };
-    }
-    case "source": {
-      edit.field.suggestionSource = edit.value;
-      syncSharedProperties(entities, edit.field);
-      return { ok: true, migrations, rerender: false };
-    }
-    case "lock": {
-      edit.field.locked = edit.locked;
-      return { ok: true, migrations, rerender: true };
-    }
-    case "key": {
-      const { field } = edit;
-      const sanitized = sanitizeFieldKey(edit.value);
-      if (!sanitized) return { ok: false, notice: "Technical key cannot be empty and must be alphanumeric." };
-      if (def.fields.some((f, idx) => idx !== edit.index && f.key === sanitized)) {
-        return { ok: false, notice: "This technical key is already in use." };
-      }
-      const oldKey = field.key;
-      migrations.push({ kind: "key", entityKey, oldKey, newKey: sanitized });
-      for (const [ek, ent] of Object.entries(entities)) {
-        if (ek === entityKey) continue;
-        const targetField = ent.fields.find((f) => f.key === oldKey);
-        if (targetField) {
-          migrations.push({ kind: "key", entityKey: ek, oldKey, newKey: sanitized });
-          targetField.key = sanitized;
-        }
-      }
-      field.key = sanitized;
-      const matchingField = Object.values(entities).flatMap((ent) => ent.fields).find((f) => f.key === sanitized && f !== field);
-      if (matchingField) {
-        copyPropertyShape(field, matchingField);
-        return { ok: true, migrations, notice: `Linked key to existing property "${sanitized}".`, rerender: true };
-      }
-      syncSharedProperties(entities, field);
-      return { ok: true, migrations, rerender: true };
-    }
-    case "type": {
-      const { field } = edit;
-      const oldType = field.type || "text";
-      const newType = edit.value;
-      migrations.push({ kind: "type", entityKey, fieldKey: field.key, oldType, newType });
-      if (field.key !== "type") {
-        for (const [ek, ent] of Object.entries(entities)) {
-          if (ek === entityKey) continue;
-          const targetField = ent.fields.find((f) => f.key === field.key);
-          if (targetField) {
-            migrations.push({ kind: "type", entityKey: ek, fieldKey: field.key, oldType, newType });
-            targetField.type = newType;
-          }
-        }
-      }
-      field.type = newType;
-      syncSharedProperties(entities, field);
-      return { ok: true, migrations, rerender: true };
-    }
-    case "remove": {
-      def.fields.splice(edit.index, 1);
-      return { ok: true, migrations, rerender: true };
-    }
-    case "add": {
-      def.fields.push({
-        key: nextPropertyKey(def.fields),
-        label: "New Property",
-        type: "text"
-      });
-      return { ok: true, migrations, rerender: true };
-    }
-    case "move": {
-      const candidateFields = moveField(def.fields, edit.from, edit.to, (f) => isFieldLocked(entityKey, f));
-      if (!candidateFields) {
-        return { ok: false, notice: "Impossible de r\xE9ordonner : les propri\xE9t\xE9s verrouill\xE9es (\u{1F512}) doivent conserver leur position initiale." };
-      }
-      def.fields = candidateFields;
-      return { ok: true, migrations, rerender: true };
-    }
-  }
-}
-var FolderSuggestModal = class extends import_obsidian13.SuggestModal {
-  folders;
-  onChoose;
-  constructor(app, folders, onChoose) {
-    super(app);
-    this.folders = folders;
-    this.onChoose = onChoose;
-    this.setPlaceholder("Rechercher un dossier du vault\u2026");
-  }
-  getSuggestions(q) {
-    return filterFolders(this.folders, q);
-  }
-  renderSuggestion(folder, el) {
-    el.createEl("span", { text: "\u{1F4C1} " });
-    el.createEl("span", { text: folder });
-  }
-  onChooseSuggestion(folder) {
-    this.onChoose(folder);
-  }
-};
-function renderEntityPropertiesSettings(tab, containerEl) {
-  containerEl.createEl("h3", { text: "Custom Entity Properties" });
-  containerEl.createEl("p", {
-    text: "Customize the properties for each core entity (Projects, Pipelines/Deals, Contacts, Companies, and Activities). Critical system properties required for the calendar, Kanban, and dashboard features are locked against deletion or type changes, but their display labels can still be customized.",
-    cls: "setting-item-description"
-  });
-  let selectedEntityKey = "project";
-  new import_obsidian13.Setting(containerEl).setName("Select entity").setDesc("Choose which entity to customize.").addDropdown((d) => {
-    entityPickerOptions(ENTITIES, tab.plugin.settings.customPages || []).forEach(({ value, label }) => {
-      d.addOption(value, label);
-    });
-    d.setValue(selectedEntityKey);
-    d.onChange((v) => {
-      selectedEntityKey = v;
-      renderPropEditor();
-    });
-  });
-  const propEditorDiv = containerEl.createDiv({ cls: "cad-prop-editor-container" });
-  const renderPropEditor = () => {
-    propEditorDiv.empty();
-    const def = ENTITIES[selectedEntityKey];
-    if (!def) return;
-    propEditorDiv.createEl("h4", { text: `Properties for: ${def.label}` });
-    const table = propEditorDiv.createEl("table", { cls: "cad-prop-table" });
-    const thead = table.createEl("thead");
-    const headerRow = thead.createEl("tr");
-    headerRow.createEl("th", { text: "", cls: "cad-prop-drag-header" });
-    headerRow.createEl("th", { text: "Label (Display name)" });
-    headerRow.createEl("th", { text: "Technical Key (Frontmatter)" });
-    headerRow.createEl("th", { text: "Type" });
-    headerRow.createEl("th", { text: "Options / Source" });
-    headerRow.createEl("th", { text: "" });
-    const tbody = table.createEl("tbody");
-    const saveAndSync = async () => {
-      snapshotCustomEntities(tab.plugin.settings, ENTITIES);
-      await tab.plugin.saveSettings();
-      tab.plugin.registerCustomPropertyTypes();
-      tab.plugin.refreshOpenViews();
-    };
-    const commit = async (result) => {
-      for (const m of result.migrations) {
-        if (m.kind === "key") await migrateFrontmatterKey(tab.app, m.entityKey, m.oldKey, m.newKey);
-        else await migrateFrontmatterType(tab.app, m.entityKey, m.fieldKey, m.oldType, m.newType);
-      }
-      if (result.notice) new import_obsidian13.Notice(result.notice);
-      await saveAndSync();
-      if (result.rerender) renderPropEditor();
-    };
-    const edit = (change) => applyPropertyEdit(ENTITIES, selectedEntityKey, change);
-    let draggedIndex = null;
-    def.fields.forEach((field, index) => {
-      const tr = tbody.createEl("tr");
-      tr.addClass("cad-prop-row");
-      const permLocked = isPermanentlyLocked(selectedEntityKey, field);
-      const locked = isFieldLocked(selectedEntityKey, field);
-      const tdDrag = tr.createEl("td", { cls: "cad-prop-drag-cell" });
-      if (permLocked) {
-        tdDrag.createEl("span", { text: "\u{1F512}", cls: "cad-prop-lock-icon" });
-        tr.addClass("cad-prop-row-locked");
-      } else if (locked) {
-        const lockSpan = tdDrag.createEl("span", { text: "\u{1F510}", cls: "cad-prop-lock-icon" });
-        lockSpan.style.cursor = "pointer";
-        lockSpan.title = "Click to unlock this property";
-        lockSpan.addEventListener("click", async (e) => {
-          e.stopPropagation();
-          await commit(edit({ kind: "lock", field, locked: false }));
-        });
-        tr.addClass("cad-prop-row-locked");
-      } else {
-        tdDrag.createEl("span", { text: "\u22EE\u22EE", cls: "cad-prop-drag-handle" });
-        const unlockSpan = tdDrag.createEl("span", { text: "\u{1F513}", cls: "cad-prop-unlock-icon" });
-        unlockSpan.style.cursor = "pointer";
-        unlockSpan.style.marginLeft = "6px";
-        unlockSpan.title = "Click to lock this property";
-        unlockSpan.addEventListener("click", async (e) => {
-          e.stopPropagation();
-          await commit(edit({ kind: "lock", field, locked: true }));
-        });
-        tr.setAttribute("draggable", "true");
-        tr.addClass("cad-prop-row-draggable");
-        tr.addEventListener("dragstart", (e) => {
-          draggedIndex = index;
-          tr.addClass("cad-drag-active");
-          e.dataTransfer.setData("text/plain", index.toString());
-          e.dataTransfer.effectAllowed = "move";
-        });
-        tr.addEventListener("dragend", () => {
-          tbody.querySelectorAll(".cad-prop-row").forEach((r) => {
-            r.removeClass("cad-drag-active");
-            r.removeClass("cad-drag-hover");
-          });
-          draggedIndex = null;
-        });
-      }
-      tr.addEventListener("dragover", (e) => {
-        if (draggedIndex !== null && draggedIndex !== index) {
-          e.preventDefault();
-          tr.addClass("cad-drag-hover");
-        }
-      });
-      tr.addEventListener("dragleave", () => {
-        tr.removeClass("cad-drag-hover");
-      });
-      tr.addEventListener("drop", async (e) => {
-        tr.removeClass("cad-drag-hover");
-        if (draggedIndex === null || draggedIndex === index) return;
-        e.preventDefault();
-        const result = applyPropertyEdit(ENTITIES, selectedEntityKey, { kind: "move", from: draggedIndex, to: index });
-        if (!result.ok) {
-          new import_obsidian13.Notice(result.notice);
-          return;
-        }
-        await commit(result);
-      });
-      const tdLabel = tr.createEl("td");
-      const inputLabel = tdLabel.createEl("input", {
-        type: "text",
-        value: field.label || "",
-        cls: "cad-prop-input"
-      });
-      inputLabel.addEventListener("change", async () => {
-        await commit(edit({ kind: "label", field, value: inputLabel.value }));
-      });
-      const tdKey = tr.createEl("td");
-      const keyWrap = tdKey.createDiv({ cls: "cad-key-wrap" });
-      const datalistId = `cad-key-dl-${selectedEntityKey}-${index}`;
-      const datalist = keyWrap.createEl("datalist");
-      datalist.id = datalistId;
-      const frontmatters = [];
-      try {
-        const vaultFiles = tab.app.vault.getMarkdownFiles().slice(0, 200);
-        for (const vf of vaultFiles) {
-          const cache = tab.app.metadataCache.getFileCache(vf);
-          if (cache && cache.frontmatter) frontmatters.push(cache.frontmatter);
-        }
-      } catch (_) {
-      }
-      const _allSuggestionKeys = fieldKeySuggestions(ENTITIES, frontmatters);
-      _allSuggestionKeys.forEach((k) => datalist.createEl("option", { value: k }));
-      const inputKey = keyWrap.createEl("input", {
-        type: "text",
-        value: field.key || "",
-        cls: "cad-prop-input"
-      });
-      inputKey.setAttribute("list", datalistId);
-      inputKey.setAttribute("autocomplete", "off");
-      if (locked || field.key === "type") {
-        inputKey.disabled = true;
-      } else {
-        inputKey.disabled = false;
-        inputKey.addEventListener("input", () => {
-          datalist.empty();
-          filterKeySuggestions(_allSuggestionKeys, inputKey.value).forEach((k) => datalist.createEl("option", { value: k }));
-        });
-        inputKey.addEventListener("change", async () => {
-          const result = applyPropertyEdit(ENTITIES, selectedEntityKey, { kind: "key", field, index, value: inputKey.value });
-          if (!result.ok) {
-            new import_obsidian13.Notice(result.notice);
-            inputKey.value = field.key;
-            return;
-          }
-          await commit(result);
-        });
-      }
-      const tdType = tr.createEl("td");
-      const selectType = tdType.createEl("select", { cls: "cad-prop-input" });
-      fieldTypeOptions(field).forEach((t) => {
-        const opt = selectType.createEl("option", { value: t.value, text: t.label });
-        if (t.selected) {
-          opt.selected = true;
-        }
-      });
-      if (locked) {
-        selectType.disabled = true;
-      } else {
-        selectType.disabled = false;
-        selectType.addEventListener("change", async () => {
-          await commit(edit({ kind: "type", field, value: selectType.value }));
-        });
-      }
-      const tdOptions = tr.createEl("td");
-      const optionsKind = optionsCellKind(field);
-      if (optionsKind === "enum") {
-        const inputOptions = tdOptions.createEl("input", {
-          type: "text",
-          value: field.options ? field.options.join(", ") : "",
-          placeholder: "Option A, Option B...",
-          cls: "cad-prop-input"
-        });
-        inputOptions.addEventListener("change", async () => {
-          await commit(edit({ kind: "options", field, value: inputOptions.value }));
-        });
-      } else if (optionsKind === "source") {
-        const sourceWrap = tdOptions.createDiv({ cls: "cad-source-wrap" });
-        const selectSource = sourceWrap.createEl("select", { cls: "cad-prop-input" });
-        const { selected, isCustomFolder, folderPath: currentFolderPath } = sourceState(field);
-        SOURCE_OPTIONS.forEach((s) => {
-          const opt = selectSource.createEl("option", { value: s.value, text: s.label });
-          if (s.value === selected) opt.selected = true;
-        });
-        const folderPickerWrap = sourceWrap.createDiv({ cls: "cad-folder-picker-wrap" });
-        folderPickerWrap.style.marginTop = "4px";
-        folderPickerWrap.style.display = selectSource.value === "folder" || isCustomFolder ? "flex" : "none";
-        folderPickerWrap.style.alignItems = "center";
-        folderPickerWrap.style.gap = "6px";
-        const folderBadgeEl = folderPickerWrap.createEl("span", { cls: "cad-folder-badge" });
-        const badge = folderBadge(currentFolderPath);
-        folderBadgeEl.setText(badge.text);
-        folderBadgeEl.style.flex = "1";
-        folderBadgeEl.style.fontSize = "12px";
-        folderBadgeEl.style.color = badge.color;
-        folderBadgeEl.style.fontFamily = "var(--font-monospace)";
-        folderBadgeEl.style.overflow = "hidden";
-        folderBadgeEl.style.textOverflow = "ellipsis";
-        folderBadgeEl.style.whiteSpace = "nowrap";
-        let _folderPath = currentFolderPath;
-        const pickFolderBtn = folderPickerWrap.createEl("button", {
-          cls: "cad-btn cad-btn-sm cad-folder-pick-btn",
-          text: "\u{1F4C2} Choisir"
-        });
-        pickFolderBtn.type = "button";
-        pickFolderBtn.style.flexShrink = "0";
-        pickFolderBtn.style.whiteSpace = "nowrap";
-        const saveFolderSource = async (path) => {
-          _folderPath = path;
-          const chosen = folderBadge(path);
-          folderBadgeEl.setText(chosen.text);
-          folderBadgeEl.style.color = chosen.color;
-          await commit(edit({ kind: "source", field, value: folderSource(path) }));
-        };
-        const saveSugSource = async () => {
-          const v = selectSource.value;
-          await commit(edit({ kind: "source", field, value: v === "folder" ? folderSource(_folderPath) : v }));
-        };
-        pickFolderBtn.addEventListener("click", () => {
-          const vault = tab.app.vault;
-          const folders = vaultFolderPaths(vault.getAllFolders ? vault.getAllFolders() : [], () => vault.getMarkdownFiles());
-          new FolderSuggestModal(tab.app, folders, (folder) => {
-            saveFolderSource(folder);
-          }).open();
-        });
-        selectSource.addEventListener("change", async () => {
-          const show = selectSource.value === "folder";
-          folderPickerWrap.style.display = show ? "flex" : "none";
-          if (!show) {
-            _folderPath = "";
-            folderBadgeEl.setText(folderBadge("").text);
-            await saveSugSource();
-          }
-        });
-      } else {
-        const disabledInput = tdOptions.createEl("input", {
-          type: "text",
-          cls: "cad-prop-input"
-        });
-        disabledInput.disabled = true;
-        disabledInput.placeholder = "\u2014";
-      }
-      const tdDelete = tr.createEl("td");
-      const btnDelete = tdDelete.createEl("button", {
-        text: "\xD7",
-        cls: "cad-prop-btn-delete"
-      });
-      if (locked || field.key === "type") {
-        btnDelete.disabled = true;
-      } else {
-        btnDelete.disabled = false;
-        btnDelete.addEventListener("click", async () => {
-          await commit(edit({ kind: "remove", index }));
-        });
-      }
-    });
-    const btnAdd = propEditorDiv.createEl("button", {
-      text: "+ Add property",
-      cls: "cad-prop-btn-add"
-    });
-    btnAdd.addEventListener("click", async () => {
-      await commit(edit({ kind: "add" }));
-    });
-  };
-  renderPropEditor();
-}
-
-// src/settings/setting-tab.ts
-var CadenceSettingTab = class extends import_obsidian14.PluginSettingTab {
-  constructor(app, plugin) {
-    super(app, plugin);
-    this.plugin = plugin;
-  }
-  display() {
-    const { containerEl } = this;
-    containerEl.empty();
-    containerEl.createEl("h2", { text: "Cadence" });
-    renderModulesSettings(this, containerEl);
-    renderReminderSettings(this, containerEl);
-    renderAppSettings(this, containerEl);
-    renderCloudSyncSettings(this, containerEl);
-    renderCustomPagesSettings(this, containerEl);
-    renderEntityPropertiesSettings(this, containerEl);
-  }
-};
-var MODULE_TOGGLES = [
-  { key: "planner", label: "Planner", desc: "Inbox, Today, Calendar." },
-  { key: "projects", label: "Projects", desc: "Projects with milestones, tasks, and status tracking." },
-  { key: "crm", label: "CRM", desc: "Dashboard, Pipeline, Contacts, Companies, Activities + CRM-driven Reports." },
-  { key: "prm", label: "PRM", desc: "Partners, Registrations, Commissions, Leads, Certifications, Analytics + Partner reports." }
-];
-function ensureModules(settings) {
-  if (!settings.modules) {
-    settings.modules = { crm: true, prm: true, planner: true, projects: true };
-  }
-  if (settings.modules.projects === void 0) {
-    settings.modules.projects = true;
-  }
-  return settings.modules;
-}
-function renderModulesSettings(tab, containerEl) {
-  containerEl.createEl("h3", { text: "Modules" });
-  containerEl.createEl("p", {
-    text: "Toggle entire sections of the app. Disabled modules disappear from the left nav and from Reports that depend on them.",
-    cls: "setting-item-description"
-  });
-  MODULE_TOGGLES.forEach((m) => {
-    new import_obsidian14.Setting(containerEl).setName(m.label).setDesc(m.desc).addToggle((t) => t.setValue(ensureModules(tab.plugin.settings)[m.key] !== false).onChange(async (v) => {
-      ensureModules(tab.plugin.settings)[m.key] = v;
-      await tab.plugin.saveSettings();
-      tab.plugin.refreshOpenViews();
-    }));
-  });
-}
-function shouldRequestPermission(enabled, notification) {
-  return !!(enabled && notification !== void 0 && notification.permission === "default");
-}
-function notificationPermissionDesc(notification) {
-  return notification === void 0 ? "Notifications API not available in this environment." : `Current status: ${notification.permission}`;
-}
-function completedReminderCount(reminders) {
-  return (reminders || []).filter((r) => r.done).length;
-}
-function openReminders(reminders) {
-  return (reminders || []).filter((r) => !r.done);
-}
-var notificationApi = () => typeof Notification === "undefined" ? void 0 : Notification;
-function renderReminderSettings(tab, containerEl) {
-  containerEl.createEl("h3", { text: "Reminders" });
-  new import_obsidian14.Setting(containerEl).setName("Desktop notifications").setDesc("In addition to the in-app banner, fire a system notification when a reminder is due. Requires browser permission.").addToggle((t) => t.setValue(!!tab.plugin.settings.desktopNotifications).onChange(async (v) => {
-    tab.plugin.settings.desktopNotifications = v;
-    await tab.plugin.saveSettings();
-    if (shouldRequestPermission(v, notificationApi())) {
-      try {
-        await Notification.requestPermission();
-      } catch (_) {
-      }
-    }
-  }));
-  new import_obsidian14.Setting(containerEl).setName("Notification permission").setDesc(notificationPermissionDesc(notificationApi())).addButton((b) => b.setButtonText("Request permission").onClick(async () => {
-    if (typeof Notification === "undefined") return;
-    try {
-      await Notification.requestPermission();
-      tab.display();
-    } catch (_) {
-    }
-  }));
-  new import_obsidian14.Setting(containerEl).setName("Clear completed reminders").setDesc(`${completedReminderCount(tab.plugin.settings.reminders)} completed reminders stored.`).addButton((b) => b.setButtonText("Clear").onClick(async () => {
-    tab.plugin.settings.reminders = openReminders(tab.plugin.settings.reminders);
-    await tab.plugin.saveSettings();
-    tab.plugin.refreshOpenViews();
-    tab.display();
-  }));
-}
-var TASK_SYSTEM_OPTIONS = [
-  { value: "native", label: "Native (Cadence)" },
-  { value: "tasknotes", label: "TaskNotes" }
-];
-var TASKNOTES_URL = "https://github.com/callumalpass/obsidian-tasknotes";
-function taskNotesStatus(active) {
-  return active ? {
-    name: "TaskNotes Status",
-    desc: "TaskNotes is currently installed, activated and successfully connected to Cadence.",
-    text: "\u{1F7E2} Active and Connected",
-    color: "#27ae60"
-  } : {
-    name: "TaskNotes not detected",
-    desc: "The TaskNotes plugin is not enabled or installed in your Obsidian vault.",
-    text: "\u{1F534} Inactive / Not installed",
-    color: "#c0392b"
-  };
-}
-function weekStartsOnFromOption(value) {
-  return Number(value) === 0 ? 0 : 1;
-}
-function defaultTabOptions(groups) {
-  return groups.flatMap((g) => g.items.map((s) => {
-    const prefix = g.label ? `${g.label} \xB7 ` : "";
-    return { value: s.id, label: prefix + s.label };
-  }));
-}
-function defaultTabValue(settings) {
-  return settings.defaultTab || "planner.today";
-}
-function renderAppSettings(tab, containerEl) {
-  containerEl.createEl("h3", { text: "App" });
-  new import_obsidian14.Setting(containerEl).setName("Task management system").setDesc("Choose between the native Cadence manager (using daily notes) or the external TaskNotes plugin.").addDropdown((d) => {
-    TASK_SYSTEM_OPTIONS.forEach((o) => d.addOption(o.value, o.label));
-    d.setValue(tab.plugin.settings.taskManagementSystem || "native").onChange(async (v) => {
-      tab.plugin.settings.taskManagementSystem = v;
-      await tab.plugin.saveSettings();
-      tab.display();
-      tab.plugin.refreshOpenViews();
-    });
-  });
-  if (tab.plugin.settings.taskManagementSystem === "tasknotes") {
-    const isTaskNotesActive = tab.app.plugins.enabledPlugins.has("tasknotes");
-    const status = taskNotesStatus(isTaskNotesActive);
-    const statusSetting = new import_obsidian14.Setting(containerEl).setName(status.name).setDesc(status.desc);
-    const statusSpan = statusSetting.controlEl.createSpan({
-      text: status.text
-    });
-    statusSpan.style.color = status.color;
-    statusSpan.style.fontWeight = "bold";
-    if (!isTaskNotesActive) {
-      new import_obsidian14.Setting(containerEl).setName("Download TaskNotes").setDesc("Click the button below to open the TaskNotes plugin GitHub page to install it on your Obsidian.").addButton((btn) => btn.setButtonText("Download TaskNotes").onClick(() => {
-        window.open(TASKNOTES_URL, "_blank");
-      }));
-    }
-  }
-  new import_obsidian14.Setting(containerEl).setName("Daily note folder").setDesc('Folder under which daily notes live, e.g. "daily" or "Journal/Daily".').addText((t) => t.setPlaceholder("daily").setValue(tab.plugin.settings.dailyNoteFolder).onChange(async (v) => {
-    tab.plugin.settings.dailyNoteFolder = v;
-    await tab.plugin.saveSettings();
-  }));
-  new import_obsidian14.Setting(containerEl).setName("Tasks heading").setDesc('The H2 inside each daily note where tasks live. Default "## Today".').addText((t) => t.setValue(tab.plugin.settings.tasksHeading).onChange(async (v) => {
-    tab.plugin.settings.tasksHeading = v;
-    await tab.plugin.saveSettings();
-  }));
-  new import_obsidian14.Setting(containerEl).setName("Journal heading").setDesc(`The H2 where today's journal entry lives. Default "## Journal".`).addText((t) => t.setValue(tab.plugin.settings.journalHeading).onChange(async (v) => {
-    tab.plugin.settings.journalHeading = v;
-    await tab.plugin.saveSettings();
-  }));
-  new import_obsidian14.Setting(containerEl).setName("Currency").setDesc("Used to format money values across Pipeline, Reports and Commissions.").addDropdown((d) => {
-    CURRENCY_OPTIONS.forEach((c) => d.addOption(c.code, c.label));
-    d.setValue(tab.plugin.settings.currency || "USD");
-    d.onChange(async (v) => {
-      tab.plugin.settings.currency = v;
-      await tab.plugin.saveSettings();
-      tab.app.workspace.getLeavesOfType(VIEW_TYPE_CADENCE_APP).forEach((leaf) => {
-        if (leaf.view && typeof leaf.view.render === "function") leaf.view.render();
-      });
-    });
-  });
-  new import_obsidian14.Setting(containerEl).setName("Week starts on").setDesc("First day of the week shown in the Planner tab.").addDropdown((d) => d.addOption("1", "Monday").addOption("0", "Sunday").setValue(String(tab.plugin.settings.weekStartsOn)).onChange(async (v) => {
-    tab.plugin.settings.weekStartsOn = weekStartsOnFromOption(v);
-    await tab.plugin.saveSettings();
-  }));
-  new import_obsidian14.Setting(containerEl).setName("Open Cadence on Obsidian startup").setDesc("Auto-open the Cadence Home command centre when Obsidian launches.").addToggle((t) => t.setValue(!!tab.plugin.settings.openOnStartup).onChange(async (v) => {
-    tab.plugin.settings.openOnStartup = v;
-    await tab.plugin.saveSettings();
-  }));
-  new import_obsidian14.Setting(containerEl).setName("Default tab").setDesc("Which surface opens first when you launch the Cadence app.").addDropdown((d) => {
-    defaultTabOptions(NAV_GROUPS).forEach((o) => d.addOption(o.value, o.label));
-    d.setValue(defaultTabValue(tab.plugin.settings));
-    d.onChange(async (v) => {
-      tab.plugin.settings.defaultTab = v;
-      await tab.plugin.saveSettings();
-    });
-  });
-}
-function renderCloudSyncSettings(tab, containerEl) {
-  containerEl.createEl("h3", { text: "Cloud sync \u2014 coming soon" });
-  const cloudDesc = containerEl.createEl("p", { cls: "setting-item-description" });
-  cloudDesc.appendText("Future option to two-way sync your vault with a live Cadence instance, so contacts, deals and partners stay aligned across desktop and mobile. ");
-  cloudDesc.createEl("strong", { text: "Not active yet." });
-  cloudDesc.appendText(" These fields are persisted but unused until the sync feature ships in a later release.");
-  new import_obsidian14.Setting(containerEl).setName("Cadence base URL").setDesc("Coming soon").addText((t) => {
-    t.setPlaceholder("https://your-cadence-instance").setValue(tab.plugin.settings.cadenceApiUrl).onChange(async (v) => {
-      tab.plugin.settings.cadenceApiUrl = v;
-      await tab.plugin.saveSettings();
-    });
-    t.inputEl.disabled = true;
-  });
-  new import_obsidian14.Setting(containerEl).setName("API token").setDesc("Coming soon").addText((t) => {
-    t.setPlaceholder("paste JWT here when sync ships").setValue(tab.plugin.settings.cadenceApiToken).onChange(async (v) => {
-      tab.plugin.settings.cadenceApiToken = v;
-      await tab.plugin.saveSettings();
-    });
-    t.inputEl.disabled = true;
-  });
-}
-
-// src/plugin/reminders-engine.ts
-var import_obsidian15 = require("obsidian");
-function newReminder(partial, now) {
-  return {
-    id: reminderId(),
-    text: partial.text,
-    when: partial.when || null,
-    repeat: partial.repeat || "none",
-    notes: partial.notes || "",
-    project: partial.project || null,
-    // file path of linked project, if any
-    notified: false,
-    done: false,
-    createdAt: now.toISOString()
-  };
-}
-function isDue(r, now) {
-  if (r.done || r.notified) return false;
-  if (!r.when) return false;
-  const w = new Date(r.when).getTime();
-  return !(isNaN(w) || w > now);
-}
-function dueReminders(reminders, now) {
-  return reminders.filter((r) => isDue(r, now));
-}
-function advanceReminder(r, now) {
-  const next = nextRepeat(new Date(r.when), r.repeat);
-  if (!next) return null;
-  return {
-    id: reminderId(),
-    text: r.text,
-    when: next.toISOString(),
-    repeat: r.repeat,
-    notified: false,
-    done: false,
-    createdAt: now.toISOString()
-  };
-}
-function snoozePatch(ms, now) {
-  const target = new Date(now + ms);
-  return {
-    when: target.toISOString(),
-    notified: false
-  };
-}
-var COMPLETE_PATCH = { done: true, notified: true };
-async function addReminder(plugin, partial) {
-  const r = newReminder(partial, /* @__PURE__ */ new Date());
-  if (!Array.isArray(plugin.settings.reminders)) plugin.settings.reminders = [];
-  plugin.settings.reminders.push(r);
-  await plugin.saveSettings();
-  plugin.refreshOpenViews();
-  return r;
-}
-async function updateReminder(plugin, id, patch) {
-  const i = (plugin.settings.reminders || []).findIndex((r) => r.id === id);
-  if (i < 0) return null;
-  plugin.settings.reminders[i] = Object.assign({}, plugin.settings.reminders[i], patch);
-  await plugin.saveSettings();
-  plugin.refreshOpenViews();
-  return plugin.settings.reminders[i];
-}
-async function deleteReminder(plugin, id) {
-  plugin.settings.reminders = (plugin.settings.reminders || []).filter((r) => r.id !== id);
-  await plugin.saveSettings();
-  plugin.refreshOpenViews();
-}
-async function snoozeReminder(plugin, id, ms) {
-  return plugin.updateReminder(id, snoozePatch(ms, Date.now()));
-}
-async function completeReminder(plugin, id) {
-  return plugin.updateReminder(id, { ...COMPLETE_PATCH });
-}
-function tickReminders(plugin) {
-  if (!Array.isArray(plugin.settings.reminders)) return;
-  const due = dueReminders(plugin.settings.reminders, Date.now());
-  const additions = [];
-  for (const r of due) {
-    plugin._fireReminder(r);
-    r.notified = true;
-    const next = advanceReminder(r, /* @__PURE__ */ new Date());
-    if (next) additions.push(next);
-  }
-  if (additions.length) plugin.settings.reminders.push(...additions);
-  if (due.length) {
-    plugin.saveSettings().then(() => plugin.refreshOpenViews());
-  }
-}
-function fireReminder(plugin, r) {
-  new import_obsidian15.Notice(`\u23F0  ${r.text}`, 8e3);
-  if (plugin.settings.desktopNotifications && typeof Notification !== "undefined") {
-    try {
-      if (Notification.permission === "granted") {
-        new Notification("Cadence reminder", { body: r.text });
-      }
-    } catch (_) {
-    }
-  }
-}
-
-// src/plugin/settings.ts
-var CORE_ENTITY_KEYS2 = ["contact", "company", "partner", "registration", "commission", "lead", "certification", "activity", "sequence", "project", "deal"];
-var PROPERTY_TYPE_ENTITIES = ["project", "deal", "contact", "company", "activity"];
-function fillSettingDefaults(settings, defaults) {
-  if (!settings.customEntities) {
-    settings.customEntities = {};
-  }
-  for (const [entityKey, defaultFields] of Object.entries(defaults.customEntities)) {
-    if (!settings.customEntities[entityKey] || settings.customEntities[entityKey].length === 0) {
-      settings.customEntities[entityKey] = JSON.parse(JSON.stringify(defaultFields));
-    }
-  }
-  if (!settings.projectDashboardWidgets || settings.projectDashboardWidgets.length === 0) {
-    settings.projectDashboardWidgets = [
-      { id: "w1", title: "Projects by Status", groupBy: "status", style: "donut" },
-      { id: "w2", title: "Projects by Priority", groupBy: "priority", style: "bar" }
-    ];
-  }
-  if (!settings.crmDashboardWidgets || settings.crmDashboardWidgets.length === 0) {
-    settings.crmDashboardWidgets = [
-      { id: "c1", title: "Deals by Stage", groupBy: "stage", style: "donut" },
-      { id: "c2", title: "Deals by Owner", groupBy: "owner", style: "bar" }
-    ];
-  }
-  if (!settings.prmDashboardWidgets || settings.prmDashboardWidgets.length === 0) {
-    settings.prmDashboardWidgets = [
-      { id: "p1", title: "Partners by Tier", groupBy: "tier", style: "donut" },
-      { id: "p2", title: "Partners by Status", groupBy: "status", style: "bar" }
-    ];
-  }
-}
-function customEntityNames(entityKey, customPage) {
-  let label, plural;
-  if (customPage) {
-    plural = customPage.label;
-    if (plural.endsWith("s") && plural.length > 1) {
-      label = plural.substring(0, plural.length - 1);
-    } else if (plural.endsWith("S") && plural.length > 1) {
-      label = plural.substring(0, plural.length - 1);
-    } else {
-      label = plural;
-    }
-  } else {
-    label = entityKey === entityKey.toUpperCase() ? entityKey : entityKey.charAt(0).toUpperCase() + entityKey.slice(1);
-    plural = label + "s";
-  }
-  return { label, plural };
-}
-function reconstructEntities(settings, entities) {
-  const activeCustomEntityKeys = (settings.customPages || []).map((p) => p.entityKey);
-  for (const entityKey of Object.keys(settings.customEntities)) {
-    if (!CORE_ENTITY_KEYS2.includes(entityKey) && !activeCustomEntityKeys.includes(entityKey)) {
-      delete settings.customEntities[entityKey];
-      if (entities[entityKey]) {
-        delete entities[entityKey];
-      }
-    }
-  }
-  if (settings.customEntities) {
-    for (const [entityKey, customFields] of Object.entries(settings.customEntities)) {
-      if (entities[entityKey]) {
-        entities[entityKey].fields = customFields;
-      } else {
-        const customPages = settings.customPages || [];
-        const customPage = customPages.find((p) => p.entityKey === entityKey);
-        const { label, plural } = customEntityNames(entityKey, customPage);
-        entities[entityKey] = {
-          folder: `Cadence/${plural}`,
-          label,
-          plural,
-          fields: customFields,
-          columns: [customFields[0]?.key || "name"]
-        };
-      }
-    }
-  }
-  for (const [entityKey, def] of Object.entries(entities)) {
-    if (entityKey === "activity") continue;
-    const hasType = def.fields.some((f) => f.key === "type");
-    if (!hasType) {
-      def.fields.push({
-        key: "type",
-        label: "Type",
-        type: "text"
-      });
-    }
-    if (settings.customEntities[entityKey]) {
-      const hasSetType = settings.customEntities[entityKey].some((f) => f.key === "type");
-      if (!hasSetType) {
-        settings.customEntities[entityKey].push({
-          key: "type",
-          label: "Type",
-          type: "text"
-        });
-      }
-    }
-  }
-}
-function propertyTypeFor(f) {
-  if (f.primary) return "text";
-  const ftype = f.type || "text";
-  let obsType = "text";
-  if (ftype === "date") obsType = "date";
-  else if (ftype === "number" || ftype === "currency") obsType = "number";
-  else if (ftype === "tags") obsType = "tags";
-  else if (ftype === "multitext") obsType = "multitext";
-  else if (f.isList) obsType = "multitext";
-  return obsType;
-}
-async function loadSettings(plugin) {
-  const loadedData = await plugin.loadData() || {};
-  plugin.settings = Object.assign({}, DEFAULT_SETTINGS, loadedData);
-  fillSettingDefaults(plugin.settings, DEFAULT_SETTINGS);
-  setCurrentCurrency(plugin.settings.currency || "USD");
-  reconstructEntities(plugin.settings, ENTITIES);
-}
-async function saveSettings(plugin) {
-  await plugin.saveData(plugin.settings);
-  setCurrentCurrency(plugin.settings.currency || "USD");
-}
-function registerCustomPropertyTypes(plugin) {
-  try {
-    const manager = plugin.app.metadataTypeManager;
-    if (manager && typeof manager.setType === "function") {
-      manager.setType("type", "multitext");
-      for (const key of PROPERTY_TYPE_ENTITIES) {
-        const def = ENTITIES[key];
-        if (!def || !def.fields) continue;
-        for (const f of def.fields) {
-          manager.setType(f.key, propertyTypeFor(f));
-        }
-      }
-    }
-  } catch (e) {
-    console.warn("Cadence: Failed to register property types", e);
-  }
-}
-
-// src/plugin/contact-project-sync.ts
-var import_obsidian16 = require("obsidian");
-function extractEntitiesFromValue(value) {
-  if (value == null) return [];
-  const results = [];
-  const processStr = (str) => {
-    str = String(str).trim();
-    if (!str) return;
-    if (str.includes("[[")) {
-      const regex = /\[\[(.*?)\]\]/g;
-      let match;
-      while ((match = regex.exec(str)) !== null) {
-        let target = match[1].trim();
-        if (target.includes("|")) {
-          target = target.split("|")[0].trim();
-        }
-        if (target) results.push(target);
-      }
-    } else if (str.includes(",")) {
-      str.split(",").forEach((s) => {
-        const item = s.trim();
-        if (item) results.push(item);
-      });
-    } else {
-      results.push(str);
-    }
-  };
-  if (Array.isArray(value)) {
-    value.forEach((val) => processStr(val));
-  } else {
-    processStr(value);
-  }
-  return results;
-}
-function isContactField(key, entityKey, entities) {
-  if (["owner", "contact", "contacts", "with", "assigned"].includes(key.toLowerCase())) return true;
-  if (entityKey && entities[entityKey]) {
-    const fdef = entities[entityKey].fields.find((field) => field.key === key);
-    if (fdef) {
-      const sug = fdef.suggestionSource || getFieldSuggestionSource(fdef);
-      if (sug === "contact" || sug === "folder:Cadence/Contacts") return true;
-    }
-  }
-  return false;
-}
-function isProjectField(key, entityKey, entities) {
-  if (["project", "projects", "related"].includes(key.toLowerCase())) return true;
-  if (entityKey && entities[entityKey]) {
-    const fdef = entities[entityKey].fields.find((field) => field.key === key);
-    if (fdef) {
-      const sug = fdef.suggestionSource || getFieldSuggestionSource(fdef);
-      if (sug === "project" || sug === "folder:Cadence/Projects") return true;
-    }
-  }
-  return false;
-}
-function noteLinks(note, contactNames, projectNames, entities) {
-  const foundContacts = /* @__PURE__ */ new Set();
-  const foundProjects = /* @__PURE__ */ new Set();
-  if (note.entityKey === "contact") {
-    foundContacts.add(note.basename.toLowerCase());
-  } else if (note.entityKey === "project") {
-    foundProjects.add(note.basename.toLowerCase());
-  }
-  for (const [key, val] of Object.entries(note.frontmatter)) {
-    if (key === "type") continue;
-    const extracted = extractEntitiesFromValue(val);
-    for (const name of extracted) {
-      if (!name) continue;
-      const nameLower = name.toLowerCase();
-      if (isContactField(key, note.entityKey, entities) || contactNames.has(nameLower)) {
-        foundContacts.add(nameLower);
-      }
-      if (isProjectField(key, note.entityKey, entities) || projectNames.has(nameLower)) {
-        foundProjects.add(nameLower);
-      }
-    }
-  }
-  return { contacts: foundContacts, projects: foundProjects };
-}
-function collectValidLinks(notes, contactNames, projectNames, entities) {
-  const validLinks = /* @__PURE__ */ new Set();
-  for (const note of notes) {
-    if (note.entityKey === "contact") continue;
-    const { contacts, projects } = noteLinks(note, contactNames, projectNames, entities);
-    if (contacts.size > 0 && projects.size > 0) {
-      for (const c of contacts) {
-        for (const p of projects) {
-          validLinks.add(`${c}|${p}`);
-        }
-      }
-    }
-  }
-  return validLinks;
-}
-function autoCreateName(nameLower, basenames) {
-  return basenames.find((b) => b.toLowerCase() === nameLower) || nameLower.charAt(0).toUpperCase() + nameLower.slice(1);
-}
-function projectLinkValue(names) {
-  if (names.length === 0) return null;
-  if (names.length === 1) return `[[${names[0]}]]`;
-  return names.map((p) => `[[${p}]]`);
-}
-function writeProjectLinks(fm, names) {
-  const value = projectLinkValue(names);
-  if (value === null) {
-    delete fm.project;
-  } else {
-    fm.project = value;
-  }
-}
-function addProjectLink(current, projectName) {
-  if (current.some((p) => p.toLowerCase() === projectName.toLowerCase())) return current;
-  return [...current, projectName];
-}
-function removeProjectLink(current, projectName) {
-  return current.filter((p) => p.toLowerCase() !== projectName.toLowerCase());
-}
-function contactProjectsPlan(existing, target) {
-  const existingLower = existing.map((p) => p.toLowerCase());
-  const targetLower = target.map((p) => p.toLowerCase());
-  const needsUpdate = existingLower.some((p) => !targetLower.includes(p)) || targetLower.some((p) => !existingLower.includes(p));
-  if (!needsUpdate) return null;
-  return {
-    names: target,
-    added: target.filter((p) => !existing.some((ep) => ep.toLowerCase() === p.toLowerCase())),
-    removed: existing.filter((ep) => !target.some((p) => p.toLowerCase() === ep.toLowerCase()))
-  };
-}
-async function syncContactProjectRelationships(plugin, changedFile) {
-  if (plugin._syncInProgress) return;
-  if (!changedFile || !changedFile.path.toLowerCase().endsWith(".md")) return;
-  if (!plugin.app.vault.getAbstractFileByPath(changedFile.path)) return;
-  try {
-    plugin._syncInProgress = true;
-    const contactFiles = listEntityFiles(plugin.app, "contact");
-    const projectFiles = listEntityFiles(plugin.app, "project");
-    const contactMap = /* @__PURE__ */ new Map();
-    for (const f of contactFiles) {
-      contactMap.set(f.basename.toLowerCase(), f);
-    }
-    const projectMap = /* @__PURE__ */ new Map();
-    for (const f of projectFiles) {
-      projectMap.set(f.basename.toLowerCase(), f);
-    }
-    const frontmatterOf = (f) => (plugin.app.metadataCache.getFileCache(f) || {}).frontmatter || {};
-    const autoCreate = async (entityKey, nameLower, allFiles, map) => {
-      try {
-        const originalName = autoCreateName(nameLower, allFiles.map((f) => f.basename));
-        const file = await createEntity(plugin.app, entityKey, originalName);
-        map.set(nameLower, file);
-        new import_obsidian16.Notice(`Fiche ${entityKey === "contact" ? "contact" : "projet"} cr\xE9\xE9e automatiquement pour "${originalName}".`);
-      } catch (e) {
-        console.error(`Cadence: Failed to auto-create ${entityKey} ${nameLower}`, e);
-      }
-    };
-    const changedEntityKey = entityKeyFromFile(plugin.app, changedFile);
-    if (changedEntityKey === "contact") {
-      const currentProjectsOfContact = new Set(
-        extractEntitiesFromValue(frontmatterOf(changedFile).project).map((p) => p.toLowerCase())
-      );
-      for (const p of currentProjectsOfContact) {
-        if (!projectMap.has(p)) {
-          await autoCreate("project", p, plugin.app.vault.getMarkdownFiles(), projectMap);
-        }
-      }
-    } else if (changedEntityKey === "project") {
-      const projectLower = changedFile.basename.toLowerCase();
-      const projectFm = frontmatterOf(changedFile);
-      const projectContacts = [];
-      for (const [key, val] of Object.entries(projectFm)) {
-        if (key === "type") continue;
-        if (isContactField(key, "project", ENTITIES)) {
-          projectContacts.push(...extractEntitiesFromValue(val));
-        }
-      }
-      const currentContactsOfProject = new Set(projectContacts.map((c) => c.toLowerCase()));
-      for (const c of currentContactsOfProject) {
-        if (!contactMap.has(c)) {
-          await autoCreate("contact", c, plugin.app.vault.getMarkdownFiles(), contactMap);
-        }
-      }
-      for (const [contactLower, contactFile] of contactMap.entries()) {
-        const contactProjects = extractEntitiesFromValue(frontmatterOf(contactFile).project);
-        const listsProject = contactProjects.some((p) => p.toLowerCase() === projectLower);
-        const projectListsContact = currentContactsOfProject.has(contactLower);
-        if (projectListsContact && !listsProject) {
-          await plugin.app.fileManager.processFrontMatter(contactFile, (cfm) => {
-            const currentProjects = extractEntitiesFromValue(cfm.project);
-            if (!currentProjects.some((p) => p.toLowerCase() === projectLower)) {
-              writeProjectLinks(cfm, addProjectLink(currentProjects, changedFile.basename));
-            }
-          });
-          new import_obsidian16.Notice(`Lien automatique : Projet "${changedFile.basename}" associ\xE9 au contact "${contactFile.basename}".`);
-        } else if (!projectListsContact && listsProject) {
-          let hasOtherSource = false;
-          const allFiles = plugin.app.vault.getMarkdownFiles();
-          for (const f of allFiles) {
-            if (f.path === changedFile.path || f.path === contactFile.path) continue;
-            const cache = plugin.app.metadataCache.getFileCache(f);
-            if (!cache || !cache.frontmatter) continue;
-            const note = { entityKey: entityKeyFromFile(plugin.app, f), basename: f.basename, frontmatter: cache.frontmatter };
-            const { contacts, projects } = noteLinks(note, contactMap, projectMap, ENTITIES);
-            if (contacts.has(contactLower) && projects.has(projectLower)) {
-              hasOtherSource = true;
-              break;
-            }
-          }
-          if (!hasOtherSource) {
-            await plugin.app.fileManager.processFrontMatter(contactFile, (cfm) => {
-              writeProjectLinks(cfm, removeProjectLink(extractEntitiesFromValue(cfm.project), projectLower));
-            });
-            new import_obsidian16.Notice(`Lien automatique : Projet "${changedFile.basename}" dissoci\xE9 du contact "${contactFile.basename}".`);
-          }
-        }
-      }
-    } else {
-      const allFiles = plugin.app.vault.getMarkdownFiles();
-      const notes = [];
-      for (const f of allFiles) {
-        const entityKey = entityKeyFromFile(plugin.app, f);
-        if (entityKey === "contact") continue;
-        const cache = plugin.app.metadataCache.getFileCache(f);
-        if (!cache || !cache.frontmatter) continue;
-        notes.push({ entityKey, basename: f.basename, frontmatter: cache.frontmatter });
-      }
-      const validLinks = collectValidLinks(notes, contactMap, projectMap, ENTITIES);
-      for (const link of validLinks) {
-        const [c, p] = link.split("|");
-        if (!contactMap.get(c)) await autoCreate("contact", c, allFiles, contactMap);
-        if (!projectMap.get(p)) await autoCreate("project", p, allFiles, projectMap);
-      }
-      for (const [contactLower, contactFile] of contactMap.entries()) {
-        const existingProjects = extractEntitiesFromValue(frontmatterOf(contactFile).project);
-        const projectNamesToLink = /* @__PURE__ */ new Set();
-        for (const link of validLinks) {
-          const [c, p] = link.split("|");
-          if (c === contactLower) {
-            const pFile = projectMap.get(p);
-            if (pFile) {
-              projectNamesToLink.add(pFile.basename);
-            }
-          }
-        }
-        const plan = contactProjectsPlan(existingProjects, Array.from(projectNamesToLink));
-        if (plan) {
-          await plugin.app.fileManager.processFrontMatter(contactFile, (cfm) => {
-            writeProjectLinks(cfm, plan.names);
-          });
-          if (plan.added.length > 0) {
-            new import_obsidian16.Notice(`Lien automatique : Projet "${plan.added.join(", ")}" associ\xE9 \xE0 "${contactFile.basename}".`);
-          }
-          if (plan.removed.length > 0) {
-            new import_obsidian16.Notice(`Lien automatique : Projet "${plan.removed.join(", ")}" dissoci\xE9 de "${contactFile.basename}".`);
-          }
-        }
-      }
-    }
-  } catch (e) {
-    console.error("Cadence: Error in syncContactProjectRelationships", e);
-  } finally {
-    plugin._syncInProgress = false;
-  }
-}
-async function handleProjectDeletion(plugin, file) {
-  if (plugin._syncInProgress) return;
-  if (!file || !file.path || !file.path.toLowerCase().endsWith(".md")) return;
-  const projectFolder = ENTITIES.project ? ENTITIES.project.folder : "Cadence/Projects";
-  if (!file.path.startsWith(projectFolder + "/")) return;
-  const projectName = file.basename;
-  if (!projectName) return;
-  try {
-    plugin._syncInProgress = true;
-    const contactFiles = listEntityFiles(plugin.app, "contact");
-    for (const contactFile of contactFiles) {
-      const contactCache = plugin.app.metadataCache.getFileCache(contactFile) || {};
-      const contactFm = contactCache.frontmatter || {};
-      const existingProjectsVal = contactFm.project;
-      if (!existingProjectsVal) continue;
-      const existingProjectNames = extractEntitiesFromValue(existingProjectsVal);
-      const hasProject = existingProjectNames.some((p) => p.toLowerCase() === projectName.toLowerCase());
-      if (hasProject) {
-        const remainingProjects = removeProjectLink(existingProjectNames, projectName);
-        await plugin.app.fileManager.processFrontMatter(contactFile, (cfm) => {
-          writeProjectLinks(cfm, remainingProjects);
-        });
-        new import_obsidian16.Notice(`Lien automatique : Projet "${projectName}" supprim\xE9 du contact "${contactFile.basename}".`);
-      }
-    }
-  } catch (e) {
-    console.error("Cadence: Error in handleProjectDeletion", e);
-  } finally {
-    plugin._syncInProgress = false;
-  }
-}
-
-// src/views/app-view.ts
-var import_obsidian17 = require("obsidian");
-
-// src/views/nav.ts
-function migrateModeId(id, settings) {
-  if (id === "today") return "planner.today";
-  if (id === "planner") return "planner.calendar";
-  const customPages = settings.customPages || [];
-  if (customPages.some((p) => p.id === id)) return id;
-  return SURFACE_BY_ID[id] ? id : "home";
-}
-function resolveSurface(id, settings) {
-  const customPages = settings.customPages || [];
-  const custom = customPages.find((p) => p.id === id);
-  if (custom) {
-    return {
-      id: custom.id,
-      label: custom.label,
-      icon: custom.icon || "file-text",
-      desc: `Custom page displaying ${custom.entityKey} entity.`
-    };
-  }
-  return SURFACE_BY_ID[id] || SURFACE_BY_ID["home"];
-}
-function visibleNavGroups(settings) {
-  const mods = settings.modules || { crm: true, prm: true, planner: true, projects: true };
-  const groups = JSON.parse(JSON.stringify(NAV_GROUPS));
-  const customPages = settings.customPages || [];
-  customPages.forEach((p) => {
-    const g = groups.find((group) => group.id === p.sectionId);
-    if (g) {
-      g.items.push({
-        id: p.id,
-        label: p.label,
-        icon: p.icon || "file-text",
-        module: p.module || p.sectionId,
-        desc: `Custom page displaying ${p.entityKey} entity.`
-      });
-    }
-  });
-  return groups.map((g) => {
-    if (g.module && mods[g.module] === false) return null;
-    const items = g.items.filter((it) => !it.module || mods[it.module] !== false);
-    if (!items.length) return null;
-    return Object.assign({}, g, { items });
-  }).filter(Boolean);
-}
-function modeUsesEntityFolder(path) {
-  if (!path) return false;
-  return path.startsWith("Cadence/");
-}
-var surface = (method) => ({ kind: "surface", method });
-var entityList = (entityKey) => ({ kind: "entityList", entityKey });
-var SURFACE_ROUTES = {
-  "home": surface("renderHome"),
-  "planner.inbox": surface("renderInbox"),
-  "planner.today": surface("renderTodayPane"),
-  "planner.calendar": surface("renderPlannerPane"),
-  "projects.dashboard": surface("renderProjectsDashboard"),
-  "projects.projects": entityList("project"),
-  "crm.dashboard": surface("renderDashboard"),
-  "crm.pipeline": entityList("deal"),
-  "crm.contacts": entityList("contact"),
-  "crm.companies": entityList("company"),
-  "crm.activities": entityList("activity"),
-  "prm.partners": entityList("partner"),
-  "prm.registrations": entityList("registration"),
-  "prm.commissions": entityList("commission"),
-  "prm.leads": entityList("lead"),
-  "prm.certifications": entityList("certification"),
-  "prm.analytics": surface("renderPRMAnalytics"),
-  "workflow.sequences": entityList("sequence"),
-  "reports.pipeline": surface("renderReportPipeline"),
-  "reports.sales": surface("renderReportSales"),
-  "reports.partners": surface("renderReportPartners"),
-  "reports.activity": surface("renderReportActivity"),
-  "reports.graph": surface("renderReportGraph"),
-  "reports.productivity": surface("renderProductivity"),
-  "team": surface("renderTeam"),
-  "templates": surface("renderTemplatesDashboard"),
-  "settings": surface("openSettingsTab")
-};
-function routeFor(mode, customPages) {
-  if (SURFACE_ROUTES[mode]) {
-    return Object.prototype.hasOwnProperty.call(SURFACE_ROUTES, mode) ? SURFACE_ROUTES[mode] : { kind: "inherited", name: mode };
-  }
-  const custom = customPages.find((p) => p.id === mode);
-  if (custom) return entityList(custom.entityKey);
-  return { kind: "comingSoon" };
-}
-function toggleMobileNav(view, force) {
-  const root = view.containerEl.children[1];
-  view.mobileNavOpen = typeof force === "boolean" ? force : !view.mobileNavOpen;
-  if (root) root.toggleClass("cad-mobile-nav-open", view.mobileNavOpen);
-}
-async function toggleCadenceDark(view) {
-  view.plugin.settings.cadenceAppDark = !view.plugin.settings.cadenceAppDark;
-  await view.plugin.saveSettings();
-  view.render();
-}
-async function setMode(view, m) {
-  view.mode = view._migrateModeId(m);
-  view.detailFile = null;
-  view.detailEntityKey = null;
-  await view.render();
-}
-async function toggleGroup(view, groupId) {
-  const collapsed = view.plugin.settings.collapsedGroups || {};
-  collapsed[groupId] = !collapsed[groupId];
-  view.plugin.settings.collapsedGroups = collapsed;
-  await view.plugin.saveSettings();
-  await view.render();
-}
-
-// src/views/app-view.ts
-function initAppViewState(view, plugin) {
-  view.plugin = plugin;
-  const raw = plugin.settings.defaultTab || "planner.today";
-  view.mode = view._migrateModeId(raw);
-  view.todayFile = null;
-  view.todayParsed = null;
-  view._journalSaveTimer = null;
-  view.plannerAnchor = startOfDay(/* @__PURE__ */ new Date());
-  view.detailFile = null;
-  view.detailEntityKey = null;
-  view.mobileNavOpen = false;
-}
-async function openEntityDetail(view, entityKey, file) {
-  if (!file || !entityKey) return;
-  view.detailEntityKey = entityKey;
-  view.detailFile = file;
-  await view.render();
-}
-async function openTemplateDetail(view, entityKey, file) {
-  if (!file || !entityKey) return;
-  view.detailEntityKey = "template:" + entityKey;
-  view.detailFile = file;
-  await view.render();
-}
-async function openEntityDetailFromFile(view, file) {
-  const key = entityKeyFromFile(view.app, file);
-  if (!key) {
-    view.app.workspace.openLinkText(file.path, "", false);
-    return;
-  }
-  return view.openEntityDetail(key, file);
-}
-async function closeEntityDetail(view) {
-  view.detailFile = null;
-  view.detailEntityKey = null;
-  await view.render();
-}
-async function onOpenAppView(view) {
-  view.containerEl.children[1].empty();
-  await view.render();
-  view.registerEvent(view.app.workspace.on("editor-change", (editor, info) => {
-    const file = info.file;
-    if (!file) return;
-    let shouldRender = false;
-    if (view.detailFile && file.path === view.detailFile.path) {
-      shouldRender = true;
-    } else if (view.mode === "planner.today" && view.todayFile && file.path === view.todayFile.path) {
-      shouldRender = true;
-    }
-    if (shouldRender) {
-      if (view._liveRenderTimer) clearTimeout(view._liveRenderTimer);
-      view._liveRenderTimer = setTimeout(() => {
-        view.render();
-      }, 300);
-    }
-  }));
-  view.registerEvent(view.app.vault.on("modify", (file) => {
-    if (view.detailFile && file && file.path === view.detailFile.path) {
-      if (view.app.workspace.getActiveLeaf() === view.leaf) return;
-      return view.render();
-    }
-    if (view.mode === "planner.today" && view.todayFile && file.path === view.todayFile.path) {
-      return view.render();
-    }
-    if (view.mode === "planner.calendar") {
-      const days = weekDates(view.plannerAnchor, view.plugin.settings.weekStartsOn);
-      const paths = days.map((d) => dailyNotePath(view.plugin.settings, d));
-      if (paths.includes(file.path)) return view.render();
-    }
-    if (view._modeUsesEntityFolder(file.path)) return view.render();
-  }));
-  const entityRefresh = (file) => {
-    if (view.detailFile && file && file.path === view.detailFile.path) return;
-    if (view._modeUsesEntityFolder(file && file.path)) view.render();
-  };
-  view.registerEvent(view.app.vault.on("create", entityRefresh));
-  view.registerEvent(view.app.vault.on("delete", (file) => {
-    if (view.detailFile && file && file.path === view.detailFile.path) {
-      view.closeEntityDetail();
-      return;
-    }
-    entityRefresh(file);
-  }));
-  view.registerEvent(view.app.vault.on("rename", (file, oldPath) => {
-    if (view.detailFile && file && file.path === view.detailFile.path) return;
-    if (view._modeUsesEntityFolder(file && file.path) || view._modeUsesEntityFolder(oldPath)) view.render();
-  }));
-  view.registerEvent(view.app.metadataCache.on("changed", (file) => {
-    if (view.detailFile && file && file.path === view.detailFile.path) {
-      if (view.app.workspace.getActiveLeaf() === view.leaf) return;
-      return view.render();
-    }
-    if (view._modeUsesEntityFolder(file && file.path)) view.render();
-  }));
-  view.registerEvent(view.app.workspace.on("active-leaf-change", (leaf) => {
-    if (leaf === view.leaf) {
-      view.render();
-    }
-  }));
-}
-async function renderAppView(view) {
-  if (view._isRendering) {
-    view._needsRenderAgain = true;
-    return;
-  }
-  view._isRendering = true;
-  view._needsRenderAgain = false;
-  try {
-    const root = view.containerEl.children[1];
-    root.empty();
-    root.addClass("cadence-app");
-    root.toggleClass("cad-dark", !!view.plugin.settings.cadenceAppDark);
-    const active = view._resolveSurface(view.mode) || SURFACE_BY_ID["planner.today"];
-    const topbar = root.createDiv({ cls: "cad-app-topbar" });
-    const burger = topbar.createEl("button", { cls: "cad-mobile-burger" });
-    try {
-      (0, import_obsidian17.setIcon)(burger, "menu");
-    } catch (_) {
-    }
-    burger.title = "Show nav";
-    burger.addEventListener("click", () => view._toggleMobileNav());
-    const brand = topbar.createDiv({ cls: "cad-app-brand" });
-    brand.createSpan({ cls: "cad-app-brand-mark", text: "\u25D0" });
-    brand.createSpan({ cls: "cad-app-brand-text", text: "Cadence" });
-    const topRight = topbar.createDiv({ cls: "cad-app-topbar-right" });
-    const dark = !!view.plugin.settings.cadenceAppDark;
-    const themeBtn = topRight.createEl("button", { cls: "cad-topbar-icon-btn" });
-    try {
-      (0, import_obsidian17.setIcon)(themeBtn, dark ? "sun" : "moon");
-    } catch (_) {
-    }
-    themeBtn.title = dark ? "Cadence: switch to light" : "Cadence: switch to dark";
-    themeBtn.addEventListener("click", () => view._toggleCadenceDark());
-    const eyebrow = topRight.createDiv({ cls: "cad-app-topbar-meta" });
-    eyebrow.setText(active.label.toUpperCase());
-    const body = root.createDiv({ cls: "cad-app-body" });
-    const backdrop = body.createDiv({ cls: "cad-mobile-backdrop" });
-    backdrop.addEventListener("click", () => view._toggleMobileNav(false));
-    const nav = body.createDiv({ cls: "cad-app-nav" });
-    const collapsed = view.plugin.settings.collapsedGroups || {};
-    const visibleGroups = view._visibleNavGroups();
-    visibleGroups.forEach((group) => {
-      const groupEl = nav.createDiv({ cls: "cad-nav-group" });
-      const isCollapsed = !!collapsed[group.id];
-      if (group.label) {
-        const head = groupEl.createDiv({ cls: "cad-nav-group-head" });
-        const chev = head.createSpan({ cls: "cad-nav-group-chev" });
-        try {
-          (0, import_obsidian17.setIcon)(chev, isCollapsed ? "chevron-right" : "chevron-down");
-        } catch (_) {
-        }
-        head.createSpan({ cls: "cad-nav-group-label", text: group.label.toUpperCase() });
-        head.addEventListener("click", () => view.toggleGroup(group.id));
-      }
-      if (!isCollapsed || !group.label) {
-        const list = groupEl.createDiv({ cls: "cad-nav-group-items" });
-        group.items.forEach((s) => {
-          const item = list.createDiv({
-            cls: "cad-app-nav-item" + (view.mode === s.id ? " active" : "")
-          });
-          const ic = item.createSpan({ cls: "cad-app-nav-icon" });
-          try {
-            (0, import_obsidian17.setIcon)(ic, s.icon);
-          } catch (_) {
-          }
-          item.createSpan({ cls: "cad-app-nav-label", text: s.label });
-          if (!BUILT_SURFACES.has(s.id) && !s.id.startsWith("custom.")) {
-            item.createSpan({ cls: "cad-app-nav-badge", text: "soon" });
-          }
-          if (s.id === "planner.inbox") {
-            const overdue = view._inboxOverdueCount();
-            if (overdue > 0) item.createSpan({ cls: "cad-app-nav-badge cad-nav-badge-alert", text: String(overdue) });
-          }
-          item.addEventListener("click", () => {
-            view.setMode(s.id);
-            if (view.mobileNavOpen) view._toggleMobileNav(false);
-          });
-        });
-      }
-    });
-    const content = body.createDiv({ cls: "cad-app-content" });
-    if (view.detailFile && view.detailEntityKey) {
-      const exists = view.app.vault.getAbstractFileByPath(view.detailFile.path);
-      if (!exists) {
-        view.detailFile = null;
-        view.detailEntityKey = null;
-      } else {
-        try {
-          if (view.detailEntityKey.startsWith("template:")) {
-            const entityKey = view.detailEntityKey.slice("template:".length);
-            await view.renderTemplateDetail(content, entityKey, view.detailFile);
-          } else {
-            await view.renderEntityDetail(content, view.detailEntityKey, view.detailFile);
-          }
-          return;
-        } catch (e) {
-          console.error("Cadence: Failed to render detail view", e);
-          view.detailFile = null;
-          view.detailEntityKey = null;
-        }
-      }
-    }
-    const route = routeFor(view.mode, view.plugin.settings.customPages || []);
-    if (route.kind === "surface") {
-      await view[route.method](content);
-    } else if (route.kind === "entityList") {
-      await view.renderEntityList(content, route.entityKey);
-    } else if (route.kind === "inherited") {
-      await {}[route.name]();
-    } else {
-      view.renderComingSoon(content, active);
-    }
-  } finally {
-    view._isRendering = false;
-    if (view._needsRenderAgain) {
-      view._needsRenderAgain = false;
-      view.render();
-    }
-  }
-}
-function renderComingSoon(view, root, surface2) {
-  root.addClass("cadence-soon");
-  const wrap = root.createDiv({ cls: "cad-soon-wrap" });
-  wrap.createDiv({ cls: "cad-eyebrow", text: "COMING SOON" });
-  wrap.createDiv({ cls: "cad-soon-title", text: surface2.label });
-  wrap.createDiv({ cls: "cad-soon-desc", text: surface2.desc });
-  const ic = wrap.createDiv({ cls: "cad-soon-icon" });
-  try {
-    (0, import_obsidian17.setIcon)(ic, surface2.icon);
-  } catch (_) {
-  }
-  const meta = wrap.createDiv({ cls: "cad-soon-meta" });
-  meta.setText("This surface is scaffolded but not yet built. Tell the team to flesh it out next.");
-}
-function renderPageHeader(view, root, title, subtitle, actions) {
-  const head = root.createDiv({ cls: "cad-page-header" });
-  const left = head.createDiv({ cls: "cad-page-header-left" });
-  left.createDiv({ cls: "cad-eyebrow", text: "CADENCE" });
-  left.createDiv({ cls: "cad-page-title", text: title });
-  if (subtitle) left.createDiv({ cls: "cad-page-subtitle", text: subtitle });
-  const right = head.createDiv({ cls: "cad-page-header-right" });
-  if (typeof actions === "function") actions(right);
-  return head;
-}
-async function openSettingsTab(view, root) {
-  root.addClass("cadence-soon");
-  const wrap = root.createDiv({ cls: "cad-soon-wrap" });
-  const ic = wrap.createDiv({ cls: "cad-soon-icon" });
-  try {
-    (0, import_obsidian17.setIcon)(ic, "settings-2");
-  } catch (_) {
-  }
-  wrap.createDiv({ cls: "cad-eyebrow", text: "CADENCE" });
-  wrap.createDiv({ cls: "cad-soon-title", text: "Settings" });
-  wrap.createDiv({ cls: "cad-soon-desc", text: "Configure folders, headings, week start, default tab, and the (future) Cadence API connection." });
-  const btn = wrap.createEl("button", { cls: "cad-btn primary", text: "Open Cadence settings" });
-  btn.style.marginTop = "12px";
-  btn.addEventListener("click", () => {
-    view.app.setting.open();
-    view.app.setting.openTabById(view.plugin.manifest.id);
-  });
-}
-function openPrompt(view, opts) {
-  return new Promise((resolve) => {
-    new CadencePromptModal(view.app, {
-      title: opts.title || "Enter a name",
-      placeholder: opts.placeholder || "",
-      defaultValue: opts.defaultValue || "",
-      cta: opts.cta || "Create",
-      onSubmit: resolve
-    }).open();
-  });
-}
-async function createEntityFromPrompt(view, entityKey, defaults = {}) {
-  const def = ENTITIES[entityKey];
-  new CadenceEntityCreateModal(view.app, entityKey, {
-    defaults,
-    onSubmit: async (result) => {
-      if (!result) return;
-      try {
-        const file = await createEntity(view.app, entityKey, result.name);
-        const { extras, links } = planEntityLinks(def, defaults, result.values);
-        for (const link of links) {
-          const targetFile = view.app.vault.getMarkdownFiles().find((tf) => tf.basename.toLowerCase() === link.name.toLowerCase());
-          if (!targetFile) {
-            try {
-              await createEntity(view.app, link.creationSource, link.name);
-              new import_obsidian17.Notice(`Created new ${link.label}: ${link.name}`);
-            } catch (e) {
-              console.warn(`Failed to auto-create ${link.creationSource}`, e);
-            }
-          }
-        }
-        if (Object.keys(extras).length) {
-          await view.app.fileManager.processFrontMatter(file, (fm) => {
-            Object.entries(extras).forEach(([k, v]) => {
-              if (v == null || v === "" || Array.isArray(v) && v.length === 0) return;
-              fm[k] = v;
-            });
-          });
-        }
-        new import_obsidian17.Notice(`Created ${def.label}: ${file.basename}
-Saved to ${file.path}`, 4e3);
-        await view.openEntityDetail(entityKey, file);
-      } catch (e) {
-        new import_obsidian17.Notice(`Cadence: failed to create ${def.label} \u2014 ${e.message}`);
-      }
-    }
-  }).open();
-}
-function planEntityLinks(def, defaults, values) {
-  const primaryKey = def.fields[0].key;
-  const extras = Object.assign({}, defaults, values);
-  delete extras[primaryKey];
-  const links = [];
-  for (const f of def.fields) {
-    const suggestionSource = getFieldSuggestionSource(f);
-    if (suggestionSource !== "none" && suggestionSource !== "tags" && suggestionSource !== "history") {
-      const key = f.key;
-      if (extras[key]) {
-        const rawVal = extras[key];
-        const parts = Array.isArray(rawVal) ? rawVal.map(String) : String(rawVal).split(",");
-        const names = parts.map((n) => n.replace(/^\[\[|\]\]$/g, "").trim()).filter(Boolean);
-        extras[key] = names.map((n) => `[[${n}]]`);
-        const creationSource = suggestionSource === "history" ? "folder:Cadence/Shared" : suggestionSource;
-        let targetEntityKey = ENTITIES[suggestionSource] ? suggestionSource : null;
-        if (suggestionSource.startsWith("folder:")) {
-          const customFolderPath = suggestionSource.slice("folder:".length);
-          const normalizedPath = customFolderPath.replace(/\/+$/, "").toLowerCase();
-          for (const [ek, edef] of Object.entries(ENTITIES)) {
-            if (edef && edef.folder && edef.folder.replace(/\/+$/, "").toLowerCase() === normalizedPath) {
-              targetEntityKey = ek;
-              break;
-            }
-          }
-        }
-        const label = targetEntityKey ? ENTITIES[targetEntityKey].label : "Note";
-        for (const name of names) links.push({ name, creationSource, label });
-      }
-    }
-  }
-  return { extras, links };
-}
-
-// src/views/home.ts
-var import_obsidian18 = require("obsidian");
 
 // src/utils/task-lines.ts
 var TASK_PREFIX = /^\s*-\s\[(x|X| )\]\s/;
@@ -4675,6 +3638,3159 @@ function tickDailyTasks(content, settings, text, done) {
   return replaceSection(content, settings.tasksHeading, updatedTasks.join("\n"));
 }
 
+// src/utils/tasknotes.ts
+function listTaskNotesTasks(app) {
+  const folderPath = "TaskNotes/Tasks";
+  const folder = app.vault.getAbstractFileByPath(folderPath);
+  if (!folder || !folder.children) return [];
+  const tasks = [];
+  const walk = (node) => {
+    for (const child of node.children) {
+      if (child.children) walk(child);
+      else if (typeof child.path === "string" && child.path.toLowerCase().endsWith(".md")) {
+        const cache = app.metadataCache.getFileCache(child);
+        const fm = cache && cache.frontmatter || {};
+        tasks.push({
+          file: child,
+          title: fm.title || child.basename,
+          status: fm.status || "open",
+          scheduled: fm.scheduled || "",
+          due: fm.due || "",
+          priority: fm.priority || "normal",
+          projects: fm.projects || "",
+          done: fm.status === "done"
+        });
+      }
+    }
+  };
+  walk(folder);
+  return tasks;
+}
+function listTaskNotesTasksForFile(app, file) {
+  const allTasks = listTaskNotesTasks(app);
+  const name = file.basename;
+  return allTasks.filter((t) => {
+    if (!t.projects) return false;
+    const links = parseLinkValues(t.projects);
+    return links.some((l) => l.target === name);
+  });
+}
+async function toggleTaskNotesTask(app, taskFile, checked) {
+  await app.fileManager.processFrontMatter(taskFile, (fm) => {
+    fm.status = checked ? "done" : "open";
+  });
+}
+async function appendTaskNotesTask(app, text, date = /* @__PURE__ */ new Date()) {
+  const ymdStr = ymd(date);
+  const folderPath = "TaskNotes/Tasks";
+  await ensureFolderSync(app, folderPath);
+  const cleanTitle = text.replace(/[\\/:*?"<>|]/g, "").trim();
+  let filename = `${folderPath}/${cleanTitle}.md`;
+  let file = app.vault.getAbstractFileByPath(filename);
+  let counter = 1;
+  while (file) {
+    filename = `${folderPath}/${cleanTitle} (${counter}).md`;
+    file = app.vault.getAbstractFileByPath(filename);
+    counter++;
+  }
+  const content = `---
+title: ${text}
+status: open
+scheduled: ${ymdStr}
+priority: normal
+---
+`;
+  await app.vault.create(filename, content);
+}
+
+// src/views/calendar.ts
+function plannerWeekTitle(days) {
+  const startStr = days[0].toLocaleDateString(void 0, { month: "long", day: "numeric" });
+  const endStr = days[6].toLocaleDateString(void 0, { month: "long", day: "numeric", year: "numeric" });
+  return `${startStr} \u2013 ${endStr}`;
+}
+function plannerWeek(dayData, today) {
+  const totals = countTaskLines(dayData.flatMap((d) => d.tasks));
+  const columns = dayData.map((d) => {
+    const open = d.tasks.filter((l) => / \[ \] /.test(l)).length;
+    const done = d.tasks.filter((l) => / \[(x|X)\] /.test(l)).length;
+    return {
+      isToday: sameDay(d.date, today),
+      weekday: d.date.toLocaleDateString(void 0, { weekday: "short" }).toUpperCase(),
+      dayNum: String(d.date.getDate()),
+      meta: d.exists ? `${open} open \xB7 ${done} done` : "no note",
+      empty: d.tasks.length ? null : d.exists ? "\u2014" : "",
+      rows: taskLineRows(d.tasks)
+    };
+  });
+  return { stats: { open: totals.open, done: totals.done, total: totals.open + totals.done }, columns };
+}
+async function renderPlannerPane(view, root) {
+  root.addClass("cadence-planner");
+  const settings = view.plugin.settings;
+  const days = weekDates(view.plannerAnchor, settings.weekStartsOn);
+  const today = startOfDay(/* @__PURE__ */ new Date());
+  const header = root.createDiv({ cls: "cad-pl-header" });
+  const titleWrap = header.createDiv({ cls: "cad-pl-title-wrap" });
+  titleWrap.createDiv({ cls: "cad-eyebrow", text: "WEEK OF" });
+  titleWrap.createDiv({ cls: "cad-pl-title", text: plannerWeekTitle(days) });
+  const nav = header.createDiv({ cls: "cad-pl-nav" });
+  const mkBtn = (label, fn, cls = "") => {
+    const b = nav.createEl("button", { text: label, cls: "cad-pl-btn " + cls });
+    b.addEventListener("click", fn);
+  };
+  mkBtn("\u25C0", () => {
+    view.plannerAnchor = addDays(view.plannerAnchor, -7);
+    view.render();
+  });
+  mkBtn("Today", () => {
+    view.plannerAnchor = startOfDay(/* @__PURE__ */ new Date());
+    view.render();
+  }, "primary");
+  mkBtn("\u25B6", () => {
+    view.plannerAnchor = addDays(view.plannerAnchor, 7);
+    view.render();
+  });
+  let dayData = [];
+  if (settings.taskManagementSystem === "tasknotes") {
+    const allTasks = listTaskNotesTasks(view.app);
+    dayData = days.map((d) => {
+      const path = dailyNotePath(settings, d);
+      const file = view.app.vault.getAbstractFileByPath(path);
+      const forDay = taskNotesToday(allTasks, ymd(d));
+      return {
+        date: d,
+        path,
+        exists: !!file,
+        file,
+        tasks: forDay.lines,
+        rawTasks: forDay.tasks
+      };
+    });
+  } else {
+    dayData = await Promise.all(days.map(async (d) => {
+      const path = dailyNotePath(settings, d);
+      const file = view.app.vault.getAbstractFileByPath(path);
+      if (!file || !(file instanceof import_obsidian12.TFile)) {
+        return { date: d, path, exists: false, tasks: [] };
+      }
+      const content = await view.app.vault.read(file);
+      const parsed = parseSections(content, settings);
+      return { date: d, path, exists: true, file, tasks: parsed.tasks };
+    }));
+  }
+  const week = plannerWeek(dayData, today);
+  const stats = root.createDiv({ cls: "cad-pl-stats" });
+  const mkStat = (label, value) => {
+    const c = stats.createDiv({ cls: "cad-pl-stat" });
+    c.createDiv({ cls: "cad-pl-stat-label", text: label });
+    c.createDiv({ cls: "cad-pl-stat-value", text: String(value) });
+  };
+  mkStat("OPEN", week.stats.open);
+  mkStat("DONE", week.stats.done);
+  mkStat("TOTAL", week.stats.total);
+  const grid = root.createDiv({ cls: "cad-pl-grid" });
+  dayData.forEach((d, dayIdx) => {
+    const column = week.columns[dayIdx];
+    const col = grid.createDiv({ cls: "cad-pl-day" + (column.isToday ? " today" : "") });
+    const colHead = col.createDiv({ cls: "cad-pl-day-head" });
+    colHead.createDiv({ cls: "cad-pl-weekday", text: column.weekday });
+    colHead.createDiv({ cls: "cad-pl-daynum", text: column.dayNum });
+    colHead.createDiv({ cls: "cad-pl-meta", text: column.meta });
+    colHead.addEventListener("click", async () => {
+      if (!d.exists) {
+        await ensureDailyNote(view.app, settings, d.date);
+      }
+      view.app.workspace.openLinkText(d.path, "", false);
+    });
+    const list = col.createDiv({ cls: "cad-pl-tasks" });
+    if (column.empty !== null) {
+      list.createDiv({ cls: "cad-empty", text: column.empty });
+    } else {
+      column.rows.forEach(({ checked, text }, idx) => {
+        const row = list.createDiv({ cls: "cad-pl-task" + (checked ? " done" : "") });
+        const cb = row.createEl("input", { type: "checkbox" });
+        cb.checked = checked;
+        cb.addEventListener("change", () => view.togglePlannerTask(d, idx, cb.checked));
+        if (settings.taskManagementSystem === "tasknotes") {
+          const taskObj = d.rawTasks[idx];
+          const taskSpan = row.createEl("a", { text });
+          taskSpan.style.cursor = "pointer";
+          taskSpan.addEventListener("click", (ev) => {
+            ev.preventDefault();
+            view.app.workspace.openLinkText(taskObj.file.path, "", false);
+          });
+        } else {
+          row.createSpan({ text });
+        }
+      });
+    }
+  });
+}
+async function togglePlannerTask(view, day, idx, checked) {
+  if (view.plugin.settings.taskManagementSystem === "tasknotes") {
+    if (day.rawTasks && day.rawTasks[idx]) {
+      const taskObj = day.rawTasks[idx];
+      await toggleTaskNotesTask(view.app, taskObj.file, checked);
+    }
+  } else {
+    if (!day.file) return;
+    const content = await view.app.vault.read(day.file);
+    const { content: newContent, taskText } = toggleDailyTask(content, view.plugin.settings, idx, checked);
+    await view.app.vault.modify(day.file, newContent);
+    if (taskText) {
+      await view._propagateTaskComplete(taskText, checked, { kind: "daily", file: day.file, date: day.date });
+    }
+  }
+  view.render();
+}
+
+// src/views/company-detail.ts
+var import_obsidian14 = require("obsidian");
+
+// src/modals/confirm.ts
+var import_obsidian13 = require("obsidian");
+var CadenceConfirmModal = class extends import_obsidian13.Modal {
+  constructor(app, opts) {
+    super(app);
+    this.title = opts.title || "Confirm Action";
+    this.message = opts.message || "Are you sure?";
+    this.confirmLabel = opts.confirmLabel || "Confirm";
+    this.cancelLabel = opts.cancelLabel || "Cancel";
+    this.onConfirm = opts.onConfirm;
+    this.onCancel = opts.onCancel;
+    this._responded = false;
+  }
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.addClass("cad-prompt-modal");
+    contentEl.addClass("cad-confirm-modal");
+    contentEl.createEl("h3", { text: this.title });
+    const msg = contentEl.createEl("p", { text: this.message });
+    msg.style.fontSize = "14px";
+    msg.style.marginTop = "8px";
+    msg.style.marginBottom = "20px";
+    msg.style.color = "var(--text-muted)";
+    const row = contentEl.createDiv();
+    row.style.display = "flex";
+    row.style.justifyContent = "flex-end";
+    row.style.gap = "8px";
+    const cancelBtn = row.createEl("button", { text: this.cancelLabel, cls: "cad-btn" });
+    cancelBtn.addEventListener("click", () => {
+      this._responded = true;
+      this.close();
+      if (this.onCancel) this.onCancel();
+    });
+    const confirmBtn = row.createEl("button", { text: this.confirmLabel, cls: "cad-btn primary danger" });
+    confirmBtn.addEventListener("click", () => {
+      this._responded = true;
+      this.close();
+      if (this.onConfirm) this.onConfirm();
+    });
+    setTimeout(() => confirmBtn.focus(), 50);
+  }
+  onClose() {
+    if (!this._responded && this.onCancel) {
+      this.onCancel();
+    }
+  }
+};
+
+// src/utils/field-edit.ts
+function coerceFieldEdit(def, key, raw) {
+  let value = raw;
+  const fdef = def.fields.find((f) => f.key === key);
+  if (fdef) {
+    if (fdef.type === "tags") {
+      if (Array.isArray(raw)) {
+        value = raw;
+      } else {
+        value = (raw || "").split(",").map((t) => t.trim()).filter(Boolean);
+      }
+    } else if (fdef.type === "number" || fdef.type === "currency") {
+      const n = Number(raw);
+      value = isNaN(n) ? null : n;
+    } else if (key === "stage") {
+      value = raw ? [raw] : null;
+    } else if (raw === "") {
+      value = null;
+    }
+  }
+  return value;
+}
+function applyFieldEdit(frontmatter, key, value) {
+  if (value == null || Array.isArray(value) && value.length === 0) {
+    delete frontmatter[key];
+  } else {
+    frontmatter[key] = value;
+  }
+}
+function dateInputValue(current) {
+  const d = new Date(current);
+  return isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
+}
+function enumCurrent(current) {
+  return Array.isArray(current) ? String(current[0] || "") : String(current || "");
+}
+function isChipField(f) {
+  const fieldType = f.type || "text";
+  return fieldType === "tags" || fieldType === "multitext" || getFieldSuggestionSource(f) !== "none";
+}
+var DETAIL_LIST_KEYS = ["tags", "owner", "assigned", "contacts", "domain", "industry", "role", "with", "related"];
+var COMPANY_LIST_KEYS = ["owner", "contacts", "domain", "industry", "role", "with", "related"];
+function chipConfig(f, entities, listKeys) {
+  const fieldType = f.type || "text";
+  const suggestionSource = getFieldSuggestionSource(f);
+  const isEntitySrc = entities[suggestionSource] != null;
+  const isFolderSrc = suggestionSource && suggestionSource.startsWith("folder:");
+  const isPlainChip = ["tags", "none", "history"].includes(suggestionSource);
+  const isList = fieldType === "tags" || fieldType === "multitext" || f.isList === true || listKeys.includes(f.key);
+  let targetEntityKey = isEntitySrc ? suggestionSource : null;
+  const customFolderPath = isFolderSrc ? suggestionSource.slice("folder:".length) : null;
+  if (isFolderSrc && customFolderPath) {
+    const normalizedPath = customFolderPath.replace(/\/+$/, "").toLowerCase();
+    for (const [ek, def] of Object.entries(entities)) {
+      if (def && def.folder && def.folder.replace(/\/+$/, "").toLowerCase() === normalizedPath) {
+        targetEntityKey = ek;
+        break;
+      }
+    }
+  }
+  return { suggestionSource, isPlainChip, isList, targetEntityKey, customFolderPath };
+}
+function unwrapChip(v, isPlainChip) {
+  return isPlainChip ? String(v).trim() : String(v).replace(/^\[\[|\]\]$/g, "").trim();
+}
+function chipValues(current, isPlainChip) {
+  if (Array.isArray(current)) {
+    return current.map((v) => unwrapChip(v, isPlainChip)).filter(Boolean);
+  } else if (current != null && current !== "") {
+    return [unwrapChip(current, isPlainChip)].filter(Boolean);
+  }
+  return [];
+}
+function chipWriteValue(values, isPlainChip, isList) {
+  if (isPlainChip) {
+    return isList ? values : values[0] || null;
+  }
+  return isList ? values.map((o) => `[[${o}]]`) : values[0] ? `[[${values[0]}]]` : null;
+}
+function chipAdd(values, raw, isList) {
+  const name = raw.trim();
+  if (!name) return { kind: "blank" };
+  if (isList) {
+    if (values.includes(name)) return { kind: "duplicate" };
+    return { kind: "added", name, values: [...values, name] };
+  }
+  return { kind: "added", name, values: [name] };
+}
+function historyValues(frontmatters, key) {
+  const allValues = /* @__PURE__ */ new Set();
+  frontmatters.forEach((fm) => {
+    const val = fm[key];
+    if (Array.isArray(val)) {
+      val.forEach((v) => {
+        if (v) allValues.add(String(v).replace(/^\[\[|\]\]$/g, "").trim());
+      });
+    } else if (val != null && val !== "") {
+      allValues.add(String(val).replace(/^\[\[|\]\]$/g, "").trim());
+    }
+  });
+  return Array.from(allValues);
+}
+function folderNoteNames(folderNode) {
+  const names = [];
+  if (folderNode && folderNode.children) {
+    const walk = (node) => {
+      for (const child of node.children) {
+        if (child.children) walk(child);
+        else if (child.path && child.path.endsWith(".md")) names.push(child.basename);
+      }
+    };
+    walk(folderNode);
+  }
+  return names;
+}
+function filterSuggestions(candidates, query, taken) {
+  return candidates.filter((v) => (!query || v.toLowerCase().includes(query)) && !taken.includes(v));
+}
+function findNoteByName(files, name) {
+  return files.find((cFile) => cFile.basename.toLowerCase() === name.toLowerCase());
+}
+function chipLinkTarget(targetEntityKey, targetFile, name) {
+  if (targetFile) {
+    if (targetEntityKey && !targetEntityKey.startsWith("folder:")) {
+      return { kind: "entity", entityKey: targetEntityKey, file: targetFile };
+    }
+    return { kind: "file", file: targetFile };
+  }
+  return { kind: "link", linktext: name };
+}
+function chipCreation(suggestionSource, targetEntityKey, entities) {
+  return {
+    source: suggestionSource === "history" ? "folder:Cadence/Shared" : targetEntityKey || suggestionSource,
+    label: entities[targetEntityKey] ? entities[targetEntityKey].label : "Note"
+  };
+}
+function metaControl(f) {
+  if (isChipField(f)) return "chips";
+  return (f.type || "text") === "enum" ? "enum" : "input";
+}
+function metaInputType(fieldType) {
+  return fieldType === "date" ? "date" : fieldType === "number" || fieldType === "currency" ? "number" : "text";
+}
+function metaInputValue(fieldType, raw) {
+  let val = raw || null;
+  if (fieldType === "number" || fieldType === "currency") {
+    const n = Number(raw);
+    val = isNaN(n) ? null : n;
+  }
+  return val;
+}
+function splitSectionColumns(keys) {
+  const left = [];
+  const right = [];
+  keys.forEach((key, idx) => {
+    if (idx % 2 === 0) {
+      left.push(key);
+    } else {
+      right.push(key);
+    }
+  });
+  return { left, right };
+}
+
+// src/views/company-detail.ts
+function companyDetailTitle(fm, basename) {
+  return fm.name || basename;
+}
+function companyMetaFields(def) {
+  return def.fields.filter((f) => !f.primary && !(f.key === "type" && f.type !== "enum"));
+}
+async function renderCompanyDetail(view, root, file) {
+  root.addClass("cadence-project-detail");
+  const def = ENTITIES.company;
+  const cache = view.app.metadataCache.getFileCache(file) || {};
+  const fm = Object.assign({}, cache.frontmatter || {});
+  const titleVal = companyDetailTitle(fm, file.basename);
+  const head = root.createDiv({ cls: "cad-detail-header" });
+  const headLeft = head.createDiv({ cls: "cad-detail-header-left" });
+  const back = headLeft.createEl("button", { cls: "cad-btn cad-detail-back", text: "\u2190 Companies" });
+  back.addEventListener("click", () => view.closeEntityDetail());
+  const breadcrumb = headLeft.createDiv({ cls: "cad-detail-breadcrumb" });
+  breadcrumb.createSpan({ cls: "cad-eyebrow", text: "COMPANY" });
+  breadcrumb.createSpan({ cls: "cad-detail-title", text: String(titleVal) });
+  breadcrumb.createDiv({ cls: "cad-detail-path", text: file.path });
+  const headRight = head.createDiv({ cls: "cad-detail-header-right" });
+  const savedBadge = headRight.createSpan({ cls: "cad-detail-saved", text: "" });
+  const flashSaved = () => {
+    savedBadge.setText("Saved");
+    savedBadge.addClass("show");
+    clearTimeout(savedBadge._t);
+    savedBadge._t = setTimeout(() => savedBadge.removeClass("show"), 1400);
+  };
+  const openNote = headRight.createEl("button", { cls: "cad-btn", text: "Open as note" });
+  openNote.addEventListener("click", () => view.app.workspace.openLinkText(file.path, "", false));
+  const deleteBtn = headRight.createEl("button", { cls: "cad-btn cad-btn-danger", text: "Delete" });
+  deleteBtn.addEventListener("click", (ev) => {
+    ev.preventDefault();
+    new CadenceConfirmModal(view.app, {
+      title: "Delete Company",
+      message: "Delete this company? This moves the file to trash.",
+      confirmLabel: "Delete",
+      onConfirm: () => {
+        deleteBtn.blur();
+        setTimeout(async () => {
+          try {
+            await view.app.vault.trash(file, true);
+            new import_obsidian14.Notice(`Deleted company: ${file.basename}`);
+            view.closeEntityDetail();
+          } catch (e) {
+            new import_obsidian14.Notice(`Delete failed: ${e.message}`);
+          }
+        }, 50);
+      }
+    }).open();
+  });
+  const hero = root.createDiv({ cls: "cad-pd-hero" });
+  const metaRow = hero.createDiv({ cls: "cad-pd-meta" });
+  const mkMeta = (f) => {
+    const label = f.label;
+    const key = f.key;
+    const fieldType = f.type || "text";
+    const cell = metaRow.createDiv({ cls: "cad-pd-meta-cell" });
+    cell.style.position = "relative";
+    cell.createDiv({ cls: "cad-pd-meta-label", text: label.toUpperCase() });
+    const current = fm[key];
+    const control = metaControl(f);
+    if (control === "chips") {
+      const { suggestionSource, isPlainChip, isList, targetEntityKey, customFolderPath } = chipConfig(f, ENTITIES, COMPANY_LIST_KEYS);
+      const wrap = cell.createDiv({ cls: "cad-pd-tag-input-wrap" });
+      wrap.style.display = "flex";
+      wrap.style.flexWrap = "wrap";
+      wrap.style.gap = "6px";
+      wrap.style.alignItems = "center";
+      wrap.style.border = "none";
+      wrap.style.borderRadius = "0";
+      wrap.style.padding = "4px 0";
+      wrap.style.minHeight = "36px";
+      wrap.style.backgroundColor = "transparent";
+      wrap.style.cursor = "text";
+      const inp = wrap.createEl("input", { type: "text", cls: "cad-pd-tag-input-field" });
+      inp.style.border = "none";
+      inp.style.outline = "none";
+      inp.style.background = "transparent";
+      inp.style.color = "var(--text-normal)";
+      inp.style.flex = "1";
+      inp.style.minWidth = "80px";
+      inp.style.padding = "0";
+      inp.style.height = "24px";
+      inp.style.lineHeight = "24px";
+      inp.placeholder = `Add ${label.toLowerCase()}...`;
+      const suggestionsBox = cell.createDiv({ cls: "cad-pd-tag-suggestions" });
+      suggestionsBox.style.position = "absolute";
+      suggestionsBox.style.zIndex = "10000";
+      suggestionsBox.style.backgroundColor = "var(--background-secondary)";
+      suggestionsBox.style.border = "1px solid var(--border-color)";
+      suggestionsBox.style.borderRadius = "4px";
+      suggestionsBox.style.boxShadow = "var(--shadow-s)";
+      suggestionsBox.style.maxHeight = "150px";
+      suggestionsBox.style.overflowY = "auto";
+      suggestionsBox.style.display = "none";
+      suggestionsBox.style.width = "100%";
+      suggestionsBox.style.boxSizing = "border-box";
+      suggestionsBox.style.top = "100%";
+      suggestionsBox.style.left = "0";
+      suggestionsBox.style.marginTop = "4px";
+      let valuesList = chipValues(current, isPlainChip);
+      const updateSuggestions = () => {
+        const query = inp.value.trim().toLowerCase();
+        suggestionsBox.empty();
+        let candidates = [];
+        if (suggestionSource === "tags") {
+          candidates = Object.keys(view.app.metadataCache.getTags() || {}).map((t) => t.replace(/^#/, ""));
+        } else if (suggestionSource === "history") {
+          candidates = historyValues(view.app.vault.getMarkdownFiles().map((fl) => {
+            const cache2 = view.app.metadataCache.getFileCache(fl);
+            return cache2 && cache2.frontmatter || {};
+          }), key);
+        } else if (suggestionSource !== "none") {
+          if (customFolderPath) {
+            candidates = folderNoteNames(view.app.vault.getAbstractFileByPath(customFolderPath));
+          } else {
+            candidates = listEntities(view.app, targetEntityKey).map((c) => c.basename);
+          }
+        }
+        const filtered = filterSuggestions(candidates, query, valuesList);
+        if (filtered.length === 0) {
+          suggestionsBox.style.display = "none";
+          return;
+        }
+        filtered.forEach((valStr) => {
+          const item = suggestionsBox.createDiv({ cls: "cad-suggestion-item" });
+          item.style.padding = "6px 10px";
+          item.style.cursor = "pointer";
+          item.style.fontSize = "13px";
+          item.style.color = "var(--text-normal)";
+          item.setText(valStr);
+          item.addEventListener("mouseenter", () => {
+            item.style.backgroundColor = "var(--background-modifier-hover)";
+          });
+          item.addEventListener("mouseleave", () => {
+            item.style.backgroundColor = "transparent";
+          });
+          item.addEventListener("mousedown", async (ev) => {
+            ev.preventDefault();
+            await addVal(valStr);
+            suggestionsBox.style.display = "none";
+          });
+        });
+        suggestionsBox.style.display = "block";
+      };
+      const renderChips = () => {
+        const existing = wrap.querySelectorAll(".cad-tag-chip");
+        existing.forEach((c) => c.remove());
+        valuesList.forEach((valName) => {
+          const chip = wrap.createDiv({ cls: "cad-tag-chip" });
+          chip.style.display = "inline-flex";
+          chip.style.alignItems = "center";
+          chip.style.gap = "6px";
+          chip.style.backgroundColor = "var(--background-secondary, #eee)";
+          chip.style.padding = "2px 8px";
+          chip.style.borderRadius = "12px";
+          chip.style.fontSize = "12px";
+          chip.style.height = "24px";
+          chip.style.boxSizing = "border-box";
+          chip.style.color = "var(--text-normal)";
+          const labelSpan = chip.createSpan({ text: valName });
+          if (!isPlainChip) {
+            labelSpan.style.textDecoration = "underline";
+            labelSpan.style.cursor = "pointer";
+            labelSpan.addEventListener("click", (ev) => {
+              ev.stopPropagation();
+              const target = chipLinkTarget(targetEntityKey, findNoteByName(view.app.vault.getMarkdownFiles(), valName), valName);
+              if (target.kind === "entity") {
+                view.openEntityDetail(target.entityKey, target.file);
+              } else if (target.kind === "file") {
+                view.openEntityDetailFromFile(target.file);
+              } else {
+                view.app.workspace.openLinkText(target.linktext, "", false);
+              }
+            });
+          }
+          const close = chip.createSpan({ text: "\xD7" });
+          close.style.cursor = "pointer";
+          close.style.fontWeight = "bold";
+          close.style.fontSize = "14px";
+          close.style.lineHeight = "1";
+          close.style.color = "var(--text-muted)";
+          close.addEventListener("click", async (ev) => {
+            ev.stopPropagation();
+            valuesList = valuesList.filter((v) => v !== valName);
+            await save();
+            renderChips();
+          });
+          wrap.insertBefore(chip, inp);
+        });
+      };
+      const save = async () => {
+        const val = chipWriteValue(valuesList, isPlainChip, isList);
+        await view.app.fileManager.processFrontMatter(file, (frontmatter) => applyFieldEdit(frontmatter, key, val));
+        flashSaved();
+      };
+      const addVal = async (raw) => {
+        const added = chipAdd(valuesList, raw, isList);
+        if (added.kind === "blank") return;
+        inp.value = "";
+        if (added.kind === "duplicate") return;
+        const { name } = added;
+        valuesList = added.values;
+        renderChips();
+        await save();
+        if (!isPlainChip) {
+          const targetFile = findNoteByName(view.app.vault.getMarkdownFiles(), name);
+          if (!targetFile) {
+            try {
+              const creation = chipCreation(suggestionSource, targetEntityKey, ENTITIES);
+              await createEntity(view.app, creation.source, name);
+              new import_obsidian14.Notice(`Created new ${creation.label}: ${name}`);
+            } catch (e) {
+              console.warn(`Failed to auto-create ${targetEntityKey || suggestionSource}`, e);
+            }
+          }
+        }
+      };
+      inp.addEventListener("input", updateSuggestions);
+      inp.addEventListener("focus", updateSuggestions);
+      inp.addEventListener("keydown", async (ev) => {
+        if (ev.key === "Enter") {
+          ev.preventDefault();
+          await addVal(inp.value);
+          suggestionsBox.style.display = "none";
+        } else if (ev.key === "Backspace" && !inp.value && valuesList.length > 0) {
+          valuesList.pop();
+          await save();
+          renderChips();
+        }
+      });
+      inp.addEventListener("blur", async () => {
+        setTimeout(async () => {
+          suggestionsBox.style.display = "none";
+          if (inp.value.trim()) {
+            await addVal(inp.value);
+          }
+        }, 180);
+      });
+      wrap.addEventListener("click", () => inp.focus());
+      renderChips();
+    } else if (control === "enum") {
+      const sel = cell.createEl("select", { cls: "cad-pd-meta-input" });
+      sel.style.border = "none";
+      sel.style.background = "transparent";
+      sel.style.color = "var(--text-normal)";
+      sel.style.outline = "none";
+      sel.style.width = "100%";
+      sel.createEl("option", { value: "", text: "\u2014" });
+      (f.options || []).forEach((opt) => {
+        const o = sel.createEl("option", { value: opt, text: opt });
+        if (enumCurrent(current) === opt) o.selected = true;
+      });
+      const commit = async () => {
+        const val = sel.value || null;
+        await view.app.fileManager.processFrontMatter(file, (frontmatter) => applyFieldEdit(frontmatter, key, val));
+        flashSaved();
+      };
+      sel.addEventListener("change", commit);
+    } else {
+      const inp = cell.createEl("input", { type: metaInputType(fieldType), cls: "cad-pd-meta-input" });
+      if (fieldType === "currency") inp.placeholder = `${view.plugin.settings.currency || "USD"} amount`;
+      if (fieldType === "date" && current) {
+        const date = dateInputValue(current);
+        if (date !== null) inp.value = date;
+      } else if (current != null) {
+        inp.value = String(current);
+      }
+      let t;
+      const commit = () => {
+        const val = metaInputValue(fieldType, inp.value);
+        view.app.fileManager.processFrontMatter(file, (frontmatter) => applyFieldEdit(frontmatter, key, val));
+        flashSaved();
+      };
+      inp.addEventListener("input", () => {
+        clearTimeout(t);
+        t = setTimeout(commit, 350);
+      });
+      inp.addEventListener("blur", commit);
+    }
+  };
+  companyMetaFields(def).forEach((f) => mkMeta(f));
+  const cols = root.createDiv({ cls: "cad-pd-cols" });
+  const left = cols.createDiv({ cls: "cad-pd-col" });
+  const right = cols.createDiv({ cls: "cad-pd-col" });
+  const content = await view.app.vault.read(file);
+  const sections = parseH2Sections(content);
+  const { left: leftKeys, right: rightKeys } = splitSectionColumns(Object.keys(sections));
+  leftKeys.forEach((key) => {
+    view._renderDynamicH2Section(left, file, sections, key, flashSaved);
+  });
+  rightKeys.forEach((key) => {
+    view._renderDynamicH2Section(right, file, sections, key, flashSaved);
+  });
+  const crossSectionContainer = root.createDiv({ attr: { style: "padding: 0 32px;" } });
+  view._renderCrossSections(crossSectionContainer, "company", titleVal);
+}
+
+// src/views/components/cards.ts
+function dashCardSection(view, parent, title, rows, emptyMsg) {
+  const card = parent.createDiv({ cls: "cad-dash-card" });
+  card.createDiv({ cls: "cad-dash-card-head" }).createDiv({ cls: "cad-dash-card-title", text: title });
+  const body = card.createDiv({ cls: "cad-dash-card-body" });
+  if (!rows || !rows.length) {
+    body.createDiv({ cls: "cad-empty", text: emptyMsg || "Nothing here yet." });
+    return;
+  }
+  rows.forEach((r) => {
+    const row = body.createDiv({ cls: "cad-dash-row" });
+    const titleDiv = row.createDiv({ cls: "cad-dash-row-title" });
+    if (r.titleEntityKey) {
+      view._renderEntityLinks(titleDiv, r.title, r.titleEntityKey);
+    } else {
+      titleDiv.setText(r.title || "");
+    }
+    const metaDiv = row.createDiv({ cls: "cad-dash-row-meta" });
+    if (r.metaParts) {
+      r.metaParts.forEach((part) => {
+        if (part.entityKey) {
+          view._renderEntityLinks(metaDiv, part.text, part.entityKey);
+        } else {
+          metaDiv.createSpan({ text: part.text || "" });
+        }
+      });
+    } else {
+      metaDiv.setText(r.meta || "");
+    }
+    if (r.file) {
+      row.style.cursor = "pointer";
+      row.addEventListener("click", () => view.openEntityDetailFromFile(r.file));
+    }
+  });
+}
+
+// src/views/components/charts.ts
+var CHART_COLORS = ["#38bdf8", "#34d399", "#f43f5e", "#a855f7", "#f97316", "#06b6d4", "#eab308"];
+var KPI_ACCENTS = ["sky", "emerald", "rose", "purple", "warn", "mint"];
+function toChartData(counts) {
+  return Object.entries(counts).map(([label, count]) => ({ label, count })).sort((a, b) => b.count - a.count);
+}
+function chartData(entities, widget, def) {
+  const fieldKey = widget.groupBy;
+  const counts = {};
+  entities.forEach((p) => {
+    const val = entityValue(p, fieldKey, def);
+    if (Array.isArray(val)) {
+      val.forEach((v) => {
+        const clean = String(v).replace(/^\[\[|\]\]$/g, "").trim();
+        if (clean) counts[clean] = (counts[clean] || 0) + 1;
+      });
+    } else {
+      const clean = String(val || "").replace(/^\[\[|\]\]$/g, "").trim();
+      const label = clean || "Unspecified";
+      counts[label] = (counts[label] || 0) + 1;
+    }
+  });
+  return toChartData(counts);
+}
+var WIDGET_STYLE_OPTIONS = [
+  { value: "donut", label: "\u{1F369} Donut" },
+  { value: "bar", label: "\u{1F4CA} Bar" },
+  { value: "kpi", label: "\u{1F5C3}\uFE0F KPI Cards" },
+  { value: "list", label: "\u{1F4CB} List" }
+];
+function dashboardWidgets(settings, key) {
+  return settings[key] || [];
+}
+function removeWidget(widgets, id) {
+  return (widgets || []).filter((item) => item.id !== id);
+}
+function sectionChartData(entities, groupField, frontmatterOf) {
+  const counts = {};
+  entities.forEach((e) => {
+    const val = frontmatterOf(e)[groupField];
+    const vals = Array.isArray(val) ? val : [val == null ? "" : val];
+    vals.forEach((v) => {
+      const label = String(v).replace(/^\[\[|\]\]$/g, "").trim() || "Unspecified";
+      counts[label] = (counts[label] || 0) + 1;
+    });
+  });
+  return toChartData(counts);
+}
+function donutGeometry(data) {
+  const total = data.reduce((sum, item) => sum + item.count, 0);
+  const r = 50;
+  const circ = 2 * Math.PI * r;
+  let currentOffset = 0;
+  const segments = data.map((item, index) => {
+    const pct = item.count / total;
+    const strokeLength = pct * circ;
+    const segment = { color: CHART_COLORS[index % CHART_COLORS.length], length: strokeLength, offset: currentOffset, percent: Math.round(pct * 100) };
+    currentOffset += strokeLength;
+    return segment;
+  });
+  return { total, r, circ, segments };
+}
+function barRows(data) {
+  const total = data.reduce((sum, item) => sum + item.count, 0);
+  const maxCount = Math.max(1, ...data.map((item) => item.count));
+  return data.map((item, index) => ({
+    color: CHART_COLORS[index % CHART_COLORS.length],
+    width: item.count / maxCount * 100,
+    percent: Math.round(item.count / total * 100)
+  }));
+}
+function kpiCards(data) {
+  const total = data.reduce((sum, item) => sum + item.count, 0);
+  return data.map((item, index) => ({
+    accent: KPI_ACCENTS[index % KPI_ACCENTS.length],
+    percent: total === 0 ? 0 : Math.round(item.count / total * 100)
+  }));
+}
+function drawChart(view, parent, style, data) {
+  if (style === "donut") view._drawDonutChart(parent, data);
+  else if (style === "bar") view._drawBarChart(parent, data);
+  else if (style === "kpi") view._drawKpiGrid(parent, data);
+  else view._drawSimpleList(parent, data);
+}
+function drawChartEmpty(view, parent) {
+  const el = parent.createDiv({ cls: "cad-empty", text: "No data" });
+  el.style.cssText = "text-align: center; padding: 16px;";
+}
+function drawDonutChart(view, parent, data) {
+  const { total, r, circ, segments } = donutGeometry(data);
+  if (total === 0) return view._drawChartEmpty(parent);
+  const container = parent.createDiv({ cls: "cad-donut-chart-container" });
+  container.style.cssText = "display: flex; align-items: center; justify-content: center; gap: 24px; padding: 12px;";
+  const svgWrap = container.createDiv({ cls: "cad-donut-svg-wrap" });
+  svgWrap.style.cssText = "position: relative; width: 140px; height: 140px; flex-shrink: 0;";
+  const svg = svgWrap.createSvg("svg", { attr: { width: "140", height: "140", viewBox: "0 0 140 140" } });
+  svg.createSvg("circle", { attr: { cx: "70", cy: "70", r: String(r), fill: "transparent", stroke: "var(--background-secondary)", "stroke-width": "12" } });
+  segments.forEach((segment) => {
+    svg.createSvg("circle", {
+      cls: "cad-donut-segment",
+      attr: {
+        cx: "70",
+        cy: "70",
+        r: String(r),
+        fill: "transparent",
+        stroke: segment.color,
+        "stroke-width": "12",
+        "stroke-dasharray": `${segment.length} ${circ}`,
+        "stroke-dashoffset": String(-segment.offset),
+        transform: "rotate(-90 70 70)"
+      }
+    });
+  });
+  const center = svgWrap.createDiv({ cls: "cad-donut-center" });
+  center.style.cssText = "position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; justify-content: center;";
+  const centerTotal = center.createSpan({ cls: "cad-donut-center-total", text: String(total) });
+  centerTotal.style.cssText = "font-size: 1.25rem; font-weight: 700; color: var(--text-normal);";
+  const centerLabel = center.createSpan({ cls: "cad-donut-center-label", text: "Total" });
+  centerLabel.style.cssText = "font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;";
+  const legend = container.createDiv({ cls: "cad-donut-legend" });
+  legend.style.cssText = "display: flex; flex-direction: column; gap: 6px; flex: 1;";
+  data.forEach((item, index) => {
+    const { color, percent } = segments[index];
+    const row = legend.createDiv({ cls: "cad-donut-legend-item" });
+    row.style.cssText = "display: flex; align-items: center; gap: 8px; font-size: 0.85em;";
+    const swatch = row.createSpan({ cls: "cad-donut-legend-color" });
+    swatch.style.cssText = `display: inline-block; width: 10px; height: 10px; border-radius: 50%; background-color: ${color}; flex-shrink: 0;`;
+    const labelEl = row.createSpan({ cls: "cad-donut-legend-label", text: String(item.label) });
+    labelEl.style.cssText = "flex: 1; color: var(--text-normal); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px;";
+    const countEl = row.createSpan({ cls: "cad-donut-legend-count", text: `${item.count} (${percent}%)` });
+    countEl.style.cssText = "font-weight: 700; color: var(--text-muted);";
+  });
+}
+function drawBarChart(view, parent, data) {
+  const total = data.reduce((sum, item) => sum + item.count, 0);
+  if (total === 0) return view._drawChartEmpty(parent);
+  const rows = barRows(data);
+  const bars = parent.createDiv({ cls: "cad-stage-bars" });
+  bars.style.cssText = "padding: 12px 0; display: flex; flex-direction: column; gap: 8px;";
+  data.forEach((item, index) => {
+    const { color, width, percent } = rows[index];
+    const row = bars.createDiv({ cls: "cad-stage-bar-row" });
+    row.style.cssText = "display: flex; align-items: center; margin-bottom: 0; padding: 4px 8px; border-radius: 6px;";
+    const name = row.createDiv({ cls: "cad-stage-bar-name", text: String(item.label) });
+    name.style.cssText = "width: 120px; font-weight: 500; font-size: 0.85em; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;";
+    const count = row.createDiv({ cls: "cad-stage-bar-count", text: String(item.count) });
+    count.style.cssText = "margin-right: 12px; font-weight: 700; color: var(--text-muted); font-size: 0.85em;";
+    const bar = row.createDiv({ cls: "cad-stage-bar" });
+    bar.style.cssText = "flex: 1; background: var(--background-secondary); border-radius: 4px; height: 10px; overflow: hidden; position: relative;";
+    const fill = bar.createDiv({ cls: "cad-stage-bar-fill" });
+    fill.style.cssText = `width: ${width}%; background-color: ${color}; height: 100%; border-radius: 4px; transition: width 0.3s ease;`;
+    const value = row.createDiv({ cls: "cad-stage-bar-value", text: `${percent}%` });
+    value.style.cssText = "margin-left: 12px; font-size: 0.8em; color: var(--text-faint); font-weight: 600; min-width: 36px; text-align: right;";
+  });
+}
+function drawKpiGrid(view, parent, data) {
+  if (data.length === 0) return view._drawChartEmpty(parent);
+  const cards = kpiCards(data);
+  const grid = parent.createDiv({ cls: "cad-stat-grid" });
+  grid.style.cssText = "grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; padding: 12px 0; margin: 0;";
+  data.forEach((item, index) => {
+    const { accent, percent } = cards[index];
+    const card = grid.createDiv({ cls: "cad-stat-card", attr: { "data-accent": accent } });
+    card.style.cssText = "padding: 10px 12px; display: flex; flex-direction: column; justify-content: center; min-height: 70px;";
+    const label = card.createDiv({ cls: "cad-stat-label", text: String(item.label).toUpperCase() });
+    label.style.cssText = "font-size: 0.65rem; letter-spacing: 0.08em; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100px;";
+    const value = card.createDiv({ cls: "cad-stat-value", text: String(item.count) });
+    value.style.cssText = "font-size: 1.25rem; font-weight: 800; margin: 2px 0; line-height: 1;";
+    const sub = card.createDiv({ cls: "cad-stat-sub", text: `${percent}% of total` });
+    sub.style.cssText = "font-size: 9px; margin-top: 0;";
+  });
+}
+function drawSimpleList(view, parent, data) {
+  if (data.length === 0) return view._drawChartEmpty(parent);
+  const list = parent.createDiv({ cls: "cad-simple-list" });
+  list.style.cssText = "display: flex; flex-direction: column; gap: 6px; padding: 8px 0;";
+  data.forEach((item) => {
+    const row = list.createDiv({ cls: "cad-list-item" });
+    row.style.cssText = "display: flex; justify-content: space-between; align-items: center; padding: 6px 12px; background: var(--background-secondary); border-radius: 6px; font-size: 0.9em;";
+    const label = row.createSpan({ text: String(item.label) });
+    label.style.cssText = "font-weight: 500; color: var(--text-normal); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px;";
+    const count = row.createSpan({ text: String(item.count) });
+    count.style.cssText = "font-weight: 700; background: var(--background-primary); padding: 1px 8px; border-radius: 4px; border: 1px solid var(--border-color); color: var(--text-muted);";
+  });
+}
+
+// src/views/components/entity-table.ts
+function renderEntityLinks(view, parent, val, targetEntityKey, prefix = "") {
+  if (!val) return;
+  const items = parseLinkValues(val);
+  if (items.length === 0) return;
+  if (prefix) parent.createSpan({ text: prefix });
+  items.forEach((item, idx) => {
+    if (idx > 0) parent.createSpan({ text: ", " });
+    let resolvedKey = targetEntityKey;
+    if (targetEntityKey && targetEntityKey.startsWith("folder:")) {
+      const folderPath = targetEntityKey.slice("folder:".length).replace(/\/+$/, "").toLowerCase();
+      const matchedKey = Object.keys(ENTITIES).find((k) => ENTITIES[k].folder.replace(/\/+$/, "").toLowerCase() === folderPath);
+      if (matchedKey) {
+        resolvedKey = matchedKey;
+      }
+    }
+    const link = parent.createEl("a", { text: item.display, cls: `cad-${resolvedKey}-link` });
+    link.style.textDecoration = "underline";
+    link.style.cursor = "pointer";
+    link.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      const targetFile = view.app.vault.getMarkdownFiles().find((f) => f.basename.toLowerCase() === item.target.toLowerCase());
+      if (targetFile) {
+        if (ENTITIES[resolvedKey]) {
+          view.openEntityDetail(resolvedKey, targetFile);
+        } else {
+          view.app.workspace.openLinkText(targetFile.path, "", false);
+        }
+      } else {
+        view.app.workspace.openLinkText(item.target, "", false);
+      }
+    });
+  });
+}
+function renderOwnerLinks(view, parent, ownerVal, showPrefix = true) {
+  view._renderEntityLinks(parent, ownerVal, "contact", showPrefix ? "Owner: " : "");
+}
+function renderEntityTable(view, parent, entityKey, filteredList, columns) {
+  const def = ENTITIES[entityKey];
+  if (!def) return;
+  const tableWrap = parent.createDiv({ cls: "cad-table-wrap" });
+  tableWrap.style.padding = "0";
+  tableWrap.style.border = "none";
+  tableWrap.style.boxShadow = "none";
+  tableWrap.style.borderRadius = "0";
+  tableWrap.style.marginTop = "0";
+  tableWrap.style.overflowX = "auto";
+  const table = tableWrap.createEl("table", { cls: "cad-table" });
+  const cols = columns.map((k) => def.fields.find((f) => f.key === k)).filter(Boolean);
+  const thead = table.createEl("thead");
+  const trh = thead.createEl("tr");
+  cols.forEach((f) => trh.createEl("th", { text: f.label }));
+  const tbody = table.createEl("tbody");
+  filteredList.forEach((e) => {
+    const tr = tbody.createEl("tr", { cls: "cad-row" });
+    cols.forEach((f, i) => {
+      const td = tr.createEl("td");
+      const val = entityValue(e, f.key, def);
+      const formatted = fmtValue(val, f.type);
+      const primaryField2 = def.fields.find((fd) => fd.primary) || def.fields[0];
+      const hasPrimaryCol = cols.some((c) => c.key === primaryField2.key);
+      const isPrimaryCol = hasPrimaryCol ? f.key === primaryField2.key : i === 0;
+      if (isPrimaryCol) {
+        const a = td.createEl("a", { cls: "cad-row-primary", text: formatted || e.basename });
+        a.style.fontWeight = "bold";
+        a.style.textDecoration = "underline";
+        a.style.cursor = "pointer";
+        a.addEventListener("click", (ev) => {
+          ev.preventDefault();
+          view.openEntityDetail(entityKey, e.file);
+        });
+      } else if (f.key === "owner" || f.key === "assigned") {
+        view._renderOwnerLinks(td, val, false);
+      } else {
+        const sugSrc = f.suggestionSource || getFieldSuggestionSource(f);
+        if (f.type === "multitext" && sugSrc && sugSrc !== "none" && sugSrc !== "tags" && sugSrc !== "history") {
+          const targetSrc = sugSrc === "history" ? "folder:Cadence/Shared" : sugSrc;
+          view._renderEntityLinks(td, val, targetSrc);
+        } else if (f.key === "company") {
+          view._renderEntityLinks(td, val, "company");
+        } else if (f.key === "partner") {
+          view._renderEntityLinks(td, val, "partner");
+        } else if (f.key === "contact" || f.key === "contacts" || f.key === "with") {
+          view._renderEntityLinks(td, val, "contact");
+        } else if (f.key === "related") {
+          view._renderEntityLinks(td, val, "project");
+        } else if (f.key === "stage" && val) {
+          const span = td.createSpan({ cls: `cad-pill cad-pill-${val.toLowerCase()}`, text: formatted });
+          span.style.fontSize = "10px";
+          span.style.padding = "2px 6px";
+        } else {
+          td.setText(formatted || "\u2014");
+        }
+      }
+    });
+  });
+}
+function getEntityFiles(view, entityKey) {
+  if (entityKey === "daily") {
+    const folderPath = view.plugin.settings.dailyNoteFolder || "daily";
+    const folder = view.app.vault.getAbstractFileByPath(folderPath);
+    if (!folder || !folder.children) return [];
+    const out = [];
+    const walk = (node) => {
+      for (const child of node.children) {
+        if (child.children) walk(child);
+        else if (typeof child.path === "string" && child.path.toLowerCase().endsWith(".md")) {
+          out.push(child);
+        }
+      }
+    };
+    walk(folder);
+    return out;
+  } else {
+    return listEntityFiles(view.app, entityKey);
+  }
+}
+
+// src/views/components/sections.ts
+var import_obsidian15 = require("obsidian");
+function linksTo(val, name) {
+  if (val == null) return false;
+  const cleanName = name.trim().toLowerCase();
+  const arr = Array.isArray(val) ? val : [val];
+  return arr.some((v) => String(v).replace(/^\[\[|\]\]$/g, "").trim().toLowerCase() === cleanName);
+}
+function crossSectionRows(entities, linkField, parentName, frontmatterOf) {
+  return entities.filter((e) => linksTo(frontmatterOf(e)[linkField], parentName));
+}
+function frontmatterReader(view) {
+  return (e) => {
+    const cache = view.app.metadataCache.getFileCache(e.file);
+    return cache && cache.frontmatter || {};
+  };
+}
+function dynamicH2Kind(rawKey) {
+  const { cleanLabel, tag } = parseHeaderKey(rawKey);
+  const cleanLower = cleanLabel.toLowerCase();
+  if (tag === "#tasks" || cleanLower === "tasks") return { kind: "tasks", cleanLabel };
+  if (tag === "#milestones" || cleanLower === "milestones") return { kind: "milestones", cleanLabel };
+  if (tag.startsWith("#cross-")) {
+    const crossParts = tag.slice("#cross-".length).split("-");
+    if (crossParts.length !== 3) return { kind: "malformed", cleanLabel };
+    const [targetEntity, linkField, viewType] = crossParts;
+    return { kind: "cross", cleanLabel, targetEntity, linkField, viewType };
+  }
+  if (tag.startsWith("#chart-")) {
+    const chartParts = tag.slice("#chart-".length).split("-");
+    if (chartParts.length < 4) return { kind: "malformed", cleanLabel };
+    return {
+      kind: "chart",
+      cleanLabel,
+      targetEntity: chartParts[0],
+      linkField: chartParts[1],
+      groupField: chartParts[2],
+      chartStyle: chartParts.slice(3).join("-")
+    };
+  }
+  return { kind: "text", cleanLabel };
+}
+function renderMarkdownTextCard(view, parent, file, sectionKey, label, initialValue, placeholder, flashSaved) {
+  const card = parent.createDiv({ cls: "cad-pd-card" });
+  const head = card.createDiv({ cls: "cad-pd-card-head" });
+  head.createDiv({ cls: "cad-pd-card-title", text: label });
+  const openBtn = head.createEl("button", { cls: "cad-btn cad-btn-sm", attr: { style: "margin-left: auto; padding: 4px 6px; display: inline-flex; align-items: center; justify-content: center; border-radius: 4px; border: 1px solid var(--border-color); background: transparent; cursor: pointer;" } });
+  openBtn.title = "Open this note natively to edit with full Live Preview & Autocomplete";
+  try {
+    (0, import_obsidian15.setIcon)(openBtn, "file-text");
+  } catch (_) {
+  }
+  openBtn.addEventListener("click", (ev) => {
+    ev.stopPropagation();
+    view.app.workspace.openLinkText(file.path, "", "split");
+  });
+  const body = card.createDiv({ attr: { style: "padding: 12px; min-height: 40px; position: relative;" } });
+  const previewDiv = body.createDiv({ cls: "markdown-preview-view", attr: { style: "padding: 0; min-height: 30px;" } });
+  const renderPreview = () => {
+    previewDiv.empty();
+    const rawText = initialValue || "";
+    try {
+      import_obsidian15.MarkdownRenderer.renderMarkdown(rawText, previewDiv, file.path, view);
+      previewDiv.querySelectorAll("a.internal-link").forEach((a) => {
+        const href = a.getAttribute("data-href") || a.getAttribute("href");
+        if (href) {
+          a.addEventListener("click", (ev) => {
+            ev.preventDefault();
+            ev.stopPropagation();
+            view.app.workspace.openLinkText(href, file.path, false);
+          });
+        }
+      });
+    } catch (e) {
+      previewDiv.setText(rawText);
+    }
+    if (!rawText.trim()) {
+      const ph = previewDiv.createDiv({ text: placeholder || "Empty section.", attr: { style: "color: var(--text-faint); font-style: italic; font-size: 0.9em; padding: 4px 0;" } });
+    }
+  };
+  renderPreview();
+}
+function renderProjectTextSection(view, parent, file, sections, def, flashSaved) {
+  const initial = (sections[def.key] || "").replace(/^\s+|\s+$/g, "");
+  view._renderMarkdownTextCard(parent, file, def.key, def.label, initial, def.placeholder, flashSaved);
+}
+function renderGenericTextSection(view, parent, file, sections, key, flashSaved) {
+  const { cleanLabel } = parseHeaderKey(key);
+  const initial = (sections[key] || "").replace(/^\s+|\s+$/g, "");
+  view._renderMarkdownTextCard(parent, file, key, cleanLabel.toUpperCase(), initial, `Content for ${cleanLabel}...`, flashSaved);
+}
+function renderSingleCrossSection(view, parent, targetEntity, linkField, viewType, parentName, preFilteredList = null) {
+  const def = ENTITIES[targetEntity];
+  if (!def) return;
+  const filteredList = preFilteredList || crossSectionRows(listEntities(view.app, targetEntity), linkField, parentName, frontmatterReader(view));
+  const secWrap = parent.createDiv({ attr: { style: "margin-top: 12px; margin-bottom: 12px;" } });
+  if (filteredList.length === 0) {
+    secWrap.createDiv({ cls: "cad-empty", text: "No linked items found." });
+    return;
+  }
+  if (viewType === "table") {
+    const columns = def.columns || [def.fields[0].key];
+    view._renderEntityTable(secWrap, targetEntity, filteredList, columns);
+  } else if (viewType === "tile") {
+    const grid = secWrap.createDiv({ cls: "cad-proj-grid" });
+    filteredList.forEach((e) => {
+      if (targetEntity === "project") {
+        const card = grid.createDiv({ cls: "cad-proj-card" });
+        const head = card.createDiv({ cls: "cad-proj-card-head" });
+        const title = head.createEl("a", { cls: "cad-proj-title", text: entityValue(e, "name", def) || e.basename });
+        title.addEventListener("click", (ev) => {
+          ev.preventDefault();
+          view.openEntityDetail("project", e.file);
+        });
+        const status = String(entityValue(e, "status", def) || "active");
+        const priority = String(entityValue(e, "priority", def) || "");
+        const pillRow = head.createDiv({ cls: "cad-proj-pills" });
+        pillRow.createSpan({ cls: `cad-pill cad-pill-${status.toLowerCase().replace(/\s+/g, "-")}`, text: status });
+        if (priority) pillRow.createSpan({ cls: `cad-pill cad-pill-prio-${priority.toLowerCase()}`, text: priority });
+        const metaRow = card.createDiv({ cls: "cad-proj-meta" });
+        const owner = entityValue(e, "owner", def);
+        const due = entityValue(e, "due", def);
+        if (owner) view._renderOwnerLinks(metaRow, owner);
+        if (due) metaRow.createSpan({ text: `Due: ${fmtValue(due, "date")}` });
+        const progWrap = card.createDiv({ cls: "cad-proj-progress-wrap" });
+        const progLabel = progWrap.createDiv({ cls: "cad-proj-progress-label" });
+        const progTextSpan = progLabel.createSpan({ text: "Loading milestones..." });
+        const progPctSpan = progLabel.createSpan({ cls: "cad-proj-progress-pct", text: "" });
+        const bar = progWrap.createDiv({ cls: "cad-proj-progress-bar" });
+        const fill = bar.createDiv({ cls: "cad-proj-progress-fill" });
+        fill.style.width = "0%";
+        const nextRow = card.createDiv({ cls: "cad-proj-next" });
+        readProjectMeta(view.app, e.file).then((pm) => {
+          progWrap.dataset.pctBand = pctBand(pm.percent);
+          progTextSpan.setText(`${pm.done}/${pm.total} milestones`);
+          progPctSpan.setText(`${pm.percent}%`);
+          fill.style.width = `${pm.percent}%`;
+          if (pm.next) {
+            nextRow.createSpan({ cls: "cad-proj-next-label", text: "NEXT \xB7 " });
+            nextRow.createSpan({ cls: "cad-proj-next-date", text: fmtValue(pm.next.date, "date") });
+            if (pm.next.title) nextRow.createSpan({ text: ` \u2014 ${pm.next.title}` });
+          }
+        });
+      } else {
+        const card = grid.createDiv({ cls: "cad-proj-card" });
+        const head = card.createDiv({ cls: "cad-proj-card-head" });
+        const primaryField2 = def.fields.find((f) => f.primary) || def.fields[0];
+        const titleText = entityValue(e, primaryField2.key, def) || e.basename;
+        const title = head.createEl("a", { cls: "cad-proj-title", text: titleText });
+        title.addEventListener("click", (ev) => {
+          ev.preventDefault();
+          view.openEntityDetail(targetEntity, e.file);
+        });
+        const pillRow = head.createDiv({ cls: "cad-proj-pills" });
+        const statusField = def.fields.find((f) => f.key === "status" || f.key === "type" || f.key === "tier") || def.fields.find((f) => f.type === "enum");
+        if (statusField) {
+          const val = entityValue(e, statusField.key, def);
+          if (val) {
+            const clean = Array.isArray(val) ? val[0] : val;
+            pillRow.createSpan({ cls: `cad-pill cad-pill-${String(clean).toLowerCase().replace(/\s+/g, "-")}`, text: String(clean) });
+          }
+        }
+        const metaRow = card.createDiv({ cls: "cad-proj-meta" });
+        let count = 0;
+        def.fields.forEach((f) => {
+          if (f.key !== primaryField2.key && (!statusField || f.key !== statusField.key) && count < 4) {
+            const val = entityValue(e, f.key, def);
+            if (val != null && val !== "") {
+              count++;
+              const fieldDiv = metaRow.createDiv();
+              fieldDiv.style.marginBottom = "2px";
+              fieldDiv.createSpan({ text: `${f.label}: `, attr: { style: "font-weight: 500; color: var(--text-muted);" } });
+              const isLinkProperty = f.key === "company" || f.key === "contact" || f.key === "partner" || f.key === "owner" || f.key === "project" || f.suggestionSource && f.suggestionSource.startsWith("folder:");
+              if (isLinkProperty) {
+                const links = parseLinkValues(val);
+                links.forEach((link, lidx) => {
+                  if (lidx > 0) fieldDiv.createSpan({ text: ", " });
+                  const aLink = fieldDiv.createEl("a", { text: link.display });
+                  aLink.style.textDecoration = "underline";
+                  aLink.style.cursor = "pointer";
+                  aLink.addEventListener("click", (ev) => {
+                    ev.preventDefault();
+                    ev.stopPropagation();
+                    const targetFile = view.app.vault.getMarkdownFiles().find((f2) => f2.basename.toLowerCase() === link.target.toLowerCase());
+                    let relatedKey = f.key === "owner" ? "contact" : f.key;
+                    if (f.suggestionSource && f.suggestionSource.startsWith("folder:")) {
+                      const folder = f.suggestionSource.replace("folder:", "").split("/").pop().toLowerCase();
+                      const found = Object.keys(ENTITIES).find((k) => ENTITIES[k].folder.toLowerCase().endsWith(folder) || ENTITIES[k].plural.toLowerCase() === folder);
+                      if (found) relatedKey = found;
+                    }
+                    if (targetFile) view.openEntityDetail(relatedKey, targetFile);
+                    else view.app.workspace.openLinkText(link.target, "", false);
+                  });
+                });
+              } else {
+                fieldDiv.createSpan({ text: fmtValue(val, f.type) });
+              }
+            }
+          }
+        });
+      }
+    });
+  } else if (viewType === "kanban") {
+    const board = secWrap.createDiv({ cls: "cad-kanban-board" });
+    const groupField = def.fields.find((f) => f.key === "stage" || f.key === "status" || f.key === "type" || f.type === "enum") || def.fields[1];
+    const columns = groupField.options || ["To Do", "In Progress", "Done"];
+    const isMobile = !!(import_obsidian15.Platform && import_obsidian15.Platform.isMobile);
+    columns.forEach((colName) => {
+      const items = filteredList.filter((e) => {
+        const val = entityValue(e, groupField.key, def);
+        const cleanVal = Array.isArray(val) ? val[0] : val;
+        return String(cleanVal || "").toLowerCase() === colName.toLowerCase();
+      });
+      const hasValField = def.fields.find((f) => f.key === "value" || f.key === "amount");
+      const colValueSum = hasValField ? items.reduce((s, e) => s + (Number(entityValue(e, hasValField.key, def)) || 0), 0) : 0;
+      const col = board.createDiv({ cls: "cad-kanban-col" });
+      col.dataset.stage = colName;
+      const colHead = col.createDiv({ cls: "cad-kanban-col-head" });
+      colHead.createDiv({ cls: "cad-kanban-col-title", text: colName.toUpperCase() });
+      colHead.createDiv({
+        cls: "cad-kanban-col-meta",
+        text: hasValField ? `${items.length} \xB7 ${fmtValue(colValueSum, "currency")}` : `${items.length}`
+      });
+      const list = col.createDiv({ cls: "cad-kanban-col-list" });
+      list.addEventListener("dragover", (ev) => {
+        ev.preventDefault();
+        try {
+          ev.dataTransfer.dropEffect = "move";
+        } catch (_) {
+        }
+        col.addClass("drag-over");
+      });
+      list.addEventListener("dragleave", (ev) => {
+        if (!col.contains(ev.relatedTarget)) col.removeClass("drag-over");
+      });
+      list.addEventListener("drop", async (ev) => {
+        ev.preventDefault();
+        col.removeClass("drag-over");
+        const path = ev.dataTransfer.getData("text/cadence-entity");
+        const fromStage = ev.dataTransfer.getData("text/cadence-stage");
+        if (!path || fromStage === colName) return;
+        const file = view.app.vault.getAbstractFileByPath(path);
+        if (!file || !(file instanceof import_obsidian15.TFile)) return;
+        try {
+          await view.app.fileManager.processFrontMatter(file, (fm) => {
+            const isList = groupField.type === "multitext" || groupField.type === "tags" || groupField.isList === true;
+            const isLink = groupField.suggestionSource && groupField.suggestionSource !== "none" && groupField.suggestionSource !== "tags" && groupField.suggestionSource !== "history";
+            if (isList) {
+              fm[groupField.key] = isLink ? [`[[${colName}]]`] : [colName];
+            } else {
+              fm[groupField.key] = isLink ? `[[${colName}]]` : colName;
+            }
+          });
+          new import_obsidian15.Notice(`Moved to ${colName}`);
+          view.render();
+        } catch (e) {
+          new import_obsidian15.Notice(`Failed to move: ${e.message}`);
+        }
+      });
+      if (!items.length) {
+        list.createDiv({ cls: "cad-empty", text: "\u2014" });
+      } else {
+        items.forEach((e) => {
+          const card = list.createDiv({ cls: "cad-kanban-card" });
+          card.dataset.path = e.file.path;
+          const primaryField2 = def.fields.find((f) => f.primary) || def.fields[0];
+          card.createDiv({ cls: "cad-kanban-card-title", text: entityValue(e, primaryField2.key, def) || e.basename });
+          const meta = card.createDiv({ cls: "cad-kanban-card-meta" });
+          if (hasValField) {
+            const v = entityValue(e, hasValField.key, def);
+            if (v) meta.createSpan({ cls: "cad-kanban-card-value", text: fmtValue(v, "currency") });
+          }
+          const relFields = ["company", "contact", "owner", "assigned"];
+          relFields.forEach((rf) => {
+            if (rf === groupField.key) return;
+            const rfDef = def.fields.find((f) => f.key === rf);
+            if (rfDef) {
+              const vals = parseLinkValues(entityValue(e, rf, def));
+              vals.forEach((v) => {
+                if (meta.children.length > 0) meta.createSpan({ text: " \xB7 " });
+                const link = meta.createEl("a", { text: v.display });
+                link.style.textDecoration = "underline";
+                link.style.cursor = "pointer";
+                link.addEventListener("click", (ev) => {
+                  ev.preventDefault();
+                  ev.stopPropagation();
+                  const targetFile = view.app.vault.getMarkdownFiles().find((f) => f.basename.toLowerCase() === v.target.toLowerCase());
+                  if (targetFile) view.openEntityDetail(rf === "owner" || rf === "assigned" ? "contact" : rf, targetFile);
+                  else view.app.workspace.openLinkText(v.target, "", false);
+                });
+              });
+            }
+          });
+          if (!isMobile) {
+            card.draggable = true;
+            card.addEventListener("dragstart", (ev) => {
+              card.addClass("dragging");
+              try {
+                ev.dataTransfer.effectAllowed = "move";
+                ev.dataTransfer.setData("text/cadence-entity", e.file.path);
+                ev.dataTransfer.setData("text/cadence-stage", colName);
+                ev.dataTransfer.setData("text/plain", `[[${e.file.basename}]]`);
+              } catch (_) {
+              }
+            });
+            card.addEventListener("dragend", () => card.removeClass("dragging"));
+          } else {
+            card.addClass("cad-kanban-card-touch");
+          }
+          card.addEventListener("click", () => view.openEntityDetail(targetEntity, e.file));
+        });
+      }
+    });
+  }
+}
+function renderCrossSections(view, parent, parentEntity, parentName) {
+  const crossSections = view.plugin.settings.crossSections || [];
+  const configs = crossSections.filter((c) => c.parentEntity === parentEntity);
+  if (configs.length === 0) return;
+  configs.forEach((config) => {
+    const def = ENTITIES[config.targetEntity];
+    if (!def) return;
+    const filteredList = crossSectionRows(listEntities(view.app, config.targetEntity), config.linkField, parentName, frontmatterReader(view));
+    const secWrap = parent.createDiv({ attr: { style: "margin-top: 24px; margin-bottom: 24px;" } });
+    const head = secWrap.createDiv({ attr: { style: "display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px solid var(--border-color); padding-bottom: 6px;" } });
+    head.createEl("h3", {
+      text: `${def.plural.toUpperCase()} (${config.linkField.toUpperCase()}) \u2014 ${config.viewType.toUpperCase()}`,
+      attr: { style: "margin: 0; font-size: 1.1em; font-weight: 700; letter-spacing: 0.05em;" }
+    });
+    const delBtn = head.createEl("button", { text: "\xD7", attr: { style: "color: var(--text-error); border: 1px solid var(--text-error); padding: 2px 8px; font-weight: bold; border-radius: 4px; background: transparent; cursor: pointer;" } });
+    delBtn.title = "Supprimer cette section crois\xE9e";
+    delBtn.addEventListener("click", async () => {
+      if (!confirm("Supprimer cette section crois\xE9e ?")) return;
+      view.plugin.settings.crossSections = (view.plugin.settings.crossSections || []).filter((c) => c.id !== config.id);
+      await view.plugin.saveSettings();
+      view.render();
+    });
+    if (filteredList.length === 0) {
+      secWrap.createDiv({ cls: "cad-empty", text: "Aucun \xE9l\xE9ment li\xE9 trouv\xE9." });
+      return;
+    }
+    if (config.viewType === "table") {
+      const columns = def.columns || [def.fields[0].key];
+      view._renderEntityTable(secWrap, config.targetEntity, filteredList, columns);
+    } else if (config.viewType === "tile") {
+      const grid = secWrap.createDiv({ attr: { style: "display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-top: 12px;" } });
+      filteredList.forEach((e) => {
+        const card = grid.createDiv({ cls: "cad-proj-card", attr: { style: "cursor: pointer; padding: 16px; background: var(--background-secondary); border: 1px solid var(--border-color); border-radius: 6px;" } });
+        const title = card.createEl("h4", { text: entityValue(e, def.fields[0].key, def) || e.basename, attr: { style: "margin: 0 0 8px 0; font-weight: 600;" } });
+        card.addEventListener("click", () => view.openEntityDetail(config.targetEntity, e.file));
+        const meta = card.createDiv({ attr: { style: "font-size: 0.85em; color: var(--text-muted); display: flex; flex-direction: column; gap: 4px;" } });
+        def.fields.slice(1, 4).forEach((f) => {
+          const val = entityValue(e, f.key, def);
+          if (val != null && val !== "") {
+            meta.createDiv({ text: `${f.label}: ${fmtValue(val, f.type)}` });
+          }
+        });
+      });
+    } else if (config.viewType === "kanban") {
+      const kanbanWrap = secWrap.createDiv({ attr: { style: "display: flex; gap: 16px; overflow-x: auto; padding-bottom: 8px; margin-top: 12px;" } });
+      const groupField = def.fields.find((f) => f.key === "stage" || f.key === "status" || f.key === "type" || f.type === "enum") || def.fields[1];
+      const columns = groupField.options || ["To Do", "In Progress", "Done"];
+      columns.forEach((colName) => {
+        const col = kanbanWrap.createDiv({ cls: "cad-stat-card", attr: { style: "flex: 0 0 280px; padding: 12px; display: flex; flex-direction: column; min-height: 250px; background: var(--background-secondary); border: 1px solid var(--border-color); border-radius: 6px;" } });
+        col.createDiv({ text: colName.toUpperCase(), attr: { style: "font-weight: 700; font-size: 0.8em; letter-spacing: 0.08em; margin-bottom: 12px; border-bottom: 1px solid var(--border-color); padding-bottom: 4px;" } });
+        const colItems = filteredList.filter((e) => {
+          const val = entityValue(e, groupField.key, def);
+          const cleanVal = Array.isArray(val) ? val[0] : val;
+          return String(cleanVal || "").toLowerCase() === colName.toLowerCase();
+        });
+        if (colItems.length === 0) {
+          col.createDiv({ text: "Aucun \xE9l\xE9ment", attr: { style: "color: var(--text-faint); text-align: center; margin-top: 24px; font-size: 0.85em;" } });
+        } else {
+          const itemsList = col.createDiv({ attr: { style: "display: flex; flex-direction: column; gap: 8px;" } });
+          colItems.forEach((e) => {
+            const itemCard = itemsList.createDiv({ cls: "cad-dash-row", attr: { style: "padding: 8px 10px; cursor: pointer; border-radius: 4px; background: var(--background-primary); border: 1px solid var(--border-color); font-weight: 500;" } });
+            itemCard.setText(entityValue(e, def.fields[0].key, def) || e.basename);
+            itemCard.addEventListener("click", () => view.openEntityDetail(config.targetEntity, e.file));
+          });
+        }
+      });
+    }
+  });
+}
+function renderDynamicH2Section(view, parent, file, sections, rawKey, flashSaved) {
+  const h2 = dynamicH2Kind(rawKey);
+  const { cleanLabel } = h2;
+  if (h2.kind === "tasks") {
+    const taskList = parseTasksList(sections[rawKey] || "");
+    view._renderTaskSection(parent, file, taskList, flashSaved, rawKey);
+  } else if (h2.kind === "milestones") {
+    const milestoneList = parseMilestones(sections[rawKey] || "");
+    view._renderMilestoneSection(parent, file, milestoneList, flashSaved, rawKey);
+  } else if (h2.kind === "cross") {
+    const { targetEntity, linkField, viewType } = h2;
+    const def = ENTITIES[targetEntity];
+    if (def) {
+      const parentName = file.basename;
+      const filteredList = crossSectionRows(listEntities(view.app, targetEntity), linkField, parentName, frontmatterReader(view));
+      const card = parent.createDiv({ cls: "cad-pd-card" });
+      card.style.gridColumn = "1 / -1";
+      const head = card.createDiv({ cls: "cad-pd-card-head" });
+      head.createDiv({ cls: "cad-pd-card-title", text: `${cleanLabel.toUpperCase()} \xB7 ${filteredList.length}` });
+      const addBtn = head.createEl("button", { cls: "cad-btn cad-btn-sm", text: `+ Add ${def.label}` });
+      addBtn.addEventListener("click", () => {
+        view._createEntityFromPrompt(targetEntity, { [linkField]: `[[${parentName}]]` });
+      });
+      const viewSwitch = head.createDiv({ attr: { style: "display: flex; gap: 3px; margin-left: 8px;" } });
+      const viewOptions = [
+        { v: "table", icon: "layout-list", title: "Table View" },
+        { v: "kanban", icon: "kanban", title: "Kanban Board" },
+        { v: "tile", icon: "layout-grid", title: "Tile Grid" }
+      ];
+      viewOptions.forEach(({ v, icon, title }) => {
+        const vBtn = viewSwitch.createEl("button", { attr: { style: `padding: 4px 6px; display: inline-flex; align-items: center; justify-content: center; border-radius: 4px; cursor: pointer; border: 1px solid var(--border-color); background: ${v === viewType ? "var(--interactive-accent)" : "transparent"}; color: ${v === viewType ? "var(--text-on-accent)" : "var(--text-muted)"};` } });
+        vBtn.title = title;
+        try {
+          (0, import_obsidian15.setIcon)(vBtn, icon);
+        } catch (_) {
+        }
+        if (v !== viewType) {
+          vBtn.addEventListener("click", async () => {
+            const newTag = `#cross-${targetEntity}-${linkField}-${v}`;
+            const curContent = await view.app.vault.read(file);
+            const escaped = rawKey.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+            const newContent = curContent.replace(
+              new RegExp(`^(## ${escaped})$`, "m"),
+              `## ${cleanLabel} ${newTag}`
+            );
+            await view.app.vault.modify(file, newContent);
+            view.render();
+          });
+        }
+      });
+      const body = card.createDiv({ attr: { style: "padding: 12px;" } });
+      view._renderSingleCrossSection(body, targetEntity, linkField, viewType, parentName, filteredList);
+    }
+  } else if (h2.kind === "chart") {
+    const { targetEntity, linkField, groupField, chartStyle } = h2;
+    const def = ENTITIES[targetEntity];
+    if (def) {
+      const parentName = file.basename;
+      const filteredList = crossSectionRows(listEntities(view.app, targetEntity), linkField, parentName, frontmatterReader(view));
+      const chartData2 = sectionChartData(filteredList, groupField, frontmatterReader(view));
+      const card = parent.createDiv({ cls: "cad-pd-card" });
+      card.style.gridColumn = "1 / -1";
+      const head = card.createDiv({ cls: "cad-pd-card-head" });
+      head.createDiv({ cls: "cad-pd-card-title", text: `${cleanLabel.toUpperCase()} \xB7 ${filteredList.length} ${def.plural}` });
+      const styleSwitch = head.createDiv({ attr: { style: "display: flex; gap: 3px; margin-left: 8px;" } });
+      [{ v: "donut", icon: "\u{1F369}" }, { v: "bar", icon: "\u{1F4CA}" }, { v: "kpi", icon: "\u{1F5C3}\uFE0F" }, { v: "list", icon: "\u{1F4CB}" }].forEach(({ v, icon }) => {
+        const sBtn = styleSwitch.createEl("button", {
+          text: icon,
+          attr: { style: `padding: 1px 5px; font-size: 0.85em; border-radius: 3px; cursor: pointer; border: 1px solid var(--border-color); background: ${v === chartStyle ? "var(--interactive-accent)" : "transparent"}; opacity: ${v === chartStyle ? "1" : "0.55"};` }
+        });
+        sBtn.title = v;
+        if (v !== chartStyle) {
+          sBtn.addEventListener("click", async () => {
+            const newTag = `#chart-${targetEntity}-${linkField}-${groupField}-${v}`;
+            const curContent = await view.app.vault.read(file);
+            const escaped = rawKey.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+            const newContent = curContent.replace(
+              new RegExp(`^(## ${escaped})$`, "m"),
+              `## ${cleanLabel} ${newTag}`
+            );
+            await view.app.vault.modify(file, newContent);
+            view.render();
+          });
+        }
+      });
+      const body = card.createDiv({ cls: "cad-dash-card-body", attr: { style: "flex: 1; min-height: 180px; display: flex; flex-direction: column; justify-content: center; padding: 14px;" } });
+      view._drawChart(body.createDiv(), chartStyle, chartData2);
+    }
+  } else if (h2.kind === "text") {
+    view._renderGenericTextSection(parent, file, sections, rawKey, flashSaved);
+  }
+}
+
+// src/modals/widget-create.ts
+var import_obsidian16 = require("obsidian");
+function buildWidgetConfig(form) {
+  const title = form.title.trim();
+  if (!title) return null;
+  return {
+    id: `widget.${Date.now()}`,
+    title,
+    groupBy: form.groupBy,
+    style: form.style
+  };
+}
+var CadenceWidgetCreateModal = class extends import_obsidian16.Modal {
+  constructor(app, entityKey, onSubmit) {
+    super(app);
+    if (typeof entityKey === "function") {
+      this.onSubmit = entityKey;
+      this.entityKey = "project";
+    } else {
+      this.entityKey = entityKey || "project";
+      this.onSubmit = onSubmit;
+    }
+  }
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.addClass("cad-prompt-modal");
+    contentEl.createEl("h3", { text: "Add Custom Chart Widget" });
+    contentEl.createEl("label", { text: "Chart Title:", attr: { style: "display: block; font-weight: 500; font-size: 0.85em; margin-bottom: 4px; margin-top: 12px;" } });
+    const inputTitle = contentEl.createEl("input", { type: "text", placeholder: `e.g. ${this.entityKey.toUpperCase()} by Group` });
+    inputTitle.style.width = "100%";
+    inputTitle.style.padding = "6px 8px";
+    const entityLabel = ENTITIES[this.entityKey] ? ENTITIES[this.entityKey].plural || this.entityKey : this.entityKey;
+    contentEl.createEl("label", { text: `Group ${entityLabel.toUpperCase()} by Property:`, attr: { style: "display: block; font-weight: 500; font-size: 0.85em; margin-bottom: 4px; margin-top: 12px;" } });
+    const selectProp = contentEl.createEl("select");
+    selectProp.style.width = "100%";
+    selectProp.style.padding = "6px 8px";
+    selectProp.style.background = "var(--background-primary)";
+    selectProp.style.color = "var(--text-normal)";
+    selectProp.style.border = "1px solid var(--border-color)";
+    selectProp.style.borderRadius = "4px";
+    const fields = ENTITIES[this.entityKey] ? ENTITIES[this.entityKey].fields || [] : [];
+    fields.forEach((f) => {
+      if (f.primary) return;
+      selectProp.createEl("option", { value: f.key, text: `${f.label} (${f.key})` });
+    });
+    contentEl.createEl("label", { text: "Chart Style:", attr: { style: "display: block; font-weight: 500; font-size: 0.85em; margin-bottom: 4px; margin-top: 12px;" } });
+    const selectStyle = contentEl.createEl("select");
+    selectStyle.style.width = "100%";
+    selectStyle.style.padding = "6px 8px";
+    selectStyle.style.background = "var(--background-primary)";
+    selectStyle.style.color = "var(--text-normal)";
+    selectStyle.style.border = "1px solid var(--border-color)";
+    selectStyle.style.borderRadius = "4px";
+    [
+      { value: "donut", text: "Donut Chart \u{1F369}" },
+      { value: "bar", text: "Horizontal Bar Chart \u{1F4CA}" },
+      { value: "kpi", text: "KPI Cards Grid \u{1F5C3}\uFE0F" },
+      { value: "list", text: "Simple List \u{1F4CB}" }
+    ].forEach((opt) => {
+      selectStyle.createEl("option", { value: opt.value, text: opt.text });
+    });
+    const submit = () => {
+      const config = buildWidgetConfig({ title: inputTitle.value, groupBy: selectProp.value, style: selectStyle.value });
+      if (!config) {
+        new import_obsidian16.Notice("Please enter a chart title.");
+        inputTitle.focus();
+        return;
+      }
+      this.onSubmit(config);
+      this.close();
+    };
+    const row = contentEl.createDiv();
+    row.style.display = "flex";
+    row.style.justifyContent = "flex-end";
+    row.style.gap = "8px";
+    row.style.marginTop = "18px";
+    const cancel = row.createEl("button", { text: "Cancel" });
+    cancel.addEventListener("click", () => this.close());
+    const ok = row.createEl("button", { text: "Create Widget", cls: "mod-cta" });
+    ok.addEventListener("click", submit);
+    setTimeout(() => inputTitle.focus(), 0);
+  }
+};
+
+// src/utils/deals.ts
+function dealValue(entity, def) {
+  return Number(entityValue(entity, "value", def)) || 0;
+}
+function sumValues(deals, def) {
+  return deals.reduce((s, e) => s + dealValue(e, def), 0);
+}
+function crmSummary(deals, def) {
+  const open = deals.filter((e) => !["Won", "Lost"].includes(String(entityValue(e, "stage", def))));
+  const won = deals.filter((e) => String(entityValue(e, "stage", def)) === "Won");
+  const lost = deals.filter((e) => String(entityValue(e, "stage", def)) === "Lost");
+  const wonValue = sumValues(won, def);
+  return {
+    open,
+    won,
+    lost,
+    openValue: sumValues(open, def),
+    wonValue,
+    lostValue: sumValues(lost, def),
+    winRate: won.length + lost.length === 0 ? 0 : Math.round(won.length / (won.length + lost.length) * 100),
+    avgDeal: won.length === 0 ? 0 : wonValue / won.length
+  };
+}
+
+// src/views/crm-dashboard.ts
+var DAY_MS = 864e5;
+function crmStatCards(summary) {
+  const { open, won, lost, winRate, avgDeal } = summary;
+  return [
+    { label: "OPEN PIPELINE", value: open.length, sub: fmtValue(summary.openValue, "currency"), accent: "sky" },
+    { label: "WON", value: won.length, sub: fmtValue(summary.wonValue, "currency"), accent: "emerald" },
+    { label: "LOST", value: lost.length, sub: fmtValue(summary.lostValue, "currency"), accent: "rose" },
+    { label: "WIN RATE", value: `${winRate}%`, sub: `${won.length}/${won.length + lost.length} closed`, accent: "mint" },
+    { label: "AVG DEAL", value: fmtValue(avgDeal, "currency"), sub: `${won.length} won deals`, accent: "warn" }
+  ];
+}
+function pipelineByStage(deals, def, stages) {
+  const stageData = stages.map((stage) => {
+    const items = deals.filter((e) => String(entityValue(e, "stage", def)) === stage);
+    return { stage, count: items.length, value: sumValues(items, def) };
+  });
+  const maxStageVal = Math.max(1, ...stageData.map((s) => s.value));
+  return stageData.map((s) => ({ ...s, width: `${s.value / maxStageVal * 100}%` }));
+}
+function dealTitle(entity, def) {
+  return entityValue(entity, "title", def) || entity.basename;
+}
+function hotDeals(open, def) {
+  return [...open].sort((a, b) => dealValue(b, def) - dealValue(a, def)).slice(0, 5).map((e) => ({
+    title: dealTitle(e, def),
+    meta: `${entityValue(e, "stage", def) || "\u2014"} \xB7 ${fmtValue(dealValue(e, def), "currency")}`,
+    file: e.file
+  }));
+}
+function staleDeals(open, def, now) {
+  const staleCutoff = now - 14 * DAY_MS;
+  return open.filter((e) => e.file && e.file.stat && e.file.stat.mtime < staleCutoff).sort((a, b) => (a.file.stat.mtime || 0) - (b.file.stat.mtime || 0)).slice(0, 5).map((e) => {
+    const days = Math.round((now - e.file.stat.mtime) / DAY_MS);
+    return {
+      title: dealTitle(e, def),
+      meta: `${entityValue(e, "stage", def) || "\u2014"} \xB7 ${days}d quiet \xB7 ${fmtValue(dealValue(e, def), "currency")}`,
+      file: e.file
+    };
+  });
+}
+function recentActivities(activities, def) {
+  return [...activities].sort((a, b) => {
+    const da = new Date(entityValue(a, "when", def) || 0).getTime();
+    const db = new Date(entityValue(b, "when", def) || 0).getTime();
+    return db - da;
+  }).slice(0, 6).map((e) => {
+    const typeVal = entityValue(e, "type", def) || "\u2014";
+    const withVal = entityValue(e, "with", def) || "\u2014";
+    const dateVal = fmtValue(entityValue(e, "when", def), "date");
+    return {
+      title: entityValue(e, "subject", def) || e.basename,
+      metaParts: [
+        { text: typeVal },
+        { text: " \xB7 " },
+        { text: withVal, entityKey: "contact" },
+        { text: ` \xB7 ${dateVal}` }
+      ],
+      file: e.file
+    };
+  });
+}
+function customerBase(counts) {
+  return {
+    title: `CUSTOMER BASE \xB7 ${counts.contacts + counts.companies + counts.partners} records`,
+    stats: [
+      { label: "CONTACTS", value: counts.contacts, accent: "warn", mode: "crm.contacts" },
+      { label: "COMPANIES", value: counts.companies, accent: "sky", mode: "crm.companies" },
+      { label: "PARTNERS", value: counts.partners, accent: "rose", mode: "prm.partners" }
+    ]
+  };
+}
+async function renderCrmDashboard(view, root) {
+  root.addClass("cadence-dashboard");
+  const dealDef = ENTITIES.deal;
+  const allDeals = listEntities(view.app, "deal");
+  const summary = crmSummary(allDeals, dealDef);
+  const contacts = listEntityFiles(view.app, "contact");
+  const companies = listEntityFiles(view.app, "company");
+  const partners = listEntityFiles(view.app, "partner");
+  const activities = listEntities(view.app, "activity");
+  view._renderPageHeader(root, "CRM Dashboard", "Pipeline \xB7 momentum \xB7 recent activity", (right2) => {
+    const newDeal = right2.createEl("button", { cls: "cad-btn primary", text: "+ New Deal" });
+    newDeal.addEventListener("click", () => view._createEntityFromPrompt("deal"));
+  });
+  const grid = root.createDiv({ cls: "cad-stat-grid" });
+  const stat = (label, value, sub, accent) => {
+    const c = grid.createDiv({ cls: "cad-stat-card" });
+    if (accent) c.dataset.accent = accent;
+    c.createDiv({ cls: "cad-stat-label", text: label });
+    c.createDiv({ cls: "cad-stat-value", text: String(value) });
+    if (sub) c.createDiv({ cls: "cad-stat-sub", text: sub });
+  };
+  crmStatCards(summary).forEach((card) => stat(card.label, card.value, card.sub, card.accent));
+  root.createDiv({ cls: "cad-section-label-lg", text: "PIPELINE BY STAGE" });
+  const stageWrap = root.createDiv({ cls: "cad-stage-bars" });
+  pipelineByStage(allDeals, dealDef, getDealStages()).forEach(({ stage, count, value, width }) => {
+    const row = stageWrap.createDiv({ cls: "cad-stage-bar-row" });
+    row.dataset.stage = stage;
+    row.createDiv({ cls: "cad-stage-bar-name", text: stage });
+    row.createDiv({ cls: "cad-stage-bar-count", text: `${count}` });
+    const barWrap = row.createDiv({ cls: "cad-stage-bar" });
+    const fill = barWrap.createDiv({ cls: "cad-stage-bar-fill" });
+    fill.style.width = width;
+    row.createDiv({ cls: "cad-stage-bar-value", text: fmtValue(value, "currency") });
+    row.addEventListener("click", () => view.setMode("crm.pipeline"));
+  });
+  const cols = root.createDiv({ cls: "cad-dash-cols" });
+  const left = cols.createDiv({ cls: "cad-dash-col" });
+  const right = cols.createDiv({ cls: "cad-dash-col" });
+  view._dashCardSection(left, "HOT DEALS \xB7 top 5 by value", hotDeals(summary.open, dealDef), "No open deals yet \u2014 hit + New Deal above.");
+  view._dashCardSection(left, "STALE DEALS \xB7 14+ days no edits", staleDeals(summary.open, dealDef, Date.now()), "No stale deals \u2014 momentum is good.");
+  const recentAct = recentActivities(activities, ENTITIES.activity);
+  view._dashCardSection(right, `RECENT ACTIVITY \xB7 ${activities.length} total`, recentAct, "No activity logged yet. Capture a call or meeting under CRM > Activities.");
+  const baseCard = right.createDiv({ cls: "cad-dash-card" });
+  const base = customerBase({ contacts: contacts.length, companies: companies.length, partners: partners.length });
+  baseCard.createDiv({ cls: "cad-dash-card-head" }).createDiv({ cls: "cad-dash-card-title", text: base.title });
+  const baseBody = baseCard.createDiv({ cls: "cad-dash-card-body cad-mini-stat-row" });
+  const mkMini = (label, val, accent, mode) => {
+    const c = baseBody.createDiv({ cls: "cad-mini-stat" });
+    if (accent) c.dataset.accent = accent;
+    c.createDiv({ cls: "cad-mini-stat-value", text: String(val) });
+    c.createDiv({ cls: "cad-mini-stat-label", text: label });
+    if (mode) {
+      c.style.cursor = "pointer";
+      c.addEventListener("click", () => view.setMode(mode));
+    }
+  };
+  base.stats.forEach((mini) => mkMini(mini.label, mini.value, mini.accent, mini.mode));
+  const analyticsHeader = root.createDiv({ attr: { style: "display: flex; justify-content: space-between; align-items: center; padding: 24px 32px 8px 32px; margin-bottom: 16px;" } });
+  analyticsHeader.createEl("span", {
+    cls: "cad-section-label-lg",
+    text: "ANALYTICS & CHARTS",
+    attr: { style: "padding: 0; margin: 0; display: inline-block;" }
+  });
+  const addWidgetBtn = analyticsHeader.createEl("button", { cls: "cad-btn primary", text: "+ Add Custom Chart" });
+  const widgetsGrid = root.createDiv({ cls: "cad-dash-cols", attr: { style: "display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 16px; margin-bottom: 24px; padding: 0 32px;" } });
+  const renderWidgets = () => {
+    widgetsGrid.empty();
+    const widgets = dashboardWidgets(view.plugin.settings, "crmDashboardWidgets");
+    if (widgets.length === 0) {
+      const emptyWrap = widgetsGrid.createDiv({ attr: { style: "grid-column: 1 / -1; text-align: center; padding: 32px; background: var(--background-secondary); border-radius: 8px; border: 1px dashed var(--border-color);" } });
+      emptyWrap.createDiv({ text: 'No custom charts added yet. Click "+ Add Custom Chart" to create one!', attr: { style: "color: var(--text-muted); font-size: 0.95em;" } });
+      return;
+    }
+    widgets.forEach((w) => {
+      const card = widgetsGrid.createDiv({ cls: "cad-dash-card", attr: { style: "margin: 0; display: flex; flex-direction: column;" } });
+      const head = card.createDiv({ cls: "cad-dash-card-head", attr: { style: "display: flex; justify-content: space-between; align-items: center; padding: 10px 14px;" } });
+      head.createDiv({ cls: "cad-dash-card-title", text: w.title.toUpperCase(), attr: { style: "font-weight: 700; font-size: 0.75rem; letter-spacing: 0.12em;" } });
+      const actionsWrap = head.createDiv({ attr: { style: "display: flex; gap: 8px; align-items: center;" } });
+      const styleSelect = actionsWrap.createEl("select", { cls: "cad-prop-input" });
+      styleSelect.style.padding = "2px 4px";
+      styleSelect.style.fontSize = "0.8em";
+      styleSelect.style.height = "auto";
+      styleSelect.style.width = "auto";
+      styleSelect.style.background = "var(--background-primary)";
+      styleSelect.style.color = "var(--text-normal)";
+      styleSelect.style.border = "1px solid var(--border-color)";
+      styleSelect.style.borderRadius = "4px";
+      WIDGET_STYLE_OPTIONS.forEach((opt) => {
+        const o = styleSelect.createEl("option", { value: opt.value, text: opt.label });
+        if (w.style === opt.value) o.selected = true;
+      });
+      styleSelect.addEventListener("change", async () => {
+        w.style = styleSelect.value;
+        await view.plugin.saveSettings();
+        view.render();
+      });
+      const delBtn = actionsWrap.createEl("button", {
+        cls: "cad-btn",
+        text: "\xD7",
+        attr: { style: "color: var(--text-error); padding: 2px 8px; font-weight: bold; border-color: var(--text-error); font-size: 1.1em; height: auto; border-radius: 4px; background: transparent;" }
+      });
+      delBtn.addEventListener("click", async () => {
+        if (!confirm(`Delete chart "${w.title}"?`)) return;
+        view.plugin.settings.crmDashboardWidgets = removeWidget(view.plugin.settings.crmDashboardWidgets, w.id);
+        await view.plugin.saveSettings();
+        view.render();
+      });
+      const body = card.createDiv({ cls: "cad-dash-card-body", attr: { style: "flex: 1; min-height: 180px; display: flex; flex-direction: column; justify-content: center; padding: 14px;" } });
+      view._drawChart(body.createDiv(), w.style, chartData(allDeals, w, dealDef));
+    });
+  };
+  addWidgetBtn.addEventListener("click", () => {
+    new CadenceWidgetCreateModal(view.app, "deal", async (newWidget) => {
+      if (!view.plugin.settings.crmDashboardWidgets) {
+        view.plugin.settings.crmDashboardWidgets = [];
+      }
+      view.plugin.settings.crmDashboardWidgets.push(newWidget);
+      await view.plugin.saveSettings();
+      view.render();
+    }).open();
+  });
+  renderWidgets();
+}
+
+// src/views/entity-detail.ts
+var import_obsidian17 = require("obsidian");
+function entityDetailTitle(fm, primaryKey, basename) {
+  return fm[primaryKey] != null && fm[primaryKey] !== "" ? fm[primaryKey] : basename;
+}
+function detailFields(def) {
+  return def.fields.filter((f) => !(f.key === "type" && f.type !== "enum"));
+}
+function detailControl(f) {
+  const fieldType = f.type || "text";
+  if (fieldType === "enum") return "enum";
+  if (fieldType === "date") return "date";
+  if (fieldType === "number" || fieldType === "currency") return "number";
+  if (fieldType === "email") return "email";
+  return isChipField(f) ? "chips" : "text";
+}
+async function renderEntityDetail(view, root, entityKey, file) {
+  if (entityKey === "project") return view.renderProjectDetail(root, file);
+  if (entityKey === "company") return view.renderCompanyDetail(root, file);
+  root.addClass("cadence-detail");
+  const def = ENTITIES[entityKey];
+  if (!def || !file) {
+    view.closeEntityDetail();
+    return;
+  }
+  const cache = view.app.metadataCache.getFileCache(file) || {};
+  const fm = Object.assign({}, cache.frontmatter || {});
+  const primaryKey = def.fields[0].key;
+  const titleVal = entityDetailTitle(fm, primaryKey, file.basename);
+  const head = root.createDiv({ cls: "cad-detail-header" });
+  const headLeft = head.createDiv({ cls: "cad-detail-header-left" });
+  const back = headLeft.createEl("button", { cls: "cad-btn cad-detail-back", text: "\u2190 " + def.plural });
+  back.addEventListener("click", () => view.closeEntityDetail());
+  const breadcrumb = headLeft.createDiv({ cls: "cad-detail-breadcrumb" });
+  breadcrumb.createSpan({ cls: "cad-eyebrow", text: def.plural.toUpperCase() });
+  breadcrumb.createSpan({ cls: "cad-detail-title", text: String(titleVal) });
+  breadcrumb.createDiv({ cls: "cad-detail-path", text: file.path });
+  const headRight = head.createDiv({ cls: "cad-detail-header-right" });
+  const savedBadge = headRight.createSpan({ cls: "cad-detail-saved", text: "" });
+  const openNote = headRight.createEl("button", { cls: "cad-btn", text: "Open as note" });
+  openNote.addEventListener("click", () => view.app.workspace.openLinkText(file.path, "", false));
+  const deleteBtn = headRight.createEl("button", { cls: "cad-btn cad-btn-danger", text: "Delete" });
+  deleteBtn.addEventListener("click", (ev) => {
+    ev.preventDefault();
+    new CadenceConfirmModal(view.app, {
+      title: `Delete ${def.label}`,
+      message: `Delete this ${def.label.toLowerCase()}? This moves the file to trash.`,
+      confirmLabel: "Delete",
+      onConfirm: () => {
+        deleteBtn.blur();
+        setTimeout(async () => {
+          try {
+            await view.app.vault.trash(file, true);
+            new import_obsidian17.Notice(`Deleted ${def.label}: ${file.basename}`);
+            view.closeEntityDetail();
+          } catch (e) {
+            new import_obsidian17.Notice(`Delete failed: ${e.message}`);
+          }
+        }, 50);
+      }
+    }).open();
+  });
+  const form = root.createDiv({ cls: "cad-detail-form" });
+  let saveTimer = null;
+  const flashSaved = () => {
+    savedBadge.setText("Saved");
+    savedBadge.addClass("show");
+    clearTimeout(savedBadge._t);
+    savedBadge._t = setTimeout(() => savedBadge.removeClass("show"), 1400);
+  };
+  const writeField = async (key, raw) => {
+    try {
+      const value = coerceFieldEdit(def, key, raw);
+      await view.app.fileManager.processFrontMatter(file, (frontmatter) => applyFieldEdit(frontmatter, key, value));
+      flashSaved();
+    } catch (e) {
+      new import_obsidian17.Notice(`Save failed: ${e.message}`);
+    }
+  };
+  const debouncedWrite = (key, val) => {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => writeField(key, val), 350);
+  };
+  const isCore = ["contact", "company", "partner", "registration", "commission", "lead", "certification", "activity", "sequence", "project", "deal"].includes(entityKey);
+  detailFields(def).forEach((f) => {
+    const row = form.createDiv({ cls: "cad-form-row" });
+    row.createDiv({ cls: "cad-form-label", text: f.label.toUpperCase() });
+    const current = fm[f.key];
+    const fieldType = f.type || "text";
+    const control = detailControl(f);
+    if (control === "enum") {
+      const sel = row.createEl("select", { cls: "cad-form-input" });
+      sel.createEl("option", { value: "", text: "\u2014" });
+      (f.options || []).forEach((opt) => {
+        const o = sel.createEl("option", { value: opt, text: opt });
+        if (enumCurrent(current) === opt) o.selected = true;
+      });
+      sel.addEventListener("change", () => writeField(f.key, sel.value));
+    } else if (control === "date") {
+      const inp = row.createEl("input", { type: "date", cls: "cad-form-input" });
+      if (current) {
+        const date = dateInputValue(current);
+        if (date !== null) inp.value = date;
+      }
+      if (!isCore && f.key === "type") {
+        inp.disabled = true;
+        inp.style.opacity = "0.6";
+        inp.style.cursor = "not-allowed";
+        inp.title = "This property is read-only unless configured as a Select (Enum) in settings.";
+      } else {
+        inp.addEventListener("change", () => writeField(f.key, inp.value));
+      }
+    } else if (control === "number") {
+      const inp = row.createEl("input", { type: "number", cls: "cad-form-input" });
+      if (current != null) inp.value = String(current);
+      if (fieldType === "currency") inp.placeholder = `${view.plugin.settings.currency || "USD"} amount`;
+      if (!isCore && f.key === "type") {
+        inp.disabled = true;
+        inp.style.opacity = "0.6";
+        inp.style.cursor = "not-allowed";
+        inp.title = "This property is read-only unless configured as a Select (Enum) in settings.";
+      } else {
+        inp.addEventListener("input", () => debouncedWrite(f.key, inp.value));
+        inp.addEventListener("blur", () => writeField(f.key, inp.value));
+      }
+    } else if (control === "email") {
+      const inp = row.createEl("input", { type: "email", cls: "cad-form-input" });
+      if (current) inp.value = String(current);
+      if (!isCore && f.key === "type") {
+        inp.disabled = true;
+        inp.style.opacity = "0.6";
+        inp.style.cursor = "not-allowed";
+        inp.title = "This property is read-only unless configured as a Select (Enum) in settings.";
+      } else {
+        inp.addEventListener("input", () => debouncedWrite(f.key, inp.value));
+        inp.addEventListener("blur", () => writeField(f.key, inp.value));
+      }
+    } else {
+      if (control === "chips") {
+        const { suggestionSource, isPlainChip, isList, targetEntityKey, customFolderPath } = chipConfig(f, ENTITIES, DETAIL_LIST_KEYS);
+        row.style.position = "relative";
+        const wrap = row.createDiv({ cls: "cad-pd-tag-input-wrap" });
+        wrap.style.display = "flex";
+        wrap.style.flexWrap = "wrap";
+        wrap.style.gap = "6px";
+        wrap.style.alignItems = "center";
+        wrap.style.border = "none";
+        wrap.style.borderRadius = "0";
+        wrap.style.padding = "4px 0";
+        wrap.style.minHeight = "36px";
+        wrap.style.backgroundColor = "transparent";
+        wrap.style.cursor = "text";
+        const inp = wrap.createEl("input", { type: "text" });
+        inp.style.border = "none";
+        inp.style.outline = "none";
+        inp.style.background = "transparent";
+        inp.style.flex = "1";
+        inp.style.minWidth = "80px";
+        inp.style.color = "var(--text-normal)";
+        inp.style.padding = "0";
+        inp.style.margin = "0";
+        inp.style.height = "24px";
+        inp.placeholder = "Add " + f.label.toLowerCase() + "...";
+        if (!isCore && f.key === "type") {
+          inp.disabled = true;
+          inp.style.display = "none";
+        }
+        const suggestionsBox = row.createDiv({ cls: "cad-pd-tag-suggestions" });
+        suggestionsBox.style.position = "absolute";
+        suggestionsBox.style.zIndex = "10000";
+        suggestionsBox.style.backgroundColor = "var(--background-secondary)";
+        suggestionsBox.style.border = "1px solid var(--border-color)";
+        suggestionsBox.style.borderRadius = "4px";
+        suggestionsBox.style.boxShadow = "var(--shadow-s)";
+        suggestionsBox.style.maxHeight = "150px";
+        suggestionsBox.style.overflowY = "auto";
+        suggestionsBox.style.display = "none";
+        suggestionsBox.style.width = "calc(100% - 150px)";
+        suggestionsBox.style.boxSizing = "border-box";
+        suggestionsBox.style.top = "100%";
+        suggestionsBox.style.right = "0";
+        suggestionsBox.style.marginTop = "4px";
+        let valuesList = chipValues(fm[f.key], isPlainChip);
+        const updateSuggestions = () => {
+          const query = inp.value.trim().toLowerCase();
+          suggestionsBox.empty();
+          let candidates = [];
+          if (suggestionSource === "tags") {
+            candidates = Object.keys(view.app.metadataCache.getTags() || {}).map((t) => t.replace(/^#/, ""));
+          } else if (suggestionSource === "history") {
+            candidates = historyValues(view.app.vault.getMarkdownFiles().map((fl) => {
+              const cache2 = view.app.metadataCache.getFileCache(fl);
+              return cache2 && cache2.frontmatter || {};
+            }), f.key);
+          } else if (suggestionSource !== "none") {
+            if (customFolderPath) {
+              candidates = folderNoteNames(view.app.vault.getAbstractFileByPath(customFolderPath));
+            } else {
+              candidates = listEntities(view.app, targetEntityKey).map((c) => c.basename);
+            }
+          }
+          const filtered = filterSuggestions(candidates, query, valuesList);
+          if (filtered.length === 0) {
+            suggestionsBox.style.display = "none";
+            return;
+          }
+          filtered.forEach((valStr) => {
+            const item = suggestionsBox.createDiv({ cls: "cad-suggestion-item" });
+            item.style.padding = "6px 10px";
+            item.style.cursor = "pointer";
+            item.style.fontSize = "13px";
+            item.style.color = "var(--text-normal)";
+            item.setText(valStr);
+            item.addEventListener("mouseenter", () => {
+              item.style.backgroundColor = "var(--background-modifier-hover)";
+            });
+            item.addEventListener("mouseleave", () => {
+              item.style.backgroundColor = "transparent";
+            });
+            item.addEventListener("mousedown", async (ev) => {
+              ev.preventDefault();
+              await addVal(valStr);
+              suggestionsBox.style.display = "none";
+            });
+          });
+          suggestionsBox.style.display = "block";
+        };
+        const renderChips = () => {
+          const existing = wrap.querySelectorAll(".cad-tag-chip");
+          existing.forEach((c) => c.remove());
+          valuesList.forEach((valName) => {
+            const chip = wrap.createDiv({ cls: "cad-tag-chip" });
+            chip.style.display = "inline-flex";
+            chip.style.alignItems = "center";
+            chip.style.gap = "6px";
+            chip.style.backgroundColor = "var(--background-secondary, #eee)";
+            chip.style.padding = "2px 8px";
+            chip.style.borderRadius = "12px";
+            chip.style.fontSize = "12px";
+            chip.style.height = "24px";
+            chip.style.boxSizing = "border-box";
+            chip.style.color = "var(--text-normal)";
+            const labelSpan = chip.createSpan({ text: valName });
+            if (!isPlainChip) {
+              labelSpan.style.textDecoration = "underline";
+              labelSpan.style.cursor = "pointer";
+              labelSpan.addEventListener("click", (ev) => {
+                ev.stopPropagation();
+                const target = chipLinkTarget(targetEntityKey, findNoteByName(view.app.vault.getMarkdownFiles(), valName), valName);
+                if (target.kind === "entity") {
+                  view.openEntityDetail(target.entityKey, target.file);
+                } else if (target.kind === "file") {
+                  view.openEntityDetailFromFile(target.file);
+                } else {
+                  view.app.workspace.openLinkText(target.linktext, "", false);
+                }
+              });
+            }
+            const close = chip.createSpan({ text: "\xD7" });
+            if (!isCore && f.key === "type") {
+              close.style.display = "none";
+            } else {
+              close.style.cursor = "pointer";
+              close.style.fontWeight = "bold";
+              close.style.fontSize = "14px";
+              close.style.lineHeight = "1";
+              close.style.color = "var(--text-muted)";
+              close.addEventListener("click", async (ev) => {
+                ev.stopPropagation();
+                valuesList = valuesList.filter((v) => v !== valName);
+                await save();
+                renderChips();
+              });
+            }
+            wrap.insertBefore(chip, inp);
+          });
+        };
+        const save = async () => {
+          await writeField(f.key, chipWriteValue(valuesList, isPlainChip, isList));
+        };
+        const addVal = async (raw) => {
+          const added = chipAdd(valuesList, raw, isList);
+          if (added.kind === "blank") return;
+          inp.value = "";
+          if (added.kind === "duplicate") return;
+          const { name } = added;
+          valuesList = added.values;
+          renderChips();
+          await save();
+          if (!isPlainChip) {
+            const targetFile = findNoteByName(view.app.vault.getMarkdownFiles(), name);
+            if (!targetFile) {
+              try {
+                const creation = chipCreation(suggestionSource, targetEntityKey, ENTITIES);
+                await createEntity(view.app, creation.source, name);
+                new import_obsidian17.Notice(`Created new ${creation.label}: ${name}`);
+              } catch (e) {
+                console.warn(`Failed to auto-create ${targetEntityKey || suggestionSource}`, e);
+              }
+            }
+          }
+        };
+        if (isCore || f.key !== "type") {
+          inp.addEventListener("input", updateSuggestions);
+          inp.addEventListener("focus", updateSuggestions);
+          inp.addEventListener("keydown", async (ev) => {
+            if (ev.key === "Enter") {
+              ev.preventDefault();
+              await addVal(inp.value);
+              suggestionsBox.style.display = "none";
+            } else if (ev.key === "Backspace" && !inp.value && valuesList.length > 0) {
+              valuesList.pop();
+              await save();
+              renderChips();
+            }
+          });
+          inp.addEventListener("blur", async () => {
+            setTimeout(async () => {
+              suggestionsBox.style.display = "none";
+              if (inp.value.trim()) {
+                await addVal(inp.value);
+              }
+            }, 180);
+          });
+        }
+        wrap.addEventListener("click", () => {
+          inp.focus();
+        });
+        renderChips();
+      } else {
+        const inp = row.createEl("input", { type: "text", cls: "cad-form-input" });
+        if (current) inp.value = String(current);
+        if (f.key === primaryKey) inp.placeholder = `${def.label} name`;
+        if (!isCore && f.key === "type") {
+          inp.disabled = true;
+          inp.style.opacity = "0.6";
+          inp.style.cursor = "not-allowed";
+          inp.title = "This property is read-only unless configured as a Select (Enum) in settings.";
+        } else {
+          inp.addEventListener("input", () => debouncedWrite(f.key, inp.value));
+          inp.addEventListener("blur", () => writeField(f.key, inp.value));
+        }
+      }
+    }
+  });
+  const content = await view.app.vault.read(file);
+  const sections = parseH2Sections(content);
+  const sectionKeys = Object.keys(sections);
+  if (sectionKeys.length > 0) {
+    const sectionsHeader = root.createDiv({ cls: "cad-section-label-lg", text: "NOTE SECTIONS" });
+    sectionsHeader.style.marginTop = "24px";
+    sectionsHeader.style.marginBottom = "12px";
+    const sectionsGrid = root.createDiv({ cls: "cad-pd-cols" });
+    sectionsGrid.style.display = "grid";
+    sectionsGrid.style.gridTemplateColumns = "repeat(auto-fit, minmax(350px, 1fr))";
+    sectionsGrid.style.gap = "16px";
+    sectionsGrid.style.marginBottom = "24px";
+    sectionKeys.forEach((key) => {
+      view._renderDynamicH2Section(sectionsGrid, file, sections, key, flashSaved);
+    });
+  }
+  view._renderCrossSections(root, entityKey, titleVal);
+}
+
+// src/views/entity-list.ts
+var import_obsidian19 = require("obsidian");
+
+// src/views/kanban.ts
+var import_obsidian18 = require("obsidian");
+function unwrapLink(value) {
+  return String(value).replace(/^\[\[|\]\]$/g, "").trim();
+}
+function kanbanGroupBy(entityKey, def, saved) {
+  let groupBy = saved;
+  if (!groupBy) {
+    const fallbackField = def.fields.find((field) => !field.primary && ["enum", "text"].includes(field.type));
+    groupBy = fallbackField ? fallbackField.key : "status";
+    if (entityKey === "deal") groupBy = "stage";
+    else if (entityKey === "activity") groupBy = "type";
+  }
+  return groupBy;
+}
+function kanbanOptions(def, groupBy) {
+  const f = def.fields.find((field) => field.key === groupBy);
+  return f ? f.options || [] : [];
+}
+function distinctGroups(entities, groupBy, def) {
+  const uniqueVals = /* @__PURE__ */ new Set();
+  entities.forEach((e) => {
+    const val = entityValue(e, groupBy, def);
+    if (val) {
+      const parts = Array.isArray(val) ? val : String(val).split(",");
+      parts.forEach((v) => {
+        const clean = unwrapLink(v);
+        if (clean) uniqueVals.add(clean);
+      });
+    }
+  });
+  const groups = Array.from(uniqueVals);
+  return groups.length ? groups : ["To Do", "In Progress", "Done"];
+}
+function getEntityKanbanParams(view, entityKey) {
+  const def = ENTITIES[entityKey];
+  if (!def) return { groupBy: "status", groups: ["Active", "Done"] };
+  const groupBy = kanbanGroupBy(entityKey, def, view.plugin.settings.pageKanbanGroupBy?.[entityKey]);
+  let groups = kanbanOptions(def, groupBy);
+  if (!groups.length) groups = distinctGroups(listEntities(view.app, entityKey), groupBy, def);
+  return { groupBy, groups };
+}
+function kanbanGroupByFields(def) {
+  return def.fields.filter((field) => !field.primary && ["enum", "text", "multitext", "tags"].includes(field.type));
+}
+function inKanbanGroup(val, stage) {
+  if (Array.isArray(val)) {
+    const cleanVals = val.map((v) => unwrapLink(v).toLowerCase());
+    return cleanVals.includes(stage.toLowerCase());
+  }
+  return unwrapLink(val || "").toLowerCase() === stage.toLowerCase();
+}
+function kanbanGroups(list, groupBy, groups, def) {
+  return groups.map((stage) => ({ stage, items: list.filter((e) => inKanbanGroup(entityValue(e, groupBy, def), stage)) }));
+}
+function kanbanValueField(def) {
+  return def.fields.find((f) => f.type === "currency" || f.type === "number");
+}
+function kanbanColumnMeta(items, def) {
+  const valueField = kanbanValueField(def);
+  if (valueField) {
+    const sum = items.reduce((s, e) => s + (Number(entityValue(e, valueField.key, def)) || 0), 0);
+    return `${items.length} \xB7 ${fmtValue(sum, valueField.type)}`;
+  }
+  return `${items.length}`;
+}
+function kanbanDropValue(fDef, stage) {
+  const isList = fDef && (fDef.type === "multitext" || fDef.type === "tags" || fDef.isList === true);
+  const isLink = fDef && fDef.suggestionSource && fDef.suggestionSource !== "none" && fDef.suggestionSource !== "tags" && fDef.suggestionSource !== "history";
+  if (isList) {
+    return isLink ? [`[[${stage}]]`] : [stage];
+  }
+  return isLink ? `[[${stage}]]` : stage;
+}
+function kanbanCardLinks(e, def) {
+  const relFields = ["company", "contact", "owner", "assigned"];
+  return relFields.flatMap((rf) => {
+    const rfDef = def.fields.find((f) => f.key === rf);
+    if (!rfDef) return [];
+    return parseLinkValues(entityValue(e, rf, def)).map((v) => ({
+      display: v.display,
+      target: v.target,
+      entityKey: rf === "owner" || rf === "assigned" ? "contact" : rf
+    }));
+  });
+}
+async function renderEntityKanban(view, root, entityKey, groupBy, groups) {
+  root.addClass("cadence-kanban");
+  const def = ENTITIES[entityKey];
+  const entities = listEntities(view.app, entityKey);
+  const totalValue = entities.reduce((sum, e) => sum + (Number(entityValue(e, "value", def)) || 0), 0);
+  view._renderPageHeader(root, def.plural, `${entities.length} ${entities.length === 1 ? def.label.toLowerCase() : def.plural.toLowerCase()} \xB7 ${fmtValue(totalValue, "currency")} total`, (right) => {
+    const importBtn = right.createEl("button", { cls: "cad-btn", text: "Import CSV" });
+    importBtn.addEventListener("click", () => new CadenceImportModal(view.app, { entityKey }).open());
+    const btn = right.createEl("button", { cls: "cad-btn primary", text: `+ New ${def.label}` });
+    btn.addEventListener("click", () => view._createEntityFromPrompt(entityKey));
+  });
+  const board = root.createDiv({ cls: "cad-kanban-board" });
+  groups.forEach((stage) => {
+    const items = entities.filter((e) => String(entityValue(e, groupBy, def) || "") === stage);
+    const stageValue = items.reduce((s, e) => s + (Number(entityValue(e, "value", def)) || 0), 0);
+    const col = board.createDiv({ cls: "cad-kanban-col" });
+    col.dataset.stage = stage;
+    const head = col.createDiv({ cls: "cad-kanban-col-head" });
+    head.createDiv({ cls: "cad-kanban-col-title", text: stage });
+    head.createDiv({ cls: "cad-kanban-col-meta", text: `${items.length} \xB7 ${fmtValue(stageValue, "currency")}` });
+    const list = col.createDiv({ cls: "cad-kanban-col-list" });
+    list.addEventListener("dragover", (ev) => {
+      ev.preventDefault();
+      try {
+        ev.dataTransfer.dropEffect = "move";
+      } catch (_) {
+      }
+      col.addClass("drag-over");
+    });
+    list.addEventListener("dragleave", (ev) => {
+      if (!col.contains(ev.relatedTarget)) col.removeClass("drag-over");
+    });
+    list.addEventListener("drop", async (ev) => {
+      ev.preventDefault();
+      col.removeClass("drag-over");
+      const path = ev.dataTransfer.getData("text/cadence-entity");
+      const fromStage = ev.dataTransfer.getData("text/cadence-stage");
+      if (!path || fromStage === stage) return;
+      const file = view.app.vault.getAbstractFileByPath(path);
+      if (!file || !(file instanceof import_obsidian18.TFile)) return;
+      try {
+        await view.app.fileManager.processFrontMatter(file, (fm) => {
+          fm[groupBy] = groupBy === "stage" ? [stage] : stage;
+        });
+        new import_obsidian18.Notice(`Moved to ${stage}`);
+      } catch (e) {
+        new import_obsidian18.Notice(`Failed to move: ${e.message}`);
+      }
+    });
+    if (!items.length) {
+      list.createDiv({ cls: "cad-empty", text: "\u2014" });
+    } else {
+      const isMobile = !!(import_obsidian18.Platform && import_obsidian18.Platform.isMobile);
+      items.forEach((e) => {
+        const card = list.createDiv({ cls: "cad-kanban-card" });
+        card.dataset.path = e.file.path;
+        card.createDiv({ cls: "cad-kanban-card-title", text: entityValue(e, "title", def) || e.basename });
+        const meta = card.createDiv({ cls: "cad-kanban-card-meta" });
+        const v = entityValue(e, "value", def);
+        if (v) meta.createSpan({ cls: "cad-kanban-card-value", text: fmtValue(v, "currency") });
+        const coValues = parseLinkValues(entityValue(e, "company", def));
+        if (coValues.length > 0) {
+          meta.createSpan({ text: " \xB7 " });
+          coValues.forEach((item, idx) => {
+            if (idx > 0) {
+              meta.createSpan({ text: ", " });
+            }
+            const coLink = meta.createEl("a", { cls: "cad-company-link", text: item.display });
+            coLink.style.textDecoration = "underline";
+            coLink.style.cursor = "pointer";
+            coLink.addEventListener("click", (ev) => {
+              ev.preventDefault();
+              ev.stopPropagation();
+              const targetFile = view.app.vault.getMarkdownFiles().find((f) => f.basename.toLowerCase() === item.target.toLowerCase());
+              if (targetFile) view.openEntityDetail("company", targetFile);
+              else view.app.workspace.openLinkText(item.target, "", false);
+            });
+          });
+        }
+        const contactValues = parseLinkValues(entityValue(e, "contact", def));
+        if (contactValues.length > 0) {
+          meta.createSpan({ text: " \xB7 " });
+          contactValues.forEach((item, idx) => {
+            if (idx > 0) {
+              meta.createSpan({ text: ", " });
+            }
+            const ctLink = meta.createEl("a", { cls: "cad-contact-link", text: item.display });
+            ctLink.style.textDecoration = "underline";
+            ctLink.style.cursor = "pointer";
+            ctLink.addEventListener("click", (ev) => {
+              ev.preventDefault();
+              ev.stopPropagation();
+              const targetFile = view.app.vault.getMarkdownFiles().find((f) => f.basename.toLowerCase() === item.target.toLowerCase());
+              if (targetFile) view.openEntityDetail("contact", targetFile);
+              else view.app.workspace.openLinkText(item.target, "", false);
+            });
+          });
+        }
+        if (!isMobile) {
+          card.draggable = true;
+          card.addEventListener("dragstart", (ev) => {
+            card.addClass("dragging");
+            try {
+              ev.dataTransfer.effectAllowed = "move";
+              ev.dataTransfer.setData("text/cadence-entity", e.file.path);
+              ev.dataTransfer.setData("text/cadence-stage", stage);
+              ev.dataTransfer.setData("text/plain", `[[${e.file.basename}]]`);
+            } catch (_) {
+            }
+          });
+          card.addEventListener("dragend", () => card.removeClass("dragging"));
+        } else {
+          card.addClass("cad-kanban-card-touch");
+        }
+        card.addEventListener("click", () => view.openEntityDetail(entityKey, e.file));
+      });
+    }
+  });
+}
+
+// src/views/entity-list.ts
+function listLayout(mode, pageLayouts) {
+  return pageLayouts?.[mode] || (mode === "projects.projects" ? "cards" : mode === "crm.pipeline" ? "kanban" : "table");
+}
+function listSubtitle(count, def) {
+  return `${count} ${count === 1 ? def.label.toLowerCase() : def.plural.toLowerCase()} in ${def.folder}`;
+}
+function filterableKeys(def) {
+  return def.fields.map((f) => f.key).filter((k) => {
+    const fdef = def.fields.find((f) => f.key === k);
+    return !!fdef && (fdef.type === "enum" || ["company", "role", "with", "related", "status", "tier", "type"].includes(k));
+  });
+}
+function filterOptions(entities, def) {
+  return filterableKeys(def).flatMap((k) => {
+    const fdef = def.fields.find((f) => f.key === k);
+    if (!fdef) return [];
+    const uniqueVals = /* @__PURE__ */ new Set();
+    entities.forEach((e) => {
+      const val = entityValue(e, k, def);
+      if (Array.isArray(val)) {
+        val.forEach((v) => {
+          if (v) {
+            const clean = unwrapLink(v);
+            if (clean) uniqueVals.add(clean);
+          }
+        });
+      } else if (val != null && val !== "") {
+        const clean = unwrapLink(val);
+        if (clean) uniqueVals.add(clean);
+      }
+    });
+    if (uniqueVals.size === 0) return [];
+    return [{ field: fdef, values: Array.from(uniqueVals).sort() }];
+  });
+}
+function listColumns(def, columns) {
+  const baseCols = columns || def.columns;
+  const cols = baseCols.map((k) => def.fields.find((f) => f.key === k)).filter(Boolean);
+  def.fields.forEach((f) => {
+    if (!baseCols.includes(f.key) && !cols.some((c) => c.key === f.key)) {
+      cols.push(f);
+    }
+  });
+  return cols;
+}
+function filterEntities(list, def, cols, query) {
+  const searchVal = query.search;
+  return list.filter((e) => {
+    if (searchVal) {
+      const match = cols.some((f) => {
+        const val = entityValue(e, f.key, def);
+        if (val == null) return false;
+        return String(val).toLowerCase().includes(searchVal);
+      }) || e.basename.toLowerCase().includes(searchVal);
+      if (!match) return false;
+    }
+    for (const [k, filterVal] of Object.entries(query.filters)) {
+      if (!filterVal) continue;
+      const val = entityValue(e, k, def);
+      if (Array.isArray(val)) {
+        const cleanVals = val.map((v) => unwrapLink(v).toLowerCase());
+        if (!cleanVals.includes(filterVal.toLowerCase())) return false;
+      } else {
+        const cleanVal = unwrapLink(val || "").toLowerCase();
+        if (cleanVal !== filterVal.toLowerCase()) return false;
+      }
+    }
+    return true;
+  });
+}
+function sortEntities(list, def, sort) {
+  const sorted = list.slice();
+  const currentSortField = sort.field;
+  if (currentSortField) {
+    const fdef = def.fields.find((f) => f.key === currentSortField);
+    const ftype = fdef ? fdef.type : "text";
+    sorted.sort((a, b) => {
+      let valA = entityValue(a, currentSortField, def);
+      let valB = entityValue(b, currentSortField, def);
+      if (valA && typeof valA === "string") valA = unwrapLink(valA);
+      if (valB && typeof valB === "string") valB = unwrapLink(valB);
+      if (valA == null) valA = "";
+      if (valB == null) valB = "";
+      let diff = 0;
+      if (ftype === "number" || ftype === "currency") {
+        diff = Number(valA) - Number(valB);
+      } else if (ftype === "date") {
+        const dateA = new Date(valA).getTime() || 0;
+        const dateB = new Date(valB).getTime() || 0;
+        diff = dateA - dateB;
+      } else {
+        diff = String(valA).localeCompare(String(valB), void 0, { numeric: true, sensitivity: "base" });
+      }
+      return sort.asc ? diff : -diff;
+    });
+  }
+  return sorted;
+}
+function nextSort(sort, key) {
+  return sort.field === key ? { field: key, asc: !sort.asc } : { field: key, asc: true };
+}
+function primaryField(def) {
+  return def.fields.find((f) => f.primary) || def.fields[0];
+}
+function tableCell(f) {
+  if (f.key === "owner" || f.key === "assigned") return { kind: "owner" };
+  const sugSrc = f.suggestionSource || getFieldSuggestionSource(f);
+  if (f.type === "multitext" && sugSrc && sugSrc !== "none" && sugSrc !== "tags" && sugSrc !== "history") {
+    return { kind: "links", target: sugSrc };
+  }
+  if (f.key === "company") return { kind: "links", target: "company" };
+  if (f.key === "partner") return { kind: "links", target: "partner" };
+  if (f.key === "contact" || f.key === "contacts" || f.key === "with") return { kind: "links", target: "contact" };
+  if (f.key === "related") return { kind: "links", target: "project" };
+  return { kind: "text" };
+}
+function cardStatusField(def) {
+  return def.fields.find((f) => f.key === "status" || f.key === "type" || f.key === "tier") || def.fields.find((f) => f.type === "enum");
+}
+function pillText(val) {
+  const clean = Array.isArray(val) ? val[0] : val;
+  return String(clean);
+}
+function pillClass(text) {
+  return `cad-pill-${text.toLowerCase().replace(/\s+/g, "-")}`;
+}
+function cardMetaRows(e, def, primary, statusField) {
+  const rows = [];
+  def.fields.forEach((f) => {
+    if (f.key !== primary.key && (!statusField || f.key !== statusField.key) && rows.length < 4) {
+      const val = entityValue(e, f.key, def);
+      if (val != null && val !== "") {
+        const isLinkProperty = f.key === "company" || f.key === "contact" || f.key === "partner" || f.key === "owner" || f.key === "project" || !!f.suggestionSource && f.suggestionSource.startsWith("folder:");
+        rows.push({ field: f, value: val, isLink: isLinkProperty });
+      }
+    }
+  });
+  return rows;
+}
+function cardLinkEntityKey(f, entities) {
+  let relatedKey = f.key === "owner" ? "contact" : f.key;
+  if (f.suggestionSource && f.suggestionSource.startsWith("folder:")) {
+    const folder = f.suggestionSource.replace("folder:", "").split("/").pop().toLowerCase();
+    const found = Object.keys(entities).find((k) => entities[k].folder.toLowerCase().endsWith(folder) || entities[k].plural.toLowerCase() === folder);
+    if (found) relatedKey = found;
+  }
+  return relatedKey;
+}
+async function renderEntityList(view, root, entityKey, opts = {}) {
+  root.addClass("cadence-list");
+  const def = ENTITIES[entityKey];
+  if (!def) {
+    view.renderComingSoon(root, view._resolveSurface(view.mode));
+    return;
+  }
+  const entities = listEntities(view.app, entityKey);
+  const filtered = opts.filter ? entities.filter(opts.filter) : entities;
+  const mode = view.mode;
+  const layout = listLayout(mode, view.plugin.settings.pageLayouts);
+  view._renderPageHeader(root, opts.title || def.plural, listSubtitle(filtered.length, def), (right) => {
+    const switcher = right.createDiv({ cls: "cad-layout-switcher" });
+    switcher.style.display = "inline-flex";
+    switcher.style.gap = "4px";
+    switcher.style.marginRight = "12px";
+    switcher.style.border = "1px solid var(--border-color)";
+    switcher.style.borderRadius = "6px";
+    switcher.style.overflow = "hidden";
+    switcher.style.padding = "2px";
+    switcher.style.background = "var(--background-secondary)";
+    const layouts = [
+      { key: "table", icon: "layout-list", title: "Table view" },
+      { key: "kanban", icon: "kanban", title: "Kanban board" },
+      { key: "cards", icon: "layout-grid", title: "Card grid" }
+    ];
+    layouts.forEach((l) => {
+      const btn2 = switcher.createEl("button", { cls: "cad-topbar-icon-btn" });
+      btn2.style.padding = "4px 8px";
+      btn2.style.height = "auto";
+      btn2.style.border = "none";
+      btn2.style.background = layout === l.key ? "var(--background-modifier-border)" : "transparent";
+      btn2.style.borderRadius = "4px";
+      btn2.style.cursor = "pointer";
+      try {
+        (0, import_obsidian19.setIcon)(btn2, l.icon);
+      } catch (_) {
+      }
+      btn2.title = l.title;
+      btn2.addEventListener("click", async (e) => {
+        e.preventDefault();
+        if (!view.plugin.settings.pageLayouts) view.plugin.settings.pageLayouts = {};
+        view.plugin.settings.pageLayouts[mode] = l.key;
+        await view.plugin.saveSettings();
+        view.render();
+      });
+    });
+    const importBtn = right.createEl("button", { cls: "cad-btn", text: "Import CSV" });
+    importBtn.addEventListener("click", () => new CadenceImportModal(view.app, { entityKey }).open());
+    const btn = right.createEl("button", { cls: "cad-btn primary", text: `+ New ${def.label}` });
+    btn.addEventListener("click", () => view._createEntityFromPrompt(entityKey));
+  });
+  if (!filtered.length) {
+    const empty = root.createDiv({ cls: "cad-empty-state" });
+    empty.createDiv({ cls: "cad-empty-state-title", text: `No ${def.plural.toLowerCase()} yet` });
+    empty.createDiv({ cls: "cad-empty-state-desc", text: `Drop a markdown note in ${def.folder}/ with frontmatter, or hit "+ New" above.` });
+    return;
+  }
+  const controls = root.createDiv({ cls: "cad-list-controls" });
+  controls.style.display = "flex";
+  controls.style.gap = "12px";
+  controls.style.alignItems = "center";
+  controls.style.marginBottom = "16px";
+  controls.style.flexWrap = "wrap";
+  const searchWrap = controls.createDiv({ cls: "cad-search-wrap" });
+  searchWrap.style.display = "flex";
+  searchWrap.style.alignItems = "center";
+  searchWrap.style.gap = "6px";
+  searchWrap.style.flex = "1";
+  searchWrap.style.minWidth = "200px";
+  const searchInput = searchWrap.createEl("input", {
+    type: "text",
+    cls: "cad-pd-meta-input",
+    placeholder: `Search ${def.plural.toLowerCase()}...`
+  });
+  searchInput.style.width = "100%";
+  searchInput.style.margin = "0";
+  if (layout === "kanban") {
+    const kanbanFields = kanbanGroupByFields(def);
+    if (kanbanFields.length > 0) {
+      const groupSelectWrap = controls.createDiv({ attr: { style: "display: inline-flex; align-items: center; gap: 6px; margin-left: auto;" } });
+      groupSelectWrap.createSpan({ text: "Group columns by:", attr: { style: "font-size: 0.85em; color: var(--text-muted); font-weight: 600;" } });
+      const groupSelect = groupSelectWrap.createEl("select", { cls: "cad-prop-input" });
+      groupSelect.style.padding = "6px 10px";
+      groupSelect.style.height = "auto";
+      groupSelect.style.width = "auto";
+      groupSelect.style.background = "var(--background-secondary)";
+      groupSelect.style.color = "var(--text-normal)";
+      groupSelect.style.border = "1px solid var(--border-color)";
+      groupSelect.style.borderRadius = "6px";
+      kanbanFields.forEach((f) => {
+        const optEl = groupSelect.createEl("option", { value: f.key, text: f.label });
+        const currentParams = view.getEntityKanbanParams(entityKey);
+        if (currentParams.groupBy === f.key) optEl.selected = true;
+      });
+      groupSelect.addEventListener("change", async () => {
+        if (!view.plugin.settings.pageKanbanGroupBy) view.plugin.settings.pageKanbanGroupBy = {};
+        view.plugin.settings.pageKanbanGroupBy[entityKey] = groupSelect.value;
+        await view.plugin.saveSettings();
+        view.render();
+      });
+    }
+  }
+  const query = { search: "", filters: {} };
+  let sort = { field: def.columns[0] || "", asc: true };
+  filterOptions(filtered, def).forEach(({ field: fdef, values }) => {
+    const k = fdef.key;
+    const filterWrap = controls.createDiv({ cls: "cad-filter-select-wrap" });
+    filterWrap.style.display = "flex";
+    filterWrap.style.alignItems = "center";
+    filterWrap.style.gap = "6px";
+    const sel = filterWrap.createEl("select", { cls: "cad-pd-meta-input" });
+    sel.style.margin = "0";
+    sel.style.padding = "4px 8px";
+    sel.style.minHeight = "30px";
+    sel.style.border = "1px solid var(--border-color)";
+    sel.style.borderRadius = "4px";
+    sel.createEl("option", { value: "", text: `All ${fdef.label}s` });
+    values.forEach((v) => {
+      sel.createEl("option", { value: v, text: v });
+    });
+    sel.addEventListener("change", () => {
+      query.filters[k] = sel.value;
+      renderContent();
+    });
+  });
+  const cols = listColumns(def, opts.columns);
+  const tableWrap = root.createDiv({ cls: "cad-table-wrap" });
+  const kanbanWrap = root.createDiv({ cls: "cad-kanban-board-wrap" });
+  const cardsWrap = root.createDiv({ cls: "cad-proj-grid-wrap" });
+  const renderContent = async () => {
+    tableWrap.style.display = "none";
+    tableWrap.empty();
+    kanbanWrap.style.display = "none";
+    kanbanWrap.empty();
+    cardsWrap.style.display = "none";
+    cardsWrap.empty();
+    const displayed = sortEntities(filterEntities(filtered, def, cols, query), def, sort);
+    if (layout === "table") {
+      tableWrap.style.display = "block";
+      const table = tableWrap.createEl("table", { cls: "cad-table" });
+      const thead = table.createEl("thead");
+      const trh = thead.createEl("tr");
+      const headers = [];
+      cols.forEach((f) => {
+        const th = trh.createEl("th");
+        th.style.cursor = "pointer";
+        th.style.userSelect = "none";
+        const thSpan = th.createSpan({ text: f.label + " " });
+        const indicator = th.createSpan({ text: f.key === sort.field ? "\u25B2" : "\u2195" });
+        indicator.style.opacity = f.key === sort.field ? "1" : "0.4";
+        indicator.style.marginLeft = "4px";
+        headers.push({ key: f.key, th, indicator });
+        th.addEventListener("click", () => {
+          sort = nextSort(sort, f.key);
+          renderContent();
+        });
+      });
+      const tbody = table.createEl("tbody");
+      if (displayed.length === 0) {
+        const tr = tbody.createEl("tr");
+        const td = tr.createEl("td", { text: "No matching entries found." });
+        td.colSpan = cols.length;
+        td.style.textAlign = "center";
+        td.style.color = "var(--text-muted)";
+        td.style.padding = "20px";
+      } else {
+        displayed.forEach((e) => {
+          const tr = tbody.createEl("tr", { cls: "cad-row" });
+          cols.forEach((f, i) => {
+            const td = tr.createEl("td");
+            const val = entityValue(e, f.key, def);
+            const formatted = fmtValue(val, f.type);
+            const primary = primaryField(def);
+            const hasPrimaryCol = cols.some((c) => c.key === primary.key);
+            const isPrimaryCol = hasPrimaryCol ? f.key === primary.key : i === 0;
+            if (isPrimaryCol) {
+              const a = td.createEl("a", { cls: "cad-row-primary", text: formatted || e.basename });
+              a.addEventListener("click", (ev) => {
+                ev.preventDefault();
+                view.openEntityDetail(entityKey, e.file);
+              });
+            } else {
+              const cell = tableCell(f);
+              if (cell.kind === "owner") view._renderOwnerLinks(td, val, false);
+              else if (cell.kind === "links") view._renderEntityLinks(td, val, cell.target);
+              else td.setText(formatted);
+            }
+          });
+        });
+      }
+    } else if (layout === "kanban") {
+      kanbanWrap.style.display = "block";
+      const kanbanParams = view.getEntityKanbanParams(entityKey);
+      const { groupBy, groups } = kanbanParams;
+      const board = kanbanWrap.createDiv({ cls: "cad-kanban-board" });
+      const valueField = kanbanValueField(def);
+      kanbanGroups(displayed, groupBy, groups, def).forEach(({ stage, items }) => {
+        const col = board.createDiv({ cls: "cad-kanban-col" });
+        col.dataset.stage = stage;
+        const head = col.createDiv({ cls: "cad-kanban-col-head" });
+        head.createDiv({ cls: "cad-kanban-col-title", text: stage });
+        head.createDiv({ cls: "cad-kanban-col-meta", text: kanbanColumnMeta(items, def) });
+        const list = col.createDiv({ cls: "cad-kanban-col-list" });
+        list.addEventListener("dragover", (ev) => {
+          ev.preventDefault();
+          try {
+            ev.dataTransfer.dropEffect = "move";
+          } catch (_) {
+          }
+          col.addClass("drag-over");
+        });
+        list.addEventListener("dragleave", (ev) => {
+          if (!col.contains(ev.relatedTarget)) col.removeClass("drag-over");
+        });
+        list.addEventListener("drop", async (ev) => {
+          ev.preventDefault();
+          col.removeClass("drag-over");
+          const path = ev.dataTransfer.getData("text/cadence-entity");
+          const fromStage = ev.dataTransfer.getData("text/cadence-stage");
+          if (!path || fromStage === stage) return;
+          const file = view.app.vault.getAbstractFileByPath(path);
+          if (!file || !(file instanceof import_obsidian19.TFile)) return;
+          try {
+            await view.app.fileManager.processFrontMatter(file, (fm) => {
+              fm[groupBy] = kanbanDropValue(def.fields.find((fd) => fd.key === groupBy), stage);
+            });
+            new import_obsidian19.Notice(`Moved to ${stage}`);
+          } catch (e) {
+            new import_obsidian19.Notice(`Failed to move: ${e.message}`);
+          }
+        });
+        if (!items.length) {
+          list.createDiv({ cls: "cad-empty", text: "\u2014" });
+        } else {
+          const isMobile = !!(import_obsidian19.Platform && import_obsidian19.Platform.isMobile);
+          items.forEach((e) => {
+            const card = list.createDiv({ cls: "cad-kanban-card" });
+            card.dataset.path = e.file.path;
+            card.createDiv({ cls: "cad-kanban-card-title", text: entityValue(e, primaryField(def).key, def) || e.basename });
+            const meta = card.createDiv({ cls: "cad-kanban-card-meta" });
+            if (valueField) {
+              const val = entityValue(e, valueField.key, def);
+              if (val) meta.createSpan({ text: fmtValue(val, valueField.type) });
+            }
+            kanbanCardLinks(e, def).forEach((v) => {
+              meta.createSpan({ text: " \xB7 " });
+              const link = meta.createEl("a", { text: v.display });
+              link.style.textDecoration = "underline";
+              link.style.cursor = "pointer";
+              link.addEventListener("click", (ev) => {
+                ev.preventDefault();
+                ev.stopPropagation();
+                const targetFile = view.app.vault.getMarkdownFiles().find((f) => f.basename.toLowerCase() === v.target.toLowerCase());
+                if (targetFile) view.openEntityDetail(v.entityKey, targetFile);
+                else view.app.workspace.openLinkText(v.target, "", false);
+              });
+            });
+            if (!isMobile) {
+              card.draggable = true;
+              card.addEventListener("dragstart", (ev) => {
+                card.addClass("dragging");
+                try {
+                  ev.dataTransfer.effectAllowed = "move";
+                  ev.dataTransfer.setData("text/cadence-entity", e.file.path);
+                  ev.dataTransfer.setData("text/cadence-stage", stage);
+                  ev.dataTransfer.setData("text/plain", `[[${e.file.basename}]]`);
+                } catch (_) {
+                }
+              });
+              card.addEventListener("dragend", () => card.removeClass("dragging"));
+            } else {
+              card.addClass("cad-kanban-card-touch");
+            }
+            card.addEventListener("click", () => view.openEntityDetail(entityKey, e.file));
+          });
+        }
+      });
+    } else if (layout === "cards") {
+      cardsWrap.style.display = "block";
+      const grid = cardsWrap.createDiv({ cls: "cad-proj-grid" });
+      if (entityKey === "project") {
+        const projects = await Promise.all(displayed.map(async (e) => {
+          const meta = await readProjectMeta(view.app, e.file);
+          return { entity: e, meta };
+        }));
+        projects.forEach((p) => {
+          const card = grid.createDiv({ cls: "cad-proj-card" });
+          const head = card.createDiv({ cls: "cad-proj-card-head" });
+          const title = head.createEl("a", { cls: "cad-proj-title", text: entityValue(p.entity, "name", def) || p.entity.basename });
+          title.addEventListener("click", (ev) => {
+            ev.preventDefault();
+            view.openEntityDetail("project", p.entity.file);
+          });
+          const status = String(entityValue(p.entity, "status", def) || "active");
+          const priority = String(entityValue(p.entity, "priority", def) || "");
+          const pillRow = head.createDiv({ cls: "cad-proj-pills" });
+          pillRow.createSpan({ cls: `cad-pill ${pillClass(status)}`, text: status });
+          if (priority) pillRow.createSpan({ cls: `cad-pill cad-pill-prio-${priority.toLowerCase()}`, text: priority });
+          const metaRow = card.createDiv({ cls: "cad-proj-meta" });
+          const owner = entityValue(p.entity, "owner", def);
+          const due = entityValue(p.entity, "due", def);
+          if (owner) view._renderOwnerLinks(metaRow, owner);
+          if (due) metaRow.createSpan({ text: `Due: ${fmtValue(due, "date")}` });
+          const progWrap = card.createDiv({ cls: "cad-proj-progress-wrap" });
+          progWrap.dataset.pctBand = pctBand(p.meta.percent);
+          const progLabel = progWrap.createDiv({ cls: "cad-proj-progress-label" });
+          progLabel.createSpan({ text: `${p.meta.done}/${p.meta.total} milestones` });
+          progLabel.createSpan({ cls: "cad-proj-progress-pct", text: `${p.meta.percent}%` });
+          const bar = progWrap.createDiv({ cls: "cad-proj-progress-bar" });
+          const fill = bar.createDiv({ cls: "cad-proj-progress-fill" });
+          fill.style.width = `${p.meta.percent}%`;
+          if (p.meta.next) {
+            const nextRow = card.createDiv({ cls: "cad-proj-next" });
+            nextRow.createSpan({ cls: "cad-proj-next-label", text: "NEXT \xB7 " });
+            nextRow.createSpan({ cls: "cad-proj-next-date", text: fmtValue(p.meta.next.date, "date") });
+            if (p.meta.next.title) nextRow.createSpan({ text: ` \u2014 ${p.meta.next.title}` });
+          }
+        });
+      } else {
+        displayed.forEach((e) => {
+          const card = grid.createDiv({ cls: "cad-proj-card" });
+          const head = card.createDiv({ cls: "cad-proj-card-head" });
+          const primary = primaryField(def);
+          const titleText = entityValue(e, primary.key, def) || e.basename;
+          const title = head.createEl("a", { cls: "cad-proj-title", text: titleText });
+          title.addEventListener("click", (ev) => {
+            ev.preventDefault();
+            view.openEntityDetail(entityKey, e.file);
+          });
+          const pillRow = head.createDiv({ cls: "cad-proj-pills" });
+          const statusField = cardStatusField(def);
+          if (statusField) {
+            const val = entityValue(e, statusField.key, def);
+            if (val) {
+              const text = pillText(val);
+              pillRow.createSpan({ cls: `cad-pill ${pillClass(text)}`, text });
+            }
+          }
+          const metaRow = card.createDiv({ cls: "cad-proj-meta" });
+          cardMetaRows(e, def, primary, statusField).forEach(({ field: f, value: val, isLink }) => {
+            const formatted = fmtValue(val, f.type);
+            const fieldDiv = metaRow.createDiv();
+            fieldDiv.style.marginBottom = "2px";
+            fieldDiv.createSpan({ text: `${f.label}: `, attr: { style: "font-weight: 500; color: var(--text-muted);" } });
+            if (isLink) {
+              const links = parseLinkValues(val);
+              links.forEach((link, lidx) => {
+                if (lidx > 0) fieldDiv.createSpan({ text: ", " });
+                const aLink = fieldDiv.createEl("a", { text: link.display });
+                aLink.style.textDecoration = "underline";
+                aLink.style.cursor = "pointer";
+                aLink.addEventListener("click", (ev) => {
+                  ev.preventDefault();
+                  ev.stopPropagation();
+                  const targetFile = view.app.vault.getMarkdownFiles().find((f2) => f2.basename.toLowerCase() === link.target.toLowerCase());
+                  const relatedKey = cardLinkEntityKey(f, ENTITIES);
+                  if (targetFile) view.openEntityDetail(relatedKey, targetFile);
+                  else view.app.workspace.openLinkText(link.target, "", false);
+                });
+              });
+            } else {
+              fieldDiv.createSpan({ text: formatted });
+            }
+          });
+        });
+      }
+    }
+  };
+  searchInput.addEventListener("input", () => {
+    query.search = searchInput.value.trim().toLowerCase();
+    renderContent();
+  });
+  renderContent();
+}
+
+// src/views/home.ts
+var import_obsidian21 = require("obsidian");
+
+// src/modals/reminder-edit.ts
+var import_obsidian20 = require("obsidian");
+function buildReminderPatch(form, reminder) {
+  const text = form.text.trim();
+  if (!text) return null;
+  const fields = {
+    text,
+    notes: form.notes,
+    repeat: form.repeat || "none",
+    project: reminder.project || null
+  };
+  if (form.datetimeValue) {
+    const d = fromLocalDatetimeValue(form.datetimeValue);
+    if (d && !isNaN(d.getTime())) {
+      fields.when = d.toISOString();
+      if (fields.when !== reminder.when) fields.notified = false;
+    }
+  } else {
+    fields.when = null;
+    fields.notified = false;
+  }
+  return fields;
+}
+function filterReminderProjects(projects, query) {
+  const q = (query || "").toLowerCase();
+  return projects.filter((p) => p.name.toLowerCase().includes(q));
+}
+var ReminderProjectSuggestModal = class extends import_obsidian20.SuggestModal {
+  constructor(app, projs, onChoose) {
+    super(app);
+    this.projs = projs;
+    this.onChoose = onChoose;
+    this.setPlaceholder("Search projects to link this reminder to\u2026");
+  }
+  getSuggestions(query) {
+    return filterReminderProjects(this.projs, query);
+  }
+  renderSuggestion(item, el) {
+    el.setText("\u{1F4C1}  " + item.name);
+  }
+  onChooseSuggestion(item) {
+    this.onChoose(item);
+  }
+};
+var CadenceReminderEditModal = class extends import_obsidian20.Modal {
+  constructor(app, plugin, reminder, opts) {
+    super(app);
+    this.plugin = plugin;
+    this.reminder = reminder;
+    this.isNew = opts && opts.isNew || false;
+    this._submitted = false;
+  }
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.addClass("cad-create-modal");
+    contentEl.addClass("cad-reminder-edit-modal");
+    contentEl.createEl("h3", { cls: "cad-create-title", text: this.isNew ? "New reminder" : "Edit reminder" });
+    const form = contentEl.createDiv({ cls: "cad-create-form" });
+    const textRow = form.createDiv({ cls: "cad-create-row" });
+    textRow.createDiv({ cls: "cad-create-label", text: "WHAT *" });
+    const textInput = textRow.createEl("input", { type: "text", cls: "cad-create-input" });
+    textInput.value = this.reminder.text || "";
+    textInput.placeholder = "What needs doing?";
+    const whenRow = form.createDiv({ cls: "cad-create-row" });
+    whenRow.createDiv({ cls: "cad-create-label", text: "WHEN" });
+    const whenWrap = whenRow.createDiv();
+    whenWrap.style.display = "flex";
+    whenWrap.style.gap = "8px";
+    whenWrap.style.alignItems = "center";
+    const dateInput = whenWrap.createEl("input", { type: "datetime-local", cls: "cad-create-input" });
+    dateInput.style.flex = "1";
+    if (this.reminder.when) {
+      const d = new Date(this.reminder.when);
+      if (!isNaN(d.getTime())) dateInput.value = toLocalDatetimeValue(d);
+    }
+    const clearBtn = whenWrap.createEl("button", { cls: "cad-btn cad-btn-sm", text: "Clear" });
+    clearBtn.type = "button";
+    clearBtn.title = "Move to unscheduled";
+    clearBtn.addEventListener("click", () => {
+      dateInput.value = "";
+    });
+    const repeatRow = form.createDiv({ cls: "cad-create-row" });
+    repeatRow.createDiv({ cls: "cad-create-label", text: "REPEAT" });
+    const repeatSel = repeatRow.createEl("select", { cls: "cad-create-input" });
+    [["none", "No repeat"], ["daily", "Daily"], ["weekly", "Weekly"]].forEach(([v, l]) => {
+      const o = repeatSel.createEl("option", { value: v, text: l });
+      if (v === (this.reminder.repeat || "none")) o.selected = true;
+    });
+    const projectRow = form.createDiv({ cls: "cad-create-row" });
+    projectRow.createDiv({ cls: "cad-create-label", text: "PROJECT" });
+    const projectField = projectRow.createDiv({ cls: "cad-rem-project-field" });
+    const renderProjectField = () => {
+      projectField.empty();
+      if (this.reminder.project) {
+        const chip = projectField.createEl("a", { cls: "cad-rem-project-chip", text: "\u{1F4C1} " + (projectNameFromPath(this.app, this.reminder.project) || "Project") });
+        chip.title = "Open project (closes this modal)";
+        chip.addEventListener("click", (e) => {
+          e.preventDefault();
+          const file = this.app.vault.getAbstractFileByPath(this.reminder.project);
+          if (file && file instanceof import_obsidian20.TFile) {
+            this._submitted = true;
+            this.close();
+            const leaf = this.app.workspace.getLeavesOfType(VIEW_TYPE_CADENCE_APP)[0];
+            if (leaf && leaf.view && typeof leaf.view.openEntityDetail === "function") {
+              leaf.view.openEntityDetail("project", file);
+            }
+          }
+        });
+        const changeBtn = projectField.createEl("button", { cls: "cad-btn cad-btn-sm", text: "Change" });
+        changeBtn.type = "button";
+        changeBtn.addEventListener("click", () => this._openReminderProjectPicker(renderProjectField));
+        const removeBtn = projectField.createEl("button", { cls: "cad-btn cad-btn-sm cad-btn-danger", text: "Remove" });
+        removeBtn.type = "button";
+        removeBtn.addEventListener("click", () => {
+          this.reminder.project = null;
+          renderProjectField();
+        });
+      } else {
+        const linkBtn = projectField.createEl("button", { cls: "cad-btn cad-btn-sm", text: "\u{1F4C1} Link to project" });
+        linkBtn.type = "button";
+        linkBtn.addEventListener("click", () => this._openReminderProjectPicker(renderProjectField));
+      }
+    };
+    renderProjectField();
+    const notesRow = form.createDiv({ cls: "cad-create-row" });
+    notesRow.style.alignItems = "flex-start";
+    notesRow.createDiv({ cls: "cad-create-label", text: "NOTES" });
+    const notesArea = notesRow.createEl("textarea", { cls: "cad-create-input" });
+    notesArea.rows = 6;
+    notesArea.placeholder = "Context, follow-ups, what happened, related links\u2026";
+    notesArea.value = this.reminder.notes || "";
+    notesArea.style.resize = "vertical";
+    notesArea.style.fontFamily = "inherit";
+    const actions = contentEl.createDiv({ cls: "cad-create-actions" });
+    if (!this.isNew) {
+      const del = actions.createEl("button", { cls: "cad-btn cad-btn-danger", text: "Delete" });
+      del.type = "button";
+      del.style.marginRight = "auto";
+      del.addEventListener("click", async () => {
+        if (!confirm("Delete this reminder?")) return;
+        await this.plugin.deleteReminder(this.reminder.id);
+        this._submitted = true;
+        this.close();
+      });
+    }
+    const cancel = actions.createEl("button", { cls: "cad-btn", text: "Cancel" });
+    cancel.type = "button";
+    cancel.addEventListener("click", () => this.close());
+    const save = actions.createEl("button", { cls: "cad-btn primary", text: this.isNew ? "Create reminder" : "Save" });
+    save.type = "button";
+    const submit = async () => {
+      const fields = buildReminderPatch({
+        text: textInput.value,
+        notes: notesArea.value,
+        repeat: repeatSel.value,
+        datetimeValue: dateInput.value
+      }, this.reminder);
+      if (!fields) {
+        textInput.focus();
+        return;
+      }
+      if (this.isNew) {
+        await this.plugin.addReminder(fields);
+        new import_obsidian20.Notice(fields.when ? `Reminder set \xB7 ${reminderTimeStr(fields.when)}` : "Captured to Inbox");
+      } else {
+        await this.plugin.updateReminder(this.reminder.id, fields);
+      }
+      this._submitted = true;
+      this.close();
+    };
+    save.addEventListener("click", submit);
+    notesArea.addEventListener("keydown", (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+        e.preventDefault();
+        submit();
+      }
+      if (e.key === "Escape") this.close();
+    });
+    textInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        submit();
+      }
+      if (e.key === "Escape") this.close();
+    });
+    setTimeout(() => textInput.focus(), 0);
+  }
+  onClose() {
+    this.contentEl.empty();
+  }
+  _openReminderProjectPicker(rerender) {
+    const projectFiles = listEntityFiles(this.app, "project");
+    if (!projectFiles.length) {
+      new import_obsidian20.Notice("No projects yet. Create one in Planner \u2192 Projects first.");
+      return;
+    }
+    const projects = projectFiles.map((f) => ({ file: f, name: projectNameFromPath(this.app, f.path) }));
+    const reminder = this.reminder;
+    const picker = new ReminderProjectSuggestModal(this.app, projects, (item) => {
+      reminder.project = item.file.path;
+      rerender();
+    });
+    picker.open();
+  }
+};
+
 // src/views/home.ts
 async function renderHome(view, root) {
   root.addClass("cadence-home");
@@ -4725,7 +6841,7 @@ async function renderBriefing(view, root) {
     card.createDiv({ cls: "cad-briefing-empty", text: "Nothing flagged. Make today count." });
     return;
   }
-  const { shown, hiddenCount } = visibleBriefing(items, !!(import_obsidian18.Platform && import_obsidian18.Platform.isMobile));
+  const { shown, hiddenCount } = visibleBriefing(items, !!(import_obsidian21.Platform && import_obsidian21.Platform.isMobile));
   const list = card.createDiv({ cls: "cad-briefing-list" });
   shown.forEach((it) => {
     const row = list.createDiv({ cls: `cad-briefing-row cad-tone-${it.tone || "emerald"}` });
@@ -5064,7 +7180,7 @@ async function homeTodayCard(view, parent) {
         ev.preventDefault();
         ev.stopPropagation();
         const f = view.app.vault.getAbstractFileByPath(linkedProject);
-        if (f && f instanceof import_obsidian18.TFile) view.openEntityDetail("project", f);
+        if (f && f instanceof import_obsidian21.TFile) view.openEntityDetail("project", f);
       });
     }
     if (settings.taskManagementSystem !== "tasknotes") {
@@ -5110,7 +7226,7 @@ async function homeWeekCard(view, parent) {
     for (let i = 0; i < 7; i++) {
       const d = addDays(weekStart, i);
       const f = view.app.vault.getAbstractFileByPath(dailyNotePath(settings, d));
-      if (f && f instanceof import_obsidian18.TFile) {
+      if (f && f instanceof import_obsidian21.TFile) {
         const c = await view.app.vault.read(f);
         const p = parseSections(c, settings);
         const counts = countTaskLines(p.tasks);
@@ -5343,7 +7459,7 @@ async function homeActivitiesCard(view, parent) {
 }
 
 // src/views/inbox.ts
-var import_obsidian19 = require("obsidian");
+var import_obsidian22 = require("obsidian");
 function overdueCount(reminders, now) {
   const open = (reminders || []).filter((r) => !r.done);
   return open.filter((r) => r.when && new Date(r.when).getTime() <= now).length;
@@ -5514,7 +7630,7 @@ function renderInboxRow(view, parent, r, bucket) {
       ev.preventDefault();
       ev.stopPropagation();
       const file = view.app.vault.getAbstractFileByPath(r.project);
-      if (file && file instanceof import_obsidian19.TFile) view.openEntityDetail("project", file);
+      if (file && file instanceof import_obsidian22.TFile) view.openEntityDetail("project", file);
     });
   }
   const preview = notesPreview(r.notes);
@@ -5559,1639 +7675,442 @@ function renderInboxRow(view, parent, r, bucket) {
   });
 }
 
-// src/views/today.ts
-var import_obsidian20 = require("obsidian");
-async function quickAddTodayTask(view) {
-  if (view.plugin.settings.taskManagementSystem === "tasknotes") {
-    const commandId = "tasknotes:create-new-task";
-    const commands = view.app.commands;
-    const hasCommand = commands && commands.commands && commands.commands[commandId];
-    if (hasCommand) {
-      commands.executeCommandById(commandId);
+// src/views/nav.ts
+function migrateModeId(id, settings) {
+  if (id === "today") return "planner.today";
+  if (id === "planner") return "planner.calendar";
+  const customPages = settings.customPages || [];
+  if (customPages.some((p) => p.id === id)) return id;
+  return SURFACE_BY_ID[id] ? id : "home";
+}
+function resolveSurface(id, settings) {
+  const customPages = settings.customPages || [];
+  const custom = customPages.find((p) => p.id === id);
+  if (custom) {
+    return {
+      id: custom.id,
+      label: custom.label,
+      icon: custom.icon || "file-text",
+      desc: `Custom page displaying ${custom.entityKey} entity.`
+    };
+  }
+  return SURFACE_BY_ID[id] || SURFACE_BY_ID["home"];
+}
+function visibleNavGroups(settings) {
+  const mods = settings.modules || { crm: true, prm: true, planner: true, projects: true };
+  const groups = JSON.parse(JSON.stringify(NAV_GROUPS));
+  const customPages = settings.customPages || [];
+  customPages.forEach((p) => {
+    const g = groups.find((group) => group.id === p.sectionId);
+    if (g) {
+      g.items.push({
+        id: p.id,
+        label: p.label,
+        icon: p.icon || "file-text",
+        module: p.module || p.sectionId,
+        desc: `Custom page displaying ${p.entityKey} entity.`
+      });
+    }
+  });
+  return groups.map((g) => {
+    if (g.module && mods[g.module] === false) return null;
+    const items = g.items.filter((it) => !it.module || mods[it.module] !== false);
+    if (!items.length) return null;
+    return Object.assign({}, g, { items });
+  }).filter(Boolean);
+}
+function modeUsesEntityFolder(path) {
+  if (!path) return false;
+  return path.startsWith("Cadence/");
+}
+var surface = (method) => ({ kind: "surface", method });
+var entityList = (entityKey) => ({ kind: "entityList", entityKey });
+var SURFACE_ROUTES = {
+  "home": surface("renderHome"),
+  "planner.inbox": surface("renderInbox"),
+  "planner.today": surface("renderTodayPane"),
+  "planner.calendar": surface("renderPlannerPane"),
+  "projects.dashboard": surface("renderProjectsDashboard"),
+  "projects.projects": entityList("project"),
+  "crm.dashboard": surface("renderDashboard"),
+  "crm.pipeline": entityList("deal"),
+  "crm.contacts": entityList("contact"),
+  "crm.companies": entityList("company"),
+  "crm.activities": entityList("activity"),
+  "prm.partners": entityList("partner"),
+  "prm.registrations": entityList("registration"),
+  "prm.commissions": entityList("commission"),
+  "prm.leads": entityList("lead"),
+  "prm.certifications": entityList("certification"),
+  "prm.analytics": surface("renderPRMAnalytics"),
+  "workflow.sequences": entityList("sequence"),
+  "reports.pipeline": surface("renderReportPipeline"),
+  "reports.sales": surface("renderReportSales"),
+  "reports.partners": surface("renderReportPartners"),
+  "reports.activity": surface("renderReportActivity"),
+  "reports.graph": surface("renderReportGraph"),
+  "reports.productivity": surface("renderProductivity"),
+  "team": surface("renderTeam"),
+  "templates": surface("renderTemplatesDashboard"),
+  "settings": surface("openSettingsTab")
+};
+function routeFor(mode, customPages) {
+  if (SURFACE_ROUTES[mode]) {
+    return Object.prototype.hasOwnProperty.call(SURFACE_ROUTES, mode) ? SURFACE_ROUTES[mode] : { kind: "inherited", name: mode };
+  }
+  const custom = customPages.find((p) => p.id === mode);
+  if (custom) return entityList(custom.entityKey);
+  return { kind: "comingSoon" };
+}
+function toggleMobileNav(view, force) {
+  const root = view.containerEl.children[1];
+  view.mobileNavOpen = typeof force === "boolean" ? force : !view.mobileNavOpen;
+  if (root) root.toggleClass("cad-mobile-nav-open", view.mobileNavOpen);
+}
+async function toggleCadenceDark(view) {
+  view.plugin.settings.cadenceAppDark = !view.plugin.settings.cadenceAppDark;
+  await view.plugin.saveSettings();
+  view.render();
+}
+async function setMode(view, m) {
+  view.mode = view._migrateModeId(m);
+  view.detailFile = null;
+  view.detailEntityKey = null;
+  await view.render();
+}
+async function toggleGroup(view, groupId) {
+  const collapsed = view.plugin.settings.collapsedGroups || {};
+  collapsed[groupId] = !collapsed[groupId];
+  view.plugin.settings.collapsedGroups = collapsed;
+  await view.plugin.saveSettings();
+  await view.render();
+}
+
+// src/views/prm.ts
+var TIER_ACCENT = { "Gold": "warn", "Silver": "sky", "Bronze": "rose", "Standard": "mint", "Untiered": "mint" };
+function prmAnalytics(partners, deals, defs = { partner: ENTITIES.partner, deal: ENTITIES.deal }) {
+  const { partner: partnerDef, deal: dealDef } = defs;
+  const partnerSourced = deals.filter((e) => entityValue(e, "partner", dealDef));
+  const { open: sourcedOpen, won: partnerWon, lost: sourcedLost, openValue, wonValue, lostValue } = crmSummary(partnerSourced, dealDef);
+  const sourcedValue = sumValues(partnerSourced, dealDef);
+  const totalDealValue = sumValues(deals, dealDef);
+  const sharePct = totalDealValue === 0 ? 0 : Math.round(sourcedValue / totalDealValue * 100);
+  const tierMap = /* @__PURE__ */ new Map();
+  const tierValueMap = /* @__PURE__ */ new Map();
+  partners.forEach((p) => {
+    const t = String(entityValue(p, "tier", partnerDef) || "Untiered");
+    tierMap.set(t, (tierMap.get(t) || 0) + 1);
+    tierValueMap.set(t, tierValueMap.get(t) || 0);
+  });
+  const partnerByName = /* @__PURE__ */ new Map();
+  partners.forEach((p) => partnerByName.set(String(entityValue(p, "name", partnerDef) || p.basename), p));
+  partnerWon.forEach((d) => {
+    const pname = String(entityValue(d, "partner", dealDef) || "");
+    const partner = partnerByName.get(pname);
+    if (!partner) return;
+    const tier = String(entityValue(partner, "tier", partnerDef) || "Untiered");
+    tierValueMap.set(tier, (tierValueMap.get(tier) || 0) + dealValue(d, dealDef));
+  });
+  const partnerRevenue = /* @__PURE__ */ new Map();
+  partnerWon.forEach((d) => {
+    const p = String(entityValue(d, "partner", dealDef) || "(direct)");
+    partnerRevenue.set(p, (partnerRevenue.get(p) || 0) + dealValue(d, dealDef));
+  });
+  const conv = partnerSourced.length === 0 ? 0 : Math.round(partnerWon.length / partnerSourced.length * 100);
+  const currency = (value) => fmtValue(value, "currency");
+  return {
+    stats: [
+      { label: "PARTNERS", value: partners.length, sub: "on the books", accent: "sky" },
+      { label: "SOURCED DEALS", value: partnerSourced.length, sub: currency(sourcedValue), accent: "mint" },
+      { label: "PARTNER REVENUE", value: currency(wonValue), sub: `${partnerWon.length} won`, accent: "emerald" },
+      { label: "PARTNER SHARE", value: `${sharePct}%`, sub: "of total pipeline value", accent: "warn" }
+    ],
+    tiers: [...tierMap.entries()].sort((a, b) => b[1] - a[1]).map(([tier, count]) => {
+      const value = tierValueMap.get(tier) || 0;
+      return { label: tier.toUpperCase(), value: String(count), accent: TIER_ACCENT[tier] || "sky", sub: value > 0 ? currency(value) : "\u2014" };
+    }),
+    topPartners: [...partnerRevenue.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([p, v]) => {
+      const partner = partnerByName.get(p);
+      return { title: p, meta: currency(v), file: partner ? partner.file : null };
+    }),
+    funnel: [
+      { label: "SOURCED", value: String(partnerSourced.length), sub: currency(sourcedValue), accent: "sky" },
+      { label: "OPEN", value: String(sourcedOpen.length), sub: currency(openValue), accent: "mint" },
+      { label: "WON", value: String(partnerWon.length), sub: currency(wonValue), accent: "emerald" },
+      { label: "LOST", value: String(sourcedLost.length), sub: currency(lostValue), accent: "rose" }
+    ],
+    conversion: { won: partnerWon.length, sourced: partnerSourced.length, pct: conv, band: pctBand(conv) }
+  };
+}
+function isTeamMember(entity, def = ENTITIES.contact) {
+  const role = String(entityValue(entity, "role", def) || "").toLowerCase();
+  return role.includes("team") || role.includes("admin") || role.includes("member");
+}
+function teamListOptions() {
+  return {
+    title: "Team",
+    filter: (e) => isTeamMember(e),
+    columns: ["name", "role", "email", "company"]
+  };
+}
+function drawMiniStats(body, minis) {
+  minis.forEach((m) => {
+    const mini = body.createDiv({ cls: "cad-mini-stat" });
+    mini.dataset.accent = m.accent;
+    mini.createDiv({ cls: "cad-mini-stat-value", text: m.value });
+    mini.createDiv({ cls: "cad-mini-stat-label", text: m.label });
+    const sub = mini.createDiv({ cls: "cad-stat-sub" });
+    sub.style.marginTop = "4px";
+    sub.setText(m.sub ?? "");
+  });
+}
+async function renderPRMAnalytics(view, root) {
+  root.addClass("cadence-report");
+  const partnerDef = ENTITIES.partner;
+  const partners = listEntities(view.app, "partner");
+  const report = prmAnalytics(partners, listEntities(view.app, "deal"));
+  view._renderPageHeader(root, "PRM analytics", "Partner programme health, tier mix and revenue contribution");
+  const grid = root.createDiv({ cls: "cad-stat-grid" });
+  report.stats.forEach(({ label, value, sub, accent }) => {
+    const c = grid.createDiv({ cls: "cad-stat-card" });
+    if (accent) c.dataset.accent = accent;
+    c.createDiv({ cls: "cad-stat-label", text: label });
+    c.createDiv({ cls: "cad-stat-value", text: String(value) });
+    if (sub) c.createDiv({ cls: "cad-stat-sub", text: sub });
+  });
+  if (report.tiers.length) {
+    root.createDiv({ cls: "cad-section-label-lg", text: "PARTNERS BY TIER" });
+    const tierCard = root.createDiv({ cls: "cad-dash-card" });
+    tierCard.style.margin = "0 36px 18px 36px";
+    drawMiniStats(tierCard.createDiv({ cls: "cad-dash-card-body cad-mini-stat-row" }), report.tiers);
+  }
+  const cols = root.createDiv({ cls: "cad-dash-cols" });
+  const left = cols.createDiv({ cls: "cad-dash-col" });
+  const right = cols.createDiv({ cls: "cad-dash-col" });
+  view._dashCardSection(left, "TOP PARTNERS \xB7 by won revenue", report.topPartners, "No partner-attributed wins yet.");
+  const funnelCard = right.createDiv({ cls: "cad-dash-card" });
+  funnelCard.createDiv({ cls: "cad-dash-card-head" }).createDiv({ cls: "cad-dash-card-title", text: "PARTNER FUNNEL" });
+  drawMiniStats(funnelCard.createDiv({ cls: "cad-dash-card-body cad-mini-stat-row" }), report.funnel);
+  const { won, sourced, pct: conv, band } = report.conversion;
+  const convCard = right.createDiv({ cls: "cad-dash-card" });
+  convCard.createDiv({ cls: "cad-dash-card-head" }).createDiv({ cls: "cad-dash-card-title", text: `CONVERSION \xB7 sourced \u2192 won` });
+  const convBody = convCard.createDiv({ cls: "cad-dash-card-body" });
+  convBody.style.padding = "20px 16px";
+  const convWrap = convBody.createDiv({ cls: "cad-proj-progress-wrap" });
+  convWrap.dataset.pctBand = band;
+  const convLabel = convWrap.createDiv({ cls: "cad-proj-progress-label" });
+  convLabel.createSpan({ text: `${won}/${sourced} sourced deals won` });
+  convLabel.createSpan({ cls: "cad-proj-progress-pct", text: `${conv}%` });
+  const convBar = convWrap.createDiv({ cls: "cad-proj-progress-bar" });
+  const convFill = convBar.createDiv({ cls: "cad-proj-progress-fill" });
+  convFill.style.width = `${conv}%`;
+  const analyticsHeader = root.createDiv({ attr: { style: "display: flex; justify-content: space-between; align-items: center; padding: 24px 32px 8px 32px; margin-bottom: 16px;" } });
+  analyticsHeader.createEl("span", {
+    cls: "cad-section-label-lg",
+    text: "ANALYTICS & CHARTS",
+    attr: { style: "padding: 0; margin: 0; display: inline-block;" }
+  });
+  const addWidgetBtn = analyticsHeader.createEl("button", { cls: "cad-btn primary", text: "+ Add Custom Chart" });
+  const widgetsGrid = root.createDiv({ cls: "cad-dash-cols", attr: { style: "display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 16px; margin-bottom: 24px; padding: 0 32px;" } });
+  const renderWidgets = () => {
+    widgetsGrid.empty();
+    const widgets = dashboardWidgets(view.plugin.settings, "prmDashboardWidgets");
+    if (widgets.length === 0) {
+      const emptyWrap = widgetsGrid.createDiv({ attr: { style: "grid-column: 1 / -1; text-align: center; padding: 32px; background: var(--background-secondary); border-radius: 8px; border: 1px dashed var(--border-color);" } });
+      emptyWrap.createDiv({ text: 'No custom charts added yet. Click "+ Add Custom Chart" to create one!', attr: { style: "color: var(--text-muted); font-size: 0.95em;" } });
       return;
     }
-  }
-  const text = await view._prompt({
-    title: "Quick add \u2014 today",
-    placeholder: "What needs doing?",
-    cta: "Add task"
-  });
-  if (!text) return;
-  const file = await ensureDailyNote(view.app, view.plugin.settings);
-  const content = await view.app.vault.read(file);
-  await view.app.vault.modify(file, appendDailyTask(content, view.plugin.settings, text));
-  new import_obsidian20.Notice("Added to today");
-}
-function todaySummary(tasksList, greet) {
-  const open = tasksList.filter((l) => / \[ \] /.test(l)).length;
-  return {
-    greeting: open === 0 ? `${greet}. Nothing on the books \u2014 your day is clear.` : `${greet}. You have ${open} ${open === 1 ? "thing" : "things"} to handle.`,
-    count: `${open} open \xB7 ${tasksList.length - open} done`
-  };
-}
-function taskNotesProjectPath(projects, files) {
-  if (!projects) return null;
-  const parsed = parseLinkValues(projects);
-  if (!parsed.length) return null;
-  const projFile = files.find((f) => f.basename === parsed[0].target);
-  return projFile ? projFile.path : null;
-}
-function customSectionKeys(sections, settings) {
-  const cleanTasksHeading = (settings.tasksHeading || "## Today").replace(/^##\s+/, "").trim().toLowerCase();
-  const cleanJournalHeading = (settings.journalHeading || "## Journal").replace(/^##\s+/, "").trim().toLowerCase();
-  return Object.keys(sections).filter((k) => {
-    const cleanK = parseHeaderKey(k).cleanLabel.toLowerCase();
-    return cleanK !== cleanTasksHeading && cleanK !== cleanJournalHeading;
-  });
-}
-function journalRows(value) {
-  return Math.max(8, value.split("\n").length + 2);
-}
-async function renderTodayPane(view, root) {
-  root.addClass("cadence-today");
-  view.todayFile = await ensureDailyNote(view.app, view.plugin.settings);
-  const fileContent = await view.app.vault.read(view.todayFile);
-  view.todayParsed = parseSections(fileContent, view.plugin.settings);
-  let tasksList = [];
-  if (view.plugin.settings.taskManagementSystem === "tasknotes") {
-    const today = taskNotesToday(listTaskNotesTasks(view.app), ymd(/* @__PURE__ */ new Date()));
-    view.todayTaskNotes = today.tasks;
-    tasksList = today.lines;
-  } else {
-    tasksList = view.todayParsed.tasks;
-  }
-  const info = dateInfo();
-  root.createDiv({ cls: "cad-eyebrow", text: info.weekday.toUpperCase() });
-  const hero = root.createDiv({ cls: "cad-date-hero" });
-  hero.createSpan({ cls: "cad-day", text: String(info.day) });
-  const monthCol = hero.createDiv();
-  monthCol.createDiv({ cls: "cad-month", text: info.month });
-  monthCol.createDiv({ cls: "cad-year", text: String(info.year) });
-  const summary = todaySummary(tasksList, greeting());
-  root.createDiv({ cls: "cad-greet", text: summary.greeting });
-  const taskSection = root.createDiv({ cls: "cad-section" });
-  const taskLabel = taskSection.createDiv({ cls: "cad-section-label" });
-  taskLabel.createSpan({ text: "TODAY" });
-  taskLabel.createSpan({ cls: "cad-count", text: summary.count });
-  if (!tasksList.length) {
-    taskSection.createDiv({ cls: "cad-empty", text: "No tasks in today's note yet." });
-  } else {
-    const dailyPath = view.todayFile.path;
-    taskLineRows(tasksList).forEach(({ checked, text }, idx) => {
-      const row = taskSection.createDiv({ cls: "cad-task-row" + (checked ? " done" : "") });
-      const cb = row.createEl("input", { type: "checkbox" });
-      cb.checked = checked;
-      cb.addEventListener("change", () => view.toggleTodayTask(idx, cb.checked));
-      if (view.plugin.settings.taskManagementSystem === "tasknotes") {
-        const taskObj = view.todayTaskNotes[idx];
-        const taskSpan = row.createEl("a", { cls: "cad-task-text", text });
-        taskSpan.style.cursor = "pointer";
-        taskSpan.addEventListener("click", (ev) => {
-          ev.preventDefault();
-          view.app.workspace.openLinkText(taskObj.file.path, "", false);
-        });
-      } else {
-        row.createSpan({ cls: "cad-task-text", text });
-      }
-      let linkedProject = null;
-      if (view.plugin.settings.taskManagementSystem === "tasknotes") {
-        const taskObj = view.todayTaskNotes[idx];
-        if (taskObj.projects) linkedProject = taskNotesProjectPath(taskObj.projects, view.app.vault.getMarkdownFiles());
-      } else {
-        linkedProject = view._getTaskProjectLink(dailyPath, text);
-      }
-      if (linkedProject) {
-        const chip = row.createEl("a", { cls: "cad-task-proj-chip", text: "\u{1F4C1} " + (projectNameFromPath(view.app, linkedProject) || "Project") });
-        chip.title = "Open linked project";
-        chip.addEventListener("click", (ev) => {
-          ev.preventDefault();
-          ev.stopPropagation();
-          const file = view.app.vault.getAbstractFileByPath(linkedProject);
-          if (file && file instanceof import_obsidian20.TFile) view.openEntityDetail("project", file);
-        });
-      }
-      if (view.plugin.settings.taskManagementSystem !== "tasknotes") {
-        const linkBtn = row.createEl("button", { cls: "cad-task-link-btn" + (linkedProject ? " linked" : ""), text: linkedProject ? "\u270E" : "\u{1F4C1}" });
-        linkBtn.title = linkedProject ? "Change linked project" : "Link to a project";
-        linkBtn.addEventListener("click", (ev) => {
-          ev.stopPropagation();
-          view._openTaskProjectPicker(dailyPath, text, linkedProject);
-        });
-      }
-    });
-  }
-  const quickWrap = taskSection.createDiv();
-  quickWrap.style.marginTop = "8px";
-  const quick = quickWrap.createEl("input", {
-    type: "text",
-    placeholder: "Quick add a task \u2014 Enter to save"
-  });
-  quick.style.width = "100%";
-  quick.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" && quick.value.trim()) {
-      const v = quick.value.trim();
-      quick.value = "";
-      view.appendTodayTask(v);
-    }
-  });
-  const journalSection = root.createDiv({ cls: "cad-section" });
-  journalSection.createDiv({ cls: "cad-section-label" }).setText("TODAY\u2019S ENTRY");
-  const ta = journalSection.createEl("textarea", { cls: "cad-journal" });
-  ta.value = view.todayParsed.journal;
-  ta.placeholder = "Write what\u2019s on your mind\u2026";
-  ta.rows = journalRows(ta.value);
-  ta.addEventListener("input", () => {
-    ta.style.height = "auto";
-    ta.style.height = ta.scrollHeight + "px";
-    if (view._journalSaveTimer) clearTimeout(view._journalSaveTimer);
-    view._journalSaveTimer = setTimeout(() => view.saveTodayJournal(ta.value), 800);
-  });
-  setTimeout(() => {
-    ta.style.height = ta.scrollHeight + "px";
-  }, 0);
-  const allSections = parseH2Sections(fileContent);
-  const otherKeys = customSectionKeys(allSections, view.plugin.settings);
-  if (otherKeys.length > 0) {
-    const customWrap = root.createDiv({ cls: "cad-custom-sections" });
-    customWrap.style.marginTop = "24px";
-    customWrap.style.display = "grid";
-    customWrap.style.gridTemplateColumns = "repeat(auto-fit, minmax(320px, 1fr))";
-    customWrap.style.gap = "16px";
-    const flashSaved = () => {
-      new import_obsidian20.Notice("Section saved");
-    };
-    otherKeys.forEach((rawKey) => {
-      view._renderDynamicH2Section(customWrap, view.todayFile, allSections, rawKey, flashSaved);
-    });
-  }
-  const footer = root.createDiv();
-  footer.style.marginTop = "24px";
-  footer.style.fontSize = "12px";
-  footer.style.color = "var(--cad-ink-4)";
-  const link = footer.createEl("a", { text: "Open today's daily note \u2192" });
-  link.style.color = "var(--cad-emerald-deep)";
-  link.style.cursor = "pointer";
-  link.addEventListener("click", () => {
-    view.app.workspace.openLinkText(view.todayFile.path, "", false);
-  });
-}
-async function toggleTodayTask(view, idx, checked) {
-  if (view.plugin.settings.taskManagementSystem === "tasknotes") {
-    if (view.todayTaskNotes && view.todayTaskNotes[idx]) {
-      const taskObj = view.todayTaskNotes[idx];
-      await toggleTaskNotesTask(view.app, taskObj.file, checked);
-    }
-  } else {
-    const content = await view.app.vault.read(view.todayFile);
-    const { content: newContent, taskText } = toggleDailyTask(content, view.plugin.settings, idx, checked);
-    await view.app.vault.modify(view.todayFile, newContent);
-    if (taskText) {
-      await view._propagateTaskComplete(taskText, checked, { kind: "daily", file: view.todayFile, date: /* @__PURE__ */ new Date() });
-    }
-  }
-  view.render();
-}
-async function appendTodayTask(view, text) {
-  if (view.plugin.settings.taskManagementSystem === "tasknotes") {
-    await appendTaskNotesTask(view.app, text, /* @__PURE__ */ new Date());
-  } else {
-    const content = await view.app.vault.read(view.todayFile);
-    await view.app.vault.modify(view.todayFile, appendDailyTask(content, view.plugin.settings, text));
-  }
-  view.render();
-}
-async function saveTodayJournal(view, body) {
-  const content = await view.app.vault.read(view.todayFile);
-  await view.app.vault.modify(view.todayFile, replaceJournal(content, view.plugin.settings, body));
-}
-
-// src/views/calendar.ts
-var import_obsidian21 = require("obsidian");
-function plannerWeekTitle(days) {
-  const startStr = days[0].toLocaleDateString(void 0, { month: "long", day: "numeric" });
-  const endStr = days[6].toLocaleDateString(void 0, { month: "long", day: "numeric", year: "numeric" });
-  return `${startStr} \u2013 ${endStr}`;
-}
-function plannerWeek(dayData, today) {
-  const totals = countTaskLines(dayData.flatMap((d) => d.tasks));
-  const columns = dayData.map((d) => {
-    const open = d.tasks.filter((l) => / \[ \] /.test(l)).length;
-    const done = d.tasks.filter((l) => / \[(x|X)\] /.test(l)).length;
-    return {
-      isToday: sameDay(d.date, today),
-      weekday: d.date.toLocaleDateString(void 0, { weekday: "short" }).toUpperCase(),
-      dayNum: String(d.date.getDate()),
-      meta: d.exists ? `${open} open \xB7 ${done} done` : "no note",
-      empty: d.tasks.length ? null : d.exists ? "\u2014" : "",
-      rows: taskLineRows(d.tasks)
-    };
-  });
-  return { stats: { open: totals.open, done: totals.done, total: totals.open + totals.done }, columns };
-}
-async function renderPlannerPane(view, root) {
-  root.addClass("cadence-planner");
-  const settings = view.plugin.settings;
-  const days = weekDates(view.plannerAnchor, settings.weekStartsOn);
-  const today = startOfDay(/* @__PURE__ */ new Date());
-  const header = root.createDiv({ cls: "cad-pl-header" });
-  const titleWrap = header.createDiv({ cls: "cad-pl-title-wrap" });
-  titleWrap.createDiv({ cls: "cad-eyebrow", text: "WEEK OF" });
-  titleWrap.createDiv({ cls: "cad-pl-title", text: plannerWeekTitle(days) });
-  const nav = header.createDiv({ cls: "cad-pl-nav" });
-  const mkBtn = (label, fn, cls = "") => {
-    const b = nav.createEl("button", { text: label, cls: "cad-pl-btn " + cls });
-    b.addEventListener("click", fn);
-  };
-  mkBtn("\u25C0", () => {
-    view.plannerAnchor = addDays(view.plannerAnchor, -7);
-    view.render();
-  });
-  mkBtn("Today", () => {
-    view.plannerAnchor = startOfDay(/* @__PURE__ */ new Date());
-    view.render();
-  }, "primary");
-  mkBtn("\u25B6", () => {
-    view.plannerAnchor = addDays(view.plannerAnchor, 7);
-    view.render();
-  });
-  let dayData = [];
-  if (settings.taskManagementSystem === "tasknotes") {
-    const allTasks = listTaskNotesTasks(view.app);
-    dayData = days.map((d) => {
-      const path = dailyNotePath(settings, d);
-      const file = view.app.vault.getAbstractFileByPath(path);
-      const forDay = taskNotesToday(allTasks, ymd(d));
-      return {
-        date: d,
-        path,
-        exists: !!file,
-        file,
-        tasks: forDay.lines,
-        rawTasks: forDay.tasks
-      };
-    });
-  } else {
-    dayData = await Promise.all(days.map(async (d) => {
-      const path = dailyNotePath(settings, d);
-      const file = view.app.vault.getAbstractFileByPath(path);
-      if (!file || !(file instanceof import_obsidian21.TFile)) {
-        return { date: d, path, exists: false, tasks: [] };
-      }
-      const content = await view.app.vault.read(file);
-      const parsed = parseSections(content, settings);
-      return { date: d, path, exists: true, file, tasks: parsed.tasks };
-    }));
-  }
-  const week = plannerWeek(dayData, today);
-  const stats = root.createDiv({ cls: "cad-pl-stats" });
-  const mkStat = (label, value) => {
-    const c = stats.createDiv({ cls: "cad-pl-stat" });
-    c.createDiv({ cls: "cad-pl-stat-label", text: label });
-    c.createDiv({ cls: "cad-pl-stat-value", text: String(value) });
-  };
-  mkStat("OPEN", week.stats.open);
-  mkStat("DONE", week.stats.done);
-  mkStat("TOTAL", week.stats.total);
-  const grid = root.createDiv({ cls: "cad-pl-grid" });
-  dayData.forEach((d, dayIdx) => {
-    const column = week.columns[dayIdx];
-    const col = grid.createDiv({ cls: "cad-pl-day" + (column.isToday ? " today" : "") });
-    const colHead = col.createDiv({ cls: "cad-pl-day-head" });
-    colHead.createDiv({ cls: "cad-pl-weekday", text: column.weekday });
-    colHead.createDiv({ cls: "cad-pl-daynum", text: column.dayNum });
-    colHead.createDiv({ cls: "cad-pl-meta", text: column.meta });
-    colHead.addEventListener("click", async () => {
-      if (!d.exists) {
-        await ensureDailyNote(view.app, settings, d.date);
-      }
-      view.app.workspace.openLinkText(d.path, "", false);
-    });
-    const list = col.createDiv({ cls: "cad-pl-tasks" });
-    if (column.empty !== null) {
-      list.createDiv({ cls: "cad-empty", text: column.empty });
-    } else {
-      column.rows.forEach(({ checked, text }, idx) => {
-        const row = list.createDiv({ cls: "cad-pl-task" + (checked ? " done" : "") });
-        const cb = row.createEl("input", { type: "checkbox" });
-        cb.checked = checked;
-        cb.addEventListener("change", () => view.togglePlannerTask(d, idx, cb.checked));
-        if (settings.taskManagementSystem === "tasknotes") {
-          const taskObj = d.rawTasks[idx];
-          const taskSpan = row.createEl("a", { text });
-          taskSpan.style.cursor = "pointer";
-          taskSpan.addEventListener("click", (ev) => {
-            ev.preventDefault();
-            view.app.workspace.openLinkText(taskObj.file.path, "", false);
-          });
-        } else {
-          row.createSpan({ text });
-        }
+    widgets.forEach((w) => {
+      const card = widgetsGrid.createDiv({ cls: "cad-dash-card", attr: { style: "margin: 0; display: flex; flex-direction: column;" } });
+      const head = card.createDiv({ cls: "cad-dash-card-head", attr: { style: "display: flex; justify-content: space-between; align-items: center; padding: 10px 14px;" } });
+      head.createDiv({ cls: "cad-dash-card-title", text: w.title.toUpperCase(), attr: { style: "font-weight: 700; font-size: 0.75rem; letter-spacing: 0.12em;" } });
+      const actionsWrap = head.createDiv({ attr: { style: "display: flex; gap: 8px; align-items: center;" } });
+      const styleSelect = actionsWrap.createEl("select", { cls: "cad-prop-input" });
+      styleSelect.style.padding = "2px 4px";
+      styleSelect.style.fontSize = "0.8em";
+      styleSelect.style.height = "auto";
+      styleSelect.style.width = "auto";
+      styleSelect.style.background = "var(--background-primary)";
+      styleSelect.style.color = "var(--text-normal)";
+      styleSelect.style.border = "1px solid var(--border-color)";
+      styleSelect.style.borderRadius = "4px";
+      WIDGET_STYLE_OPTIONS.forEach((opt) => {
+        const o = styleSelect.createEl("option", { value: opt.value, text: opt.label });
+        if (w.style === opt.value) o.selected = true;
       });
-    }
-  });
-}
-async function togglePlannerTask(view, day, idx, checked) {
-  if (view.plugin.settings.taskManagementSystem === "tasknotes") {
-    if (day.rawTasks && day.rawTasks[idx]) {
-      const taskObj = day.rawTasks[idx];
-      await toggleTaskNotesTask(view.app, taskObj.file, checked);
-    }
-  } else {
-    if (!day.file) return;
-    const content = await view.app.vault.read(day.file);
-    const { content: newContent, taskText } = toggleDailyTask(content, view.plugin.settings, idx, checked);
-    await view.app.vault.modify(day.file, newContent);
-    if (taskText) {
-      await view._propagateTaskComplete(taskText, checked, { kind: "daily", file: day.file, date: day.date });
-    }
-  }
-  view.render();
-}
-
-// src/views/entity-list.ts
-var import_obsidian23 = require("obsidian");
-
-// src/views/kanban.ts
-var import_obsidian22 = require("obsidian");
-function unwrapLink(value) {
-  return String(value).replace(/^\[\[|\]\]$/g, "").trim();
-}
-function kanbanGroupBy(entityKey, def, saved) {
-  let groupBy = saved;
-  if (!groupBy) {
-    const fallbackField = def.fields.find((field) => !field.primary && ["enum", "text"].includes(field.type));
-    groupBy = fallbackField ? fallbackField.key : "status";
-    if (entityKey === "deal") groupBy = "stage";
-    else if (entityKey === "activity") groupBy = "type";
-  }
-  return groupBy;
-}
-function kanbanOptions(def, groupBy) {
-  const f = def.fields.find((field) => field.key === groupBy);
-  return f ? f.options || [] : [];
-}
-function distinctGroups(entities, groupBy, def) {
-  const uniqueVals = /* @__PURE__ */ new Set();
-  entities.forEach((e) => {
-    const val = entityValue(e, groupBy, def);
-    if (val) {
-      const parts = Array.isArray(val) ? val : String(val).split(",");
-      parts.forEach((v) => {
-        const clean = unwrapLink(v);
-        if (clean) uniqueVals.add(clean);
-      });
-    }
-  });
-  const groups = Array.from(uniqueVals);
-  return groups.length ? groups : ["To Do", "In Progress", "Done"];
-}
-function getEntityKanbanParams(view, entityKey) {
-  const def = ENTITIES[entityKey];
-  if (!def) return { groupBy: "status", groups: ["Active", "Done"] };
-  const groupBy = kanbanGroupBy(entityKey, def, view.plugin.settings.pageKanbanGroupBy?.[entityKey]);
-  let groups = kanbanOptions(def, groupBy);
-  if (!groups.length) groups = distinctGroups(listEntities(view.app, entityKey), groupBy, def);
-  return { groupBy, groups };
-}
-function kanbanGroupByFields(def) {
-  return def.fields.filter((field) => !field.primary && ["enum", "text", "multitext", "tags"].includes(field.type));
-}
-function inKanbanGroup(val, stage) {
-  if (Array.isArray(val)) {
-    const cleanVals = val.map((v) => unwrapLink(v).toLowerCase());
-    return cleanVals.includes(stage.toLowerCase());
-  }
-  return unwrapLink(val || "").toLowerCase() === stage.toLowerCase();
-}
-function kanbanGroups(list, groupBy, groups, def) {
-  return groups.map((stage) => ({ stage, items: list.filter((e) => inKanbanGroup(entityValue(e, groupBy, def), stage)) }));
-}
-function kanbanValueField(def) {
-  return def.fields.find((f) => f.type === "currency" || f.type === "number");
-}
-function kanbanColumnMeta(items, def) {
-  const valueField = kanbanValueField(def);
-  if (valueField) {
-    const sum = items.reduce((s, e) => s + (Number(entityValue(e, valueField.key, def)) || 0), 0);
-    return `${items.length} \xB7 ${fmtValue(sum, valueField.type)}`;
-  }
-  return `${items.length}`;
-}
-function kanbanDropValue(fDef, stage) {
-  const isList = fDef && (fDef.type === "multitext" || fDef.type === "tags" || fDef.isList === true);
-  const isLink = fDef && fDef.suggestionSource && fDef.suggestionSource !== "none" && fDef.suggestionSource !== "tags" && fDef.suggestionSource !== "history";
-  if (isList) {
-    return isLink ? [`[[${stage}]]`] : [stage];
-  }
-  return isLink ? `[[${stage}]]` : stage;
-}
-function kanbanCardLinks(e, def) {
-  const relFields = ["company", "contact", "owner", "assigned"];
-  return relFields.flatMap((rf) => {
-    const rfDef = def.fields.find((f) => f.key === rf);
-    if (!rfDef) return [];
-    return parseLinkValues(entityValue(e, rf, def)).map((v) => ({
-      display: v.display,
-      target: v.target,
-      entityKey: rf === "owner" || rf === "assigned" ? "contact" : rf
-    }));
-  });
-}
-async function renderEntityKanban(view, root, entityKey, groupBy, groups) {
-  root.addClass("cadence-kanban");
-  const def = ENTITIES[entityKey];
-  const entities = listEntities(view.app, entityKey);
-  const totalValue = entities.reduce((sum, e) => sum + (Number(entityValue(e, "value", def)) || 0), 0);
-  view._renderPageHeader(root, def.plural, `${entities.length} ${entities.length === 1 ? def.label.toLowerCase() : def.plural.toLowerCase()} \xB7 ${fmtValue(totalValue, "currency")} total`, (right) => {
-    const importBtn = right.createEl("button", { cls: "cad-btn", text: "Import CSV" });
-    importBtn.addEventListener("click", () => new CadenceImportModal(view.app, { entityKey }).open());
-    const btn = right.createEl("button", { cls: "cad-btn primary", text: `+ New ${def.label}` });
-    btn.addEventListener("click", () => view._createEntityFromPrompt(entityKey));
-  });
-  const board = root.createDiv({ cls: "cad-kanban-board" });
-  groups.forEach((stage) => {
-    const items = entities.filter((e) => String(entityValue(e, groupBy, def) || "") === stage);
-    const stageValue = items.reduce((s, e) => s + (Number(entityValue(e, "value", def)) || 0), 0);
-    const col = board.createDiv({ cls: "cad-kanban-col" });
-    col.dataset.stage = stage;
-    const head = col.createDiv({ cls: "cad-kanban-col-head" });
-    head.createDiv({ cls: "cad-kanban-col-title", text: stage });
-    head.createDiv({ cls: "cad-kanban-col-meta", text: `${items.length} \xB7 ${fmtValue(stageValue, "currency")}` });
-    const list = col.createDiv({ cls: "cad-kanban-col-list" });
-    list.addEventListener("dragover", (ev) => {
-      ev.preventDefault();
-      try {
-        ev.dataTransfer.dropEffect = "move";
-      } catch (_) {
-      }
-      col.addClass("drag-over");
-    });
-    list.addEventListener("dragleave", (ev) => {
-      if (!col.contains(ev.relatedTarget)) col.removeClass("drag-over");
-    });
-    list.addEventListener("drop", async (ev) => {
-      ev.preventDefault();
-      col.removeClass("drag-over");
-      const path = ev.dataTransfer.getData("text/cadence-entity");
-      const fromStage = ev.dataTransfer.getData("text/cadence-stage");
-      if (!path || fromStage === stage) return;
-      const file = view.app.vault.getAbstractFileByPath(path);
-      if (!file || !(file instanceof import_obsidian22.TFile)) return;
-      try {
-        await view.app.fileManager.processFrontMatter(file, (fm) => {
-          fm[groupBy] = groupBy === "stage" ? [stage] : stage;
-        });
-        new import_obsidian22.Notice(`Moved to ${stage}`);
-      } catch (e) {
-        new import_obsidian22.Notice(`Failed to move: ${e.message}`);
-      }
-    });
-    if (!items.length) {
-      list.createDiv({ cls: "cad-empty", text: "\u2014" });
-    } else {
-      const isMobile = !!(import_obsidian22.Platform && import_obsidian22.Platform.isMobile);
-      items.forEach((e) => {
-        const card = list.createDiv({ cls: "cad-kanban-card" });
-        card.dataset.path = e.file.path;
-        card.createDiv({ cls: "cad-kanban-card-title", text: entityValue(e, "title", def) || e.basename });
-        const meta = card.createDiv({ cls: "cad-kanban-card-meta" });
-        const v = entityValue(e, "value", def);
-        if (v) meta.createSpan({ cls: "cad-kanban-card-value", text: fmtValue(v, "currency") });
-        const coValues = parseLinkValues(entityValue(e, "company", def));
-        if (coValues.length > 0) {
-          meta.createSpan({ text: " \xB7 " });
-          coValues.forEach((item, idx) => {
-            if (idx > 0) {
-              meta.createSpan({ text: ", " });
-            }
-            const coLink = meta.createEl("a", { cls: "cad-company-link", text: item.display });
-            coLink.style.textDecoration = "underline";
-            coLink.style.cursor = "pointer";
-            coLink.addEventListener("click", (ev) => {
-              ev.preventDefault();
-              ev.stopPropagation();
-              const targetFile = view.app.vault.getMarkdownFiles().find((f) => f.basename.toLowerCase() === item.target.toLowerCase());
-              if (targetFile) view.openEntityDetail("company", targetFile);
-              else view.app.workspace.openLinkText(item.target, "", false);
-            });
-          });
-        }
-        const contactValues = parseLinkValues(entityValue(e, "contact", def));
-        if (contactValues.length > 0) {
-          meta.createSpan({ text: " \xB7 " });
-          contactValues.forEach((item, idx) => {
-            if (idx > 0) {
-              meta.createSpan({ text: ", " });
-            }
-            const ctLink = meta.createEl("a", { cls: "cad-contact-link", text: item.display });
-            ctLink.style.textDecoration = "underline";
-            ctLink.style.cursor = "pointer";
-            ctLink.addEventListener("click", (ev) => {
-              ev.preventDefault();
-              ev.stopPropagation();
-              const targetFile = view.app.vault.getMarkdownFiles().find((f) => f.basename.toLowerCase() === item.target.toLowerCase());
-              if (targetFile) view.openEntityDetail("contact", targetFile);
-              else view.app.workspace.openLinkText(item.target, "", false);
-            });
-          });
-        }
-        if (!isMobile) {
-          card.draggable = true;
-          card.addEventListener("dragstart", (ev) => {
-            card.addClass("dragging");
-            try {
-              ev.dataTransfer.effectAllowed = "move";
-              ev.dataTransfer.setData("text/cadence-entity", e.file.path);
-              ev.dataTransfer.setData("text/cadence-stage", stage);
-              ev.dataTransfer.setData("text/plain", `[[${e.file.basename}]]`);
-            } catch (_) {
-            }
-          });
-          card.addEventListener("dragend", () => card.removeClass("dragging"));
-        } else {
-          card.addClass("cad-kanban-card-touch");
-        }
-        card.addEventListener("click", () => view.openEntityDetail(entityKey, e.file));
-      });
-    }
-  });
-}
-
-// src/views/entity-list.ts
-function listLayout(mode, pageLayouts) {
-  return pageLayouts?.[mode] || (mode === "projects.projects" ? "cards" : mode === "crm.pipeline" ? "kanban" : "table");
-}
-function listSubtitle(count, def) {
-  return `${count} ${count === 1 ? def.label.toLowerCase() : def.plural.toLowerCase()} in ${def.folder}`;
-}
-function filterableKeys(def) {
-  return def.fields.map((f) => f.key).filter((k) => {
-    const fdef = def.fields.find((f) => f.key === k);
-    return !!fdef && (fdef.type === "enum" || ["company", "role", "with", "related", "status", "tier", "type"].includes(k));
-  });
-}
-function filterOptions(entities, def) {
-  return filterableKeys(def).flatMap((k) => {
-    const fdef = def.fields.find((f) => f.key === k);
-    if (!fdef) return [];
-    const uniqueVals = /* @__PURE__ */ new Set();
-    entities.forEach((e) => {
-      const val = entityValue(e, k, def);
-      if (Array.isArray(val)) {
-        val.forEach((v) => {
-          if (v) {
-            const clean = unwrapLink(v);
-            if (clean) uniqueVals.add(clean);
-          }
-        });
-      } else if (val != null && val !== "") {
-        const clean = unwrapLink(val);
-        if (clean) uniqueVals.add(clean);
-      }
-    });
-    if (uniqueVals.size === 0) return [];
-    return [{ field: fdef, values: Array.from(uniqueVals).sort() }];
-  });
-}
-function listColumns(def, columns) {
-  const baseCols = columns || def.columns;
-  const cols = baseCols.map((k) => def.fields.find((f) => f.key === k)).filter(Boolean);
-  def.fields.forEach((f) => {
-    if (!baseCols.includes(f.key) && !cols.some((c) => c.key === f.key)) {
-      cols.push(f);
-    }
-  });
-  return cols;
-}
-function filterEntities(list, def, cols, query) {
-  const searchVal = query.search;
-  return list.filter((e) => {
-    if (searchVal) {
-      const match = cols.some((f) => {
-        const val = entityValue(e, f.key, def);
-        if (val == null) return false;
-        return String(val).toLowerCase().includes(searchVal);
-      }) || e.basename.toLowerCase().includes(searchVal);
-      if (!match) return false;
-    }
-    for (const [k, filterVal] of Object.entries(query.filters)) {
-      if (!filterVal) continue;
-      const val = entityValue(e, k, def);
-      if (Array.isArray(val)) {
-        const cleanVals = val.map((v) => unwrapLink(v).toLowerCase());
-        if (!cleanVals.includes(filterVal.toLowerCase())) return false;
-      } else {
-        const cleanVal = unwrapLink(val || "").toLowerCase();
-        if (cleanVal !== filterVal.toLowerCase()) return false;
-      }
-    }
-    return true;
-  });
-}
-function sortEntities(list, def, sort) {
-  const sorted = list.slice();
-  const currentSortField = sort.field;
-  if (currentSortField) {
-    const fdef = def.fields.find((f) => f.key === currentSortField);
-    const ftype = fdef ? fdef.type : "text";
-    sorted.sort((a, b) => {
-      let valA = entityValue(a, currentSortField, def);
-      let valB = entityValue(b, currentSortField, def);
-      if (valA && typeof valA === "string") valA = unwrapLink(valA);
-      if (valB && typeof valB === "string") valB = unwrapLink(valB);
-      if (valA == null) valA = "";
-      if (valB == null) valB = "";
-      let diff = 0;
-      if (ftype === "number" || ftype === "currency") {
-        diff = Number(valA) - Number(valB);
-      } else if (ftype === "date") {
-        const dateA = new Date(valA).getTime() || 0;
-        const dateB = new Date(valB).getTime() || 0;
-        diff = dateA - dateB;
-      } else {
-        diff = String(valA).localeCompare(String(valB), void 0, { numeric: true, sensitivity: "base" });
-      }
-      return sort.asc ? diff : -diff;
-    });
-  }
-  return sorted;
-}
-function nextSort(sort, key) {
-  return sort.field === key ? { field: key, asc: !sort.asc } : { field: key, asc: true };
-}
-function primaryField(def) {
-  return def.fields.find((f) => f.primary) || def.fields[0];
-}
-function tableCell(f) {
-  if (f.key === "owner" || f.key === "assigned") return { kind: "owner" };
-  const sugSrc = f.suggestionSource || getFieldSuggestionSource(f);
-  if (f.type === "multitext" && sugSrc && sugSrc !== "none" && sugSrc !== "tags" && sugSrc !== "history") {
-    return { kind: "links", target: sugSrc };
-  }
-  if (f.key === "company") return { kind: "links", target: "company" };
-  if (f.key === "partner") return { kind: "links", target: "partner" };
-  if (f.key === "contact" || f.key === "contacts" || f.key === "with") return { kind: "links", target: "contact" };
-  if (f.key === "related") return { kind: "links", target: "project" };
-  return { kind: "text" };
-}
-function cardStatusField(def) {
-  return def.fields.find((f) => f.key === "status" || f.key === "type" || f.key === "tier") || def.fields.find((f) => f.type === "enum");
-}
-function pillText(val) {
-  const clean = Array.isArray(val) ? val[0] : val;
-  return String(clean);
-}
-function pillClass(text) {
-  return `cad-pill-${text.toLowerCase().replace(/\s+/g, "-")}`;
-}
-function cardMetaRows(e, def, primary, statusField) {
-  const rows = [];
-  def.fields.forEach((f) => {
-    if (f.key !== primary.key && (!statusField || f.key !== statusField.key) && rows.length < 4) {
-      const val = entityValue(e, f.key, def);
-      if (val != null && val !== "") {
-        const isLinkProperty = f.key === "company" || f.key === "contact" || f.key === "partner" || f.key === "owner" || f.key === "project" || !!f.suggestionSource && f.suggestionSource.startsWith("folder:");
-        rows.push({ field: f, value: val, isLink: isLinkProperty });
-      }
-    }
-  });
-  return rows;
-}
-function cardLinkEntityKey(f, entities) {
-  let relatedKey = f.key === "owner" ? "contact" : f.key;
-  if (f.suggestionSource && f.suggestionSource.startsWith("folder:")) {
-    const folder = f.suggestionSource.replace("folder:", "").split("/").pop().toLowerCase();
-    const found = Object.keys(entities).find((k) => entities[k].folder.toLowerCase().endsWith(folder) || entities[k].plural.toLowerCase() === folder);
-    if (found) relatedKey = found;
-  }
-  return relatedKey;
-}
-async function renderEntityList(view, root, entityKey, opts = {}) {
-  root.addClass("cadence-list");
-  const def = ENTITIES[entityKey];
-  if (!def) {
-    view.renderComingSoon(root, view._resolveSurface(view.mode));
-    return;
-  }
-  const entities = listEntities(view.app, entityKey);
-  const filtered = opts.filter ? entities.filter(opts.filter) : entities;
-  const mode = view.mode;
-  const layout = listLayout(mode, view.plugin.settings.pageLayouts);
-  view._renderPageHeader(root, opts.title || def.plural, listSubtitle(filtered.length, def), (right) => {
-    const switcher = right.createDiv({ cls: "cad-layout-switcher" });
-    switcher.style.display = "inline-flex";
-    switcher.style.gap = "4px";
-    switcher.style.marginRight = "12px";
-    switcher.style.border = "1px solid var(--border-color)";
-    switcher.style.borderRadius = "6px";
-    switcher.style.overflow = "hidden";
-    switcher.style.padding = "2px";
-    switcher.style.background = "var(--background-secondary)";
-    const layouts = [
-      { key: "table", icon: "layout-list", title: "Table view" },
-      { key: "kanban", icon: "kanban", title: "Kanban board" },
-      { key: "cards", icon: "layout-grid", title: "Card grid" }
-    ];
-    layouts.forEach((l) => {
-      const btn2 = switcher.createEl("button", { cls: "cad-topbar-icon-btn" });
-      btn2.style.padding = "4px 8px";
-      btn2.style.height = "auto";
-      btn2.style.border = "none";
-      btn2.style.background = layout === l.key ? "var(--background-modifier-border)" : "transparent";
-      btn2.style.borderRadius = "4px";
-      btn2.style.cursor = "pointer";
-      try {
-        (0, import_obsidian23.setIcon)(btn2, l.icon);
-      } catch (_) {
-      }
-      btn2.title = l.title;
-      btn2.addEventListener("click", async (e) => {
-        e.preventDefault();
-        if (!view.plugin.settings.pageLayouts) view.plugin.settings.pageLayouts = {};
-        view.plugin.settings.pageLayouts[mode] = l.key;
+      styleSelect.addEventListener("change", async () => {
+        w.style = styleSelect.value;
         await view.plugin.saveSettings();
         view.render();
       });
-    });
-    const importBtn = right.createEl("button", { cls: "cad-btn", text: "Import CSV" });
-    importBtn.addEventListener("click", () => new CadenceImportModal(view.app, { entityKey }).open());
-    const btn = right.createEl("button", { cls: "cad-btn primary", text: `+ New ${def.label}` });
-    btn.addEventListener("click", () => view._createEntityFromPrompt(entityKey));
-  });
-  if (!filtered.length) {
-    const empty = root.createDiv({ cls: "cad-empty-state" });
-    empty.createDiv({ cls: "cad-empty-state-title", text: `No ${def.plural.toLowerCase()} yet` });
-    empty.createDiv({ cls: "cad-empty-state-desc", text: `Drop a markdown note in ${def.folder}/ with frontmatter, or hit "+ New" above.` });
-    return;
-  }
-  const controls = root.createDiv({ cls: "cad-list-controls" });
-  controls.style.display = "flex";
-  controls.style.gap = "12px";
-  controls.style.alignItems = "center";
-  controls.style.marginBottom = "16px";
-  controls.style.flexWrap = "wrap";
-  const searchWrap = controls.createDiv({ cls: "cad-search-wrap" });
-  searchWrap.style.display = "flex";
-  searchWrap.style.alignItems = "center";
-  searchWrap.style.gap = "6px";
-  searchWrap.style.flex = "1";
-  searchWrap.style.minWidth = "200px";
-  const searchInput = searchWrap.createEl("input", {
-    type: "text",
-    cls: "cad-pd-meta-input",
-    placeholder: `Search ${def.plural.toLowerCase()}...`
-  });
-  searchInput.style.width = "100%";
-  searchInput.style.margin = "0";
-  if (layout === "kanban") {
-    const kanbanFields = kanbanGroupByFields(def);
-    if (kanbanFields.length > 0) {
-      const groupSelectWrap = controls.createDiv({ attr: { style: "display: inline-flex; align-items: center; gap: 6px; margin-left: auto;" } });
-      groupSelectWrap.createSpan({ text: "Group columns by:", attr: { style: "font-size: 0.85em; color: var(--text-muted); font-weight: 600;" } });
-      const groupSelect = groupSelectWrap.createEl("select", { cls: "cad-prop-input" });
-      groupSelect.style.padding = "6px 10px";
-      groupSelect.style.height = "auto";
-      groupSelect.style.width = "auto";
-      groupSelect.style.background = "var(--background-secondary)";
-      groupSelect.style.color = "var(--text-normal)";
-      groupSelect.style.border = "1px solid var(--border-color)";
-      groupSelect.style.borderRadius = "6px";
-      kanbanFields.forEach((f) => {
-        const optEl = groupSelect.createEl("option", { value: f.key, text: f.label });
-        const currentParams = view.getEntityKanbanParams(entityKey);
-        if (currentParams.groupBy === f.key) optEl.selected = true;
+      const delBtn = actionsWrap.createEl("button", {
+        cls: "cad-btn",
+        text: "\xD7",
+        attr: { style: "color: var(--text-error); padding: 2px 8px; font-weight: bold; border-color: var(--text-error); font-size: 1.1em; height: auto; border-radius: 4px; background: transparent;" }
       });
-      groupSelect.addEventListener("change", async () => {
-        if (!view.plugin.settings.pageKanbanGroupBy) view.plugin.settings.pageKanbanGroupBy = {};
-        view.plugin.settings.pageKanbanGroupBy[entityKey] = groupSelect.value;
+      delBtn.addEventListener("click", async () => {
+        if (!confirm(`Delete chart "${w.title}"?`)) return;
+        view.plugin.settings.prmDashboardWidgets = removeWidget(view.plugin.settings.prmDashboardWidgets, w.id);
         await view.plugin.saveSettings();
         view.render();
       });
-    }
-  }
-  const query = { search: "", filters: {} };
-  let sort = { field: def.columns[0] || "", asc: true };
-  filterOptions(filtered, def).forEach(({ field: fdef, values }) => {
-    const k = fdef.key;
-    const filterWrap = controls.createDiv({ cls: "cad-filter-select-wrap" });
-    filterWrap.style.display = "flex";
-    filterWrap.style.alignItems = "center";
-    filterWrap.style.gap = "6px";
-    const sel = filterWrap.createEl("select", { cls: "cad-pd-meta-input" });
-    sel.style.margin = "0";
-    sel.style.padding = "4px 8px";
-    sel.style.minHeight = "30px";
-    sel.style.border = "1px solid var(--border-color)";
-    sel.style.borderRadius = "4px";
-    sel.createEl("option", { value: "", text: `All ${fdef.label}s` });
-    values.forEach((v) => {
-      sel.createEl("option", { value: v, text: v });
+      const body = card.createDiv({ cls: "cad-dash-card-body", attr: { style: "flex: 1; min-height: 180px; display: flex; flex-direction: column; justify-content: center; padding: 14px;" } });
+      view._drawChart(body.createDiv(), w.style, chartData(partners, w, partnerDef));
     });
-    sel.addEventListener("change", () => {
-      query.filters[k] = sel.value;
-      renderContent();
-    });
-  });
-  const cols = listColumns(def, opts.columns);
-  const tableWrap = root.createDiv({ cls: "cad-table-wrap" });
-  const kanbanWrap = root.createDiv({ cls: "cad-kanban-board-wrap" });
-  const cardsWrap = root.createDiv({ cls: "cad-proj-grid-wrap" });
-  const renderContent = async () => {
-    tableWrap.style.display = "none";
-    tableWrap.empty();
-    kanbanWrap.style.display = "none";
-    kanbanWrap.empty();
-    cardsWrap.style.display = "none";
-    cardsWrap.empty();
-    const displayed = sortEntities(filterEntities(filtered, def, cols, query), def, sort);
-    if (layout === "table") {
-      tableWrap.style.display = "block";
-      const table = tableWrap.createEl("table", { cls: "cad-table" });
-      const thead = table.createEl("thead");
-      const trh = thead.createEl("tr");
-      const headers = [];
-      cols.forEach((f) => {
-        const th = trh.createEl("th");
-        th.style.cursor = "pointer";
-        th.style.userSelect = "none";
-        const thSpan = th.createSpan({ text: f.label + " " });
-        const indicator = th.createSpan({ text: f.key === sort.field ? "\u25B2" : "\u2195" });
-        indicator.style.opacity = f.key === sort.field ? "1" : "0.4";
-        indicator.style.marginLeft = "4px";
-        headers.push({ key: f.key, th, indicator });
-        th.addEventListener("click", () => {
-          sort = nextSort(sort, f.key);
-          renderContent();
-        });
-      });
-      const tbody = table.createEl("tbody");
-      if (displayed.length === 0) {
-        const tr = tbody.createEl("tr");
-        const td = tr.createEl("td", { text: "No matching entries found." });
-        td.colSpan = cols.length;
-        td.style.textAlign = "center";
-        td.style.color = "var(--text-muted)";
-        td.style.padding = "20px";
-      } else {
-        displayed.forEach((e) => {
-          const tr = tbody.createEl("tr", { cls: "cad-row" });
-          cols.forEach((f, i) => {
-            const td = tr.createEl("td");
-            const val = entityValue(e, f.key, def);
-            const formatted = fmtValue(val, f.type);
-            const primary = primaryField(def);
-            const hasPrimaryCol = cols.some((c) => c.key === primary.key);
-            const isPrimaryCol = hasPrimaryCol ? f.key === primary.key : i === 0;
-            if (isPrimaryCol) {
-              const a = td.createEl("a", { cls: "cad-row-primary", text: formatted || e.basename });
-              a.addEventListener("click", (ev) => {
-                ev.preventDefault();
-                view.openEntityDetail(entityKey, e.file);
-              });
-            } else {
-              const cell = tableCell(f);
-              if (cell.kind === "owner") view._renderOwnerLinks(td, val, false);
-              else if (cell.kind === "links") view._renderEntityLinks(td, val, cell.target);
-              else td.setText(formatted);
-            }
-          });
-        });
-      }
-    } else if (layout === "kanban") {
-      kanbanWrap.style.display = "block";
-      const kanbanParams = view.getEntityKanbanParams(entityKey);
-      const { groupBy, groups } = kanbanParams;
-      const board = kanbanWrap.createDiv({ cls: "cad-kanban-board" });
-      const valueField = kanbanValueField(def);
-      kanbanGroups(displayed, groupBy, groups, def).forEach(({ stage, items }) => {
-        const col = board.createDiv({ cls: "cad-kanban-col" });
-        col.dataset.stage = stage;
-        const head = col.createDiv({ cls: "cad-kanban-col-head" });
-        head.createDiv({ cls: "cad-kanban-col-title", text: stage });
-        head.createDiv({ cls: "cad-kanban-col-meta", text: kanbanColumnMeta(items, def) });
-        const list = col.createDiv({ cls: "cad-kanban-col-list" });
-        list.addEventListener("dragover", (ev) => {
-          ev.preventDefault();
-          try {
-            ev.dataTransfer.dropEffect = "move";
-          } catch (_) {
-          }
-          col.addClass("drag-over");
-        });
-        list.addEventListener("dragleave", (ev) => {
-          if (!col.contains(ev.relatedTarget)) col.removeClass("drag-over");
-        });
-        list.addEventListener("drop", async (ev) => {
-          ev.preventDefault();
-          col.removeClass("drag-over");
-          const path = ev.dataTransfer.getData("text/cadence-entity");
-          const fromStage = ev.dataTransfer.getData("text/cadence-stage");
-          if (!path || fromStage === stage) return;
-          const file = view.app.vault.getAbstractFileByPath(path);
-          if (!file || !(file instanceof import_obsidian23.TFile)) return;
-          try {
-            await view.app.fileManager.processFrontMatter(file, (fm) => {
-              fm[groupBy] = kanbanDropValue(def.fields.find((fd) => fd.key === groupBy), stage);
-            });
-            new import_obsidian23.Notice(`Moved to ${stage}`);
-          } catch (e) {
-            new import_obsidian23.Notice(`Failed to move: ${e.message}`);
-          }
-        });
-        if (!items.length) {
-          list.createDiv({ cls: "cad-empty", text: "\u2014" });
-        } else {
-          const isMobile = !!(import_obsidian23.Platform && import_obsidian23.Platform.isMobile);
-          items.forEach((e) => {
-            const card = list.createDiv({ cls: "cad-kanban-card" });
-            card.dataset.path = e.file.path;
-            card.createDiv({ cls: "cad-kanban-card-title", text: entityValue(e, primaryField(def).key, def) || e.basename });
-            const meta = card.createDiv({ cls: "cad-kanban-card-meta" });
-            if (valueField) {
-              const val = entityValue(e, valueField.key, def);
-              if (val) meta.createSpan({ text: fmtValue(val, valueField.type) });
-            }
-            kanbanCardLinks(e, def).forEach((v) => {
-              meta.createSpan({ text: " \xB7 " });
-              const link = meta.createEl("a", { text: v.display });
-              link.style.textDecoration = "underline";
-              link.style.cursor = "pointer";
-              link.addEventListener("click", (ev) => {
-                ev.preventDefault();
-                ev.stopPropagation();
-                const targetFile = view.app.vault.getMarkdownFiles().find((f) => f.basename.toLowerCase() === v.target.toLowerCase());
-                if (targetFile) view.openEntityDetail(v.entityKey, targetFile);
-                else view.app.workspace.openLinkText(v.target, "", false);
-              });
-            });
-            if (!isMobile) {
-              card.draggable = true;
-              card.addEventListener("dragstart", (ev) => {
-                card.addClass("dragging");
-                try {
-                  ev.dataTransfer.effectAllowed = "move";
-                  ev.dataTransfer.setData("text/cadence-entity", e.file.path);
-                  ev.dataTransfer.setData("text/cadence-stage", stage);
-                  ev.dataTransfer.setData("text/plain", `[[${e.file.basename}]]`);
-                } catch (_) {
-                }
-              });
-              card.addEventListener("dragend", () => card.removeClass("dragging"));
-            } else {
-              card.addClass("cad-kanban-card-touch");
-            }
-            card.addEventListener("click", () => view.openEntityDetail(entityKey, e.file));
-          });
-        }
-      });
-    } else if (layout === "cards") {
-      cardsWrap.style.display = "block";
-      const grid = cardsWrap.createDiv({ cls: "cad-proj-grid" });
-      if (entityKey === "project") {
-        const projects = await Promise.all(displayed.map(async (e) => {
-          const meta = await readProjectMeta(view.app, e.file);
-          return { entity: e, meta };
-        }));
-        projects.forEach((p) => {
-          const card = grid.createDiv({ cls: "cad-proj-card" });
-          const head = card.createDiv({ cls: "cad-proj-card-head" });
-          const title = head.createEl("a", { cls: "cad-proj-title", text: entityValue(p.entity, "name", def) || p.entity.basename });
-          title.addEventListener("click", (ev) => {
-            ev.preventDefault();
-            view.openEntityDetail("project", p.entity.file);
-          });
-          const status = String(entityValue(p.entity, "status", def) || "active");
-          const priority = String(entityValue(p.entity, "priority", def) || "");
-          const pillRow = head.createDiv({ cls: "cad-proj-pills" });
-          pillRow.createSpan({ cls: `cad-pill ${pillClass(status)}`, text: status });
-          if (priority) pillRow.createSpan({ cls: `cad-pill cad-pill-prio-${priority.toLowerCase()}`, text: priority });
-          const metaRow = card.createDiv({ cls: "cad-proj-meta" });
-          const owner = entityValue(p.entity, "owner", def);
-          const due = entityValue(p.entity, "due", def);
-          if (owner) view._renderOwnerLinks(metaRow, owner);
-          if (due) metaRow.createSpan({ text: `Due: ${fmtValue(due, "date")}` });
-          const progWrap = card.createDiv({ cls: "cad-proj-progress-wrap" });
-          progWrap.dataset.pctBand = pctBand(p.meta.percent);
-          const progLabel = progWrap.createDiv({ cls: "cad-proj-progress-label" });
-          progLabel.createSpan({ text: `${p.meta.done}/${p.meta.total} milestones` });
-          progLabel.createSpan({ cls: "cad-proj-progress-pct", text: `${p.meta.percent}%` });
-          const bar = progWrap.createDiv({ cls: "cad-proj-progress-bar" });
-          const fill = bar.createDiv({ cls: "cad-proj-progress-fill" });
-          fill.style.width = `${p.meta.percent}%`;
-          if (p.meta.next) {
-            const nextRow = card.createDiv({ cls: "cad-proj-next" });
-            nextRow.createSpan({ cls: "cad-proj-next-label", text: "NEXT \xB7 " });
-            nextRow.createSpan({ cls: "cad-proj-next-date", text: fmtValue(p.meta.next.date, "date") });
-            if (p.meta.next.title) nextRow.createSpan({ text: ` \u2014 ${p.meta.next.title}` });
-          }
-        });
-      } else {
-        displayed.forEach((e) => {
-          const card = grid.createDiv({ cls: "cad-proj-card" });
-          const head = card.createDiv({ cls: "cad-proj-card-head" });
-          const primary = primaryField(def);
-          const titleText = entityValue(e, primary.key, def) || e.basename;
-          const title = head.createEl("a", { cls: "cad-proj-title", text: titleText });
-          title.addEventListener("click", (ev) => {
-            ev.preventDefault();
-            view.openEntityDetail(entityKey, e.file);
-          });
-          const pillRow = head.createDiv({ cls: "cad-proj-pills" });
-          const statusField = cardStatusField(def);
-          if (statusField) {
-            const val = entityValue(e, statusField.key, def);
-            if (val) {
-              const text = pillText(val);
-              pillRow.createSpan({ cls: `cad-pill ${pillClass(text)}`, text });
-            }
-          }
-          const metaRow = card.createDiv({ cls: "cad-proj-meta" });
-          cardMetaRows(e, def, primary, statusField).forEach(({ field: f, value: val, isLink }) => {
-            const formatted = fmtValue(val, f.type);
-            const fieldDiv = metaRow.createDiv();
-            fieldDiv.style.marginBottom = "2px";
-            fieldDiv.createSpan({ text: `${f.label}: `, attr: { style: "font-weight: 500; color: var(--text-muted);" } });
-            if (isLink) {
-              const links = parseLinkValues(val);
-              links.forEach((link, lidx) => {
-                if (lidx > 0) fieldDiv.createSpan({ text: ", " });
-                const aLink = fieldDiv.createEl("a", { text: link.display });
-                aLink.style.textDecoration = "underline";
-                aLink.style.cursor = "pointer";
-                aLink.addEventListener("click", (ev) => {
-                  ev.preventDefault();
-                  ev.stopPropagation();
-                  const targetFile = view.app.vault.getMarkdownFiles().find((f2) => f2.basename.toLowerCase() === link.target.toLowerCase());
-                  const relatedKey = cardLinkEntityKey(f, ENTITIES);
-                  if (targetFile) view.openEntityDetail(relatedKey, targetFile);
-                  else view.app.workspace.openLinkText(link.target, "", false);
-                });
-              });
-            } else {
-              fieldDiv.createSpan({ text: formatted });
-            }
-          });
-        });
-      }
-    }
   };
-  searchInput.addEventListener("input", () => {
-    query.search = searchInput.value.trim().toLowerCase();
-    renderContent();
-  });
-  renderContent();
-}
-
-// src/views/entity-detail.ts
-var import_obsidian24 = require("obsidian");
-
-// src/utils/field-edit.ts
-function coerceFieldEdit(def, key, raw) {
-  let value = raw;
-  const fdef = def.fields.find((f) => f.key === key);
-  if (fdef) {
-    if (fdef.type === "tags") {
-      if (Array.isArray(raw)) {
-        value = raw;
-      } else {
-        value = (raw || "").split(",").map((t) => t.trim()).filter(Boolean);
+  addWidgetBtn.addEventListener("click", () => {
+    new CadenceWidgetCreateModal(view.app, "partner", async (newWidget) => {
+      if (!view.plugin.settings.prmDashboardWidgets) {
+        view.plugin.settings.prmDashboardWidgets = [];
       }
-    } else if (fdef.type === "number" || fdef.type === "currency") {
-      const n = Number(raw);
-      value = isNaN(n) ? null : n;
-    } else if (key === "stage") {
-      value = raw ? [raw] : null;
-    } else if (raw === "") {
-      value = null;
-    }
-  }
-  return value;
-}
-function applyFieldEdit(frontmatter, key, value) {
-  if (value == null || Array.isArray(value) && value.length === 0) {
-    delete frontmatter[key];
-  } else {
-    frontmatter[key] = value;
-  }
-}
-function dateInputValue(current) {
-  const d = new Date(current);
-  return isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
-}
-function enumCurrent(current) {
-  return Array.isArray(current) ? String(current[0] || "") : String(current || "");
-}
-function isChipField(f) {
-  const fieldType = f.type || "text";
-  return fieldType === "tags" || fieldType === "multitext" || getFieldSuggestionSource(f) !== "none";
-}
-var DETAIL_LIST_KEYS = ["tags", "owner", "assigned", "contacts", "domain", "industry", "role", "with", "related"];
-var COMPANY_LIST_KEYS = ["owner", "contacts", "domain", "industry", "role", "with", "related"];
-function chipConfig(f, entities, listKeys) {
-  const fieldType = f.type || "text";
-  const suggestionSource = getFieldSuggestionSource(f);
-  const isEntitySrc = entities[suggestionSource] != null;
-  const isFolderSrc = suggestionSource && suggestionSource.startsWith("folder:");
-  const isPlainChip = ["tags", "none", "history"].includes(suggestionSource);
-  const isList = fieldType === "tags" || fieldType === "multitext" || f.isList === true || listKeys.includes(f.key);
-  let targetEntityKey = isEntitySrc ? suggestionSource : null;
-  const customFolderPath = isFolderSrc ? suggestionSource.slice("folder:".length) : null;
-  if (isFolderSrc && customFolderPath) {
-    const normalizedPath = customFolderPath.replace(/\/+$/, "").toLowerCase();
-    for (const [ek, def] of Object.entries(entities)) {
-      if (def && def.folder && def.folder.replace(/\/+$/, "").toLowerCase() === normalizedPath) {
-        targetEntityKey = ek;
-        break;
-      }
-    }
-  }
-  return { suggestionSource, isPlainChip, isList, targetEntityKey, customFolderPath };
-}
-function unwrapChip(v, isPlainChip) {
-  return isPlainChip ? String(v).trim() : String(v).replace(/^\[\[|\]\]$/g, "").trim();
-}
-function chipValues(current, isPlainChip) {
-  if (Array.isArray(current)) {
-    return current.map((v) => unwrapChip(v, isPlainChip)).filter(Boolean);
-  } else if (current != null && current !== "") {
-    return [unwrapChip(current, isPlainChip)].filter(Boolean);
-  }
-  return [];
-}
-function chipWriteValue(values, isPlainChip, isList) {
-  if (isPlainChip) {
-    return isList ? values : values[0] || null;
-  }
-  return isList ? values.map((o) => `[[${o}]]`) : values[0] ? `[[${values[0]}]]` : null;
-}
-function chipAdd(values, raw, isList) {
-  const name = raw.trim();
-  if (!name) return { kind: "blank" };
-  if (isList) {
-    if (values.includes(name)) return { kind: "duplicate" };
-    return { kind: "added", name, values: [...values, name] };
-  }
-  return { kind: "added", name, values: [name] };
-}
-function historyValues(frontmatters, key) {
-  const allValues = /* @__PURE__ */ new Set();
-  frontmatters.forEach((fm) => {
-    const val = fm[key];
-    if (Array.isArray(val)) {
-      val.forEach((v) => {
-        if (v) allValues.add(String(v).replace(/^\[\[|\]\]$/g, "").trim());
-      });
-    } else if (val != null && val !== "") {
-      allValues.add(String(val).replace(/^\[\[|\]\]$/g, "").trim());
-    }
-  });
-  return Array.from(allValues);
-}
-function folderNoteNames(folderNode) {
-  const names = [];
-  if (folderNode && folderNode.children) {
-    const walk = (node) => {
-      for (const child of node.children) {
-        if (child.children) walk(child);
-        else if (child.path && child.path.endsWith(".md")) names.push(child.basename);
-      }
-    };
-    walk(folderNode);
-  }
-  return names;
-}
-function filterSuggestions(candidates, query, taken) {
-  return candidates.filter((v) => (!query || v.toLowerCase().includes(query)) && !taken.includes(v));
-}
-function findNoteByName(files, name) {
-  return files.find((cFile) => cFile.basename.toLowerCase() === name.toLowerCase());
-}
-function chipLinkTarget(targetEntityKey, targetFile, name) {
-  if (targetFile) {
-    if (targetEntityKey && !targetEntityKey.startsWith("folder:")) {
-      return { kind: "entity", entityKey: targetEntityKey, file: targetFile };
-    }
-    return { kind: "file", file: targetFile };
-  }
-  return { kind: "link", linktext: name };
-}
-function chipCreation(suggestionSource, targetEntityKey, entities) {
-  return {
-    source: suggestionSource === "history" ? "folder:Cadence/Shared" : targetEntityKey || suggestionSource,
-    label: entities[targetEntityKey] ? entities[targetEntityKey].label : "Note"
-  };
-}
-function metaControl(f) {
-  if (isChipField(f)) return "chips";
-  return (f.type || "text") === "enum" ? "enum" : "input";
-}
-function metaInputType(fieldType) {
-  return fieldType === "date" ? "date" : fieldType === "number" || fieldType === "currency" ? "number" : "text";
-}
-function metaInputValue(fieldType, raw) {
-  let val = raw || null;
-  if (fieldType === "number" || fieldType === "currency") {
-    const n = Number(raw);
-    val = isNaN(n) ? null : n;
-  }
-  return val;
-}
-function splitSectionColumns(keys) {
-  const left = [];
-  const right = [];
-  keys.forEach((key, idx) => {
-    if (idx % 2 === 0) {
-      left.push(key);
-    } else {
-      right.push(key);
-    }
-  });
-  return { left, right };
-}
-
-// src/views/entity-detail.ts
-function entityDetailTitle(fm, primaryKey, basename) {
-  return fm[primaryKey] != null && fm[primaryKey] !== "" ? fm[primaryKey] : basename;
-}
-function detailFields(def) {
-  return def.fields.filter((f) => !(f.key === "type" && f.type !== "enum"));
-}
-function detailControl(f) {
-  const fieldType = f.type || "text";
-  if (fieldType === "enum") return "enum";
-  if (fieldType === "date") return "date";
-  if (fieldType === "number" || fieldType === "currency") return "number";
-  if (fieldType === "email") return "email";
-  return isChipField(f) ? "chips" : "text";
-}
-async function renderEntityDetail(view, root, entityKey, file) {
-  if (entityKey === "project") return view.renderProjectDetail(root, file);
-  if (entityKey === "company") return view.renderCompanyDetail(root, file);
-  root.addClass("cadence-detail");
-  const def = ENTITIES[entityKey];
-  if (!def || !file) {
-    view.closeEntityDetail();
-    return;
-  }
-  const cache = view.app.metadataCache.getFileCache(file) || {};
-  const fm = Object.assign({}, cache.frontmatter || {});
-  const primaryKey = def.fields[0].key;
-  const titleVal = entityDetailTitle(fm, primaryKey, file.basename);
-  const head = root.createDiv({ cls: "cad-detail-header" });
-  const headLeft = head.createDiv({ cls: "cad-detail-header-left" });
-  const back = headLeft.createEl("button", { cls: "cad-btn cad-detail-back", text: "\u2190 " + def.plural });
-  back.addEventListener("click", () => view.closeEntityDetail());
-  const breadcrumb = headLeft.createDiv({ cls: "cad-detail-breadcrumb" });
-  breadcrumb.createSpan({ cls: "cad-eyebrow", text: def.plural.toUpperCase() });
-  breadcrumb.createSpan({ cls: "cad-detail-title", text: String(titleVal) });
-  breadcrumb.createDiv({ cls: "cad-detail-path", text: file.path });
-  const headRight = head.createDiv({ cls: "cad-detail-header-right" });
-  const savedBadge = headRight.createSpan({ cls: "cad-detail-saved", text: "" });
-  const openNote = headRight.createEl("button", { cls: "cad-btn", text: "Open as note" });
-  openNote.addEventListener("click", () => view.app.workspace.openLinkText(file.path, "", false));
-  const deleteBtn = headRight.createEl("button", { cls: "cad-btn cad-btn-danger", text: "Delete" });
-  deleteBtn.addEventListener("click", (ev) => {
-    ev.preventDefault();
-    new CadenceConfirmModal(view.app, {
-      title: `Delete ${def.label}`,
-      message: `Delete this ${def.label.toLowerCase()}? This moves the file to trash.`,
-      confirmLabel: "Delete",
-      onConfirm: () => {
-        deleteBtn.blur();
-        setTimeout(async () => {
-          try {
-            await view.app.vault.trash(file, true);
-            new import_obsidian24.Notice(`Deleted ${def.label}: ${file.basename}`);
-            view.closeEntityDetail();
-          } catch (e) {
-            new import_obsidian24.Notice(`Delete failed: ${e.message}`);
-          }
-        }, 50);
-      }
+      view.plugin.settings.prmDashboardWidgets.push(newWidget);
+      await view.plugin.saveSettings();
+      view.render();
     }).open();
   });
-  const form = root.createDiv({ cls: "cad-detail-form" });
-  let saveTimer = null;
-  const flashSaved = () => {
-    savedBadge.setText("Saved");
-    savedBadge.addClass("show");
-    clearTimeout(savedBadge._t);
-    savedBadge._t = setTimeout(() => savedBadge.removeClass("show"), 1400);
-  };
-  const writeField = async (key, raw) => {
-    try {
-      const value = coerceFieldEdit(def, key, raw);
-      await view.app.fileManager.processFrontMatter(file, (frontmatter) => applyFieldEdit(frontmatter, key, value));
-      flashSaved();
-    } catch (e) {
-      new import_obsidian24.Notice(`Save failed: ${e.message}`);
-    }
-  };
-  const debouncedWrite = (key, val) => {
-    clearTimeout(saveTimer);
-    saveTimer = setTimeout(() => writeField(key, val), 350);
-  };
-  const isCore = ["contact", "company", "partner", "registration", "commission", "lead", "certification", "activity", "sequence", "project", "deal"].includes(entityKey);
-  detailFields(def).forEach((f) => {
-    const row = form.createDiv({ cls: "cad-form-row" });
-    row.createDiv({ cls: "cad-form-label", text: f.label.toUpperCase() });
-    const current = fm[f.key];
-    const fieldType = f.type || "text";
-    const control = detailControl(f);
-    if (control === "enum") {
-      const sel = row.createEl("select", { cls: "cad-form-input" });
-      sel.createEl("option", { value: "", text: "\u2014" });
-      (f.options || []).forEach((opt) => {
-        const o = sel.createEl("option", { value: opt, text: opt });
-        if (enumCurrent(current) === opt) o.selected = true;
-      });
-      sel.addEventListener("change", () => writeField(f.key, sel.value));
-    } else if (control === "date") {
-      const inp = row.createEl("input", { type: "date", cls: "cad-form-input" });
-      if (current) {
-        const date = dateInputValue(current);
-        if (date !== null) inp.value = date;
-      }
-      if (!isCore && f.key === "type") {
-        inp.disabled = true;
-        inp.style.opacity = "0.6";
-        inp.style.cursor = "not-allowed";
-        inp.title = "This property is read-only unless configured as a Select (Enum) in settings.";
-      } else {
-        inp.addEventListener("change", () => writeField(f.key, inp.value));
-      }
-    } else if (control === "number") {
-      const inp = row.createEl("input", { type: "number", cls: "cad-form-input" });
-      if (current != null) inp.value = String(current);
-      if (fieldType === "currency") inp.placeholder = `${view.plugin.settings.currency || "USD"} amount`;
-      if (!isCore && f.key === "type") {
-        inp.disabled = true;
-        inp.style.opacity = "0.6";
-        inp.style.cursor = "not-allowed";
-        inp.title = "This property is read-only unless configured as a Select (Enum) in settings.";
-      } else {
-        inp.addEventListener("input", () => debouncedWrite(f.key, inp.value));
-        inp.addEventListener("blur", () => writeField(f.key, inp.value));
-      }
-    } else if (control === "email") {
-      const inp = row.createEl("input", { type: "email", cls: "cad-form-input" });
-      if (current) inp.value = String(current);
-      if (!isCore && f.key === "type") {
-        inp.disabled = true;
-        inp.style.opacity = "0.6";
-        inp.style.cursor = "not-allowed";
-        inp.title = "This property is read-only unless configured as a Select (Enum) in settings.";
-      } else {
-        inp.addEventListener("input", () => debouncedWrite(f.key, inp.value));
-        inp.addEventListener("blur", () => writeField(f.key, inp.value));
-      }
-    } else {
-      if (control === "chips") {
-        const { suggestionSource, isPlainChip, isList, targetEntityKey, customFolderPath } = chipConfig(f, ENTITIES, DETAIL_LIST_KEYS);
-        row.style.position = "relative";
-        const wrap = row.createDiv({ cls: "cad-pd-tag-input-wrap" });
-        wrap.style.display = "flex";
-        wrap.style.flexWrap = "wrap";
-        wrap.style.gap = "6px";
-        wrap.style.alignItems = "center";
-        wrap.style.border = "none";
-        wrap.style.borderRadius = "0";
-        wrap.style.padding = "4px 0";
-        wrap.style.minHeight = "36px";
-        wrap.style.backgroundColor = "transparent";
-        wrap.style.cursor = "text";
-        const inp = wrap.createEl("input", { type: "text" });
-        inp.style.border = "none";
-        inp.style.outline = "none";
-        inp.style.background = "transparent";
-        inp.style.flex = "1";
-        inp.style.minWidth = "80px";
-        inp.style.color = "var(--text-normal)";
-        inp.style.padding = "0";
-        inp.style.margin = "0";
-        inp.style.height = "24px";
-        inp.placeholder = "Add " + f.label.toLowerCase() + "...";
-        if (!isCore && f.key === "type") {
-          inp.disabled = true;
-          inp.style.display = "none";
-        }
-        const suggestionsBox = row.createDiv({ cls: "cad-pd-tag-suggestions" });
-        suggestionsBox.style.position = "absolute";
-        suggestionsBox.style.zIndex = "10000";
-        suggestionsBox.style.backgroundColor = "var(--background-secondary)";
-        suggestionsBox.style.border = "1px solid var(--border-color)";
-        suggestionsBox.style.borderRadius = "4px";
-        suggestionsBox.style.boxShadow = "var(--shadow-s)";
-        suggestionsBox.style.maxHeight = "150px";
-        suggestionsBox.style.overflowY = "auto";
-        suggestionsBox.style.display = "none";
-        suggestionsBox.style.width = "calc(100% - 150px)";
-        suggestionsBox.style.boxSizing = "border-box";
-        suggestionsBox.style.top = "100%";
-        suggestionsBox.style.right = "0";
-        suggestionsBox.style.marginTop = "4px";
-        let valuesList = chipValues(fm[f.key], isPlainChip);
-        const updateSuggestions = () => {
-          const query = inp.value.trim().toLowerCase();
-          suggestionsBox.empty();
-          let candidates = [];
-          if (suggestionSource === "tags") {
-            candidates = Object.keys(view.app.metadataCache.getTags() || {}).map((t) => t.replace(/^#/, ""));
-          } else if (suggestionSource === "history") {
-            candidates = historyValues(view.app.vault.getMarkdownFiles().map((fl) => {
-              const cache2 = view.app.metadataCache.getFileCache(fl);
-              return cache2 && cache2.frontmatter || {};
-            }), f.key);
-          } else if (suggestionSource !== "none") {
-            if (customFolderPath) {
-              candidates = folderNoteNames(view.app.vault.getAbstractFileByPath(customFolderPath));
-            } else {
-              candidates = listEntities(view.app, targetEntityKey).map((c) => c.basename);
-            }
-          }
-          const filtered = filterSuggestions(candidates, query, valuesList);
-          if (filtered.length === 0) {
-            suggestionsBox.style.display = "none";
-            return;
-          }
-          filtered.forEach((valStr) => {
-            const item = suggestionsBox.createDiv({ cls: "cad-suggestion-item" });
-            item.style.padding = "6px 10px";
-            item.style.cursor = "pointer";
-            item.style.fontSize = "13px";
-            item.style.color = "var(--text-normal)";
-            item.setText(valStr);
-            item.addEventListener("mouseenter", () => {
-              item.style.backgroundColor = "var(--background-modifier-hover)";
-            });
-            item.addEventListener("mouseleave", () => {
-              item.style.backgroundColor = "transparent";
-            });
-            item.addEventListener("mousedown", async (ev) => {
-              ev.preventDefault();
-              await addVal(valStr);
-              suggestionsBox.style.display = "none";
-            });
-          });
-          suggestionsBox.style.display = "block";
-        };
-        const renderChips = () => {
-          const existing = wrap.querySelectorAll(".cad-tag-chip");
-          existing.forEach((c) => c.remove());
-          valuesList.forEach((valName) => {
-            const chip = wrap.createDiv({ cls: "cad-tag-chip" });
-            chip.style.display = "inline-flex";
-            chip.style.alignItems = "center";
-            chip.style.gap = "6px";
-            chip.style.backgroundColor = "var(--background-secondary, #eee)";
-            chip.style.padding = "2px 8px";
-            chip.style.borderRadius = "12px";
-            chip.style.fontSize = "12px";
-            chip.style.height = "24px";
-            chip.style.boxSizing = "border-box";
-            chip.style.color = "var(--text-normal)";
-            const labelSpan = chip.createSpan({ text: valName });
-            if (!isPlainChip) {
-              labelSpan.style.textDecoration = "underline";
-              labelSpan.style.cursor = "pointer";
-              labelSpan.addEventListener("click", (ev) => {
-                ev.stopPropagation();
-                const target = chipLinkTarget(targetEntityKey, findNoteByName(view.app.vault.getMarkdownFiles(), valName), valName);
-                if (target.kind === "entity") {
-                  view.openEntityDetail(target.entityKey, target.file);
-                } else if (target.kind === "file") {
-                  view.openEntityDetailFromFile(target.file);
-                } else {
-                  view.app.workspace.openLinkText(target.linktext, "", false);
-                }
-              });
-            }
-            const close = chip.createSpan({ text: "\xD7" });
-            if (!isCore && f.key === "type") {
-              close.style.display = "none";
-            } else {
-              close.style.cursor = "pointer";
-              close.style.fontWeight = "bold";
-              close.style.fontSize = "14px";
-              close.style.lineHeight = "1";
-              close.style.color = "var(--text-muted)";
-              close.addEventListener("click", async (ev) => {
-                ev.stopPropagation();
-                valuesList = valuesList.filter((v) => v !== valName);
-                await save();
-                renderChips();
-              });
-            }
-            wrap.insertBefore(chip, inp);
-          });
-        };
-        const save = async () => {
-          await writeField(f.key, chipWriteValue(valuesList, isPlainChip, isList));
-        };
-        const addVal = async (raw) => {
-          const added = chipAdd(valuesList, raw, isList);
-          if (added.kind === "blank") return;
-          inp.value = "";
-          if (added.kind === "duplicate") return;
-          const { name } = added;
-          valuesList = added.values;
-          renderChips();
-          await save();
-          if (!isPlainChip) {
-            const targetFile = findNoteByName(view.app.vault.getMarkdownFiles(), name);
-            if (!targetFile) {
-              try {
-                const creation = chipCreation(suggestionSource, targetEntityKey, ENTITIES);
-                await createEntity(view.app, creation.source, name);
-                new import_obsidian24.Notice(`Created new ${creation.label}: ${name}`);
-              } catch (e) {
-                console.warn(`Failed to auto-create ${targetEntityKey || suggestionSource}`, e);
-              }
-            }
-          }
-        };
-        if (isCore || f.key !== "type") {
-          inp.addEventListener("input", updateSuggestions);
-          inp.addEventListener("focus", updateSuggestions);
-          inp.addEventListener("keydown", async (ev) => {
-            if (ev.key === "Enter") {
-              ev.preventDefault();
-              await addVal(inp.value);
-              suggestionsBox.style.display = "none";
-            } else if (ev.key === "Backspace" && !inp.value && valuesList.length > 0) {
-              valuesList.pop();
-              await save();
-              renderChips();
-            }
-          });
-          inp.addEventListener("blur", async () => {
-            setTimeout(async () => {
-              suggestionsBox.style.display = "none";
-              if (inp.value.trim()) {
-                await addVal(inp.value);
-              }
-            }, 180);
-          });
-        }
-        wrap.addEventListener("click", () => {
-          inp.focus();
-        });
-        renderChips();
-      } else {
-        const inp = row.createEl("input", { type: "text", cls: "cad-form-input" });
-        if (current) inp.value = String(current);
-        if (f.key === primaryKey) inp.placeholder = `${def.label} name`;
-        if (!isCore && f.key === "type") {
-          inp.disabled = true;
-          inp.style.opacity = "0.6";
-          inp.style.cursor = "not-allowed";
-          inp.title = "This property is read-only unless configured as a Select (Enum) in settings.";
-        } else {
-          inp.addEventListener("input", () => debouncedWrite(f.key, inp.value));
-          inp.addEventListener("blur", () => writeField(f.key, inp.value));
-        }
-      }
-    }
-  });
-  const content = await view.app.vault.read(file);
-  const sections = parseH2Sections(content);
-  const sectionKeys = Object.keys(sections);
-  if (sectionKeys.length > 0) {
-    const sectionsHeader = root.createDiv({ cls: "cad-section-label-lg", text: "NOTE SECTIONS" });
-    sectionsHeader.style.marginTop = "24px";
-    sectionsHeader.style.marginBottom = "12px";
-    const sectionsGrid = root.createDiv({ cls: "cad-pd-cols" });
-    sectionsGrid.style.display = "grid";
-    sectionsGrid.style.gridTemplateColumns = "repeat(auto-fit, minmax(350px, 1fr))";
-    sectionsGrid.style.gap = "16px";
-    sectionsGrid.style.marginBottom = "24px";
-    sectionKeys.forEach((key) => {
-      view._renderDynamicH2Section(sectionsGrid, file, sections, key, flashSaved);
-    });
-  }
-  view._renderCrossSections(root, entityKey, titleVal);
+  renderWidgets();
+}
+async function renderTeam(view, root) {
+  return view.renderEntityList(root, "contact", teamListOptions());
 }
 
-// src/views/company-detail.ts
-var import_obsidian25 = require("obsidian");
-function companyDetailTitle(fm, basename) {
+// src/views/project-detail.ts
+var import_obsidian23 = require("obsidian");
+function projectDetailTitle(fm, basename) {
   return fm.name || basename;
 }
-function companyMetaFields(def) {
-  return def.fields.filter((f) => !f.primary && !(f.key === "type" && f.type !== "enum"));
+var PROJECT_STATUS_FALLBACK = ["active", "on_hold", "backlog", "done", "cancelled"];
+var PROJECT_PRIORITY_FALLBACK = ["low", "medium", "high"];
+function projectPills(fm, statusOptions, priorityOptions) {
+  const status = String(fm.status || "active");
+  const priority = String(fm.priority || "");
+  return [
+    { key: "status", cls: "cad-pill cad-pill-" + status.toLowerCase().replace(/\s+/g, "-"), options: statusOptions, current: status },
+    { key: "priority", cls: "cad-pill cad-pill-prio-" + (priority || "medium").toLowerCase(), options: priorityOptions, current: priority || "medium" }
+  ];
 }
-async function renderCompanyDetail(view, root, file) {
+function projectMetaFields(def) {
+  return def.fields.filter((f) => !(f.primary || f.key === "status" || f.key === "priority") && !(f.key === "type" && f.type !== "enum"));
+}
+function writeProjectFrontmatter(frontmatter, patch) {
+  Object.entries(patch).forEach(([k, v]) => {
+    if (v == null || v === "") delete frontmatter[k];
+    else frontmatter[k] = v;
+  });
+}
+function projectProgress(meta) {
+  if (!(meta.total > 0)) return null;
+  return { band: pctBand(meta.percent), label: `${meta.done}/${meta.total} milestones complete`, percent: `${meta.percent}%` };
+}
+var PROJECT_TEXT_SECTIONS = {
+  brief: { label: "BRIEF", rows: 4, placeholder: "The outcome we want, why now." },
+  scope: { label: "SCOPE", rows: 5, placeholder: "In scope / out of scope." },
+  risks: { label: "RISKS", rows: 4, placeholder: "What could go wrong." },
+  stakeholders: { label: "STAKEHOLDERS", rows: 3, placeholder: "Who cares about this project." },
+  notes: { label: "NOTES", rows: 5, placeholder: "Anything else." }
+};
+function projectTextSection(key) {
+  const { cleanLabel } = parseHeaderKey(key);
+  const metaInfo = PROJECT_TEXT_SECTIONS[cleanLabel.toLowerCase()];
+  return metaInfo ? { key, label: metaInfo.label, rows: metaInfo.rows, placeholder: metaInfo.placeholder } : null;
+}
+function milestoneCardTitle(rawKey, milestones) {
+  const { cleanLabel } = parseHeaderKey(rawKey);
+  return `${cleanLabel.toUpperCase()} \xB7 ${milestones.filter((m) => m.done).length}/${milestones.length}`;
+}
+function milestoneDateValue(date) {
+  return date instanceof Date && !isNaN(date.getTime()) ? date.toISOString().slice(0, 10) : null;
+}
+function milestoneDateFromInput(value) {
+  return value ? new Date(value) : null;
+}
+function commitMilestones(content, items, rawKey = "Milestones") {
+  const body = stringifyMilestones(items);
+  return replaceSection(content, `## ${rawKey}`, body || "");
+}
+function updateItem(items, idx, patch) {
+  if (!(idx in items)) throw new TypeError(`No item at index ${idx}`);
+  return items.map((item, i) => i === idx ? { ...item, ...patch } : item);
+}
+function removeItem(items, idx) {
+  return items.filter((_, i) => i !== idx);
+}
+function addMilestone(items, today) {
+  return [...items, { done: false, date: today, title: "" }];
+}
+function taskCardTitle(rawKey, tasks) {
+  const open = tasks.filter((t) => !t.done).length;
+  const { cleanLabel } = parseHeaderKey(rawKey);
+  return `${cleanLabel.toUpperCase()} \xB7 ${open} open \xB7 ${tasks.length - open} done`;
+}
+function taskNotesItems(tasks) {
+  return tasks.map((t) => ({ done: t.done, title: t.title }));
+}
+function commitTasks(content, items, rawKey = "Tasks") {
+  const body = stringifyTasks(items);
+  return replaceSection(content, `## ${rawKey}`, body || "");
+}
+function addTask(items) {
+  return [...items, { done: false, title: "" }];
+}
+function taskBell(linked) {
+  return {
+    cls: "cad-btn cad-btn-sm cad-pd-task-bell" + (linked ? " linked" : ""),
+    text: linked ? "\u{1F514}" : "\u{1F515}",
+    title: linked ? `Edit reminder${linked.when ? " \xB7 " + reminderTimeStr(linked.when) : ""}` : "Set a reminder for this task"
+  };
+}
+function newTaskReminder(text, projectPath) {
+  return {
+    text,
+    when: null,
+    repeat: "none",
+    notes: "",
+    project: projectPath
+  };
+}
+var TASKNOTES_FOLDER = "TaskNotes/Tasks";
+var TASKNOTES_PROMPT = {
+  title: "Ajouter une t\xE2che (TaskNotes)",
+  placeholder: "Que faut-il faire ?",
+  cta: "Ajouter"
+};
+function taskNotePath(folderPath, text, exists) {
+  const cleanTitle = text.replace(/[\\/:*?"<>|]/g, "").trim();
+  let filename = `${folderPath}/${cleanTitle}.md`;
+  let counter = 1;
+  while (exists(filename)) {
+    filename = `${folderPath}/${cleanTitle} (${counter}).md`;
+    counter++;
+  }
+  return filename;
+}
+function taskNoteContent(text, today, projectBasename) {
+  return `---
+title: ${text}
+status: open
+scheduled: ${ymd(today)}
+projects: "[[${projectBasename}]]"
+priority: normal
+---
+`;
+}
+function replaceItems(items, next) {
+  items.splice(0, items.length, ...next);
+}
+async function renderProjectDetail(view, root, file) {
   root.addClass("cadence-project-detail");
-  const def = ENTITIES.company;
+  const def = ENTITIES.project;
   const cache = view.app.metadataCache.getFileCache(file) || {};
   const fm = Object.assign({}, cache.frontmatter || {});
-  const titleVal = companyDetailTitle(fm, file.basename);
+  const meta = await readProjectMeta(view.app, file);
+  const titleVal = projectDetailTitle(fm, file.basename);
   const head = root.createDiv({ cls: "cad-detail-header" });
   const headLeft = head.createDiv({ cls: "cad-detail-header-left" });
-  const back = headLeft.createEl("button", { cls: "cad-btn cad-detail-back", text: "\u2190 Companies" });
+  const back = headLeft.createEl("button", { cls: "cad-btn cad-detail-back", text: "\u2190 Projects" });
   back.addEventListener("click", () => view.closeEntityDetail());
   const breadcrumb = headLeft.createDiv({ cls: "cad-detail-breadcrumb" });
-  breadcrumb.createSpan({ cls: "cad-eyebrow", text: "COMPANY" });
+  breadcrumb.createSpan({ cls: "cad-eyebrow", text: "PROJECT" });
   breadcrumb.createSpan({ cls: "cad-detail-title", text: String(titleVal) });
   breadcrumb.createDiv({ cls: "cad-detail-path", text: file.path });
   const headRight = head.createDiv({ cls: "cad-detail-header-right" });
@@ -7208,24 +8127,36 @@ async function renderCompanyDetail(view, root, file) {
   deleteBtn.addEventListener("click", (ev) => {
     ev.preventDefault();
     new CadenceConfirmModal(view.app, {
-      title: "Delete Company",
-      message: "Delete this company? This moves the file to trash.",
+      title: "Delete Project",
+      message: "Delete this project? This moves the file to trash.",
       confirmLabel: "Delete",
       onConfirm: () => {
         deleteBtn.blur();
         setTimeout(async () => {
           try {
             await view.app.vault.trash(file, true);
-            new import_obsidian25.Notice(`Deleted company: ${file.basename}`);
+            new import_obsidian23.Notice(`Deleted project: ${file.basename}`);
             view.closeEntityDetail();
           } catch (e) {
-            new import_obsidian25.Notice(`Delete failed: ${e.message}`);
+            new import_obsidian23.Notice(`Delete failed: ${e.message}`);
           }
         }, 50);
       }
     }).open();
   });
   const hero = root.createDiv({ cls: "cad-pd-hero" });
+  const pillRow = hero.createDiv({ cls: "cad-pd-pills" });
+  const statusOptions = getEnumOptions("project", "status", PROJECT_STATUS_FALLBACK);
+  const prioOptions = getEnumOptions("project", "priority", PROJECT_PRIORITY_FALLBACK);
+  projectPills(fm, statusOptions, prioOptions).forEach((pill) => {
+    const wrap = pillRow.createDiv({ cls: `cad-pd-select-wrap ${pill.cls}` });
+    const sel = wrap.createEl("select", { cls: "cad-pd-select" });
+    pill.options.forEach((opt) => {
+      const o = sel.createEl("option", { value: opt, text: opt });
+      if (pill.current === opt) o.selected = true;
+    });
+    sel.addEventListener("change", () => view._writeProjectFrontmatter(file, { [pill.key]: sel.value }, flashSaved));
+  });
   const metaRow = hero.createDiv({ cls: "cad-pd-meta" });
   const mkMeta = (f) => {
     const label = f.label;
@@ -7368,8 +8299,7 @@ async function renderCompanyDetail(view, root, file) {
       };
       const save = async () => {
         const val = chipWriteValue(valuesList, isPlainChip, isList);
-        await view.app.fileManager.processFrontMatter(file, (frontmatter) => applyFieldEdit(frontmatter, key, val));
-        flashSaved();
+        await view._writeProjectFrontmatter(file, { [key]: val }, flashSaved);
       };
       const addVal = async (raw) => {
         const added = chipAdd(valuesList, raw, isList);
@@ -7386,7 +8316,7 @@ async function renderCompanyDetail(view, root, file) {
             try {
               const creation = chipCreation(suggestionSource, targetEntityKey, ENTITIES);
               await createEntity(view.app, creation.source, name);
-              new import_obsidian25.Notice(`Created new ${creation.label}: ${name}`);
+              new import_obsidian23.Notice(`Created new ${creation.label}: ${name}`);
             } catch (e) {
               console.warn(`Failed to auto-create ${targetEntityKey || suggestionSource}`, e);
             }
@@ -7430,8 +8360,7 @@ async function renderCompanyDetail(view, root, file) {
       });
       const commit = async () => {
         const val = sel.value || null;
-        await view.app.fileManager.processFrontMatter(file, (frontmatter) => applyFieldEdit(frontmatter, key, val));
-        flashSaved();
+        await view._writeProjectFrontmatter(file, { [key]: val }, flashSaved);
       };
       sel.addEventListener("change", commit);
     } else {
@@ -7445,9 +8374,7 @@ async function renderCompanyDetail(view, root, file) {
       }
       let t;
       const commit = () => {
-        const val = metaInputValue(fieldType, inp.value);
-        view.app.fileManager.processFrontMatter(file, (frontmatter) => applyFieldEdit(frontmatter, key, val));
-        flashSaved();
+        view._writeProjectFrontmatter(file, { [key]: metaInputValue(fieldType, inp.value) }, flashSaved);
       };
       inp.addEventListener("input", () => {
         clearTimeout(t);
@@ -7456,213 +8383,271 @@ async function renderCompanyDetail(view, root, file) {
       inp.addEventListener("blur", commit);
     }
   };
-  companyMetaFields(def).forEach((f) => mkMeta(f));
+  projectMetaFields(def).forEach((f) => mkMeta(f));
+  const progress = projectProgress(meta);
+  if (progress) {
+    const progWrap = hero.createDiv({ cls: "cad-proj-progress-wrap cad-pd-progress" });
+    progWrap.dataset.pctBand = progress.band;
+    const progLabel = progWrap.createDiv({ cls: "cad-proj-progress-label" });
+    progLabel.createSpan({ text: progress.label });
+    progLabel.createSpan({ cls: "cad-proj-progress-pct", text: progress.percent });
+    const bar = progWrap.createDiv({ cls: "cad-proj-progress-bar" });
+    const fill = bar.createDiv({ cls: "cad-proj-progress-fill" });
+    fill.style.width = progress.percent;
+  }
   const cols = root.createDiv({ cls: "cad-pd-cols" });
   const left = cols.createDiv({ cls: "cad-pd-col" });
   const right = cols.createDiv({ cls: "cad-pd-col" });
-  const content = await view.app.vault.read(file);
-  const sections = parseH2Sections(content);
-  const { left: leftKeys, right: rightKeys } = splitSectionColumns(Object.keys(sections));
+  const { left: leftKeys, right: rightKeys } = splitSectionColumns(Object.keys(meta.sections));
   leftKeys.forEach((key) => {
-    view._renderDynamicH2Section(left, file, sections, key, flashSaved);
+    view._renderDynamicH2Section(left, file, meta.sections, key, flashSaved);
   });
   rightKeys.forEach((key) => {
-    view._renderDynamicH2Section(right, file, sections, key, flashSaved);
-  });
-  const crossSectionContainer = root.createDiv({ attr: { style: "padding: 0 32px;" } });
-  view._renderCrossSections(crossSectionContainer, "company", titleVal);
-}
-
-// src/views/projects-dashboard.ts
-var import_obsidian26 = require("obsidian");
-
-// src/views/components/charts.ts
-var CHART_COLORS = ["#38bdf8", "#34d399", "#f43f5e", "#a855f7", "#f97316", "#06b6d4", "#eab308"];
-var KPI_ACCENTS = ["sky", "emerald", "rose", "purple", "warn", "mint"];
-function toChartData(counts) {
-  return Object.entries(counts).map(([label, count]) => ({ label, count })).sort((a, b) => b.count - a.count);
-}
-function chartData(entities, widget, def) {
-  const fieldKey = widget.groupBy;
-  const counts = {};
-  entities.forEach((p) => {
-    const val = entityValue(p, fieldKey, def);
-    if (Array.isArray(val)) {
-      val.forEach((v) => {
-        const clean = String(v).replace(/^\[\[|\]\]$/g, "").trim();
-        if (clean) counts[clean] = (counts[clean] || 0) + 1;
-      });
+    const textSection = projectTextSection(key);
+    if (textSection) {
+      view._renderProjectTextSection(right, file, meta.sections, textSection, flashSaved);
     } else {
-      const clean = String(val || "").replace(/^\[\[|\]\]$/g, "").trim();
-      const label = clean || "Unspecified";
-      counts[label] = (counts[label] || 0) + 1;
+      view._renderDynamicH2Section(right, file, meta.sections, key, flashSaved);
     }
   });
-  return toChartData(counts);
+  const crossSectionContainer = root.createDiv({ attr: { style: "padding: 0 32px; width: 100%; clear: both;" } });
+  view._renderCrossSections(crossSectionContainer, "project", titleVal);
 }
-var WIDGET_STYLE_OPTIONS = [
-  { value: "donut", label: "\u{1F369} Donut" },
-  { value: "bar", label: "\u{1F4CA} Bar" },
-  { value: "kpi", label: "\u{1F5C3}\uFE0F KPI Cards" },
-  { value: "list", label: "\u{1F4CB} List" }
-];
-function dashboardWidgets(settings, key) {
-  return settings[key] || [];
-}
-function removeWidget(widgets, id) {
-  return (widgets || []).filter((item) => item.id !== id);
-}
-function sectionChartData(entities, groupField, frontmatterOf) {
-  const counts = {};
-  entities.forEach((e) => {
-    const val = frontmatterOf(e)[groupField];
-    const vals = Array.isArray(val) ? val : [val == null ? "" : val];
-    vals.forEach((v) => {
-      const label = String(v).replace(/^\[\[|\]\]$/g, "").trim() || "Unspecified";
-      counts[label] = (counts[label] || 0) + 1;
+function renderMilestoneSection(view, parent, file, milestones, flashSaved, rawKey = "Milestones") {
+  const card = parent.createDiv({ cls: "cad-pd-card" });
+  const head = card.createDiv({ cls: "cad-pd-card-head" });
+  head.createDiv({ cls: "cad-pd-card-title", text: milestoneCardTitle(rawKey, milestones) });
+  const addBtn = head.createEl("button", { cls: "cad-btn cad-btn-sm", text: "+ Add" });
+  const list = card.createDiv({ cls: "cad-pd-checklist" });
+  const renderRows = (items) => {
+    list.empty();
+    if (!items.length) {
+      list.createDiv({ cls: "cad-empty", text: "No milestones yet \u2014 add the first one." });
+      return;
+    }
+    items.forEach((m, idx) => {
+      const wrapper = list.createDiv({ cls: "cad-mile-wrapper" });
+      const row = wrapper.createDiv({ cls: "cad-pd-mile-row" + (m.done ? " done" : "") });
+      const cb = row.createEl("input", { type: "checkbox" });
+      cb.checked = !!m.done;
+      cb.addEventListener("change", async () => {
+        replaceItems(items, updateItem(items, idx, { done: cb.checked }));
+        await view._commitMilestones(file, items, flashSaved, false, rawKey);
+      });
+      const dateInp = row.createEl("input", { type: "date", cls: "cad-pd-mile-date" });
+      const dateValue = milestoneDateValue(m.date);
+      if (dateValue !== null) dateInp.value = dateValue;
+      let dt;
+      dateInp.addEventListener("input", () => {
+        clearTimeout(dt);
+        dt = setTimeout(async () => {
+          replaceItems(items, updateItem(items, idx, { date: milestoneDateFromInput(dateInp.value) }));
+          await view._commitMilestones(file, items, flashSaved, true, rawKey);
+        }, 350);
+      });
+      const titleInp = row.createEl("input", { type: "text", cls: "cad-pd-mile-title" });
+      titleInp.value = m.title || "";
+      titleInp.placeholder = "Milestone title";
+      let tt;
+      titleInp.addEventListener("input", () => {
+        clearTimeout(tt);
+        tt = setTimeout(async () => {
+          replaceItems(items, updateItem(items, idx, { title: titleInp.value }));
+          await view._commitMilestones(file, items, flashSaved, true, rawKey);
+        }, 400);
+      });
+      const del = row.createEl("button", { cls: "cad-btn cad-btn-sm cad-btn-danger", text: "\xD7" });
+      del.title = "Delete milestone";
+      del.addEventListener("click", async () => {
+        replaceItems(items, removeItem(items, idx));
+        await view._commitMilestones(file, items, flashSaved, false, rawKey);
+      });
+      const notesEl = wrapper.createDiv({ cls: "cad-mile-notes-section" });
+      const renderNotesIdle = () => {
+        notesEl.empty();
+        const hasNotes = (items[idx].notes || "").trim().length > 0;
+        if (hasNotes) {
+          const preview = notesEl.createDiv({ cls: "cad-mile-notes-preview" });
+          preview.setText(items[idx].notes);
+          preview.title = "Click to edit notes";
+          preview.addEventListener("click", openNotesEditor);
+        } else {
+          const addBtn2 = notesEl.createEl("a", { cls: "cad-mile-notes-add", text: "+ Add notes" });
+          addBtn2.addEventListener("click", (e) => {
+            e.preventDefault();
+            openNotesEditor();
+          });
+        }
+      };
+      const openNotesEditor = () => {
+        notesEl.empty();
+        const ta = notesEl.createEl("textarea", { cls: "cad-mile-notes-textarea" });
+        ta.value = items[idx].notes || "";
+        ta.placeholder = "Notes \u2014 context, follow-ups, what happened\u2026";
+        const autosize = () => {
+          ta.style.height = "auto";
+          ta.style.height = Math.max(60, ta.scrollHeight + 2) + "px";
+        };
+        let nt;
+        ta.addEventListener("input", () => {
+          autosize();
+          clearTimeout(nt);
+          nt = setTimeout(async () => {
+            replaceItems(items, updateItem(items, idx, { notes: ta.value }));
+            await view._commitMilestones(file, items, flashSaved, true, rawKey);
+          }, 400);
+        });
+        ta.addEventListener("blur", async () => {
+          replaceItems(items, updateItem(items, idx, { notes: ta.value }));
+          await view._commitMilestones(file, items, flashSaved, true, rawKey);
+          renderNotesIdle();
+        });
+        setTimeout(() => {
+          ta.focus();
+          autosize();
+        }, 0);
+      };
+      renderNotesIdle();
     });
+  };
+  renderRows(milestones);
+  addBtn.addEventListener("click", async () => {
+    replaceItems(milestones, addMilestone(milestones, /* @__PURE__ */ new Date()));
+    await view._commitMilestones(file, milestones, flashSaved, false, rawKey);
   });
-  return toChartData(counts);
 }
-function donutGeometry(data) {
-  const total = data.reduce((sum, item) => sum + item.count, 0);
-  const r = 50;
-  const circ = 2 * Math.PI * r;
-  let currentOffset = 0;
-  const segments = data.map((item, index) => {
-    const pct = item.count / total;
-    const strokeLength = pct * circ;
-    const segment = { color: CHART_COLORS[index % CHART_COLORS.length], length: strokeLength, offset: currentOffset, percent: Math.round(pct * 100) };
-    currentOffset += strokeLength;
-    return segment;
-  });
-  return { total, r, circ, segments };
+async function saveMilestones(view, file, items, flashSaved, skipRender = false, rawKey = "Milestones") {
+  const snapshot = [...items];
+  const content = await view.app.vault.read(file);
+  await view.app.vault.modify(file, commitMilestones(content, snapshot, rawKey));
+  if (typeof flashSaved === "function") flashSaved();
+  if (!skipRender) view.render();
 }
-function barRows(data) {
-  const total = data.reduce((sum, item) => sum + item.count, 0);
-  const maxCount = Math.max(1, ...data.map((item) => item.count));
-  return data.map((item, index) => ({
-    color: CHART_COLORS[index % CHART_COLORS.length],
-    width: item.count / maxCount * 100,
-    percent: Math.round(item.count / total * 100)
-  }));
-}
-function kpiCards(data) {
-  const total = data.reduce((sum, item) => sum + item.count, 0);
-  return data.map((item, index) => ({
-    accent: KPI_ACCENTS[index % KPI_ACCENTS.length],
-    percent: total === 0 ? 0 : Math.round(item.count / total * 100)
-  }));
-}
-function drawChart(view, parent, style, data) {
-  if (style === "donut") view._drawDonutChart(parent, data);
-  else if (style === "bar") view._drawBarChart(parent, data);
-  else if (style === "kpi") view._drawKpiGrid(parent, data);
-  else view._drawSimpleList(parent, data);
-}
-function drawChartEmpty(view, parent) {
-  const el = parent.createDiv({ cls: "cad-empty", text: "No data" });
-  el.style.cssText = "text-align: center; padding: 16px;";
-}
-function drawDonutChart(view, parent, data) {
-  const { total, r, circ, segments } = donutGeometry(data);
-  if (total === 0) return view._drawChartEmpty(parent);
-  const container = parent.createDiv({ cls: "cad-donut-chart-container" });
-  container.style.cssText = "display: flex; align-items: center; justify-content: center; gap: 24px; padding: 12px;";
-  const svgWrap = container.createDiv({ cls: "cad-donut-svg-wrap" });
-  svgWrap.style.cssText = "position: relative; width: 140px; height: 140px; flex-shrink: 0;";
-  const svg = svgWrap.createSvg("svg", { attr: { width: "140", height: "140", viewBox: "0 0 140 140" } });
-  svg.createSvg("circle", { attr: { cx: "70", cy: "70", r: String(r), fill: "transparent", stroke: "var(--background-secondary)", "stroke-width": "12" } });
-  segments.forEach((segment) => {
-    svg.createSvg("circle", {
-      cls: "cad-donut-segment",
-      attr: {
-        cx: "70",
-        cy: "70",
-        r: String(r),
-        fill: "transparent",
-        stroke: segment.color,
-        "stroke-width": "12",
-        "stroke-dasharray": `${segment.length} ${circ}`,
-        "stroke-dashoffset": String(-segment.offset),
-        transform: "rotate(-90 70 70)"
+function renderTaskSection(view, parent, file, tasks, flashSaved, rawKey = "Tasks") {
+  const card = parent.createDiv({ cls: "cad-pd-card" });
+  const head = card.createDiv({ cls: "cad-pd-card-head" });
+  let tasksList = tasks;
+  let fileTaskNotes = [];
+  if (view.plugin.settings.taskManagementSystem === "tasknotes") {
+    fileTaskNotes = listTaskNotesTasksForFile(view.app, file);
+    tasksList = taskNotesItems(fileTaskNotes);
+  }
+  head.createDiv({ cls: "cad-pd-card-title", text: taskCardTitle(rawKey, tasksList) });
+  const addBtn = head.createEl("button", { cls: "cad-btn cad-btn-sm", text: "+ Add" });
+  const list = card.createDiv({ cls: "cad-pd-checklist" });
+  const renderRows = (items) => {
+    list.empty();
+    if (!items.length) {
+      list.createDiv({ cls: "cad-empty", text: "No tasks yet." });
+      return;
+    }
+    items.forEach((t, idx) => {
+      const row = list.createDiv({ cls: "cad-pd-task-row" + (t.done ? " done" : "") });
+      const cb = row.createEl("input", { type: "checkbox" });
+      cb.checked = !!t.done;
+      cb.addEventListener("change", async () => {
+        if (view.plugin.settings.taskManagementSystem === "tasknotes") {
+          const taskObj = fileTaskNotes[idx];
+          await toggleTaskNotesTask(view.app, taskObj.file, cb.checked);
+        } else {
+          replaceItems(items, updateItem(items, idx, { done: cb.checked }));
+          await view._commitTasks(file, items, flashSaved, false, rawKey);
+          const txt = (items[idx].title || "").trim();
+          if (txt) await view._propagateTaskComplete(txt, cb.checked, { kind: "project", file });
+        }
+        view.render();
+      });
+      if (view.plugin.settings.taskManagementSystem === "tasknotes") {
+        const taskObj = fileTaskNotes[idx];
+        const taskLink = row.createEl("a", { cls: "cad-task-text", text: t.title || "Untitled Task" });
+        taskLink.style.cursor = "pointer";
+        taskLink.style.flex = "1";
+        taskLink.style.marginRight = "8px";
+        taskLink.addEventListener("click", (ev) => {
+          ev.preventDefault();
+          view.app.workspace.openLinkText(taskObj.file.path, "", false);
+        });
+      } else {
+        const titleInp = row.createEl("input", { type: "text", cls: "cad-pd-task-title" });
+        titleInp.value = t.title || "";
+        titleInp.placeholder = "Task description";
+        let tt;
+        titleInp.addEventListener("input", () => {
+          clearTimeout(tt);
+          tt = setTimeout(async () => {
+            replaceItems(items, updateItem(items, idx, { title: titleInp.value }));
+            await view._commitTasks(file, items, flashSaved, true, rawKey);
+          }, 400);
+        });
+        const bellState = taskBell(findProjectTaskReminder(view.plugin, file.path, t.title || ""));
+        const bell = row.createEl("button", { cls: bellState.cls, text: bellState.text });
+        bell.title = bellState.title;
+        bell.addEventListener("click", async () => {
+          replaceItems(items, updateItem(items, idx, { title: titleInp.value }));
+          await view._commitTasks(file, items, flashSaved, true, rawKey);
+          const taskText = titleInp.value.trim();
+          if (!taskText) {
+            new import_obsidian23.Notice("Add a task title first.");
+            titleInp.focus();
+            return;
+          }
+          const existing = findProjectTaskReminder(view.plugin, file.path, taskText);
+          if (existing) {
+            new CadenceReminderEditModal(view.app, view.plugin, existing).open();
+          } else {
+            new CadenceReminderEditModal(view.app, view.plugin, newTaskReminder(taskText, file.path), { isNew: true }).open();
+          }
+        });
+      }
+      if (view.plugin.settings.taskManagementSystem !== "tasknotes") {
+        const del = row.createEl("button", { cls: "cad-btn cad-btn-sm cad-btn-danger", text: "\xD7" });
+        del.addEventListener("click", async () => {
+          replaceItems(items, removeItem(items, idx));
+          await view._commitTasks(file, items, flashSaved, false, rawKey);
+        });
       }
     });
-  });
-  const center = svgWrap.createDiv({ cls: "cad-donut-center" });
-  center.style.cssText = "position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; justify-content: center;";
-  const centerTotal = center.createSpan({ cls: "cad-donut-center-total", text: String(total) });
-  centerTotal.style.cssText = "font-size: 1.25rem; font-weight: 700; color: var(--text-normal);";
-  const centerLabel = center.createSpan({ cls: "cad-donut-center-label", text: "Total" });
-  centerLabel.style.cssText = "font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;";
-  const legend = container.createDiv({ cls: "cad-donut-legend" });
-  legend.style.cssText = "display: flex; flex-direction: column; gap: 6px; flex: 1;";
-  data.forEach((item, index) => {
-    const { color, percent } = segments[index];
-    const row = legend.createDiv({ cls: "cad-donut-legend-item" });
-    row.style.cssText = "display: flex; align-items: center; gap: 8px; font-size: 0.85em;";
-    const swatch = row.createSpan({ cls: "cad-donut-legend-color" });
-    swatch.style.cssText = `display: inline-block; width: 10px; height: 10px; border-radius: 50%; background-color: ${color}; flex-shrink: 0;`;
-    const labelEl = row.createSpan({ cls: "cad-donut-legend-label", text: String(item.label) });
-    labelEl.style.cssText = "flex: 1; color: var(--text-normal); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px;";
-    const countEl = row.createSpan({ cls: "cad-donut-legend-count", text: `${item.count} (${percent}%)` });
-    countEl.style.cssText = "font-weight: 700; color: var(--text-muted);";
-  });
-}
-function drawBarChart(view, parent, data) {
-  const total = data.reduce((sum, item) => sum + item.count, 0);
-  if (total === 0) return view._drawChartEmpty(parent);
-  const rows = barRows(data);
-  const bars = parent.createDiv({ cls: "cad-stage-bars" });
-  bars.style.cssText = "padding: 12px 0; display: flex; flex-direction: column; gap: 8px;";
-  data.forEach((item, index) => {
-    const { color, width, percent } = rows[index];
-    const row = bars.createDiv({ cls: "cad-stage-bar-row" });
-    row.style.cssText = "display: flex; align-items: center; margin-bottom: 0; padding: 4px 8px; border-radius: 6px;";
-    const name = row.createDiv({ cls: "cad-stage-bar-name", text: String(item.label) });
-    name.style.cssText = "width: 120px; font-weight: 500; font-size: 0.85em; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;";
-    const count = row.createDiv({ cls: "cad-stage-bar-count", text: String(item.count) });
-    count.style.cssText = "margin-right: 12px; font-weight: 700; color: var(--text-muted); font-size: 0.85em;";
-    const bar = row.createDiv({ cls: "cad-stage-bar" });
-    bar.style.cssText = "flex: 1; background: var(--background-secondary); border-radius: 4px; height: 10px; overflow: hidden; position: relative;";
-    const fill = bar.createDiv({ cls: "cad-stage-bar-fill" });
-    fill.style.cssText = `width: ${width}%; background-color: ${color}; height: 100%; border-radius: 4px; transition: width 0.3s ease;`;
-    const value = row.createDiv({ cls: "cad-stage-bar-value", text: `${percent}%` });
-    value.style.cssText = "margin-left: 12px; font-size: 0.8em; color: var(--text-faint); font-weight: 600; min-width: 36px; text-align: right;";
+  };
+  renderRows(tasksList);
+  addBtn.addEventListener("click", async () => {
+    if (view.plugin.settings.taskManagementSystem === "tasknotes") {
+      const commandId = "tasknotes:create-new-task";
+      const commands = view.app.commands;
+      const hasCommand = commands && commands.commands && commands.commands[commandId];
+      if (hasCommand) {
+        commands.executeCommandById(commandId);
+        return;
+      }
+      const text = await view._prompt(TASKNOTES_PROMPT);
+      if (!text) return;
+      await ensureFolderSync(view.app, TASKNOTES_FOLDER);
+      const filename = taskNotePath(TASKNOTES_FOLDER, text, (path) => !!view.app.vault.getAbstractFileByPath(path));
+      await view.app.vault.create(filename, taskNoteContent(text, /* @__PURE__ */ new Date(), file.basename));
+      view.render();
+      return;
+    }
+    replaceItems(tasks, addTask(tasks));
+    await view._commitTasks(file, tasks, flashSaved, false, rawKey);
   });
 }
-function drawKpiGrid(view, parent, data) {
-  if (data.length === 0) return view._drawChartEmpty(parent);
-  const cards = kpiCards(data);
-  const grid = parent.createDiv({ cls: "cad-stat-grid" });
-  grid.style.cssText = "grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; padding: 12px 0; margin: 0;";
-  data.forEach((item, index) => {
-    const { accent, percent } = cards[index];
-    const card = grid.createDiv({ cls: "cad-stat-card", attr: { "data-accent": accent } });
-    card.style.cssText = "padding: 10px 12px; display: flex; flex-direction: column; justify-content: center; min-height: 70px;";
-    const label = card.createDiv({ cls: "cad-stat-label", text: String(item.label).toUpperCase() });
-    label.style.cssText = "font-size: 0.65rem; letter-spacing: 0.08em; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100px;";
-    const value = card.createDiv({ cls: "cad-stat-value", text: String(item.count) });
-    value.style.cssText = "font-size: 1.25rem; font-weight: 800; margin: 2px 0; line-height: 1;";
-    const sub = card.createDiv({ cls: "cad-stat-sub", text: `${percent}% of total` });
-    sub.style.cssText = "font-size: 9px; margin-top: 0;";
-  });
+async function saveTasks(view, file, items, flashSaved, skipRender = false, rawKey = "Tasks") {
+  const snapshot = [...items];
+  const content = await view.app.vault.read(file);
+  await view.app.vault.modify(file, commitTasks(content, snapshot, rawKey));
+  if (typeof flashSaved === "function") flashSaved();
+  if (!skipRender) view.render();
 }
-function drawSimpleList(view, parent, data) {
-  if (data.length === 0) return view._drawChartEmpty(parent);
-  const list = parent.createDiv({ cls: "cad-simple-list" });
-  list.style.cssText = "display: flex; flex-direction: column; gap: 6px; padding: 8px 0;";
-  data.forEach((item) => {
-    const row = list.createDiv({ cls: "cad-list-item" });
-    row.style.cssText = "display: flex; justify-content: space-between; align-items: center; padding: 6px 12px; background: var(--background-secondary); border-radius: 6px; font-size: 0.9em;";
-    const label = row.createSpan({ text: String(item.label) });
-    label.style.cssText = "font-weight: 500; color: var(--text-normal); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px;";
-    const count = row.createSpan({ text: String(item.count) });
-    count.style.cssText = "font-weight: 700; background: var(--background-primary); padding: 1px 8px; border-radius: 4px; border: 1px solid var(--border-color); color: var(--text-muted);";
-  });
+async function saveProjectFrontmatter(view, file, patch, flashSaved) {
+  try {
+    await view.app.fileManager.processFrontMatter(file, (fm) => writeProjectFrontmatter(fm, patch));
+    if (typeof flashSaved === "function") flashSaved();
+  } catch (e) {
+    new import_obsidian23.Notice(`Save failed: ${e.message}`);
+  }
 }
 
 // src/views/projects-dashboard.ts
+var import_obsidian24 = require("obsidian");
 var PROJECT_STATUSES = ["active", "on_hold", "backlog", "done", "cancelled"];
 var PROJECT_PRIORITIES = ["low", "medium", "high"];
 var STATUS_ACCENTS = {
@@ -7803,21 +8788,21 @@ async function renderProjectsDashboard(view, root) {
       const fromStage = ev.dataTransfer.getData("text/cadence-stage-status");
       if (!acceptsDrop(path, fromStage, status)) return;
       const file = view.app.vault.getAbstractFileByPath(path);
-      if (!file || !(file instanceof import_obsidian26.TFile)) return;
+      if (!file || !(file instanceof import_obsidian24.TFile)) return;
       try {
         await view.app.fileManager.processFrontMatter(file, (fm) => {
           fm["status"] = status;
         });
-        new import_obsidian26.Notice(`Project status set to ${status}`);
+        new import_obsidian24.Notice(`Project status set to ${status}`);
         view.render();
       } catch (e) {
-        new import_obsidian26.Notice(`Failed to change status: ${e.message}`);
+        new import_obsidian24.Notice(`Failed to change status: ${e.message}`);
       }
     });
     if (!items.length) {
       list.createDiv({ cls: "cad-empty", text: "No projects", attr: { style: "text-align: center; color: var(--text-faint); margin-top: 32px;" } });
     } else {
-      const isMobile = !!(import_obsidian26.Platform && import_obsidian26.Platform.isMobile);
+      const isMobile = !!(import_obsidian24.Platform && import_obsidian24.Platform.isMobile);
       items.forEach((e) => {
         const row = list.createDiv({ cls: "cad-dash-row", attr: { style: "display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; background: var(--background-secondary); border-radius: 6px; cursor: pointer; border: 1px solid var(--border-color);" } });
         const nameEl = row.createDiv({ attr: { style: "font-weight: 500; font-size: 0.9em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px;" } });
@@ -7890,21 +8875,21 @@ async function renderProjectsDashboard(view, root) {
         const fromStage = ev.dataTransfer.getData("text/cadence-stage");
         if (!acceptsDrop(path, fromStage, prio)) return;
         const file = view.app.vault.getAbstractFileByPath(path);
-        if (!file || !(file instanceof import_obsidian26.TFile)) return;
+        if (!file || !(file instanceof import_obsidian24.TFile)) return;
         try {
           await view.app.fileManager.processFrontMatter(file, (fm) => {
             fm["priority"] = prio;
           });
-          new import_obsidian26.Notice(`Project priority set to ${prio}`);
+          new import_obsidian24.Notice(`Project priority set to ${prio}`);
           view.render();
         } catch (e) {
-          new import_obsidian26.Notice(`Failed to change priority: ${e.message}`);
+          new import_obsidian24.Notice(`Failed to change priority: ${e.message}`);
         }
       });
       if (!items.length) {
         list.createDiv({ cls: "cad-empty", text: "No projects", attr: { style: "text-align: center; color: var(--text-faint); margin-top: 32px;" } });
       } else {
-        const isMobile = !!(import_obsidian26.Platform && import_obsidian26.Platform.isMobile);
+        const isMobile = !!(import_obsidian24.Platform && import_obsidian24.Platform.isMobile);
         items.forEach((e) => {
           const row = list.createDiv({ cls: "cad-dash-row", attr: { style: "display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; background: var(--background-secondary); border-radius: 6px; cursor: pointer; border: 1px solid var(--border-color);" } });
           const nameEl = row.createDiv({ attr: { style: "font-weight: 500; font-size: 0.9em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px;" } });
@@ -8061,1210 +9046,6 @@ async function renderProjectsView(view, root) {
       }
     });
   });
-}
-
-// src/views/templates.ts
-var import_obsidian27 = require("obsidian");
-async function renderTemplatesDashboard(view, root) {
-  root.addClass("cadence-dashboard");
-  root.addClass("cadence-projects");
-  view._renderPageHeader(root, "Templates Dashboard", "Manage and visually edit the templates for your entities");
-  const grid = root.createDiv({
-    cls: "cad-proj-grid"
-  });
-  {
-    const templatesFolder = "Cadence/Templates";
-    await ensureFolderSync(view.app, templatesFolder);
-    const dailyTemplatePath = `${templatesFolder}/daily.md`;
-    const dailyTFile = view.app.vault.getAbstractFileByPath(dailyTemplatePath);
-    const exists = !!(dailyTFile && dailyTFile instanceof import_obsidian27.TFile);
-    const card = grid.createDiv({
-      cls: "cad-proj-card cad-template-tile"
-    });
-    card.dataset.entity = "daily";
-    const head = card.createDiv({ attr: { style: "display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;" } });
-    const infoWrap = head.createDiv({ attr: { style: "display: flex; align-items: center; gap: 12px;" } });
-    const iconSpan = infoWrap.createSpan({ cls: "cad-template-tile-icon" });
-    try {
-      (0, import_obsidian27.setIcon)(iconSpan, "sun");
-    } catch (_) {
-      iconSpan.setText("\u2600\uFE0F");
-    }
-    const titleInfo = infoWrap.createDiv();
-    titleInfo.createDiv({ text: "PLANNER", attr: { style: "font-weight: 700; font-size: 0.7rem; letter-spacing: 0.12em; color: var(--text-muted);" } });
-    titleInfo.createEl("h3", { text: "Daily Note", attr: { style: "margin: 2px 0 0 0; font-size: 1.15em; font-weight: 700;" } });
-    const badge = head.createSpan(templateBadge(exists));
-    badge.style.fontSize = "0.7em";
-    badge.style.padding = "3px 8px";
-    card.createDiv({
-      text: `Target Folder: ${view.plugin.settings.dailyNoteFolder || "daily"}/`,
-      attr: { style: "font-size: 0.8em; font-family: monospace; color: var(--text-muted); background: var(--background-secondary); padding: 4px 8px; border-radius: 4px; margin-bottom: 12px; border: 1px solid var(--background-modifier-border);" }
-    });
-    const desc = card.createDiv({ text: `Defines properties and sections layout for each new daily note created in the planner.`, attr: { style: "font-size: 0.85em; color: var(--text-muted); margin-bottom: 18px; flex: 1; line-height: 1.4;" } });
-    const actions = card.createDiv({ attr: { style: "display: flex; gap: 8px; justify-content: flex-end; border-top: 1px solid var(--border-color); padding-top: 14px; margin-top: auto;" } });
-    if (exists) {
-      const editBtn = actions.createEl("button", { cls: "cad-btn primary", text: "Visual Editor" });
-      editBtn.style.padding = "5px 12px";
-      editBtn.style.height = "auto";
-      editBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        view.openTemplateDetail("daily", dailyTFile);
-      });
-      const openBtn = actions.createEl("button", { cls: "cad-btn", text: "Raw Note \u{1F4DD}" });
-      openBtn.style.padding = "5px 12px";
-      openBtn.style.height = "auto";
-      openBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        view.app.workspace.openLinkText(dailyTemplatePath, "", false);
-      });
-    } else {
-      const resetBtn = actions.createEl("button", {
-        cls: "cad-btn primary",
-        text: "Enable Custom"
-      });
-      resetBtn.style.padding = "5px 12px";
-      resetBtn.style.height = "auto";
-      resetBtn.addEventListener("click", async (e) => {
-        e.stopPropagation();
-        await view.app.vault.create(dailyTemplatePath, DAILY_TEMPLATE_CONTENT);
-        new import_obsidian27.Notice("Daily Note template successfully enabled.");
-        view.render();
-      });
-    }
-    card.addEventListener("click", () => {
-      if (exists) view.openTemplateDetail("daily", dailyTFile);
-    });
-  }
-  for (const [entityKey, def] of Object.entries(ENTITIES)) {
-    const templatesFolder = "Cadence/Templates";
-    await ensureFolderSync(view.app, templatesFolder);
-    let foundPath = null;
-    let exists = false;
-    const pathsToTry = templatePathCandidates(templatesFolder, entityKey, def);
-    for (const p of pathsToTry) {
-      const tFile = view.app.vault.getAbstractFileByPath(p);
-      if (tFile && tFile instanceof import_obsidian27.TFile) {
-        exists = true;
-        foundPath = p;
-        break;
-      }
-    }
-    const card = grid.createDiv({
-      cls: "cad-proj-card cad-template-tile"
-    });
-    card.dataset.entity = entityKey;
-    const head = card.createDiv({ attr: { style: "display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;" } });
-    const infoWrap = head.createDiv({ attr: { style: "display: flex; align-items: center; gap: 12px;" } });
-    const iconSpan = infoWrap.createSpan({ cls: "cad-template-tile-icon" });
-    try {
-      (0, import_obsidian27.setIcon)(iconSpan, def.icon || "file-text");
-    } catch (_) {
-      iconSpan.setText("\u{1F4DD}");
-    }
-    const titleInfo = infoWrap.createDiv();
-    titleInfo.createDiv({ text: def.label.toUpperCase(), attr: { style: "font-weight: 700; font-size: 0.7rem; letter-spacing: 0.12em; color: var(--text-muted);" } });
-    titleInfo.createEl("h3", { text: def.plural, attr: { style: "margin: 2px 0 0 0; font-size: 1.15em; font-weight: 700;" } });
-    const badge = head.createSpan(templateBadge(exists));
-    badge.style.fontSize = "0.7em";
-    badge.style.padding = "3px 8px";
-    card.createDiv({
-      text: `Target Folder: ${def.folder}/`,
-      attr: { style: "font-size: 0.8em; font-family: monospace; color: var(--text-muted); background: var(--background-secondary); padding: 4px 8px; border-radius: 4px; margin-bottom: 12px; border: 1px solid var(--background-modifier-border);" }
-    });
-    const desc = card.createDiv({
-      text: `Defines properties and sections layout for each new ${def.label.toLowerCase()} item created.`,
-      attr: { style: "font-size: 0.85em; color: var(--text-muted); margin-bottom: 18px; flex: 1; line-height: 1.4;" }
-    });
-    const actions = card.createDiv({ attr: { style: "display: flex; gap: 8px; justify-content: flex-end; border-top: 1px solid var(--border-color); padding-top: 14px; margin-top: auto;" } });
-    if (exists) {
-      const editBtn = actions.createEl("button", { cls: "cad-btn primary", text: "Visual Editor" });
-      editBtn.style.padding = "5px 12px";
-      editBtn.style.height = "auto";
-      editBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        const tFile = view.app.vault.getAbstractFileByPath(foundPath);
-        if (tFile) view.openTemplateDetail(entityKey, tFile);
-      });
-      const openBtn = actions.createEl("button", { cls: "cad-btn", text: "Raw Note \u{1F4DD}" });
-      openBtn.style.padding = "5px 12px";
-      openBtn.style.height = "auto";
-      openBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        const tFile = view.app.vault.getAbstractFileByPath(foundPath);
-        if (tFile) view.app.workspace.openLinkText(tFile.path, "", false);
-      });
-    }
-    const resetBtn = actions.createEl("button", {
-      cls: "cad-btn",
-      text: exists ? "Reset to Default" : "Enable Custom"
-    });
-    resetBtn.style.padding = "5px 12px";
-    resetBtn.style.height = "auto";
-    if (!exists) resetBtn.classList.add("primary");
-    resetBtn.addEventListener("click", async (e) => {
-      e.stopPropagation();
-      const templateContent = defaultTemplateContent(entityKey);
-      const targetPath = `${templatesFolder}/${entityKey}.md`;
-      let tFile = view.app.vault.getAbstractFileByPath(targetPath);
-      if (tFile && tFile instanceof import_obsidian27.TFile) {
-        if (!confirm(`Are you sure you want to reset the template for ${def.label}? Your visual changes will be overwritten.`)) return;
-        await view.app.vault.modify(tFile, templateContent);
-        new import_obsidian27.Notice(`Template reset for ${def.label}.`);
-      } else {
-        await view.app.vault.create(targetPath, templateContent);
-        new import_obsidian27.Notice(`Template successfully enabled for ${def.label}.`);
-      }
-      view.render();
-    });
-    card.addEventListener("click", () => {
-      const tFile = foundPath ? view.app.vault.getAbstractFileByPath(foundPath) : null;
-      if (tFile) {
-        view.openTemplateDetail(entityKey, tFile);
-      }
-    });
-  }
-}
-async function renderTemplateDetail(view, root, entityKey, file) {
-  root.addClass("cadence-project-detail");
-  const def = templateDetailDef(entityKey);
-  if (!file) {
-    view.closeEntityDetail();
-    return;
-  }
-  const content = await view.app.vault.read(file);
-  const sections = parseH2Sections(content);
-  const sectionKeys = Object.keys(sections);
-  const head = root.createDiv({ cls: "cad-detail-header" });
-  const headLeft = head.createDiv({ cls: "cad-detail-header-left" });
-  const back = headLeft.createEl("button", { cls: "cad-btn cad-detail-back", text: "\u2190 Templates" });
-  back.addEventListener("click", () => view.closeEntityDetail());
-  const breadcrumb = headLeft.createDiv({ cls: "cad-detail-breadcrumb" });
-  breadcrumb.createSpan({ cls: "cad-eyebrow", text: "TEMPLATE BUILDER" });
-  breadcrumb.createSpan({ cls: "cad-detail-title", text: def.label });
-  breadcrumb.createDiv({ cls: "cad-detail-path", text: file.path });
-  const headRight = head.createDiv({ cls: "cad-detail-header-right" });
-  const savedBadge = headRight.createSpan({ cls: "cad-detail-saved", text: "" });
-  const flashSaved = () => {
-    savedBadge.setText("Saved");
-    savedBadge.addClass("show");
-    clearTimeout(savedBadge._t);
-    savedBadge._t = setTimeout(() => savedBadge.removeClass("show"), 1400);
-  };
-  const openNote = headRight.createEl("button", { cls: "cad-btn", text: "View Raw Note \u{1F4DD}" });
-  openNote.addEventListener("click", () => view.app.workspace.openLinkText(file.path, "", false));
-  const deleteBtn = headRight.createEl("button", { cls: "cad-btn cad-btn-danger", text: "Delete" });
-  deleteBtn.addEventListener("click", async () => {
-    if (!confirm(`Delete this custom template? Cadence will fall back to using the default structure.`)) return;
-    try {
-      await view.app.vault.trash(file, true);
-      new import_obsidian27.Notice(`Custom template deleted.`);
-      view.closeEntityDetail();
-    } catch (e) {
-      new import_obsidian27.Notice(`Error: ${e.message}`);
-    }
-  });
-  const cols = root.createDiv({ cls: "cad-pd-cols" });
-  const left = cols.createDiv({ cls: "cad-pd-col" });
-  const right = cols.createDiv({ cls: "cad-pd-col" });
-  const { left: leftKeys, right: rightKeys } = splitSectionColumns(sectionKeys);
-  leftKeys.forEach((rawKey) => {
-    view._renderTemplateSectionWithDelete(left, file, sections, rawKey, flashSaved);
-  });
-  rightKeys.forEach((rawKey) => {
-    view._renderTemplateSectionWithDelete(right, file, sections, rawKey, flashSaved);
-  });
-  const toolbar = root.createDiv({ attr: { style: "margin-top: 32px; margin-bottom: 48px; display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 24px; border-top: 1px solid var(--border-color);" } });
-  toolbar.createDiv({ text: "\u2795 ADD BLOCK TO TEMPLATE", attr: { style: "font-weight: 700; font-size: 0.75rem; letter-spacing: 0.15em; color: var(--text-muted);" } });
-  const btnRow = toolbar.createDiv({ attr: { style: "display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;" } });
-  const addSectionHelper = async (cleanTitle, tag, defaultBody = "") => {
-    const curContent = await view.app.vault.read(file);
-    const nextContent = appendTemplateSection(curContent, cleanTitle, tag, defaultBody);
-    await view.app.vault.modify(file, nextContent);
-    new import_obsidian27.Notice(`Section "${cleanTitle}" added to template.`);
-    await view._propagateTemplateSectionAdd(entityKey, cleanTitle, tag, defaultBody);
-    view.render();
-  };
-  const addTextBtn = btnRow.createEl("button", { cls: "cad-btn", text: "\u{1F4DD} Text Area" });
-  addTextBtn.addEventListener("click", () => {
-    new CadencePromptModal(view.app, {
-      title: "New Text Section",
-      placeholder: "Enter text section title:",
-      defaultValue: "Notes",
-      cta: "Add Block",
-      onSubmit: (title) => {
-        addSectionHelper(title, "#notes", "_Enter your notes here..._");
-      }
-    }).open();
-  });
-  const addTasksBtn = btnRow.createEl("button", { cls: "cad-btn", text: "\u{1F4CB} Task List" });
-  addTasksBtn.addEventListener("click", () => {
-    new CadencePromptModal(view.app, {
-      title: "New Task List Block",
-      placeholder: "Enter task list section title:",
-      defaultValue: "Tasks",
-      cta: "Add Block",
-      onSubmit: (title) => {
-        addSectionHelper(title, "#tasks", "- [ ] First task in template");
-      }
-    }).open();
-  });
-  const addMilestonesBtn = btnRow.createEl("button", { cls: "cad-btn", text: "\u{1F4C5} Milestones / Timeline" });
-  addMilestonesBtn.addEventListener("click", () => {
-    new CadencePromptModal(view.app, {
-      title: "New Milestones Block",
-      placeholder: "Enter milestones section title:",
-      defaultValue: "Milestones",
-      cta: "Add Block",
-      onSubmit: (title) => {
-        const today = ymd(/* @__PURE__ */ new Date());
-        addSectionHelper(title, "#milestones", `- [ ] ${today} \u2014 First milestone in template`);
-      }
-    }).open();
-  });
-  const addCrossBtn = btnRow.createEl("button", { cls: "cad-btn", text: "\u{1F517} Cross-Linked Data" });
-  addCrossBtn.addEventListener("click", () => {
-    new CadenceCrossSectionModal(view.app, entityKey, async (config) => {
-      const block = crossSectionBlock(config);
-      new CadencePromptModal(view.app, {
-        title: "New Cross-Linked Section",
-        placeholder: "Enter section title:",
-        defaultValue: block.title,
-        cta: "Add Block",
-        onSubmit: (title) => {
-          addSectionHelper(title, block.tag, "");
-        }
-      }).open();
-    }).open();
-  });
-  const addChartBtn = btnRow.createEl("button", { cls: "cad-btn", text: "\u{1F4CA} Analytics Chart" });
-  addChartBtn.addEventListener("click", () => {
-    new CadenceChartSectionModal(view.app, entityKey, (config) => {
-      const block = chartSectionBlock(config);
-      new CadencePromptModal(view.app, {
-        title: "New Analytics Chart",
-        placeholder: "Enter chart section title:",
-        defaultValue: block.title,
-        cta: "Add Chart",
-        onSubmit: (title) => {
-          addSectionHelper(title, block.tag, "");
-        }
-      }).open();
-    }).open();
-  });
-}
-function renderTemplateSectionWithDelete(view, parent, file, sections, rawKey, flashSaved, allRawKeys) {
-  const entityKey = file.basename;
-  const { cleanLabel, tag } = parseHeaderKey(rawKey);
-  const wrap = parent.createDiv({ attr: { style: "position: relative; margin-bottom: 12px; transition: transform 0.2s ease;" } });
-  wrap.draggable = true;
-  wrap.addEventListener("dragstart", (ev) => {
-    wrap.style.opacity = "0.5";
-    ev.dataTransfer.effectAllowed = "move";
-    ev.dataTransfer.setData("text/cadence-template-section", rawKey);
-  });
-  wrap.addEventListener("dragend", () => {
-    wrap.style.opacity = "1";
-    wrap.removeClass("drag-over");
-  });
-  wrap.addEventListener("dragover", (ev) => {
-    ev.preventDefault();
-    ev.dataTransfer.dropEffect = "move";
-    wrap.addClass("drag-over");
-    wrap.style.border = "2px dashed var(--interactive-accent)";
-    wrap.style.borderRadius = "6px";
-  });
-  wrap.addEventListener("dragleave", () => {
-    wrap.removeClass("drag-over");
-    wrap.style.border = "none";
-    wrap.style.borderRadius = "0";
-  });
-  wrap.addEventListener("drop", async (ev) => {
-    ev.preventDefault();
-    wrap.removeClass("drag-over");
-    wrap.style.border = "none";
-    wrap.style.borderRadius = "0";
-    const draggedRawKey = ev.dataTransfer.getData("text/cadence-template-section");
-    if (!draggedRawKey || draggedRawKey === rawKey) return;
-    const curContent = await view.app.vault.read(file);
-    const nextContent = moveTemplateSection(curContent, draggedRawKey, rawKey);
-    if (nextContent === null) return;
-    await view.app.vault.modify(file, nextContent);
-    view.render();
-  });
-  view._renderDynamicH2Section(wrap, file, sections, rawKey, flashSaved);
-  const cardHead = wrap.querySelector(".cad-pd-card-head");
-  if (!cardHead) return;
-  const ctrlRow = cardHead.createDiv({ attr: { style: "display: flex; align-items: center; gap: 8px; margin-left: 8px; flex-shrink: 0;" } });
-  const grip = ctrlRow.createDiv({ attr: { style: "cursor: grab; display: flex; align-items: center; justify-content: center; color: var(--text-muted); opacity: 0.7; padding: 2px 4px;" } });
-  grip.title = "Drag card to reorder";
-  try {
-    (0, import_obsidian27.setIcon)(grip, "grip-vertical");
-  } catch (_) {
-  }
-  const delBtn = ctrlRow.createEl("button", { text: "\xD7", attr: { style: "color: var(--text-error); padding: 0 4px; font-weight: bold; background: transparent; border: none; font-size: 1.25em; cursor: pointer;" } });
-  delBtn.title = `Remove section "${cleanLabel}" from template`;
-  delBtn.addEventListener("click", async (ev) => {
-    ev.stopPropagation();
-    const usedFiles = await view._getFilesUsingTemplateSection(entityKey, rawKey);
-    if (!confirm(deleteSectionMessage(cleanLabel, usedFiles.map((f) => f.basename)))) return;
-    const curContent = await view.app.vault.read(file);
-    const nextContent = removeTemplateSection(curContent, rawKey);
-    if (nextContent !== null) {
-      await view.app.vault.modify(file, nextContent);
-      await view._propagateTemplateSectionDelete(entityKey, rawKey);
-      new import_obsidian27.Notice(`Section "${cleanLabel}" removed.`);
-      view.render();
-    }
-  });
-}
-async function getFilesUsingTemplateSection(view, entityKey, rawKey) {
-  const files = view._getEntityFiles(entityKey);
-  const notes = [];
-  for (const file of files) {
-    notes.push({ file, content: await view.app.vault.read(file) });
-  }
-  return filesUsingTemplateSection(notes, rawKey);
-}
-async function propagateTemplateSectionAdd(view, entityKey, cleanTitle, tag, defaultBody = "") {
-  const files = view._getEntityFiles(entityKey);
-  for (const file of files) {
-    const content = await view.app.vault.read(file);
-    const nextContent = propagateSectionAdd(content, { cleanTitle, tag, defaultBody });
-    if (nextContent !== null) await view.app.vault.modify(file, nextContent);
-  }
-}
-async function propagateTemplateSectionDelete(view, entityKey, rawKey) {
-  const files = view._getEntityFiles(entityKey);
-  for (const file of files) {
-    const content = await view.app.vault.read(file);
-    const nextContent = propagateSectionDelete(content, rawKey);
-    if (nextContent !== null) await view.app.vault.modify(file, nextContent);
-  }
-}
-function templatePathCandidates(folder, entityKey, def) {
-  return [
-    `${folder}/${entityKey}.md`,
-    `${folder}/${def.label}.md`,
-    `${folder}/${def.plural}.md`,
-    `${folder}/${entityKey.toLowerCase()}.md`,
-    `${folder}/${def.label.toLowerCase()}.md`,
-    `${folder}/${def.plural.toLowerCase()}.md`
-  ];
-}
-function templateBadge(exists) {
-  return {
-    cls: exists ? "cad-pill cad-pill-active" : "cad-pill cad-pill-backlog",
-    text: exists ? "Active Template" : "Default"
-  };
-}
-function templateDetailDef(entityKey) {
-  return ENTITIES[entityKey] || { label: "Daily Note", plural: "Daily Notes", fields: [] };
-}
-function crossSectionBlock(config) {
-  return {
-    tag: `#cross-${config.targetEntity}-${config.linkField}-${config.viewType}`,
-    title: `Related ${ENTITIES[config.targetEntity]?.plural || "Links"}`
-  };
-}
-function chartSectionBlock(config) {
-  return {
-    tag: `#chart-${config.targetEntity}-${config.linkField}-${config.groupField}-${config.style}`,
-    title: `${ENTITIES[config.targetEntity]?.plural || config.targetEntity} by ${config.groupField}`
-  };
-}
-function templateHeader(cleanTitle, tag) {
-  return `## ${cleanTitle} ${tag}`.trim();
-}
-function appendTemplateSection(content, cleanTitle, tag, defaultBody = "") {
-  return appendSection(content, templateHeader(cleanTitle, tag), defaultBody);
-}
-function sameLabel(key, cleanLabel) {
-  return parseHeaderKey(key).cleanLabel.toLowerCase() === cleanLabel.toLowerCase();
-}
-function spliceSection(lines, idx) {
-  let endIdx = lines.length;
-  for (let i = idx + 1; i < lines.length; i++) {
-    if (/^##\s/.test(lines[i])) {
-      endIdx = i;
-      break;
-    }
-  }
-  lines.splice(idx, endIdx - idx);
-}
-function propagateSectionAdd(content, section) {
-  const sections = parseH2Sections(content);
-  const exists = Object.keys(sections).some((k) => sameLabel(k, section.cleanTitle));
-  if (exists) return null;
-  return appendSection(content, templateHeader(section.cleanTitle, section.tag), section.defaultBody ?? "");
-}
-function propagateSectionDelete(content, sectionKey) {
-  const { cleanLabel } = parseHeaderKey(sectionKey);
-  const lines = content.split("\n");
-  const idx = lines.findIndex((l) => {
-    if (!/^##\s/.test(l)) return false;
-    const key = l.trim().replace(/^##\s+/, "");
-    return sameLabel(key, cleanLabel);
-  });
-  if (idx === -1) return null;
-  spliceSection(lines, idx);
-  return lines.join("\n");
-}
-function removeTemplateSection(content, rawKey) {
-  const lines = content.split("\n");
-  const idx = lines.findIndex((l) => l.trim().replace(/^##\s+/, "") === rawKey);
-  if (idx === -1) return null;
-  spliceSection(lines, idx);
-  return lines.join("\n");
-}
-function moveTemplateSection(content, draggedRawKey, targetRawKey) {
-  if (draggedRawKey === targetRawKey) return null;
-  const lines = content.split("\n");
-  const keyAt = (ls, i) => ls[i].trim().replace(/^##\s+/, "");
-  const h2Indices = lines.map((l, i) => /^##\s/.test(l) ? i : -1).filter((i) => i >= 0);
-  const draggedIdx = h2Indices.findIndex((i) => keyAt(lines, i) === draggedRawKey);
-  const targetIdx = h2Indices.findIndex((i) => keyAt(lines, i) === targetRawKey);
-  if (draggedIdx === -1 || targetIdx === -1) return null;
-  const start = h2Indices[draggedIdx];
-  const end = draggedIdx + 1 < h2Indices.length ? h2Indices[draggedIdx + 1] : lines.length;
-  const draggedBlock = lines.slice(start, end);
-  lines.splice(start, draggedBlock.length);
-  const h2IndicesNew = lines.map((l, i) => /^##\s/.test(l) ? i : -1).filter((i) => i >= 0);
-  const targetIdxNew = h2IndicesNew.findIndex((i) => keyAt(lines, i) === targetRawKey);
-  lines.splice(h2IndicesNew[targetIdxNew], 0, ...draggedBlock);
-  return lines.join("\n");
-}
-function deleteSectionMessage(cleanLabel, usedNames) {
-  if (usedNames.length > 0) {
-    return `Warning: The section "${cleanLabel}" has active content in the following files:
-${usedNames.join(", ")}
-
-Are you sure you want to delete it from the template?`;
-  }
-  return `Remove the section "${cleanLabel}" from this template?`;
-}
-var TEMPLATE_PLACEHOLDERS = [
-  "_Enter your notes here...",
-  "_Company description",
-  "_Background, interests",
-  "_The outcome we want",
-  "- [ ] First task",
-  "- [ ] First milestone"
-];
-function sectionInUse(content, sectionKey) {
-  const { cleanLabel } = parseHeaderKey(sectionKey);
-  const sections = parseH2Sections(content);
-  const matchingKey = Object.keys(sections).find((k) => sameLabel(k, cleanLabel));
-  if (!matchingKey) return false;
-  const body = (sections[matchingKey] || "").trim();
-  return !!body && !TEMPLATE_PLACEHOLDERS.some((p) => body.startsWith(p));
-}
-function filesUsingTemplateSection(notes, sectionKey) {
-  return notes.filter((n) => sectionInUse(n.content, sectionKey)).map((n) => n.file);
-}
-
-// src/utils/deals.ts
-function dealValue(entity, def) {
-  return Number(entityValue(entity, "value", def)) || 0;
-}
-function sumValues(deals, def) {
-  return deals.reduce((s, e) => s + dealValue(e, def), 0);
-}
-function crmSummary(deals, def) {
-  const open = deals.filter((e) => !["Won", "Lost"].includes(String(entityValue(e, "stage", def))));
-  const won = deals.filter((e) => String(entityValue(e, "stage", def)) === "Won");
-  const lost = deals.filter((e) => String(entityValue(e, "stage", def)) === "Lost");
-  const wonValue = sumValues(won, def);
-  return {
-    open,
-    won,
-    lost,
-    openValue: sumValues(open, def),
-    wonValue,
-    lostValue: sumValues(lost, def),
-    winRate: won.length + lost.length === 0 ? 0 : Math.round(won.length / (won.length + lost.length) * 100),
-    avgDeal: won.length === 0 ? 0 : wonValue / won.length
-  };
-}
-
-// src/views/crm-dashboard.ts
-var DAY_MS = 864e5;
-function crmStatCards(summary) {
-  const { open, won, lost, winRate, avgDeal } = summary;
-  return [
-    { label: "OPEN PIPELINE", value: open.length, sub: fmtValue(summary.openValue, "currency"), accent: "sky" },
-    { label: "WON", value: won.length, sub: fmtValue(summary.wonValue, "currency"), accent: "emerald" },
-    { label: "LOST", value: lost.length, sub: fmtValue(summary.lostValue, "currency"), accent: "rose" },
-    { label: "WIN RATE", value: `${winRate}%`, sub: `${won.length}/${won.length + lost.length} closed`, accent: "mint" },
-    { label: "AVG DEAL", value: fmtValue(avgDeal, "currency"), sub: `${won.length} won deals`, accent: "warn" }
-  ];
-}
-function pipelineByStage(deals, def, stages) {
-  const stageData = stages.map((stage) => {
-    const items = deals.filter((e) => String(entityValue(e, "stage", def)) === stage);
-    return { stage, count: items.length, value: sumValues(items, def) };
-  });
-  const maxStageVal = Math.max(1, ...stageData.map((s) => s.value));
-  return stageData.map((s) => ({ ...s, width: `${s.value / maxStageVal * 100}%` }));
-}
-function dealTitle(entity, def) {
-  return entityValue(entity, "title", def) || entity.basename;
-}
-function hotDeals(open, def) {
-  return [...open].sort((a, b) => dealValue(b, def) - dealValue(a, def)).slice(0, 5).map((e) => ({
-    title: dealTitle(e, def),
-    meta: `${entityValue(e, "stage", def) || "\u2014"} \xB7 ${fmtValue(dealValue(e, def), "currency")}`,
-    file: e.file
-  }));
-}
-function staleDeals(open, def, now) {
-  const staleCutoff = now - 14 * DAY_MS;
-  return open.filter((e) => e.file && e.file.stat && e.file.stat.mtime < staleCutoff).sort((a, b) => (a.file.stat.mtime || 0) - (b.file.stat.mtime || 0)).slice(0, 5).map((e) => {
-    const days = Math.round((now - e.file.stat.mtime) / DAY_MS);
-    return {
-      title: dealTitle(e, def),
-      meta: `${entityValue(e, "stage", def) || "\u2014"} \xB7 ${days}d quiet \xB7 ${fmtValue(dealValue(e, def), "currency")}`,
-      file: e.file
-    };
-  });
-}
-function recentActivities(activities, def) {
-  return [...activities].sort((a, b) => {
-    const da = new Date(entityValue(a, "when", def) || 0).getTime();
-    const db = new Date(entityValue(b, "when", def) || 0).getTime();
-    return db - da;
-  }).slice(0, 6).map((e) => {
-    const typeVal = entityValue(e, "type", def) || "\u2014";
-    const withVal = entityValue(e, "with", def) || "\u2014";
-    const dateVal = fmtValue(entityValue(e, "when", def), "date");
-    return {
-      title: entityValue(e, "subject", def) || e.basename,
-      metaParts: [
-        { text: typeVal },
-        { text: " \xB7 " },
-        { text: withVal, entityKey: "contact" },
-        { text: ` \xB7 ${dateVal}` }
-      ],
-      file: e.file
-    };
-  });
-}
-function customerBase(counts) {
-  return {
-    title: `CUSTOMER BASE \xB7 ${counts.contacts + counts.companies + counts.partners} records`,
-    stats: [
-      { label: "CONTACTS", value: counts.contacts, accent: "warn", mode: "crm.contacts" },
-      { label: "COMPANIES", value: counts.companies, accent: "sky", mode: "crm.companies" },
-      { label: "PARTNERS", value: counts.partners, accent: "rose", mode: "prm.partners" }
-    ]
-  };
-}
-async function renderCrmDashboard(view, root) {
-  root.addClass("cadence-dashboard");
-  const dealDef = ENTITIES.deal;
-  const allDeals = listEntities(view.app, "deal");
-  const summary = crmSummary(allDeals, dealDef);
-  const contacts = listEntityFiles(view.app, "contact");
-  const companies = listEntityFiles(view.app, "company");
-  const partners = listEntityFiles(view.app, "partner");
-  const activities = listEntities(view.app, "activity");
-  view._renderPageHeader(root, "CRM Dashboard", "Pipeline \xB7 momentum \xB7 recent activity", (right2) => {
-    const newDeal = right2.createEl("button", { cls: "cad-btn primary", text: "+ New Deal" });
-    newDeal.addEventListener("click", () => view._createEntityFromPrompt("deal"));
-  });
-  const grid = root.createDiv({ cls: "cad-stat-grid" });
-  const stat = (label, value, sub, accent) => {
-    const c = grid.createDiv({ cls: "cad-stat-card" });
-    if (accent) c.dataset.accent = accent;
-    c.createDiv({ cls: "cad-stat-label", text: label });
-    c.createDiv({ cls: "cad-stat-value", text: String(value) });
-    if (sub) c.createDiv({ cls: "cad-stat-sub", text: sub });
-  };
-  crmStatCards(summary).forEach((card) => stat(card.label, card.value, card.sub, card.accent));
-  root.createDiv({ cls: "cad-section-label-lg", text: "PIPELINE BY STAGE" });
-  const stageWrap = root.createDiv({ cls: "cad-stage-bars" });
-  pipelineByStage(allDeals, dealDef, getDealStages()).forEach(({ stage, count, value, width }) => {
-    const row = stageWrap.createDiv({ cls: "cad-stage-bar-row" });
-    row.dataset.stage = stage;
-    row.createDiv({ cls: "cad-stage-bar-name", text: stage });
-    row.createDiv({ cls: "cad-stage-bar-count", text: `${count}` });
-    const barWrap = row.createDiv({ cls: "cad-stage-bar" });
-    const fill = barWrap.createDiv({ cls: "cad-stage-bar-fill" });
-    fill.style.width = width;
-    row.createDiv({ cls: "cad-stage-bar-value", text: fmtValue(value, "currency") });
-    row.addEventListener("click", () => view.setMode("crm.pipeline"));
-  });
-  const cols = root.createDiv({ cls: "cad-dash-cols" });
-  const left = cols.createDiv({ cls: "cad-dash-col" });
-  const right = cols.createDiv({ cls: "cad-dash-col" });
-  view._dashCardSection(left, "HOT DEALS \xB7 top 5 by value", hotDeals(summary.open, dealDef), "No open deals yet \u2014 hit + New Deal above.");
-  view._dashCardSection(left, "STALE DEALS \xB7 14+ days no edits", staleDeals(summary.open, dealDef, Date.now()), "No stale deals \u2014 momentum is good.");
-  const recentAct = recentActivities(activities, ENTITIES.activity);
-  view._dashCardSection(right, `RECENT ACTIVITY \xB7 ${activities.length} total`, recentAct, "No activity logged yet. Capture a call or meeting under CRM > Activities.");
-  const baseCard = right.createDiv({ cls: "cad-dash-card" });
-  const base = customerBase({ contacts: contacts.length, companies: companies.length, partners: partners.length });
-  baseCard.createDiv({ cls: "cad-dash-card-head" }).createDiv({ cls: "cad-dash-card-title", text: base.title });
-  const baseBody = baseCard.createDiv({ cls: "cad-dash-card-body cad-mini-stat-row" });
-  const mkMini = (label, val, accent, mode) => {
-    const c = baseBody.createDiv({ cls: "cad-mini-stat" });
-    if (accent) c.dataset.accent = accent;
-    c.createDiv({ cls: "cad-mini-stat-value", text: String(val) });
-    c.createDiv({ cls: "cad-mini-stat-label", text: label });
-    if (mode) {
-      c.style.cursor = "pointer";
-      c.addEventListener("click", () => view.setMode(mode));
-    }
-  };
-  base.stats.forEach((mini) => mkMini(mini.label, mini.value, mini.accent, mini.mode));
-  const analyticsHeader = root.createDiv({ attr: { style: "display: flex; justify-content: space-between; align-items: center; padding: 24px 32px 8px 32px; margin-bottom: 16px;" } });
-  analyticsHeader.createEl("span", {
-    cls: "cad-section-label-lg",
-    text: "ANALYTICS & CHARTS",
-    attr: { style: "padding: 0; margin: 0; display: inline-block;" }
-  });
-  const addWidgetBtn = analyticsHeader.createEl("button", { cls: "cad-btn primary", text: "+ Add Custom Chart" });
-  const widgetsGrid = root.createDiv({ cls: "cad-dash-cols", attr: { style: "display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 16px; margin-bottom: 24px; padding: 0 32px;" } });
-  const renderWidgets = () => {
-    widgetsGrid.empty();
-    const widgets = dashboardWidgets(view.plugin.settings, "crmDashboardWidgets");
-    if (widgets.length === 0) {
-      const emptyWrap = widgetsGrid.createDiv({ attr: { style: "grid-column: 1 / -1; text-align: center; padding: 32px; background: var(--background-secondary); border-radius: 8px; border: 1px dashed var(--border-color);" } });
-      emptyWrap.createDiv({ text: 'No custom charts added yet. Click "+ Add Custom Chart" to create one!', attr: { style: "color: var(--text-muted); font-size: 0.95em;" } });
-      return;
-    }
-    widgets.forEach((w) => {
-      const card = widgetsGrid.createDiv({ cls: "cad-dash-card", attr: { style: "margin: 0; display: flex; flex-direction: column;" } });
-      const head = card.createDiv({ cls: "cad-dash-card-head", attr: { style: "display: flex; justify-content: space-between; align-items: center; padding: 10px 14px;" } });
-      head.createDiv({ cls: "cad-dash-card-title", text: w.title.toUpperCase(), attr: { style: "font-weight: 700; font-size: 0.75rem; letter-spacing: 0.12em;" } });
-      const actionsWrap = head.createDiv({ attr: { style: "display: flex; gap: 8px; align-items: center;" } });
-      const styleSelect = actionsWrap.createEl("select", { cls: "cad-prop-input" });
-      styleSelect.style.padding = "2px 4px";
-      styleSelect.style.fontSize = "0.8em";
-      styleSelect.style.height = "auto";
-      styleSelect.style.width = "auto";
-      styleSelect.style.background = "var(--background-primary)";
-      styleSelect.style.color = "var(--text-normal)";
-      styleSelect.style.border = "1px solid var(--border-color)";
-      styleSelect.style.borderRadius = "4px";
-      WIDGET_STYLE_OPTIONS.forEach((opt) => {
-        const o = styleSelect.createEl("option", { value: opt.value, text: opt.label });
-        if (w.style === opt.value) o.selected = true;
-      });
-      styleSelect.addEventListener("change", async () => {
-        w.style = styleSelect.value;
-        await view.plugin.saveSettings();
-        view.render();
-      });
-      const delBtn = actionsWrap.createEl("button", {
-        cls: "cad-btn",
-        text: "\xD7",
-        attr: { style: "color: var(--text-error); padding: 2px 8px; font-weight: bold; border-color: var(--text-error); font-size: 1.1em; height: auto; border-radius: 4px; background: transparent;" }
-      });
-      delBtn.addEventListener("click", async () => {
-        if (!confirm(`Delete chart "${w.title}"?`)) return;
-        view.plugin.settings.crmDashboardWidgets = removeWidget(view.plugin.settings.crmDashboardWidgets, w.id);
-        await view.plugin.saveSettings();
-        view.render();
-      });
-      const body = card.createDiv({ cls: "cad-dash-card-body", attr: { style: "flex: 1; min-height: 180px; display: flex; flex-direction: column; justify-content: center; padding: 14px;" } });
-      view._drawChart(body.createDiv(), w.style, chartData(allDeals, w, dealDef));
-    });
-  };
-  addWidgetBtn.addEventListener("click", () => {
-    new CadenceWidgetCreateModal(view.app, "deal", async (newWidget) => {
-      if (!view.plugin.settings.crmDashboardWidgets) {
-        view.plugin.settings.crmDashboardWidgets = [];
-      }
-      view.plugin.settings.crmDashboardWidgets.push(newWidget);
-      await view.plugin.saveSettings();
-      view.render();
-    }).open();
-  });
-  renderWidgets();
-}
-
-// src/views/reports.ts
-var import_obsidian28 = require("obsidian");
-var DAY_MS2 = 864e5;
-function reportBar(value, max) {
-  const ratio = value / max;
-  return {
-    height: `${value / max * 100}%`,
-    band: value === 0 ? "empty" : ratio < 0.34 ? "low" : ratio < 0.67 ? "mid" : "high"
-  };
-}
-function entityTitle(entity, key, def) {
-  return entityValue(entity, key, def) || entity.basename;
-}
-function stageOf(entity, def) {
-  return String(entityValue(entity, "stage", def));
-}
-function ownerRows(byOwner, size, limit, meta) {
-  return [...byOwner.entries()].sort((a, b) => size(b[1]) - size(a[1])).slice(0, limit).map(([owner, data]) => ({
-    title: owner,
-    titleEntityKey: owner === "(unassigned)" ? null : "contact",
-    meta: meta(data)
-  }));
-}
-var STAGE_CONFIDENCE = { "Lead": 0.1, "Qualified": 0.25, "Proposal": 0.5, "Negotiation": 0.75 };
-function pipelineReport(deals, def, stages, now) {
-  const { open, won, lost, openValue, wonValue, lostValue, winRate } = crmSummary(deals, def);
-  const weighted = open.reduce((s, e) => s + dealValue(e, def) * (STAGE_CONFIDENCE[stageOf(e, def)] || 0), 0);
-  const byOwner = /* @__PURE__ */ new Map();
-  open.forEach((e) => {
-    const owner = String(entityValue(e, "owner", def) || "(unassigned)");
-    if (!byOwner.has(owner)) byOwner.set(owner, { count: 0, value: 0 });
-    const o = byOwner.get(owner);
-    o.count++;
-    o.value += dealValue(e, def);
-  });
-  const cohorts = [
-    { label: "0\u20137 DAYS", cutoff: 7, count: 0, value: 0, accent: "emerald" },
-    { label: "8\u201330 DAYS", cutoff: 30, count: 0, value: 0, accent: "mint" },
-    { label: "31\u201390 DAYS", cutoff: 90, count: 0, value: 0, accent: "warn" },
-    { label: "90+ DAYS", cutoff: Infinity, count: 0, value: 0, accent: "rose" }
-  ];
-  open.forEach((e) => {
-    const mtime = e.file && e.file.stat ? e.file.stat.mtime : now;
-    const days = (now - mtime) / DAY_MS2;
-    for (const c of cohorts) {
-      if (days <= c.cutoff) {
-        c.count++;
-        c.value += dealValue(e, def);
-        break;
-      }
-    }
-  });
-  const staleCutoff = now - 30 * DAY_MS2;
-  const stale = open.filter((e) => e.file && e.file.stat && e.file.stat.mtime < staleCutoff).sort((a, b) => (a.file.stat.mtime || 0) - (b.file.stat.mtime || 0)).slice(0, 5).map((e) => ({
-    title: entityTitle(e, "title", def),
-    meta: `${entityValue(e, "stage", def) || "\u2014"} \xB7 ${Math.round((now - e.file.stat.mtime) / DAY_MS2)}d quiet \xB7 ${fmtValue(dealValue(e, def), "currency")}`,
-    file: e.file
-  }));
-  return {
-    open,
-    won,
-    lost,
-    weighted,
-    winRate,
-    stats: [
-      { label: "OPEN", value: open.length, sub: fmtValue(openValue, "currency"), accent: "sky" },
-      { label: "WEIGHTED", value: fmtValue(weighted, "currency"), sub: "forecast on open", accent: "mint" },
-      { label: "WON", value: won.length, sub: fmtValue(wonValue, "currency"), accent: "emerald" },
-      { label: "LOST", value: lost.length, sub: fmtValue(lostValue, "currency"), accent: "rose" },
-      { label: "WIN RATE", value: `${winRate}%`, sub: `${won.length}/${won.length + lost.length} closed`, accent: "warn" }
-    ],
-    byStage: stages.map((stage) => {
-      const items = deals.filter((e) => stageOf(e, def) === stage);
-      return { stage, count: items.length, value: sumValues(items, def) };
-    }),
-    owners: ownerRows(
-      byOwner,
-      (o) => o.value,
-      8,
-      (o) => `${o.count} deal${o.count === 1 ? "" : "s"} \xB7 ${fmtValue(o.value, "currency")}`
-    ),
-    cohorts: cohorts.map(({ label, count, value, accent }) => ({
-      label,
-      value: String(count),
-      accent,
-      sub: fmtValue(value, "currency"),
-      count,
-      total: value
-    })),
-    stale
-  };
-}
-function salesReport(deals, def, now) {
-  const { won, lost, wonValue, lostValue, avgDeal } = crmSummary(deals, def);
-  const total = wonValue + lostValue;
-  const captureRate = total === 0 ? 0 : Math.round(wonValue / total * 100);
-  const months = [];
-  for (let i = 5; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    months.push({ date: d, label: d.toLocaleDateString(void 0, { month: "short" }), revenue: 0, count: 0 });
-  }
-  won.forEach((e) => {
-    const t = e.file && e.file.stat ? e.file.stat.mtime : null;
-    if (!t) return;
-    const d = new Date(t);
-    const idx = months.findIndex((m) => m.date.getFullYear() === d.getFullYear() && m.date.getMonth() === d.getMonth());
-    if (idx >= 0) {
-      months[idx].revenue += dealValue(e, def);
-      months[idx].count++;
-    }
-  });
-  const maxRev = Math.max(1, ...months.map((m) => m.revenue));
-  const byOwner = /* @__PURE__ */ new Map();
-  won.forEach((e) => {
-    const owner = String(entityValue(e, "owner", def) || "(unassigned)");
-    if (!byOwner.has(owner)) byOwner.set(owner, { count: 0, revenue: 0 });
-    const o = byOwner.get(owner);
-    o.count++;
-    o.revenue += dealValue(e, def);
-  });
-  return {
-    won,
-    lost,
-    captureRate,
-    stats: [
-      { label: "REVENUE", value: fmtValue(wonValue, "currency"), sub: `${won.length} deals`, accent: "emerald" },
-      { label: "LOST", value: fmtValue(lostValue, "currency"), sub: `${lost.length} deals`, accent: "rose" },
-      { label: "CAPTURE", value: `${captureRate}%`, sub: "of closed value", accent: "mint" },
-      { label: "AVG DEAL", value: fmtValue(avgDeal, "currency"), sub: "won deals", accent: "sky" }
-    ],
-    months,
-    bars: months.map((m) => ({
-      label: m.label,
-      title: `${m.label} \u2014 ${fmtValue(m.revenue, "currency")} \xB7 ${m.count} deals`,
-      ...reportBar(m.revenue, maxRev)
-    })),
-    topWins: [...won].sort((a, b) => dealValue(b, def) - dealValue(a, def)).slice(0, 6).map((e) => ({
-      title: entityTitle(e, "title", def),
-      metaParts: [
-        { text: entityValue(e, "company", def) || "\u2014", entityKey: "company" },
-        { text: ` \xB7 ${fmtValue(dealValue(e, def), "currency")}` }
-      ],
-      file: e.file
-    })),
-    owners: ownerRows(byOwner, (o) => o.revenue, 6, (o) => `${o.count} won \xB7 ${fmtValue(o.revenue, "currency")}`)
-  };
-}
-var TIER_ACCENT = { "Gold": "warn", "Silver": "sky", "Bronze": "rose", "Standard": "mint" };
-function partnersReport(deals, partners, certs, now, defs = { deal: ENTITIES.deal, partner: ENTITIES.partner, certification: ENTITIES.certification }) {
-  const { deal: dealDef, partner: partnerDef, certification: certDef } = defs;
-  const byPartner = /* @__PURE__ */ new Map();
-  deals.forEach((e) => {
-    const p = entityValue(e, "partner", dealDef) || "(direct)";
-    if (!byPartner.has(p)) byPartner.set(p, []);
-    byPartner.get(p).push(e);
-  });
-  const partnerSourced = deals.filter((e) => entityValue(e, "partner", dealDef));
-  const partnerWon = partnerSourced.filter((e) => stageOf(e, dealDef) === "Won");
-  const tierMap = /* @__PURE__ */ new Map();
-  partners.forEach((p) => {
-    const t = String(entityValue(p, "tier", partnerDef) || "Untiered");
-    if (!tierMap.has(t)) tierMap.set(t, 0);
-    tierMap.set(t, tierMap.get(t) + 1);
-  });
-  const horizon = now + 90 * DAY_MS2;
-  const upcoming = certs.map((e) => {
-    const exp = entityValue(e, "expires", certDef);
-    if (!exp) return null;
-    const d = new Date(exp);
-    if (isNaN(d.getTime())) return null;
-    return { entity: e, date: d };
-  }).filter((x) => x && x.date.getTime() >= now && x.date.getTime() <= horizon).sort((a, b) => a.date - b.date).slice(0, 8);
-  return {
-    partnerSourced,
-    partnerWon,
-    stats: [
-      { label: "PARTNERS", value: partners.length, sub: "on the books", accent: "sky" },
-      { label: "PARTNER DEALS", value: partnerSourced.length, sub: fmtValue(sumValues(partnerSourced, dealDef), "currency"), accent: "mint" },
-      { label: "PARTNER REV", value: fmtValue(sumValues(partnerWon, dealDef), "currency"), sub: `${partnerWon.length} won`, accent: "emerald" },
-      { label: "UNIQUE SOURCES", value: byPartner.size, sub: "including direct", accent: "warn" }
-    ],
-    tiers: [...tierMap.entries()].sort((a, b) => b[1] - a[1]).map(([tier, count]) => ({ label: tier.toUpperCase(), value: String(count), accent: TIER_ACCENT[tier] || "sky" })),
-    sources: [...byPartner.entries()].sort((a, b) => b[1].length - a[1].length).slice(0, 10).map(([partner, items]) => ({
-      partner,
-      count: items.length,
-      meta: `${items.length} deal${items.length === 1 ? "" : "s"} \xB7 ${fmtValue(sumValues(items, dealDef), "currency")}`
-    })),
-    certs: upcoming.map((x) => ({
-      title: entityTitle(x.entity, "name", certDef),
-      metaParts: [
-        { text: entityValue(x.entity, "partner", certDef) || "\u2014", entityKey: "partner" },
-        { text: ` \xB7 expires ${fmtValue(x.date, "date")}` }
-      ],
-      file: x.entity.file
-    }))
-  };
-}
-var ACTIVITY_ACCENTS = ["sky", "mint", "warn", "rose"];
-function activityReport(activities, def, now, weekStartsOn) {
-  const counts = /* @__PURE__ */ new Map();
-  activities.forEach((e) => {
-    const t = String(entityValue(e, "type", def) || "unspecified");
-    counts.set(t, (counts.get(t) || 0) + 1);
-  });
-  const stats = [{ label: "TOTAL", value: activities.length, sub: "all activities", accent: "emerald" }];
-  let i = 0;
-  counts.forEach((v, k) => stats.push({ label: k.toUpperCase(), value: v, sub: "", accent: ACTIVITY_ACCENTS[i++ % ACTIVITY_ACCENTS.length] }));
-  const weekStart = startOfWeek(now, weekStartsOn);
-  const weeks = [];
-  for (let w = 7; w >= 0; w--) {
-    const ws = addDays(weekStart, -w * 7);
-    weeks.push({ start: ws, end: addDays(ws, 7), count: 0, label: ws.toLocaleDateString(void 0, { month: "short", day: "numeric" }) });
-  }
-  activities.forEach((e) => {
-    const when = entityValue(e, "when", def);
-    if (!when) return;
-    const t = new Date(when).getTime();
-    if (isNaN(t)) return;
-    const idx = weeks.findIndex((w) => t >= w.start.getTime() && t < w.end.getTime());
-    if (idx >= 0) weeks[idx].count++;
-  });
-  const maxWeek = Math.max(1, ...weeks.map((w) => w.count));
-  const contactCounts = /* @__PURE__ */ new Map();
-  activities.forEach((e) => {
-    const w = String(entityValue(e, "with", def) || "").trim();
-    if (!w) return;
-    contactCounts.set(w, (contactCounts.get(w) || 0) + 1);
-  });
-  return {
-    stats,
-    weeks,
-    bars: weeks.map((w) => ({ label: w.label, title: `Week of ${w.label} \u2014 ${w.count} activities`, ...reportBar(w.count, maxWeek) })),
-    topContacts: [...contactCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([who, count]) => ({ title: who, titleEntityKey: "contact", meta: `${count} activit${count === 1 ? "y" : "ies"}` })),
-    recent: [...activities].sort((a, b) => {
-      const da = new Date(entityValue(a, "when", def) || 0).getTime();
-      const db = new Date(entityValue(b, "when", def) || 0).getTime();
-      return db - da;
-    }).slice(0, 10).map((e) => ({
-      title: entityTitle(e, "subject", def),
-      metaParts: [
-        { text: entityValue(e, "type", def) || "\u2014" },
-        { text: " \xB7 " },
-        { text: entityValue(e, "with", def) || "\u2014", entityKey: "contact" },
-        { text: ` \xB7 ${fmtValue(entityValue(e, "when", def), "date")}` }
-      ],
-      file: e.file
-    }))
-  };
-}
-var WEEKDAY_ACCENTS = ["emerald", "mint", "sky", "warn", "rose", "mint", "sky"];
-var OPEN_TASK = / \[ \] /;
-var DONE_TASK = / \[(x|X)\] /;
-function productivityDates(now, weekStartsOn) {
-  const today = startOfDay(now);
-  const first = addDays(startOfWeek(today, weekStartsOn), -11 * 7);
-  const dates = [];
-  for (let d = first; d.getTime() <= today.getTime(); d = addDays(d, 1)) dates.push(d);
-  return dates;
-}
-function productivityReport(notes, now, settings) {
-  const today = startOfDay(now);
-  const days = Array.from({ length: 30 }, (_, i) => addDays(today, -i));
-  let totalOpen = 0, totalDone = 0, totalJournalChars = 0;
-  let activeDays = 0;
-  let streak = 0, streakBroken = false;
-  const perDay = [];
-  for (const d of days) {
-    const c = notes.get(ymd(d));
-    let open = 0, done = 0, jChars = 0, hasNote = false;
-    if (c !== void 0) {
-      hasNote = true;
-      const p = parseSections(c, settings);
-      open = p.tasks.filter((l) => OPEN_TASK.test(l)).length;
-      done = p.tasks.filter((l) => DONE_TASK.test(l)).length;
-      jChars = (p.journal || "").length;
-    }
-    perDay.push({ date: d, open, done, jChars, hasNote });
-    totalOpen += open;
-    totalDone += done;
-    totalJournalChars += jChars;
-    if (hasNote) activeDays++;
-    if (!streakBroken) {
-      if (hasNote && (done > 0 || jChars > 0)) streak++;
-      else streakBroken = true;
-    }
-  }
-  const completion = totalOpen + totalDone === 0 ? 0 : Math.round(totalDone / (totalOpen + totalDone) * 100);
-  const last14 = perDay.slice(0, 14).reverse();
-  const max = Math.max(1, ...last14.map((p) => p.done));
-  const weekStart = startOfWeek(today, settings.weekStartsOn);
-  const weeks = [];
-  for (let w = 11; w >= 0; w--) {
-    const ws = addDays(weekStart, -w * 7);
-    let wd = 0, wo = 0;
-    for (let i = 0; i < 7; i++) {
-      const d = addDays(ws, i);
-      if (d.getTime() > today.getTime()) break;
-      const c = notes.get(ymd(d));
-      if (c !== void 0) {
-        parseSections(c, settings).tasks.forEach((l) => {
-          if (DONE_TASK.test(l)) wd++;
-          else if (OPEN_TASK.test(l)) wo++;
-        });
-      }
-    }
-    weeks.push({ done: wd, open: wo, label: ws.toLocaleDateString(void 0, { month: "short", day: "numeric" }) });
-  }
-  const maxWeek = Math.max(1, ...weeks.map((w) => w.done));
-  const wsOn = settings.weekStartsOn;
-  const dayBuckets = Array.from({ length: 7 }, () => ({ done: 0, open: 0 }));
-  perDay.forEach((p) => {
-    const idx = (p.date.getDay() - wsOn + 7) % 7;
-    dayBuckets[idx].done += p.done;
-    dayBuckets[idx].open += p.open;
-  });
-  const dayLabels = wsOn === 1 ? ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"] : ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
-  return {
-    totalOpen,
-    totalDone,
-    journalChars: totalJournalChars,
-    activeDays,
-    streak,
-    completion,
-    stats: [
-      { label: "COMPLETION", value: `${completion}%`, sub: `${totalDone}/${totalOpen + totalDone} tasks`, accent: "emerald" },
-      { label: "STREAK", value: `${streak}d`, sub: "consecutive active days", accent: "mint" },
-      { label: "ACTIVE", value: `${activeDays}/30`, sub: "days with a note", accent: "sky" },
-      { label: "JOURNAL", value: totalJournalChars.toLocaleString(), sub: "characters written", accent: "warn" }
-    ],
-    days: last14.map((p) => ({
-      label: String(p.date.getDate()),
-      title: `${p.date.toLocaleDateString()} \u2014 ${p.done} done, ${p.open} open`,
-      ...reportBar(p.done, max)
-    })),
-    weeks: weeks.map((w) => ({ label: w.label, title: `Week of ${w.label} \u2014 ${w.done} done, ${w.open} open`, ...reportBar(w.done, maxWeek) })),
-    weekdays: dayBuckets.map((b, i) => {
-      const total = b.done + b.open;
-      const pct = total === 0 ? 0 : Math.round(b.done / total * 100);
-      return { label: dayLabels[i], value: total === 0 ? "\u2014" : `${pct}%`, accent: WEEKDAY_ACCENTS[i], sub: total === 0 ? "no data" : `${b.done}/${total}` };
-    })
-  };
-}
-function drawStats(root, cards) {
-  const grid = root.createDiv({ cls: "cad-stat-grid" });
-  const stat = (label, value, sub, accent) => {
-    const c = grid.createDiv({ cls: "cad-stat-card" });
-    if (accent) c.dataset.accent = accent;
-    c.createDiv({ cls: "cad-stat-label", text: label });
-    c.createDiv({ cls: "cad-stat-value", text: String(value) });
-    if (sub) c.createDiv({ cls: "cad-stat-sub", text: sub });
-  };
-  cards.forEach((card) => stat(card.label, card.value, card.sub, card.accent));
-}
-function drawBars(chart, bars) {
-  bars.forEach((b) => {
-    const col = chart.createDiv({ cls: "cad-bar-col" });
-    const bar = col.createDiv({ cls: "cad-bar" });
-    bar.style.height = b.height;
-    bar.dataset.band = b.band;
-    bar.title = b.title;
-    col.createDiv({ cls: "cad-bar-label", text: b.label });
-  });
-}
-function drawMiniStats(body, minis) {
-  minis.forEach((m) => {
-    const mini = body.createDiv({ cls: "cad-mini-stat" });
-    mini.dataset.accent = m.accent;
-    mini.createDiv({ cls: "cad-mini-stat-value", text: m.value });
-    mini.createDiv({ cls: "cad-mini-stat-label", text: m.label });
-    if (m.sub !== void 0) {
-      const sub = mini.createDiv({ cls: "cad-stat-sub" });
-      sub.style.marginTop = "4px";
-      sub.setText(m.sub);
-    }
-  });
-}
-function twoColumns(root) {
-  const cols = root.createDiv({ cls: "cad-dash-cols" });
-  return { left: cols.createDiv({ cls: "cad-dash-col" }), right: cols.createDiv({ cls: "cad-dash-col" }) };
-}
-async function renderReportPipeline(view, root) {
-  root.addClass("cadence-report");
-  const def = ENTITIES.deal;
-  const report = pipelineReport(listEntities(view.app, "deal"), def, getDealStages(), Date.now());
-  view._renderPageHeader(root, "Pipeline report", "Coverage, forecast and aging across all deals");
-  drawStats(root, report.stats);
-  root.createDiv({ cls: "cad-section-label-lg", text: "BY STAGE" });
-  const tableWrap = root.createDiv({ cls: "cad-table-wrap" });
-  const table = tableWrap.createEl("table", { cls: "cad-table" });
-  const trh = table.createEl("thead").createEl("tr");
-  ["Stage", "Count", "Value"].forEach((h) => trh.createEl("th", { text: h }));
-  const tbody = table.createEl("tbody");
-  report.byStage.forEach(({ stage, count, value }) => {
-    const tr = tbody.createEl("tr");
-    tr.createEl("td", { text: stage });
-    tr.createEl("td", { text: String(count) });
-    tr.createEl("td", { text: fmtValue(value, "currency") });
-  });
-  const { left, right } = twoColumns(root);
-  view._dashCardSection(left, `OPEN PIPELINE BY OWNER \xB7 top ${report.owners.length}`, report.owners, "No open deals to attribute.");
-  const agingCard = right.createDiv({ cls: "cad-dash-card" });
-  agingCard.createDiv({ cls: "cad-dash-card-head" }).createDiv({ cls: "cad-dash-card-title", text: "AGING \xB7 OPEN DEALS BY LAST EDIT" });
-  drawMiniStats(agingCard.createDiv({ cls: "cad-dash-card-body cad-mini-stat-row" }), report.cohorts);
-  view._dashCardSection(right, "STALE \xB7 30+ DAYS NO EDITS", report.stale, "No deals over 30 days quiet \u2014 nice.");
-}
-async function renderReportSales(view, root) {
-  root.addClass("cadence-report");
-  const report = salesReport(listEntities(view.app, "deal"), ENTITIES.deal, /* @__PURE__ */ new Date());
-  view._renderPageHeader(root, "Sales report", "Closed-won and lost \xB7 performance over time");
-  drawStats(root, report.stats);
-  root.createDiv({ cls: "cad-section-label-lg", text: "REVENUE \u2014 LAST 6 MONTHS" });
-  drawBars(root.createDiv({ cls: "cad-bar-chart cad-bar-chart-tall" }), report.bars);
-  const { left, right } = twoColumns(root);
-  view._dashCardSection(left, "TOP WINS \xB7 top 6", report.topWins, "No wins logged yet \u2014 close one and tag it Won.");
-  view._dashCardSection(right, "OWNER LEADERBOARD \xB7 top 6 by revenue", report.owners, "No revenue attributed to owners yet.");
-}
-async function renderReportPartners(view, root) {
-  root.addClass("cadence-report");
-  const report = partnersReport(
-    listEntities(view.app, "deal"),
-    listEntities(view.app, "partner"),
-    listEntities(view.app, "certification"),
-    Date.now()
-  );
-  view._renderPageHeader(root, "Partners report", "Partner-sourced revenue, tier mix, certification health");
-  drawStats(root, report.stats);
-  if (report.tiers.length) {
-    root.createDiv({ cls: "cad-section-label-lg", text: "PARTNERS BY TIER" });
-    const tierCard = root.createDiv({ cls: "cad-dash-card" });
-    tierCard.style.margin = "0 36px 18px 36px";
-    drawMiniStats(tierCard.createDiv({ cls: "cad-dash-card-body cad-mini-stat-row" }), report.tiers);
-  }
-  const { left, right } = twoColumns(root);
-  const dealsByPartnerCard = left.createDiv({ cls: "cad-dash-card" });
-  dealsByPartnerCard.createDiv({ cls: "cad-dash-card-head" }).createDiv({ cls: "cad-dash-card-title", text: "DEALS BY PARTNER" });
-  const dbpBody = dealsByPartnerCard.createDiv({ cls: "cad-dash-card-body" });
-  if (!report.sources.length) {
-    dbpBody.createDiv({ cls: "cad-empty", text: "No deals attributed to partners yet." });
-  } else {
-    report.sources.forEach(({ partner: p, meta }) => {
-      const row = dbpBody.createDiv({ cls: "cad-dash-row" });
-      const titleDiv = row.createDiv({ cls: "cad-dash-row-title" });
-      if (p && p !== "(direct)") {
-        view._renderEntityLinks(titleDiv, p, "partner");
-      } else {
-        titleDiv.setText(p || "");
-      }
-      row.createDiv({ cls: "cad-dash-row-meta", text: meta });
-    });
-  }
-  view._dashCardSection(right, "CERTS EXPIRING \xB7 NEXT 90 DAYS", report.certs, "No certifications expiring in the next 90 days.");
-}
-async function renderReportActivity(view, root) {
-  root.addClass("cadence-report");
-  const report = activityReport(listEntities(view.app, "activity"), ENTITIES.activity, /* @__PURE__ */ new Date(), view.plugin.settings.weekStartsOn);
-  view._renderPageHeader(root, "Activity report", "Calls, meetings, emails and notes \u2014 mix and momentum");
-  drawStats(root, report.stats);
-  root.createDiv({ cls: "cad-section-label-lg", text: "ACTIVITY \u2014 LAST 8 WEEKS" });
-  drawBars(root.createDiv({ cls: "cad-bar-chart cad-bar-chart-tall" }), report.bars);
-  const { left, right } = twoColumns(root);
-  view._dashCardSection(left, "TOP CONTACTS \xB7 by activity count", report.topContacts, "No activities tagged with a contact yet.");
-  view._dashCardSection(right, "RECENT ACTIVITY \xB7 last 10", report.recent, "No activities yet \u2014 log one under CRM > Activities.");
-}
-async function renderProductivity(view, root) {
-  root.addClass("cadence-report");
-  const settings = view.plugin.settings;
-  const now = /* @__PURE__ */ new Date();
-  const notes = /* @__PURE__ */ new Map();
-  for (const d of productivityDates(now, settings.weekStartsOn)) {
-    const f = view.app.vault.getAbstractFileByPath(dailyNotePath(settings, d));
-    if (f && f instanceof import_obsidian28.TFile) notes.set(ymd(d), await view.app.vault.read(f));
-  }
-  const report = productivityReport(notes, now, settings);
-  view._renderPageHeader(root, "Productivity", "Last 30 days \xB7 across your daily notes");
-  drawStats(root, report.stats);
-  root.createDiv({ cls: "cad-section-label-lg", text: "TASKS DONE \u2014 LAST 14 DAYS" });
-  drawBars(root.createDiv({ cls: "cad-bar-chart" }), report.days);
-  root.createDiv({ cls: "cad-section-label-lg", text: "COMPLETION TREND \u2014 LAST 12 WEEKS" });
-  drawBars(root.createDiv({ cls: "cad-bar-chart cad-bar-chart-tall" }), report.weeks);
-  root.createDiv({ cls: "cad-section-label-lg", text: "COMPLETION BY WEEKDAY \xB7 LAST 30 DAYS" });
-  const dayCard = root.createDiv({ cls: "cad-dash-card" });
-  dayCard.style.margin = "0 36px 24px 36px";
-  drawMiniStats(dayCard.createDiv({ cls: "cad-dash-card-body cad-mini-stat-row" }), report.weekdays);
 }
 
 // src/views/report-graph.ts
@@ -9598,72 +9379,368 @@ async function renderReportGraph(view, root) {
   requestAnimationFrame(step);
 }
 
-// src/views/prm.ts
-var TIER_ACCENT2 = { "Gold": "warn", "Silver": "sky", "Bronze": "rose", "Standard": "mint", "Untiered": "mint" };
-function prmAnalytics(partners, deals, defs = { partner: ENTITIES.partner, deal: ENTITIES.deal }) {
-  const { partner: partnerDef, deal: dealDef } = defs;
+// src/views/reports.ts
+var import_obsidian25 = require("obsidian");
+var DAY_MS2 = 864e5;
+function reportBar(value, max) {
+  const ratio = value / max;
+  return {
+    height: `${value / max * 100}%`,
+    band: value === 0 ? "empty" : ratio < 0.34 ? "low" : ratio < 0.67 ? "mid" : "high"
+  };
+}
+function entityTitle(entity, key, def) {
+  return entityValue(entity, key, def) || entity.basename;
+}
+function stageOf(entity, def) {
+  return String(entityValue(entity, "stage", def));
+}
+function ownerRows(byOwner, size, limit, meta) {
+  return [...byOwner.entries()].sort((a, b) => size(b[1]) - size(a[1])).slice(0, limit).map(([owner, data]) => ({
+    title: owner,
+    titleEntityKey: owner === "(unassigned)" ? null : "contact",
+    meta: meta(data)
+  }));
+}
+var STAGE_CONFIDENCE = { "Lead": 0.1, "Qualified": 0.25, "Proposal": 0.5, "Negotiation": 0.75 };
+function pipelineReport(deals, def, stages, now) {
+  const { open, won, lost, openValue, wonValue, lostValue, winRate } = crmSummary(deals, def);
+  const weighted = open.reduce((s, e) => s + dealValue(e, def) * (STAGE_CONFIDENCE[stageOf(e, def)] || 0), 0);
+  const byOwner = /* @__PURE__ */ new Map();
+  open.forEach((e) => {
+    const owner = String(entityValue(e, "owner", def) || "(unassigned)");
+    if (!byOwner.has(owner)) byOwner.set(owner, { count: 0, value: 0 });
+    const o = byOwner.get(owner);
+    o.count++;
+    o.value += dealValue(e, def);
+  });
+  const cohorts = [
+    { label: "0\u20137 DAYS", cutoff: 7, count: 0, value: 0, accent: "emerald" },
+    { label: "8\u201330 DAYS", cutoff: 30, count: 0, value: 0, accent: "mint" },
+    { label: "31\u201390 DAYS", cutoff: 90, count: 0, value: 0, accent: "warn" },
+    { label: "90+ DAYS", cutoff: Infinity, count: 0, value: 0, accent: "rose" }
+  ];
+  open.forEach((e) => {
+    const mtime = e.file && e.file.stat ? e.file.stat.mtime : now;
+    const days = (now - mtime) / DAY_MS2;
+    for (const c of cohorts) {
+      if (days <= c.cutoff) {
+        c.count++;
+        c.value += dealValue(e, def);
+        break;
+      }
+    }
+  });
+  const staleCutoff = now - 30 * DAY_MS2;
+  const stale = open.filter((e) => e.file && e.file.stat && e.file.stat.mtime < staleCutoff).sort((a, b) => (a.file.stat.mtime || 0) - (b.file.stat.mtime || 0)).slice(0, 5).map((e) => ({
+    title: entityTitle(e, "title", def),
+    meta: `${entityValue(e, "stage", def) || "\u2014"} \xB7 ${Math.round((now - e.file.stat.mtime) / DAY_MS2)}d quiet \xB7 ${fmtValue(dealValue(e, def), "currency")}`,
+    file: e.file
+  }));
+  return {
+    open,
+    won,
+    lost,
+    weighted,
+    winRate,
+    stats: [
+      { label: "OPEN", value: open.length, sub: fmtValue(openValue, "currency"), accent: "sky" },
+      { label: "WEIGHTED", value: fmtValue(weighted, "currency"), sub: "forecast on open", accent: "mint" },
+      { label: "WON", value: won.length, sub: fmtValue(wonValue, "currency"), accent: "emerald" },
+      { label: "LOST", value: lost.length, sub: fmtValue(lostValue, "currency"), accent: "rose" },
+      { label: "WIN RATE", value: `${winRate}%`, sub: `${won.length}/${won.length + lost.length} closed`, accent: "warn" }
+    ],
+    byStage: stages.map((stage) => {
+      const items = deals.filter((e) => stageOf(e, def) === stage);
+      return { stage, count: items.length, value: sumValues(items, def) };
+    }),
+    owners: ownerRows(
+      byOwner,
+      (o) => o.value,
+      8,
+      (o) => `${o.count} deal${o.count === 1 ? "" : "s"} \xB7 ${fmtValue(o.value, "currency")}`
+    ),
+    cohorts: cohorts.map(({ label, count, value, accent }) => ({
+      label,
+      value: String(count),
+      accent,
+      sub: fmtValue(value, "currency"),
+      count,
+      total: value
+    })),
+    stale
+  };
+}
+function salesReport(deals, def, now) {
+  const { won, lost, wonValue, lostValue, avgDeal } = crmSummary(deals, def);
+  const total = wonValue + lostValue;
+  const captureRate = total === 0 ? 0 : Math.round(wonValue / total * 100);
+  const months = [];
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    months.push({ date: d, label: d.toLocaleDateString(void 0, { month: "short" }), revenue: 0, count: 0 });
+  }
+  won.forEach((e) => {
+    const t = e.file && e.file.stat ? e.file.stat.mtime : null;
+    if (!t) return;
+    const d = new Date(t);
+    const idx = months.findIndex((m) => m.date.getFullYear() === d.getFullYear() && m.date.getMonth() === d.getMonth());
+    if (idx >= 0) {
+      months[idx].revenue += dealValue(e, def);
+      months[idx].count++;
+    }
+  });
+  const maxRev = Math.max(1, ...months.map((m) => m.revenue));
+  const byOwner = /* @__PURE__ */ new Map();
+  won.forEach((e) => {
+    const owner = String(entityValue(e, "owner", def) || "(unassigned)");
+    if (!byOwner.has(owner)) byOwner.set(owner, { count: 0, revenue: 0 });
+    const o = byOwner.get(owner);
+    o.count++;
+    o.revenue += dealValue(e, def);
+  });
+  return {
+    won,
+    lost,
+    captureRate,
+    stats: [
+      { label: "REVENUE", value: fmtValue(wonValue, "currency"), sub: `${won.length} deals`, accent: "emerald" },
+      { label: "LOST", value: fmtValue(lostValue, "currency"), sub: `${lost.length} deals`, accent: "rose" },
+      { label: "CAPTURE", value: `${captureRate}%`, sub: "of closed value", accent: "mint" },
+      { label: "AVG DEAL", value: fmtValue(avgDeal, "currency"), sub: "won deals", accent: "sky" }
+    ],
+    months,
+    bars: months.map((m) => ({
+      label: m.label,
+      title: `${m.label} \u2014 ${fmtValue(m.revenue, "currency")} \xB7 ${m.count} deals`,
+      ...reportBar(m.revenue, maxRev)
+    })),
+    topWins: [...won].sort((a, b) => dealValue(b, def) - dealValue(a, def)).slice(0, 6).map((e) => ({
+      title: entityTitle(e, "title", def),
+      metaParts: [
+        { text: entityValue(e, "company", def) || "\u2014", entityKey: "company" },
+        { text: ` \xB7 ${fmtValue(dealValue(e, def), "currency")}` }
+      ],
+      file: e.file
+    })),
+    owners: ownerRows(byOwner, (o) => o.revenue, 6, (o) => `${o.count} won \xB7 ${fmtValue(o.revenue, "currency")}`)
+  };
+}
+var TIER_ACCENT2 = { "Gold": "warn", "Silver": "sky", "Bronze": "rose", "Standard": "mint" };
+function partnersReport(deals, partners, certs, now, defs = { deal: ENTITIES.deal, partner: ENTITIES.partner, certification: ENTITIES.certification }) {
+  const { deal: dealDef, partner: partnerDef, certification: certDef } = defs;
+  const byPartner = /* @__PURE__ */ new Map();
+  deals.forEach((e) => {
+    const p = entityValue(e, "partner", dealDef) || "(direct)";
+    if (!byPartner.has(p)) byPartner.set(p, []);
+    byPartner.get(p).push(e);
+  });
   const partnerSourced = deals.filter((e) => entityValue(e, "partner", dealDef));
-  const { open: sourcedOpen, won: partnerWon, lost: sourcedLost, openValue, wonValue, lostValue } = crmSummary(partnerSourced, dealDef);
-  const sourcedValue = sumValues(partnerSourced, dealDef);
-  const totalDealValue = sumValues(deals, dealDef);
-  const sharePct = totalDealValue === 0 ? 0 : Math.round(sourcedValue / totalDealValue * 100);
+  const partnerWon = partnerSourced.filter((e) => stageOf(e, dealDef) === "Won");
   const tierMap = /* @__PURE__ */ new Map();
-  const tierValueMap = /* @__PURE__ */ new Map();
   partners.forEach((p) => {
     const t = String(entityValue(p, "tier", partnerDef) || "Untiered");
-    tierMap.set(t, (tierMap.get(t) || 0) + 1);
-    tierValueMap.set(t, tierValueMap.get(t) || 0);
+    if (!tierMap.has(t)) tierMap.set(t, 0);
+    tierMap.set(t, tierMap.get(t) + 1);
   });
-  const partnerByName = /* @__PURE__ */ new Map();
-  partners.forEach((p) => partnerByName.set(String(entityValue(p, "name", partnerDef) || p.basename), p));
-  partnerWon.forEach((d) => {
-    const pname = String(entityValue(d, "partner", dealDef) || "");
-    const partner = partnerByName.get(pname);
-    if (!partner) return;
-    const tier = String(entityValue(partner, "tier", partnerDef) || "Untiered");
-    tierValueMap.set(tier, (tierValueMap.get(tier) || 0) + dealValue(d, dealDef));
-  });
-  const partnerRevenue = /* @__PURE__ */ new Map();
-  partnerWon.forEach((d) => {
-    const p = String(entityValue(d, "partner", dealDef) || "(direct)");
-    partnerRevenue.set(p, (partnerRevenue.get(p) || 0) + dealValue(d, dealDef));
-  });
-  const conv = partnerSourced.length === 0 ? 0 : Math.round(partnerWon.length / partnerSourced.length * 100);
-  const currency = (value) => fmtValue(value, "currency");
+  const horizon = now + 90 * DAY_MS2;
+  const upcoming = certs.map((e) => {
+    const exp = entityValue(e, "expires", certDef);
+    if (!exp) return null;
+    const d = new Date(exp);
+    if (isNaN(d.getTime())) return null;
+    return { entity: e, date: d };
+  }).filter((x) => x && x.date.getTime() >= now && x.date.getTime() <= horizon).sort((a, b) => a.date - b.date).slice(0, 8);
   return {
+    partnerSourced,
+    partnerWon,
     stats: [
       { label: "PARTNERS", value: partners.length, sub: "on the books", accent: "sky" },
-      { label: "SOURCED DEALS", value: partnerSourced.length, sub: currency(sourcedValue), accent: "mint" },
-      { label: "PARTNER REVENUE", value: currency(wonValue), sub: `${partnerWon.length} won`, accent: "emerald" },
-      { label: "PARTNER SHARE", value: `${sharePct}%`, sub: "of total pipeline value", accent: "warn" }
+      { label: "PARTNER DEALS", value: partnerSourced.length, sub: fmtValue(sumValues(partnerSourced, dealDef), "currency"), accent: "mint" },
+      { label: "PARTNER REV", value: fmtValue(sumValues(partnerWon, dealDef), "currency"), sub: `${partnerWon.length} won`, accent: "emerald" },
+      { label: "UNIQUE SOURCES", value: byPartner.size, sub: "including direct", accent: "warn" }
     ],
-    tiers: [...tierMap.entries()].sort((a, b) => b[1] - a[1]).map(([tier, count]) => {
-      const value = tierValueMap.get(tier) || 0;
-      return { label: tier.toUpperCase(), value: String(count), accent: TIER_ACCENT2[tier] || "sky", sub: value > 0 ? currency(value) : "\u2014" };
-    }),
-    topPartners: [...partnerRevenue.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([p, v]) => {
-      const partner = partnerByName.get(p);
-      return { title: p, meta: currency(v), file: partner ? partner.file : null };
-    }),
-    funnel: [
-      { label: "SOURCED", value: String(partnerSourced.length), sub: currency(sourcedValue), accent: "sky" },
-      { label: "OPEN", value: String(sourcedOpen.length), sub: currency(openValue), accent: "mint" },
-      { label: "WON", value: String(partnerWon.length), sub: currency(wonValue), accent: "emerald" },
-      { label: "LOST", value: String(sourcedLost.length), sub: currency(lostValue), accent: "rose" }
-    ],
-    conversion: { won: partnerWon.length, sourced: partnerSourced.length, pct: conv, band: pctBand(conv) }
+    tiers: [...tierMap.entries()].sort((a, b) => b[1] - a[1]).map(([tier, count]) => ({ label: tier.toUpperCase(), value: String(count), accent: TIER_ACCENT2[tier] || "sky" })),
+    sources: [...byPartner.entries()].sort((a, b) => b[1].length - a[1].length).slice(0, 10).map(([partner, items]) => ({
+      partner,
+      count: items.length,
+      meta: `${items.length} deal${items.length === 1 ? "" : "s"} \xB7 ${fmtValue(sumValues(items, dealDef), "currency")}`
+    })),
+    certs: upcoming.map((x) => ({
+      title: entityTitle(x.entity, "name", certDef),
+      metaParts: [
+        { text: entityValue(x.entity, "partner", certDef) || "\u2014", entityKey: "partner" },
+        { text: ` \xB7 expires ${fmtValue(x.date, "date")}` }
+      ],
+      file: x.entity.file
+    }))
   };
 }
-function isTeamMember(entity, def = ENTITIES.contact) {
-  const role = String(entityValue(entity, "role", def) || "").toLowerCase();
-  return role.includes("team") || role.includes("admin") || role.includes("member");
-}
-function teamListOptions() {
+var ACTIVITY_ACCENTS = ["sky", "mint", "warn", "rose"];
+function activityReport(activities, def, now, weekStartsOn) {
+  const counts = /* @__PURE__ */ new Map();
+  activities.forEach((e) => {
+    const t = String(entityValue(e, "type", def) || "unspecified");
+    counts.set(t, (counts.get(t) || 0) + 1);
+  });
+  const stats = [{ label: "TOTAL", value: activities.length, sub: "all activities", accent: "emerald" }];
+  let i = 0;
+  counts.forEach((v, k) => stats.push({ label: k.toUpperCase(), value: v, sub: "", accent: ACTIVITY_ACCENTS[i++ % ACTIVITY_ACCENTS.length] }));
+  const weekStart = startOfWeek(now, weekStartsOn);
+  const weeks = [];
+  for (let w = 7; w >= 0; w--) {
+    const ws = addDays(weekStart, -w * 7);
+    weeks.push({ start: ws, end: addDays(ws, 7), count: 0, label: ws.toLocaleDateString(void 0, { month: "short", day: "numeric" }) });
+  }
+  activities.forEach((e) => {
+    const when = entityValue(e, "when", def);
+    if (!when) return;
+    const t = new Date(when).getTime();
+    if (isNaN(t)) return;
+    const idx = weeks.findIndex((w) => t >= w.start.getTime() && t < w.end.getTime());
+    if (idx >= 0) weeks[idx].count++;
+  });
+  const maxWeek = Math.max(1, ...weeks.map((w) => w.count));
+  const contactCounts = /* @__PURE__ */ new Map();
+  activities.forEach((e) => {
+    const w = String(entityValue(e, "with", def) || "").trim();
+    if (!w) return;
+    contactCounts.set(w, (contactCounts.get(w) || 0) + 1);
+  });
   return {
-    title: "Team",
-    filter: (e) => isTeamMember(e),
-    columns: ["name", "role", "email", "company"]
+    stats,
+    weeks,
+    bars: weeks.map((w) => ({ label: w.label, title: `Week of ${w.label} \u2014 ${w.count} activities`, ...reportBar(w.count, maxWeek) })),
+    topContacts: [...contactCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([who, count]) => ({ title: who, titleEntityKey: "contact", meta: `${count} activit${count === 1 ? "y" : "ies"}` })),
+    recent: [...activities].sort((a, b) => {
+      const da = new Date(entityValue(a, "when", def) || 0).getTime();
+      const db = new Date(entityValue(b, "when", def) || 0).getTime();
+      return db - da;
+    }).slice(0, 10).map((e) => ({
+      title: entityTitle(e, "subject", def),
+      metaParts: [
+        { text: entityValue(e, "type", def) || "\u2014" },
+        { text: " \xB7 " },
+        { text: entityValue(e, "with", def) || "\u2014", entityKey: "contact" },
+        { text: ` \xB7 ${fmtValue(entityValue(e, "when", def), "date")}` }
+      ],
+      file: e.file
+    }))
   };
+}
+var WEEKDAY_ACCENTS = ["emerald", "mint", "sky", "warn", "rose", "mint", "sky"];
+var OPEN_TASK = / \[ \] /;
+var DONE_TASK = / \[(x|X)\] /;
+function productivityDates(now, weekStartsOn) {
+  const today = startOfDay(now);
+  const first = addDays(startOfWeek(today, weekStartsOn), -11 * 7);
+  const dates = [];
+  for (let d = first; d.getTime() <= today.getTime(); d = addDays(d, 1)) dates.push(d);
+  return dates;
+}
+function productivityReport(notes, now, settings) {
+  const today = startOfDay(now);
+  const days = Array.from({ length: 30 }, (_, i) => addDays(today, -i));
+  let totalOpen = 0, totalDone = 0, totalJournalChars = 0;
+  let activeDays = 0;
+  let streak = 0, streakBroken = false;
+  const perDay = [];
+  for (const d of days) {
+    const c = notes.get(ymd(d));
+    let open = 0, done = 0, jChars = 0, hasNote = false;
+    if (c !== void 0) {
+      hasNote = true;
+      const p = parseSections(c, settings);
+      open = p.tasks.filter((l) => OPEN_TASK.test(l)).length;
+      done = p.tasks.filter((l) => DONE_TASK.test(l)).length;
+      jChars = (p.journal || "").length;
+    }
+    perDay.push({ date: d, open, done, jChars, hasNote });
+    totalOpen += open;
+    totalDone += done;
+    totalJournalChars += jChars;
+    if (hasNote) activeDays++;
+    if (!streakBroken) {
+      if (hasNote && (done > 0 || jChars > 0)) streak++;
+      else streakBroken = true;
+    }
+  }
+  const completion = totalOpen + totalDone === 0 ? 0 : Math.round(totalDone / (totalOpen + totalDone) * 100);
+  const last14 = perDay.slice(0, 14).reverse();
+  const max = Math.max(1, ...last14.map((p) => p.done));
+  const weekStart = startOfWeek(today, settings.weekStartsOn);
+  const weeks = [];
+  for (let w = 11; w >= 0; w--) {
+    const ws = addDays(weekStart, -w * 7);
+    let wd = 0, wo = 0;
+    for (let i = 0; i < 7; i++) {
+      const d = addDays(ws, i);
+      if (d.getTime() > today.getTime()) break;
+      const c = notes.get(ymd(d));
+      if (c !== void 0) {
+        parseSections(c, settings).tasks.forEach((l) => {
+          if (DONE_TASK.test(l)) wd++;
+          else if (OPEN_TASK.test(l)) wo++;
+        });
+      }
+    }
+    weeks.push({ done: wd, open: wo, label: ws.toLocaleDateString(void 0, { month: "short", day: "numeric" }) });
+  }
+  const maxWeek = Math.max(1, ...weeks.map((w) => w.done));
+  const wsOn = settings.weekStartsOn;
+  const dayBuckets = Array.from({ length: 7 }, () => ({ done: 0, open: 0 }));
+  perDay.forEach((p) => {
+    const idx = (p.date.getDay() - wsOn + 7) % 7;
+    dayBuckets[idx].done += p.done;
+    dayBuckets[idx].open += p.open;
+  });
+  const dayLabels = wsOn === 1 ? ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"] : ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
+  return {
+    totalOpen,
+    totalDone,
+    journalChars: totalJournalChars,
+    activeDays,
+    streak,
+    completion,
+    stats: [
+      { label: "COMPLETION", value: `${completion}%`, sub: `${totalDone}/${totalOpen + totalDone} tasks`, accent: "emerald" },
+      { label: "STREAK", value: `${streak}d`, sub: "consecutive active days", accent: "mint" },
+      { label: "ACTIVE", value: `${activeDays}/30`, sub: "days with a note", accent: "sky" },
+      { label: "JOURNAL", value: totalJournalChars.toLocaleString(), sub: "characters written", accent: "warn" }
+    ],
+    days: last14.map((p) => ({
+      label: String(p.date.getDate()),
+      title: `${p.date.toLocaleDateString()} \u2014 ${p.done} done, ${p.open} open`,
+      ...reportBar(p.done, max)
+    })),
+    weeks: weeks.map((w) => ({ label: w.label, title: `Week of ${w.label} \u2014 ${w.done} done, ${w.open} open`, ...reportBar(w.done, maxWeek) })),
+    weekdays: dayBuckets.map((b, i) => {
+      const total = b.done + b.open;
+      const pct = total === 0 ? 0 : Math.round(b.done / total * 100);
+      return { label: dayLabels[i], value: total === 0 ? "\u2014" : `${pct}%`, accent: WEEKDAY_ACCENTS[i], sub: total === 0 ? "no data" : `${b.done}/${total}` };
+    })
+  };
+}
+function drawStats(root, cards) {
+  const grid = root.createDiv({ cls: "cad-stat-grid" });
+  const stat = (label, value, sub, accent) => {
+    const c = grid.createDiv({ cls: "cad-stat-card" });
+    if (accent) c.dataset.accent = accent;
+    c.createDiv({ cls: "cad-stat-label", text: label });
+    c.createDiv({ cls: "cad-stat-value", text: String(value) });
+    if (sub) c.createDiv({ cls: "cad-stat-sub", text: sub });
+  };
+  cards.forEach((card) => stat(card.label, card.value, card.sub, card.accent));
+}
+function drawBars(chart, bars) {
+  bars.forEach((b) => {
+    const col = chart.createDiv({ cls: "cad-bar-col" });
+    const bar = col.createDiv({ cls: "cad-bar" });
+    bar.style.height = b.height;
+    bar.dataset.band = b.band;
+    bar.title = b.title;
+    col.createDiv({ cls: "cad-bar-label", text: b.label });
+  });
 }
 function drawMiniStats2(body, minis) {
   minis.forEach((m) => {
@@ -9671,795 +9748,124 @@ function drawMiniStats2(body, minis) {
     mini.dataset.accent = m.accent;
     mini.createDiv({ cls: "cad-mini-stat-value", text: m.value });
     mini.createDiv({ cls: "cad-mini-stat-label", text: m.label });
-    const sub = mini.createDiv({ cls: "cad-stat-sub" });
-    sub.style.marginTop = "4px";
-    sub.setText(m.sub ?? "");
+    if (m.sub !== void 0) {
+      const sub = mini.createDiv({ cls: "cad-stat-sub" });
+      sub.style.marginTop = "4px";
+      sub.setText(m.sub);
+    }
   });
 }
-async function renderPRMAnalytics(view, root) {
+function twoColumns(root) {
+  const cols = root.createDiv({ cls: "cad-dash-cols" });
+  return { left: cols.createDiv({ cls: "cad-dash-col" }), right: cols.createDiv({ cls: "cad-dash-col" }) };
+}
+async function renderReportPipeline(view, root) {
   root.addClass("cadence-report");
-  const partnerDef = ENTITIES.partner;
-  const partners = listEntities(view.app, "partner");
-  const report = prmAnalytics(partners, listEntities(view.app, "deal"));
-  view._renderPageHeader(root, "PRM analytics", "Partner programme health, tier mix and revenue contribution");
-  const grid = root.createDiv({ cls: "cad-stat-grid" });
-  report.stats.forEach(({ label, value, sub, accent }) => {
-    const c = grid.createDiv({ cls: "cad-stat-card" });
-    if (accent) c.dataset.accent = accent;
-    c.createDiv({ cls: "cad-stat-label", text: label });
-    c.createDiv({ cls: "cad-stat-value", text: String(value) });
-    if (sub) c.createDiv({ cls: "cad-stat-sub", text: sub });
+  const def = ENTITIES.deal;
+  const report = pipelineReport(listEntities(view.app, "deal"), def, getDealStages(), Date.now());
+  view._renderPageHeader(root, "Pipeline report", "Coverage, forecast and aging across all deals");
+  drawStats(root, report.stats);
+  root.createDiv({ cls: "cad-section-label-lg", text: "BY STAGE" });
+  const tableWrap = root.createDiv({ cls: "cad-table-wrap" });
+  const table = tableWrap.createEl("table", { cls: "cad-table" });
+  const trh = table.createEl("thead").createEl("tr");
+  ["Stage", "Count", "Value"].forEach((h) => trh.createEl("th", { text: h }));
+  const tbody = table.createEl("tbody");
+  report.byStage.forEach(({ stage, count, value }) => {
+    const tr = tbody.createEl("tr");
+    tr.createEl("td", { text: stage });
+    tr.createEl("td", { text: String(count) });
+    tr.createEl("td", { text: fmtValue(value, "currency") });
   });
+  const { left, right } = twoColumns(root);
+  view._dashCardSection(left, `OPEN PIPELINE BY OWNER \xB7 top ${report.owners.length}`, report.owners, "No open deals to attribute.");
+  const agingCard = right.createDiv({ cls: "cad-dash-card" });
+  agingCard.createDiv({ cls: "cad-dash-card-head" }).createDiv({ cls: "cad-dash-card-title", text: "AGING \xB7 OPEN DEALS BY LAST EDIT" });
+  drawMiniStats2(agingCard.createDiv({ cls: "cad-dash-card-body cad-mini-stat-row" }), report.cohorts);
+  view._dashCardSection(right, "STALE \xB7 30+ DAYS NO EDITS", report.stale, "No deals over 30 days quiet \u2014 nice.");
+}
+async function renderReportSales(view, root) {
+  root.addClass("cadence-report");
+  const report = salesReport(listEntities(view.app, "deal"), ENTITIES.deal, /* @__PURE__ */ new Date());
+  view._renderPageHeader(root, "Sales report", "Closed-won and lost \xB7 performance over time");
+  drawStats(root, report.stats);
+  root.createDiv({ cls: "cad-section-label-lg", text: "REVENUE \u2014 LAST 6 MONTHS" });
+  drawBars(root.createDiv({ cls: "cad-bar-chart cad-bar-chart-tall" }), report.bars);
+  const { left, right } = twoColumns(root);
+  view._dashCardSection(left, "TOP WINS \xB7 top 6", report.topWins, "No wins logged yet \u2014 close one and tag it Won.");
+  view._dashCardSection(right, "OWNER LEADERBOARD \xB7 top 6 by revenue", report.owners, "No revenue attributed to owners yet.");
+}
+async function renderReportPartners(view, root) {
+  root.addClass("cadence-report");
+  const report = partnersReport(
+    listEntities(view.app, "deal"),
+    listEntities(view.app, "partner"),
+    listEntities(view.app, "certification"),
+    Date.now()
+  );
+  view._renderPageHeader(root, "Partners report", "Partner-sourced revenue, tier mix, certification health");
+  drawStats(root, report.stats);
   if (report.tiers.length) {
     root.createDiv({ cls: "cad-section-label-lg", text: "PARTNERS BY TIER" });
     const tierCard = root.createDiv({ cls: "cad-dash-card" });
     tierCard.style.margin = "0 36px 18px 36px";
     drawMiniStats2(tierCard.createDiv({ cls: "cad-dash-card-body cad-mini-stat-row" }), report.tiers);
   }
-  const cols = root.createDiv({ cls: "cad-dash-cols" });
-  const left = cols.createDiv({ cls: "cad-dash-col" });
-  const right = cols.createDiv({ cls: "cad-dash-col" });
-  view._dashCardSection(left, "TOP PARTNERS \xB7 by won revenue", report.topPartners, "No partner-attributed wins yet.");
-  const funnelCard = right.createDiv({ cls: "cad-dash-card" });
-  funnelCard.createDiv({ cls: "cad-dash-card-head" }).createDiv({ cls: "cad-dash-card-title", text: "PARTNER FUNNEL" });
-  drawMiniStats2(funnelCard.createDiv({ cls: "cad-dash-card-body cad-mini-stat-row" }), report.funnel);
-  const { won, sourced, pct: conv, band } = report.conversion;
-  const convCard = right.createDiv({ cls: "cad-dash-card" });
-  convCard.createDiv({ cls: "cad-dash-card-head" }).createDiv({ cls: "cad-dash-card-title", text: `CONVERSION \xB7 sourced \u2192 won` });
-  const convBody = convCard.createDiv({ cls: "cad-dash-card-body" });
-  convBody.style.padding = "20px 16px";
-  const convWrap = convBody.createDiv({ cls: "cad-proj-progress-wrap" });
-  convWrap.dataset.pctBand = band;
-  const convLabel = convWrap.createDiv({ cls: "cad-proj-progress-label" });
-  convLabel.createSpan({ text: `${won}/${sourced} sourced deals won` });
-  convLabel.createSpan({ cls: "cad-proj-progress-pct", text: `${conv}%` });
-  const convBar = convWrap.createDiv({ cls: "cad-proj-progress-bar" });
-  const convFill = convBar.createDiv({ cls: "cad-proj-progress-fill" });
-  convFill.style.width = `${conv}%`;
-  const analyticsHeader = root.createDiv({ attr: { style: "display: flex; justify-content: space-between; align-items: center; padding: 24px 32px 8px 32px; margin-bottom: 16px;" } });
-  analyticsHeader.createEl("span", {
-    cls: "cad-section-label-lg",
-    text: "ANALYTICS & CHARTS",
-    attr: { style: "padding: 0; margin: 0; display: inline-block;" }
-  });
-  const addWidgetBtn = analyticsHeader.createEl("button", { cls: "cad-btn primary", text: "+ Add Custom Chart" });
-  const widgetsGrid = root.createDiv({ cls: "cad-dash-cols", attr: { style: "display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 16px; margin-bottom: 24px; padding: 0 32px;" } });
-  const renderWidgets = () => {
-    widgetsGrid.empty();
-    const widgets = dashboardWidgets(view.plugin.settings, "prmDashboardWidgets");
-    if (widgets.length === 0) {
-      const emptyWrap = widgetsGrid.createDiv({ attr: { style: "grid-column: 1 / -1; text-align: center; padding: 32px; background: var(--background-secondary); border-radius: 8px; border: 1px dashed var(--border-color);" } });
-      emptyWrap.createDiv({ text: 'No custom charts added yet. Click "+ Add Custom Chart" to create one!', attr: { style: "color: var(--text-muted); font-size: 0.95em;" } });
-      return;
-    }
-    widgets.forEach((w) => {
-      const card = widgetsGrid.createDiv({ cls: "cad-dash-card", attr: { style: "margin: 0; display: flex; flex-direction: column;" } });
-      const head = card.createDiv({ cls: "cad-dash-card-head", attr: { style: "display: flex; justify-content: space-between; align-items: center; padding: 10px 14px;" } });
-      head.createDiv({ cls: "cad-dash-card-title", text: w.title.toUpperCase(), attr: { style: "font-weight: 700; font-size: 0.75rem; letter-spacing: 0.12em;" } });
-      const actionsWrap = head.createDiv({ attr: { style: "display: flex; gap: 8px; align-items: center;" } });
-      const styleSelect = actionsWrap.createEl("select", { cls: "cad-prop-input" });
-      styleSelect.style.padding = "2px 4px";
-      styleSelect.style.fontSize = "0.8em";
-      styleSelect.style.height = "auto";
-      styleSelect.style.width = "auto";
-      styleSelect.style.background = "var(--background-primary)";
-      styleSelect.style.color = "var(--text-normal)";
-      styleSelect.style.border = "1px solid var(--border-color)";
-      styleSelect.style.borderRadius = "4px";
-      WIDGET_STYLE_OPTIONS.forEach((opt) => {
-        const o = styleSelect.createEl("option", { value: opt.value, text: opt.label });
-        if (w.style === opt.value) o.selected = true;
-      });
-      styleSelect.addEventListener("change", async () => {
-        w.style = styleSelect.value;
-        await view.plugin.saveSettings();
-        view.render();
-      });
-      const delBtn = actionsWrap.createEl("button", {
-        cls: "cad-btn",
-        text: "\xD7",
-        attr: { style: "color: var(--text-error); padding: 2px 8px; font-weight: bold; border-color: var(--text-error); font-size: 1.1em; height: auto; border-radius: 4px; background: transparent;" }
-      });
-      delBtn.addEventListener("click", async () => {
-        if (!confirm(`Delete chart "${w.title}"?`)) return;
-        view.plugin.settings.prmDashboardWidgets = removeWidget(view.plugin.settings.prmDashboardWidgets, w.id);
-        await view.plugin.saveSettings();
-        view.render();
-      });
-      const body = card.createDiv({ cls: "cad-dash-card-body", attr: { style: "flex: 1; min-height: 180px; display: flex; flex-direction: column; justify-content: center; padding: 14px;" } });
-      view._drawChart(body.createDiv(), w.style, chartData(partners, w, partnerDef));
-    });
-  };
-  addWidgetBtn.addEventListener("click", () => {
-    new CadenceWidgetCreateModal(view.app, "partner", async (newWidget) => {
-      if (!view.plugin.settings.prmDashboardWidgets) {
-        view.plugin.settings.prmDashboardWidgets = [];
-      }
-      view.plugin.settings.prmDashboardWidgets.push(newWidget);
-      await view.plugin.saveSettings();
-      view.render();
-    }).open();
-  });
-  renderWidgets();
-}
-async function renderTeam(view, root) {
-  return view.renderEntityList(root, "contact", teamListOptions());
-}
-
-// src/views/project-detail.ts
-var import_obsidian29 = require("obsidian");
-function projectDetailTitle(fm, basename) {
-  return fm.name || basename;
-}
-var PROJECT_STATUS_FALLBACK = ["active", "on_hold", "backlog", "done", "cancelled"];
-var PROJECT_PRIORITY_FALLBACK = ["low", "medium", "high"];
-function projectPills(fm, statusOptions, priorityOptions) {
-  const status = String(fm.status || "active");
-  const priority = String(fm.priority || "");
-  return [
-    { key: "status", cls: "cad-pill cad-pill-" + status.toLowerCase().replace(/\s+/g, "-"), options: statusOptions, current: status },
-    { key: "priority", cls: "cad-pill cad-pill-prio-" + (priority || "medium").toLowerCase(), options: priorityOptions, current: priority || "medium" }
-  ];
-}
-function projectMetaFields(def) {
-  return def.fields.filter((f) => !(f.primary || f.key === "status" || f.key === "priority") && !(f.key === "type" && f.type !== "enum"));
-}
-function writeProjectFrontmatter(frontmatter, patch) {
-  Object.entries(patch).forEach(([k, v]) => {
-    if (v == null || v === "") delete frontmatter[k];
-    else frontmatter[k] = v;
-  });
-}
-function projectProgress(meta) {
-  if (!(meta.total > 0)) return null;
-  return { band: pctBand(meta.percent), label: `${meta.done}/${meta.total} milestones complete`, percent: `${meta.percent}%` };
-}
-var PROJECT_TEXT_SECTIONS = {
-  brief: { label: "BRIEF", rows: 4, placeholder: "The outcome we want, why now." },
-  scope: { label: "SCOPE", rows: 5, placeholder: "In scope / out of scope." },
-  risks: { label: "RISKS", rows: 4, placeholder: "What could go wrong." },
-  stakeholders: { label: "STAKEHOLDERS", rows: 3, placeholder: "Who cares about this project." },
-  notes: { label: "NOTES", rows: 5, placeholder: "Anything else." }
-};
-function projectTextSection(key) {
-  const { cleanLabel } = parseHeaderKey(key);
-  const metaInfo = PROJECT_TEXT_SECTIONS[cleanLabel.toLowerCase()];
-  return metaInfo ? { key, label: metaInfo.label, rows: metaInfo.rows, placeholder: metaInfo.placeholder } : null;
-}
-function milestoneCardTitle(rawKey, milestones) {
-  const { cleanLabel } = parseHeaderKey(rawKey);
-  return `${cleanLabel.toUpperCase()} \xB7 ${milestones.filter((m) => m.done).length}/${milestones.length}`;
-}
-function milestoneDateValue(date) {
-  return date instanceof Date && !isNaN(date.getTime()) ? date.toISOString().slice(0, 10) : null;
-}
-function milestoneDateFromInput(value) {
-  return value ? new Date(value) : null;
-}
-function commitMilestones(content, items, rawKey = "Milestones") {
-  const body = stringifyMilestones(items);
-  return replaceSection(content, `## ${rawKey}`, body || "");
-}
-function updateItem(items, idx, patch) {
-  if (!(idx in items)) throw new TypeError(`No item at index ${idx}`);
-  return items.map((item, i) => i === idx ? { ...item, ...patch } : item);
-}
-function removeItem(items, idx) {
-  return items.filter((_, i) => i !== idx);
-}
-function addMilestone(items, today) {
-  return [...items, { done: false, date: today, title: "" }];
-}
-function taskCardTitle(rawKey, tasks) {
-  const open = tasks.filter((t) => !t.done).length;
-  const { cleanLabel } = parseHeaderKey(rawKey);
-  return `${cleanLabel.toUpperCase()} \xB7 ${open} open \xB7 ${tasks.length - open} done`;
-}
-function taskNotesItems(tasks) {
-  return tasks.map((t) => ({ done: t.done, title: t.title }));
-}
-function commitTasks(content, items, rawKey = "Tasks") {
-  const body = stringifyTasks(items);
-  return replaceSection(content, `## ${rawKey}`, body || "");
-}
-function addTask(items) {
-  return [...items, { done: false, title: "" }];
-}
-function taskBell(linked) {
-  return {
-    cls: "cad-btn cad-btn-sm cad-pd-task-bell" + (linked ? " linked" : ""),
-    text: linked ? "\u{1F514}" : "\u{1F515}",
-    title: linked ? `Edit reminder${linked.when ? " \xB7 " + reminderTimeStr(linked.when) : ""}` : "Set a reminder for this task"
-  };
-}
-function newTaskReminder(text, projectPath) {
-  return {
-    text,
-    when: null,
-    repeat: "none",
-    notes: "",
-    project: projectPath
-  };
-}
-var TASKNOTES_FOLDER = "TaskNotes/Tasks";
-var TASKNOTES_PROMPT = {
-  title: "Ajouter une t\xE2che (TaskNotes)",
-  placeholder: "Que faut-il faire ?",
-  cta: "Ajouter"
-};
-function taskNotePath(folderPath, text, exists) {
-  const cleanTitle = text.replace(/[\\/:*?"<>|]/g, "").trim();
-  let filename = `${folderPath}/${cleanTitle}.md`;
-  let counter = 1;
-  while (exists(filename)) {
-    filename = `${folderPath}/${cleanTitle} (${counter}).md`;
-    counter++;
-  }
-  return filename;
-}
-function taskNoteContent(text, today, projectBasename) {
-  return `---
-title: ${text}
-status: open
-scheduled: ${ymd(today)}
-projects: "[[${projectBasename}]]"
-priority: normal
----
-`;
-}
-function replaceItems(items, next) {
-  items.splice(0, items.length, ...next);
-}
-async function renderProjectDetail(view, root, file) {
-  root.addClass("cadence-project-detail");
-  const def = ENTITIES.project;
-  const cache = view.app.metadataCache.getFileCache(file) || {};
-  const fm = Object.assign({}, cache.frontmatter || {});
-  const meta = await readProjectMeta(view.app, file);
-  const titleVal = projectDetailTitle(fm, file.basename);
-  const head = root.createDiv({ cls: "cad-detail-header" });
-  const headLeft = head.createDiv({ cls: "cad-detail-header-left" });
-  const back = headLeft.createEl("button", { cls: "cad-btn cad-detail-back", text: "\u2190 Projects" });
-  back.addEventListener("click", () => view.closeEntityDetail());
-  const breadcrumb = headLeft.createDiv({ cls: "cad-detail-breadcrumb" });
-  breadcrumb.createSpan({ cls: "cad-eyebrow", text: "PROJECT" });
-  breadcrumb.createSpan({ cls: "cad-detail-title", text: String(titleVal) });
-  breadcrumb.createDiv({ cls: "cad-detail-path", text: file.path });
-  const headRight = head.createDiv({ cls: "cad-detail-header-right" });
-  const savedBadge = headRight.createSpan({ cls: "cad-detail-saved", text: "" });
-  const flashSaved = () => {
-    savedBadge.setText("Saved");
-    savedBadge.addClass("show");
-    clearTimeout(savedBadge._t);
-    savedBadge._t = setTimeout(() => savedBadge.removeClass("show"), 1400);
-  };
-  const openNote = headRight.createEl("button", { cls: "cad-btn", text: "Open as note" });
-  openNote.addEventListener("click", () => view.app.workspace.openLinkText(file.path, "", false));
-  const deleteBtn = headRight.createEl("button", { cls: "cad-btn cad-btn-danger", text: "Delete" });
-  deleteBtn.addEventListener("click", (ev) => {
-    ev.preventDefault();
-    new CadenceConfirmModal(view.app, {
-      title: "Delete Project",
-      message: "Delete this project? This moves the file to trash.",
-      confirmLabel: "Delete",
-      onConfirm: () => {
-        deleteBtn.blur();
-        setTimeout(async () => {
-          try {
-            await view.app.vault.trash(file, true);
-            new import_obsidian29.Notice(`Deleted project: ${file.basename}`);
-            view.closeEntityDetail();
-          } catch (e) {
-            new import_obsidian29.Notice(`Delete failed: ${e.message}`);
-          }
-        }, 50);
-      }
-    }).open();
-  });
-  const hero = root.createDiv({ cls: "cad-pd-hero" });
-  const pillRow = hero.createDiv({ cls: "cad-pd-pills" });
-  const statusOptions = getEnumOptions("project", "status", PROJECT_STATUS_FALLBACK);
-  const prioOptions = getEnumOptions("project", "priority", PROJECT_PRIORITY_FALLBACK);
-  projectPills(fm, statusOptions, prioOptions).forEach((pill) => {
-    const wrap = pillRow.createDiv({ cls: `cad-pd-select-wrap ${pill.cls}` });
-    const sel = wrap.createEl("select", { cls: "cad-pd-select" });
-    pill.options.forEach((opt) => {
-      const o = sel.createEl("option", { value: opt, text: opt });
-      if (pill.current === opt) o.selected = true;
-    });
-    sel.addEventListener("change", () => view._writeProjectFrontmatter(file, { [pill.key]: sel.value }, flashSaved));
-  });
-  const metaRow = hero.createDiv({ cls: "cad-pd-meta" });
-  const mkMeta = (f) => {
-    const label = f.label;
-    const key = f.key;
-    const fieldType = f.type || "text";
-    const cell = metaRow.createDiv({ cls: "cad-pd-meta-cell" });
-    cell.style.position = "relative";
-    cell.createDiv({ cls: "cad-pd-meta-label", text: label.toUpperCase() });
-    const current = fm[key];
-    const control = metaControl(f);
-    if (control === "chips") {
-      const { suggestionSource, isPlainChip, isList, targetEntityKey, customFolderPath } = chipConfig(f, ENTITIES, COMPANY_LIST_KEYS);
-      const wrap = cell.createDiv({ cls: "cad-pd-tag-input-wrap" });
-      wrap.style.display = "flex";
-      wrap.style.flexWrap = "wrap";
-      wrap.style.gap = "6px";
-      wrap.style.alignItems = "center";
-      wrap.style.border = "none";
-      wrap.style.borderRadius = "0";
-      wrap.style.padding = "4px 0";
-      wrap.style.minHeight = "36px";
-      wrap.style.backgroundColor = "transparent";
-      wrap.style.cursor = "text";
-      const inp = wrap.createEl("input", { type: "text", cls: "cad-pd-tag-input-field" });
-      inp.style.border = "none";
-      inp.style.outline = "none";
-      inp.style.background = "transparent";
-      inp.style.color = "var(--text-normal)";
-      inp.style.flex = "1";
-      inp.style.minWidth = "80px";
-      inp.style.padding = "0";
-      inp.style.height = "24px";
-      inp.style.lineHeight = "24px";
-      inp.placeholder = `Add ${label.toLowerCase()}...`;
-      const suggestionsBox = cell.createDiv({ cls: "cad-pd-tag-suggestions" });
-      suggestionsBox.style.position = "absolute";
-      suggestionsBox.style.zIndex = "10000";
-      suggestionsBox.style.backgroundColor = "var(--background-secondary)";
-      suggestionsBox.style.border = "1px solid var(--border-color)";
-      suggestionsBox.style.borderRadius = "4px";
-      suggestionsBox.style.boxShadow = "var(--shadow-s)";
-      suggestionsBox.style.maxHeight = "150px";
-      suggestionsBox.style.overflowY = "auto";
-      suggestionsBox.style.display = "none";
-      suggestionsBox.style.width = "100%";
-      suggestionsBox.style.boxSizing = "border-box";
-      suggestionsBox.style.top = "100%";
-      suggestionsBox.style.left = "0";
-      suggestionsBox.style.marginTop = "4px";
-      let valuesList = chipValues(current, isPlainChip);
-      const updateSuggestions = () => {
-        const query = inp.value.trim().toLowerCase();
-        suggestionsBox.empty();
-        let candidates = [];
-        if (suggestionSource === "tags") {
-          candidates = Object.keys(view.app.metadataCache.getTags() || {}).map((t) => t.replace(/^#/, ""));
-        } else if (suggestionSource === "history") {
-          candidates = historyValues(view.app.vault.getMarkdownFiles().map((fl) => {
-            const cache2 = view.app.metadataCache.getFileCache(fl);
-            return cache2 && cache2.frontmatter || {};
-          }), key);
-        } else if (suggestionSource !== "none") {
-          if (customFolderPath) {
-            candidates = folderNoteNames(view.app.vault.getAbstractFileByPath(customFolderPath));
-          } else {
-            candidates = listEntities(view.app, targetEntityKey).map((c) => c.basename);
-          }
-        }
-        const filtered = filterSuggestions(candidates, query, valuesList);
-        if (filtered.length === 0) {
-          suggestionsBox.style.display = "none";
-          return;
-        }
-        filtered.forEach((valStr) => {
-          const item = suggestionsBox.createDiv({ cls: "cad-suggestion-item" });
-          item.style.padding = "6px 10px";
-          item.style.cursor = "pointer";
-          item.style.fontSize = "13px";
-          item.style.color = "var(--text-normal)";
-          item.setText(valStr);
-          item.addEventListener("mouseenter", () => {
-            item.style.backgroundColor = "var(--background-modifier-hover)";
-          });
-          item.addEventListener("mouseleave", () => {
-            item.style.backgroundColor = "transparent";
-          });
-          item.addEventListener("mousedown", async (ev) => {
-            ev.preventDefault();
-            await addVal(valStr);
-            suggestionsBox.style.display = "none";
-          });
-        });
-        suggestionsBox.style.display = "block";
-      };
-      const renderChips = () => {
-        const existing = wrap.querySelectorAll(".cad-tag-chip");
-        existing.forEach((c) => c.remove());
-        valuesList.forEach((valName) => {
-          const chip = wrap.createDiv({ cls: "cad-tag-chip" });
-          chip.style.display = "inline-flex";
-          chip.style.alignItems = "center";
-          chip.style.gap = "6px";
-          chip.style.backgroundColor = "var(--background-secondary, #eee)";
-          chip.style.padding = "2px 8px";
-          chip.style.borderRadius = "12px";
-          chip.style.fontSize = "12px";
-          chip.style.height = "24px";
-          chip.style.boxSizing = "border-box";
-          chip.style.color = "var(--text-normal)";
-          const labelSpan = chip.createSpan({ text: valName });
-          if (!isPlainChip) {
-            labelSpan.style.textDecoration = "underline";
-            labelSpan.style.cursor = "pointer";
-            labelSpan.addEventListener("click", (ev) => {
-              ev.stopPropagation();
-              const target = chipLinkTarget(targetEntityKey, findNoteByName(view.app.vault.getMarkdownFiles(), valName), valName);
-              if (target.kind === "entity") {
-                view.openEntityDetail(target.entityKey, target.file);
-              } else if (target.kind === "file") {
-                view.openEntityDetailFromFile(target.file);
-              } else {
-                view.app.workspace.openLinkText(target.linktext, "", false);
-              }
-            });
-          }
-          const close = chip.createSpan({ text: "\xD7" });
-          close.style.cursor = "pointer";
-          close.style.fontWeight = "bold";
-          close.style.fontSize = "14px";
-          close.style.lineHeight = "1";
-          close.style.color = "var(--text-muted)";
-          close.addEventListener("click", async (ev) => {
-            ev.stopPropagation();
-            valuesList = valuesList.filter((v) => v !== valName);
-            await save();
-            renderChips();
-          });
-          wrap.insertBefore(chip, inp);
-        });
-      };
-      const save = async () => {
-        const val = chipWriteValue(valuesList, isPlainChip, isList);
-        await view._writeProjectFrontmatter(file, { [key]: val }, flashSaved);
-      };
-      const addVal = async (raw) => {
-        const added = chipAdd(valuesList, raw, isList);
-        if (added.kind === "blank") return;
-        inp.value = "";
-        if (added.kind === "duplicate") return;
-        const { name } = added;
-        valuesList = added.values;
-        renderChips();
-        await save();
-        if (!isPlainChip) {
-          const targetFile = findNoteByName(view.app.vault.getMarkdownFiles(), name);
-          if (!targetFile) {
-            try {
-              const creation = chipCreation(suggestionSource, targetEntityKey, ENTITIES);
-              await createEntity(view.app, creation.source, name);
-              new import_obsidian29.Notice(`Created new ${creation.label}: ${name}`);
-            } catch (e) {
-              console.warn(`Failed to auto-create ${targetEntityKey || suggestionSource}`, e);
-            }
-          }
-        }
-      };
-      inp.addEventListener("input", updateSuggestions);
-      inp.addEventListener("focus", updateSuggestions);
-      inp.addEventListener("keydown", async (ev) => {
-        if (ev.key === "Enter") {
-          ev.preventDefault();
-          await addVal(inp.value);
-          suggestionsBox.style.display = "none";
-        } else if (ev.key === "Backspace" && !inp.value && valuesList.length > 0) {
-          valuesList.pop();
-          await save();
-          renderChips();
-        }
-      });
-      inp.addEventListener("blur", async () => {
-        setTimeout(async () => {
-          suggestionsBox.style.display = "none";
-          if (inp.value.trim()) {
-            await addVal(inp.value);
-          }
-        }, 180);
-      });
-      wrap.addEventListener("click", () => inp.focus());
-      renderChips();
-    } else if (control === "enum") {
-      const sel = cell.createEl("select", { cls: "cad-pd-meta-input" });
-      sel.style.border = "none";
-      sel.style.background = "transparent";
-      sel.style.color = "var(--text-normal)";
-      sel.style.outline = "none";
-      sel.style.width = "100%";
-      sel.createEl("option", { value: "", text: "\u2014" });
-      (f.options || []).forEach((opt) => {
-        const o = sel.createEl("option", { value: opt, text: opt });
-        if (enumCurrent(current) === opt) o.selected = true;
-      });
-      const commit = async () => {
-        const val = sel.value || null;
-        await view._writeProjectFrontmatter(file, { [key]: val }, flashSaved);
-      };
-      sel.addEventListener("change", commit);
-    } else {
-      const inp = cell.createEl("input", { type: metaInputType(fieldType), cls: "cad-pd-meta-input" });
-      if (fieldType === "currency") inp.placeholder = `${view.plugin.settings.currency || "USD"} amount`;
-      if (fieldType === "date" && current) {
-        const date = dateInputValue(current);
-        if (date !== null) inp.value = date;
-      } else if (current != null) {
-        inp.value = String(current);
-      }
-      let t;
-      const commit = () => {
-        view._writeProjectFrontmatter(file, { [key]: metaInputValue(fieldType, inp.value) }, flashSaved);
-      };
-      inp.addEventListener("input", () => {
-        clearTimeout(t);
-        t = setTimeout(commit, 350);
-      });
-      inp.addEventListener("blur", commit);
-    }
-  };
-  projectMetaFields(def).forEach((f) => mkMeta(f));
-  const progress = projectProgress(meta);
-  if (progress) {
-    const progWrap = hero.createDiv({ cls: "cad-proj-progress-wrap cad-pd-progress" });
-    progWrap.dataset.pctBand = progress.band;
-    const progLabel = progWrap.createDiv({ cls: "cad-proj-progress-label" });
-    progLabel.createSpan({ text: progress.label });
-    progLabel.createSpan({ cls: "cad-proj-progress-pct", text: progress.percent });
-    const bar = progWrap.createDiv({ cls: "cad-proj-progress-bar" });
-    const fill = bar.createDiv({ cls: "cad-proj-progress-fill" });
-    fill.style.width = progress.percent;
-  }
-  const cols = root.createDiv({ cls: "cad-pd-cols" });
-  const left = cols.createDiv({ cls: "cad-pd-col" });
-  const right = cols.createDiv({ cls: "cad-pd-col" });
-  const { left: leftKeys, right: rightKeys } = splitSectionColumns(Object.keys(meta.sections));
-  leftKeys.forEach((key) => {
-    view._renderDynamicH2Section(left, file, meta.sections, key, flashSaved);
-  });
-  rightKeys.forEach((key) => {
-    const textSection = projectTextSection(key);
-    if (textSection) {
-      view._renderProjectTextSection(right, file, meta.sections, textSection, flashSaved);
-    } else {
-      view._renderDynamicH2Section(right, file, meta.sections, key, flashSaved);
-    }
-  });
-  const crossSectionContainer = root.createDiv({ attr: { style: "padding: 0 32px; width: 100%; clear: both;" } });
-  view._renderCrossSections(crossSectionContainer, "project", titleVal);
-}
-function renderMilestoneSection(view, parent, file, milestones, flashSaved, rawKey = "Milestones") {
-  const card = parent.createDiv({ cls: "cad-pd-card" });
-  const head = card.createDiv({ cls: "cad-pd-card-head" });
-  head.createDiv({ cls: "cad-pd-card-title", text: milestoneCardTitle(rawKey, milestones) });
-  const addBtn = head.createEl("button", { cls: "cad-btn cad-btn-sm", text: "+ Add" });
-  const list = card.createDiv({ cls: "cad-pd-checklist" });
-  const renderRows = (items) => {
-    list.empty();
-    if (!items.length) {
-      list.createDiv({ cls: "cad-empty", text: "No milestones yet \u2014 add the first one." });
-      return;
-    }
-    items.forEach((m, idx) => {
-      const wrapper = list.createDiv({ cls: "cad-mile-wrapper" });
-      const row = wrapper.createDiv({ cls: "cad-pd-mile-row" + (m.done ? " done" : "") });
-      const cb = row.createEl("input", { type: "checkbox" });
-      cb.checked = !!m.done;
-      cb.addEventListener("change", async () => {
-        replaceItems(items, updateItem(items, idx, { done: cb.checked }));
-        await view._commitMilestones(file, items, flashSaved, false, rawKey);
-      });
-      const dateInp = row.createEl("input", { type: "date", cls: "cad-pd-mile-date" });
-      const dateValue = milestoneDateValue(m.date);
-      if (dateValue !== null) dateInp.value = dateValue;
-      let dt;
-      dateInp.addEventListener("input", () => {
-        clearTimeout(dt);
-        dt = setTimeout(async () => {
-          replaceItems(items, updateItem(items, idx, { date: milestoneDateFromInput(dateInp.value) }));
-          await view._commitMilestones(file, items, flashSaved, true, rawKey);
-        }, 350);
-      });
-      const titleInp = row.createEl("input", { type: "text", cls: "cad-pd-mile-title" });
-      titleInp.value = m.title || "";
-      titleInp.placeholder = "Milestone title";
-      let tt;
-      titleInp.addEventListener("input", () => {
-        clearTimeout(tt);
-        tt = setTimeout(async () => {
-          replaceItems(items, updateItem(items, idx, { title: titleInp.value }));
-          await view._commitMilestones(file, items, flashSaved, true, rawKey);
-        }, 400);
-      });
-      const del = row.createEl("button", { cls: "cad-btn cad-btn-sm cad-btn-danger", text: "\xD7" });
-      del.title = "Delete milestone";
-      del.addEventListener("click", async () => {
-        replaceItems(items, removeItem(items, idx));
-        await view._commitMilestones(file, items, flashSaved, false, rawKey);
-      });
-      const notesEl = wrapper.createDiv({ cls: "cad-mile-notes-section" });
-      const renderNotesIdle = () => {
-        notesEl.empty();
-        const hasNotes = (items[idx].notes || "").trim().length > 0;
-        if (hasNotes) {
-          const preview = notesEl.createDiv({ cls: "cad-mile-notes-preview" });
-          preview.setText(items[idx].notes);
-          preview.title = "Click to edit notes";
-          preview.addEventListener("click", openNotesEditor);
-        } else {
-          const addBtn2 = notesEl.createEl("a", { cls: "cad-mile-notes-add", text: "+ Add notes" });
-          addBtn2.addEventListener("click", (e) => {
-            e.preventDefault();
-            openNotesEditor();
-          });
-        }
-      };
-      const openNotesEditor = () => {
-        notesEl.empty();
-        const ta = notesEl.createEl("textarea", { cls: "cad-mile-notes-textarea" });
-        ta.value = items[idx].notes || "";
-        ta.placeholder = "Notes \u2014 context, follow-ups, what happened\u2026";
-        const autosize = () => {
-          ta.style.height = "auto";
-          ta.style.height = Math.max(60, ta.scrollHeight + 2) + "px";
-        };
-        let nt;
-        ta.addEventListener("input", () => {
-          autosize();
-          clearTimeout(nt);
-          nt = setTimeout(async () => {
-            replaceItems(items, updateItem(items, idx, { notes: ta.value }));
-            await view._commitMilestones(file, items, flashSaved, true, rawKey);
-          }, 400);
-        });
-        ta.addEventListener("blur", async () => {
-          replaceItems(items, updateItem(items, idx, { notes: ta.value }));
-          await view._commitMilestones(file, items, flashSaved, true, rawKey);
-          renderNotesIdle();
-        });
-        setTimeout(() => {
-          ta.focus();
-          autosize();
-        }, 0);
-      };
-      renderNotesIdle();
-    });
-  };
-  renderRows(milestones);
-  addBtn.addEventListener("click", async () => {
-    replaceItems(milestones, addMilestone(milestones, /* @__PURE__ */ new Date()));
-    await view._commitMilestones(file, milestones, flashSaved, false, rawKey);
-  });
-}
-async function saveMilestones(view, file, items, flashSaved, skipRender = false, rawKey = "Milestones") {
-  const snapshot = [...items];
-  const content = await view.app.vault.read(file);
-  await view.app.vault.modify(file, commitMilestones(content, snapshot, rawKey));
-  if (typeof flashSaved === "function") flashSaved();
-  if (!skipRender) view.render();
-}
-function renderTaskSection(view, parent, file, tasks, flashSaved, rawKey = "Tasks") {
-  const card = parent.createDiv({ cls: "cad-pd-card" });
-  const head = card.createDiv({ cls: "cad-pd-card-head" });
-  let tasksList = tasks;
-  let fileTaskNotes = [];
-  if (view.plugin.settings.taskManagementSystem === "tasknotes") {
-    fileTaskNotes = listTaskNotesTasksForFile(view.app, file);
-    tasksList = taskNotesItems(fileTaskNotes);
-  }
-  head.createDiv({ cls: "cad-pd-card-title", text: taskCardTitle(rawKey, tasksList) });
-  const addBtn = head.createEl("button", { cls: "cad-btn cad-btn-sm", text: "+ Add" });
-  const list = card.createDiv({ cls: "cad-pd-checklist" });
-  const renderRows = (items) => {
-    list.empty();
-    if (!items.length) {
-      list.createDiv({ cls: "cad-empty", text: "No tasks yet." });
-      return;
-    }
-    items.forEach((t, idx) => {
-      const row = list.createDiv({ cls: "cad-pd-task-row" + (t.done ? " done" : "") });
-      const cb = row.createEl("input", { type: "checkbox" });
-      cb.checked = !!t.done;
-      cb.addEventListener("change", async () => {
-        if (view.plugin.settings.taskManagementSystem === "tasknotes") {
-          const taskObj = fileTaskNotes[idx];
-          await toggleTaskNotesTask(view.app, taskObj.file, cb.checked);
-        } else {
-          replaceItems(items, updateItem(items, idx, { done: cb.checked }));
-          await view._commitTasks(file, items, flashSaved, false, rawKey);
-          const txt = (items[idx].title || "").trim();
-          if (txt) await view._propagateTaskComplete(txt, cb.checked, { kind: "project", file });
-        }
-        view.render();
-      });
-      if (view.plugin.settings.taskManagementSystem === "tasknotes") {
-        const taskObj = fileTaskNotes[idx];
-        const taskLink = row.createEl("a", { cls: "cad-task-text", text: t.title || "Untitled Task" });
-        taskLink.style.cursor = "pointer";
-        taskLink.style.flex = "1";
-        taskLink.style.marginRight = "8px";
-        taskLink.addEventListener("click", (ev) => {
-          ev.preventDefault();
-          view.app.workspace.openLinkText(taskObj.file.path, "", false);
-        });
+  const { left, right } = twoColumns(root);
+  const dealsByPartnerCard = left.createDiv({ cls: "cad-dash-card" });
+  dealsByPartnerCard.createDiv({ cls: "cad-dash-card-head" }).createDiv({ cls: "cad-dash-card-title", text: "DEALS BY PARTNER" });
+  const dbpBody = dealsByPartnerCard.createDiv({ cls: "cad-dash-card-body" });
+  if (!report.sources.length) {
+    dbpBody.createDiv({ cls: "cad-empty", text: "No deals attributed to partners yet." });
+  } else {
+    report.sources.forEach(({ partner: p, meta }) => {
+      const row = dbpBody.createDiv({ cls: "cad-dash-row" });
+      const titleDiv = row.createDiv({ cls: "cad-dash-row-title" });
+      if (p && p !== "(direct)") {
+        view._renderEntityLinks(titleDiv, p, "partner");
       } else {
-        const titleInp = row.createEl("input", { type: "text", cls: "cad-pd-task-title" });
-        titleInp.value = t.title || "";
-        titleInp.placeholder = "Task description";
-        let tt;
-        titleInp.addEventListener("input", () => {
-          clearTimeout(tt);
-          tt = setTimeout(async () => {
-            replaceItems(items, updateItem(items, idx, { title: titleInp.value }));
-            await view._commitTasks(file, items, flashSaved, true, rawKey);
-          }, 400);
-        });
-        const bellState = taskBell(findProjectTaskReminder(view.plugin, file.path, t.title || ""));
-        const bell = row.createEl("button", { cls: bellState.cls, text: bellState.text });
-        bell.title = bellState.title;
-        bell.addEventListener("click", async () => {
-          replaceItems(items, updateItem(items, idx, { title: titleInp.value }));
-          await view._commitTasks(file, items, flashSaved, true, rawKey);
-          const taskText = titleInp.value.trim();
-          if (!taskText) {
-            new import_obsidian29.Notice("Add a task title first.");
-            titleInp.focus();
-            return;
-          }
-          const existing = findProjectTaskReminder(view.plugin, file.path, taskText);
-          if (existing) {
-            new CadenceReminderEditModal(view.app, view.plugin, existing).open();
-          } else {
-            new CadenceReminderEditModal(view.app, view.plugin, newTaskReminder(taskText, file.path), { isNew: true }).open();
-          }
-        });
+        titleDiv.setText(p || "");
       }
-      if (view.plugin.settings.taskManagementSystem !== "tasknotes") {
-        const del = row.createEl("button", { cls: "cad-btn cad-btn-sm cad-btn-danger", text: "\xD7" });
-        del.addEventListener("click", async () => {
-          replaceItems(items, removeItem(items, idx));
-          await view._commitTasks(file, items, flashSaved, false, rawKey);
-        });
-      }
+      row.createDiv({ cls: "cad-dash-row-meta", text: meta });
     });
-  };
-  renderRows(tasksList);
-  addBtn.addEventListener("click", async () => {
-    if (view.plugin.settings.taskManagementSystem === "tasknotes") {
-      const commandId = "tasknotes:create-new-task";
-      const commands = view.app.commands;
-      const hasCommand = commands && commands.commands && commands.commands[commandId];
-      if (hasCommand) {
-        commands.executeCommandById(commandId);
-        return;
-      }
-      const text = await view._prompt(TASKNOTES_PROMPT);
-      if (!text) return;
-      await ensureFolderSync(view.app, TASKNOTES_FOLDER);
-      const filename = taskNotePath(TASKNOTES_FOLDER, text, (path) => !!view.app.vault.getAbstractFileByPath(path));
-      await view.app.vault.create(filename, taskNoteContent(text, /* @__PURE__ */ new Date(), file.basename));
-      view.render();
-      return;
-    }
-    replaceItems(tasks, addTask(tasks));
-    await view._commitTasks(file, tasks, flashSaved, false, rawKey);
-  });
-}
-async function saveTasks(view, file, items, flashSaved, skipRender = false, rawKey = "Tasks") {
-  const snapshot = [...items];
-  const content = await view.app.vault.read(file);
-  await view.app.vault.modify(file, commitTasks(content, snapshot, rawKey));
-  if (typeof flashSaved === "function") flashSaved();
-  if (!skipRender) view.render();
-}
-async function saveProjectFrontmatter(view, file, patch, flashSaved) {
-  try {
-    await view.app.fileManager.processFrontMatter(file, (fm) => writeProjectFrontmatter(fm, patch));
-    if (typeof flashSaved === "function") flashSaved();
-  } catch (e) {
-    new import_obsidian29.Notice(`Save failed: ${e.message}`);
   }
+  view._dashCardSection(right, "CERTS EXPIRING \xB7 NEXT 90 DAYS", report.certs, "No certifications expiring in the next 90 days.");
+}
+async function renderReportActivity(view, root) {
+  root.addClass("cadence-report");
+  const report = activityReport(listEntities(view.app, "activity"), ENTITIES.activity, /* @__PURE__ */ new Date(), view.plugin.settings.weekStartsOn);
+  view._renderPageHeader(root, "Activity report", "Calls, meetings, emails and notes \u2014 mix and momentum");
+  drawStats(root, report.stats);
+  root.createDiv({ cls: "cad-section-label-lg", text: "ACTIVITY \u2014 LAST 8 WEEKS" });
+  drawBars(root.createDiv({ cls: "cad-bar-chart cad-bar-chart-tall" }), report.bars);
+  const { left, right } = twoColumns(root);
+  view._dashCardSection(left, "TOP CONTACTS \xB7 by activity count", report.topContacts, "No activities tagged with a contact yet.");
+  view._dashCardSection(right, "RECENT ACTIVITY \xB7 last 10", report.recent, "No activities yet \u2014 log one under CRM > Activities.");
+}
+async function renderProductivity(view, root) {
+  root.addClass("cadence-report");
+  const settings = view.plugin.settings;
+  const now = /* @__PURE__ */ new Date();
+  const notes = /* @__PURE__ */ new Map();
+  for (const d of productivityDates(now, settings.weekStartsOn)) {
+    const f = view.app.vault.getAbstractFileByPath(dailyNotePath(settings, d));
+    if (f && f instanceof import_obsidian25.TFile) notes.set(ymd(d), await view.app.vault.read(f));
+  }
+  const report = productivityReport(notes, now, settings);
+  view._renderPageHeader(root, "Productivity", "Last 30 days \xB7 across your daily notes");
+  drawStats(root, report.stats);
+  root.createDiv({ cls: "cad-section-label-lg", text: "TASKS DONE \u2014 LAST 14 DAYS" });
+  drawBars(root.createDiv({ cls: "cad-bar-chart" }), report.days);
+  root.createDiv({ cls: "cad-section-label-lg", text: "COMPLETION TREND \u2014 LAST 12 WEEKS" });
+  drawBars(root.createDiv({ cls: "cad-bar-chart cad-bar-chart-tall" }), report.weeks);
+  root.createDiv({ cls: "cad-section-label-lg", text: "COMPLETION BY WEEKDAY \xB7 LAST 30 DAYS" });
+  const dayCard = root.createDiv({ cls: "cad-dash-card" });
+  dayCard.style.margin = "0 36px 24px 36px";
+  drawMiniStats2(dayCard.createDiv({ cls: "cad-dash-card-body cad-mini-stat-row" }), report.weekdays);
 }
 
 // src/views/task-links.ts
-var import_obsidian30 = require("obsidian");
+var import_obsidian26 = require("obsidian");
 function taskLinkKey(dailyPath, text) {
   return `${dailyPath}::${(text || "").trim()}`;
 }
@@ -10481,14 +9887,14 @@ async function setTaskProjectLink(view, dailyPath, text, projectPath) {
 function openTaskProjectPicker(view, dailyPath, text, currentLink) {
   const projectFiles = listEntityFiles(view.app, "project");
   if (!projectFiles.length) {
-    new import_obsidian30.Notice("No projects yet. Create one in Planner \u2192 Projects first.");
+    new import_obsidian26.Notice("No projects yet. Create one in Planner \u2192 Projects first.");
     return;
   }
   const projects = projectFiles.map((f) => ({
     file: f,
     name: projectNameFromPath(view.app, f.path)
   }));
-  const picker = new class extends import_obsidian30.SuggestModal {
+  const picker = new class extends import_obsidian26.SuggestModal {
     constructor(app, projs, hasLink) {
       super(app);
       this.projs = projs;
@@ -10565,12 +9971,12 @@ async function propagateTaskComplete(view, text, done, source) {
   }
   for (const path of targets.projectPaths) {
     const file = view.app.vault.getAbstractFileByPath(path);
-    if (!file || !(file instanceof import_obsidian30.TFile)) continue;
+    if (!file || !(file instanceof import_obsidian26.TFile)) continue;
     await view._tickProjectTaskByText(file, targets.text, !!done);
   }
   for (const path of targets.dailyPaths) {
     const file = view.app.vault.getAbstractFileByPath(path);
-    if (!file || !(file instanceof import_obsidian30.TFile)) continue;
+    if (!file || !(file instanceof import_obsidian26.TFile)) continue;
     await view._tickDailyNoteTaskByText(file, targets.text, !!done);
   }
 }
@@ -10597,639 +10003,1239 @@ async function tickDailyNoteTaskByText(view, file, text, done) {
   await view.app.vault.modify(file, next);
 }
 
-// src/views/components/cards.ts
-function dashCardSection(view, parent, title, rows, emptyMsg) {
-  const card = parent.createDiv({ cls: "cad-dash-card" });
-  card.createDiv({ cls: "cad-dash-card-head" }).createDiv({ cls: "cad-dash-card-title", text: title });
-  const body = card.createDiv({ cls: "cad-dash-card-body" });
-  if (!rows || !rows.length) {
-    body.createDiv({ cls: "cad-empty", text: emptyMsg || "Nothing here yet." });
-    return;
-  }
-  rows.forEach((r) => {
-    const row = body.createDiv({ cls: "cad-dash-row" });
-    const titleDiv = row.createDiv({ cls: "cad-dash-row-title" });
-    if (r.titleEntityKey) {
-      view._renderEntityLinks(titleDiv, r.title, r.titleEntityKey);
-    } else {
-      titleDiv.setText(r.title || "");
-    }
-    const metaDiv = row.createDiv({ cls: "cad-dash-row-meta" });
-    if (r.metaParts) {
-      r.metaParts.forEach((part) => {
-        if (part.entityKey) {
-          view._renderEntityLinks(metaDiv, part.text, part.entityKey);
-        } else {
-          metaDiv.createSpan({ text: part.text || "" });
-        }
-      });
-    } else {
-      metaDiv.setText(r.meta || "");
-    }
-    if (r.file) {
-      row.style.cursor = "pointer";
-      row.addEventListener("click", () => view.openEntityDetailFromFile(r.file));
-    }
-  });
-}
+// src/views/templates.ts
+var import_obsidian29 = require("obsidian");
 
-// src/views/components/entity-table.ts
-function renderEntityLinks(view, parent, val, targetEntityKey, prefix = "") {
-  if (!val) return;
-  const items = parseLinkValues(val);
-  if (items.length === 0) return;
-  if (prefix) parent.createSpan({ text: prefix });
-  items.forEach((item, idx) => {
-    if (idx > 0) parent.createSpan({ text: ", " });
-    let resolvedKey = targetEntityKey;
-    if (targetEntityKey && targetEntityKey.startsWith("folder:")) {
-      const folderPath = targetEntityKey.slice("folder:".length).replace(/\/+$/, "").toLowerCase();
-      const matchedKey = Object.keys(ENTITIES).find((k) => ENTITIES[k].folder.replace(/\/+$/, "").toLowerCase() === folderPath);
-      if (matchedKey) {
-        resolvedKey = matchedKey;
-      }
-    }
-    const link = parent.createEl("a", { text: item.display, cls: `cad-${resolvedKey}-link` });
-    link.style.textDecoration = "underline";
-    link.style.cursor = "pointer";
-    link.addEventListener("click", (ev) => {
-      ev.stopPropagation();
-      const targetFile = view.app.vault.getMarkdownFiles().find((f) => f.basename.toLowerCase() === item.target.toLowerCase());
-      if (targetFile) {
-        if (ENTITIES[resolvedKey]) {
-          view.openEntityDetail(resolvedKey, targetFile);
-        } else {
-          view.app.workspace.openLinkText(targetFile.path, "", false);
-        }
-      } else {
-        view.app.workspace.openLinkText(item.target, "", false);
-      }
-    });
-  });
-}
-function renderOwnerLinks(view, parent, ownerVal, showPrefix = true) {
-  view._renderEntityLinks(parent, ownerVal, "contact", showPrefix ? "Owner: " : "");
-}
-function renderEntityTable(view, parent, entityKey, filteredList, columns) {
-  const def = ENTITIES[entityKey];
-  if (!def) return;
-  const tableWrap = parent.createDiv({ cls: "cad-table-wrap" });
-  tableWrap.style.padding = "0";
-  tableWrap.style.border = "none";
-  tableWrap.style.boxShadow = "none";
-  tableWrap.style.borderRadius = "0";
-  tableWrap.style.marginTop = "0";
-  tableWrap.style.overflowX = "auto";
-  const table = tableWrap.createEl("table", { cls: "cad-table" });
-  const cols = columns.map((k) => def.fields.find((f) => f.key === k)).filter(Boolean);
-  const thead = table.createEl("thead");
-  const trh = thead.createEl("tr");
-  cols.forEach((f) => trh.createEl("th", { text: f.label }));
-  const tbody = table.createEl("tbody");
-  filteredList.forEach((e) => {
-    const tr = tbody.createEl("tr", { cls: "cad-row" });
-    cols.forEach((f, i) => {
-      const td = tr.createEl("td");
-      const val = entityValue(e, f.key, def);
-      const formatted = fmtValue(val, f.type);
-      const primaryField2 = def.fields.find((fd) => fd.primary) || def.fields[0];
-      const hasPrimaryCol = cols.some((c) => c.key === primaryField2.key);
-      const isPrimaryCol = hasPrimaryCol ? f.key === primaryField2.key : i === 0;
-      if (isPrimaryCol) {
-        const a = td.createEl("a", { cls: "cad-row-primary", text: formatted || e.basename });
-        a.style.fontWeight = "bold";
-        a.style.textDecoration = "underline";
-        a.style.cursor = "pointer";
-        a.addEventListener("click", (ev) => {
-          ev.preventDefault();
-          view.openEntityDetail(entityKey, e.file);
-        });
-      } else if (f.key === "owner" || f.key === "assigned") {
-        view._renderOwnerLinks(td, val, false);
-      } else {
-        const sugSrc = f.suggestionSource || getFieldSuggestionSource(f);
-        if (f.type === "multitext" && sugSrc && sugSrc !== "none" && sugSrc !== "tags" && sugSrc !== "history") {
-          const targetSrc = sugSrc === "history" ? "folder:Cadence/Shared" : sugSrc;
-          view._renderEntityLinks(td, val, targetSrc);
-        } else if (f.key === "company") {
-          view._renderEntityLinks(td, val, "company");
-        } else if (f.key === "partner") {
-          view._renderEntityLinks(td, val, "partner");
-        } else if (f.key === "contact" || f.key === "contacts" || f.key === "with") {
-          view._renderEntityLinks(td, val, "contact");
-        } else if (f.key === "related") {
-          view._renderEntityLinks(td, val, "project");
-        } else if (f.key === "stage" && val) {
-          const span = td.createSpan({ cls: `cad-pill cad-pill-${val.toLowerCase()}`, text: formatted });
-          span.style.fontSize = "10px";
-          span.style.padding = "2px 6px";
-        } else {
-          td.setText(formatted || "\u2014");
-        }
-      }
-    });
-  });
-}
-function getEntityFiles(view, entityKey) {
-  if (entityKey === "daily") {
-    const folderPath = view.plugin.settings.dailyNoteFolder || "daily";
-    const folder = view.app.vault.getAbstractFileByPath(folderPath);
-    if (!folder || !folder.children) return [];
-    const out = [];
-    const walk = (node) => {
-      for (const child of node.children) {
-        if (child.children) walk(child);
-        else if (typeof child.path === "string" && child.path.toLowerCase().endsWith(".md")) {
-          out.push(child);
-        }
-      }
-    };
-    walk(folder);
-    return out;
-  } else {
-    return listEntityFiles(view.app, entityKey);
-  }
-}
-
-// src/views/components/sections.ts
-var import_obsidian31 = require("obsidian");
-function linksTo(val, name) {
-  if (val == null) return false;
-  const cleanName = name.trim().toLowerCase();
-  const arr = Array.isArray(val) ? val : [val];
-  return arr.some((v) => String(v).replace(/^\[\[|\]\]$/g, "").trim().toLowerCase() === cleanName);
-}
-function crossSectionRows(entities, linkField, parentName, frontmatterOf) {
-  return entities.filter((e) => linksTo(frontmatterOf(e)[linkField], parentName));
-}
-function frontmatterReader(view) {
-  return (e) => {
-    const cache = view.app.metadataCache.getFileCache(e.file);
-    return cache && cache.frontmatter || {};
+// src/modals/chart-section.ts
+var import_obsidian27 = require("obsidian");
+function buildChartSectionConfig(form) {
+  return {
+    targetEntity: form.targetEntity,
+    linkField: form.linkField,
+    groupField: form.groupField,
+    style: form.style
   };
 }
-function dynamicH2Kind(rawKey) {
-  const { cleanLabel, tag } = parseHeaderKey(rawKey);
-  const cleanLower = cleanLabel.toLowerCase();
-  if (tag === "#tasks" || cleanLower === "tasks") return { kind: "tasks", cleanLabel };
-  if (tag === "#milestones" || cleanLower === "milestones") return { kind: "milestones", cleanLabel };
-  if (tag.startsWith("#cross-")) {
-    const crossParts = tag.slice("#cross-".length).split("-");
-    if (crossParts.length !== 3) return { kind: "malformed", cleanLabel };
-    const [targetEntity, linkField, viewType] = crossParts;
-    return { kind: "cross", cleanLabel, targetEntity, linkField, viewType };
-  }
-  if (tag.startsWith("#chart-")) {
-    const chartParts = tag.slice("#chart-".length).split("-");
-    if (chartParts.length < 4) return { kind: "malformed", cleanLabel };
-    return {
-      kind: "chart",
-      cleanLabel,
-      targetEntity: chartParts[0],
-      linkField: chartParts[1],
-      groupField: chartParts[2],
-      chartStyle: chartParts.slice(3).join("-")
-    };
-  }
-  return { kind: "text", cleanLabel };
+function chartSectionDefaults(fieldKeys, parentEntity) {
+  const parentDef = ENTITIES[parentEntity];
+  const linkField = parentDef ? fieldKeys.find((k) => k === parentEntity || k === parentDef.label.toLowerCase()) : void 0;
+  const groupField = fieldKeys.find((k) => ["stage", "status", "type", "priority"].includes(k));
+  return { linkField, groupField };
 }
-function renderMarkdownTextCard(view, parent, file, sectionKey, label, initialValue, placeholder, flashSaved) {
-  const card = parent.createDiv({ cls: "cad-pd-card" });
-  const head = card.createDiv({ cls: "cad-pd-card-head" });
-  head.createDiv({ cls: "cad-pd-card-title", text: label });
-  const openBtn = head.createEl("button", { cls: "cad-btn cad-btn-sm", attr: { style: "margin-left: auto; padding: 4px 6px; display: inline-flex; align-items: center; justify-content: center; border-radius: 4px; border: 1px solid var(--border-color); background: transparent; cursor: pointer;" } });
-  openBtn.title = "Open this note natively to edit with full Live Preview & Autocomplete";
-  try {
-    (0, import_obsidian31.setIcon)(openBtn, "file-text");
-  } catch (_) {
+var CadenceChartSectionModal = class extends import_obsidian27.Modal {
+  constructor(app, parentEntity, onSubmit) {
+    super(app);
+    this.parentEntity = parentEntity;
+    this.onSubmit = onSubmit;
   }
-  openBtn.addEventListener("click", (ev) => {
-    ev.stopPropagation();
-    view.app.workspace.openLinkText(file.path, "", "split");
-  });
-  const body = card.createDiv({ attr: { style: "padding: 12px; min-height: 40px; position: relative;" } });
-  const previewDiv = body.createDiv({ cls: "markdown-preview-view", attr: { style: "padding: 0; min-height: 30px;" } });
-  const renderPreview = () => {
-    previewDiv.empty();
-    const rawText = initialValue || "";
-    try {
-      import_obsidian31.MarkdownRenderer.renderMarkdown(rawText, previewDiv, file.path, view);
-      previewDiv.querySelectorAll("a.internal-link").forEach((a) => {
-        const href = a.getAttribute("data-href") || a.getAttribute("href");
-        if (href) {
-          a.addEventListener("click", (ev) => {
-            ev.preventDefault();
-            ev.stopPropagation();
-            view.app.workspace.openLinkText(href, file.path, false);
-          });
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.addClass("cad-prompt-modal");
+    contentEl.createEl("h3", { text: "Add Analytics Chart Block" });
+    const style = "display: block; font-weight: 500; font-size: 0.85em; margin-bottom: 4px; margin-top: 12px;";
+    const selStyle = (el) => {
+      el.style.width = "100%";
+      el.style.padding = "6px 8px";
+      el.style.background = "var(--background-primary)";
+      el.style.color = "var(--text-normal)";
+      el.style.border = "1px solid var(--border-color)";
+      el.style.borderRadius = "4px";
+    };
+    contentEl.createEl("label", { text: "Entity to chart:", style });
+    const selTarget = contentEl.createEl("select");
+    selStyle(selTarget);
+    Object.entries(ENTITIES).forEach(([key, def]) => {
+      selTarget.createEl("option", { value: key, text: def.plural });
+    });
+    contentEl.createEl("label", { text: "Link field (field on target that references this entity):", style });
+    const selLink = contentEl.createEl("select");
+    selStyle(selLink);
+    contentEl.createEl("label", { text: "Group by field (property to chart):", style });
+    const selGroup = contentEl.createEl("select");
+    selStyle(selGroup);
+    const refreshFields = () => {
+      const targetKey = selTarget.value;
+      const def = ENTITIES[targetKey];
+      if (!def) return;
+      selLink.empty();
+      selGroup.empty();
+      def.fields.forEach((f) => {
+        if (!f.primary) {
+          selLink.createEl("option", { value: f.key, text: `${f.label} (${f.key})` });
+          selGroup.createEl("option", { value: f.key, text: `${f.label} (${f.key})` });
         }
       });
-    } catch (e) {
-      previewDiv.setText(rawText);
-    }
-    if (!rawText.trim()) {
-      const ph = previewDiv.createDiv({ text: placeholder || "Empty section.", attr: { style: "color: var(--text-faint); font-style: italic; font-size: 0.9em; padding: 4px 0;" } });
-    }
-  };
-  renderPreview();
-}
-function renderProjectTextSection(view, parent, file, sections, def, flashSaved) {
-  const initial = (sections[def.key] || "").replace(/^\s+|\s+$/g, "");
-  view._renderMarkdownTextCard(parent, file, def.key, def.label, initial, def.placeholder, flashSaved);
-}
-function renderGenericTextSection(view, parent, file, sections, key, flashSaved) {
-  const { cleanLabel } = parseHeaderKey(key);
-  const initial = (sections[key] || "").replace(/^\s+|\s+$/g, "");
-  view._renderMarkdownTextCard(parent, file, key, cleanLabel.toUpperCase(), initial, `Content for ${cleanLabel}...`, flashSaved);
-}
-function renderSingleCrossSection(view, parent, targetEntity, linkField, viewType, parentName, preFilteredList = null) {
-  const def = ENTITIES[targetEntity];
-  if (!def) return;
-  const filteredList = preFilteredList || crossSectionRows(listEntities(view.app, targetEntity), linkField, parentName, frontmatterReader(view));
-  const secWrap = parent.createDiv({ attr: { style: "margin-top: 12px; margin-bottom: 12px;" } });
-  if (filteredList.length === 0) {
-    secWrap.createDiv({ cls: "cad-empty", text: "No linked items found." });
-    return;
+      const { linkField, groupField } = chartSectionDefaults(Array.from(selLink.options).map((o) => o.value), this.parentEntity);
+      if (linkField !== void 0) selLink.value = linkField;
+      if (groupField !== void 0) selGroup.value = groupField;
+    };
+    refreshFields();
+    selTarget.addEventListener("change", refreshFields);
+    contentEl.createEl("label", { text: "Chart Style:", style });
+    const selStyle2 = contentEl.createEl("select");
+    selStyle(selStyle2);
+    [
+      { value: "donut", text: "Donut Chart \u{1F369}" },
+      { value: "bar", text: "Horizontal Bar Chart \u{1F4CA}" },
+      { value: "kpi", text: "KPI Cards Grid \u{1F5C3}\uFE0F" },
+      { value: "list", text: "Simple List \u{1F4CB}" }
+    ].forEach((opt) => selStyle2.createEl("option", { value: opt.value, text: opt.text }));
+    const row = contentEl.createDiv({ attr: { style: "display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px;" } });
+    row.createEl("button", { text: "Cancel" }).addEventListener("click", () => this.close());
+    const ok = row.createEl("button", { text: "Add Chart", cls: "mod-cta" });
+    ok.addEventListener("click", () => {
+      this.onSubmit(buildChartSectionConfig({
+        targetEntity: selTarget.value,
+        linkField: selLink.value,
+        groupField: selGroup.value,
+        style: selStyle2.value
+      }));
+      this.close();
+    });
   }
-  if (viewType === "table") {
-    const columns = def.columns || [def.fields[0].key];
-    view._renderEntityTable(secWrap, targetEntity, filteredList, columns);
-  } else if (viewType === "tile") {
-    const grid = secWrap.createDiv({ cls: "cad-proj-grid" });
-    filteredList.forEach((e) => {
-      if (targetEntity === "project") {
-        const card = grid.createDiv({ cls: "cad-proj-card" });
-        const head = card.createDiv({ cls: "cad-proj-card-head" });
-        const title = head.createEl("a", { cls: "cad-proj-title", text: entityValue(e, "name", def) || e.basename });
-        title.addEventListener("click", (ev) => {
-          ev.preventDefault();
-          view.openEntityDetail("project", e.file);
-        });
-        const status = String(entityValue(e, "status", def) || "active");
-        const priority = String(entityValue(e, "priority", def) || "");
-        const pillRow = head.createDiv({ cls: "cad-proj-pills" });
-        pillRow.createSpan({ cls: `cad-pill cad-pill-${status.toLowerCase().replace(/\s+/g, "-")}`, text: status });
-        if (priority) pillRow.createSpan({ cls: `cad-pill cad-pill-prio-${priority.toLowerCase()}`, text: priority });
-        const metaRow = card.createDiv({ cls: "cad-proj-meta" });
-        const owner = entityValue(e, "owner", def);
-        const due = entityValue(e, "due", def);
-        if (owner) view._renderOwnerLinks(metaRow, owner);
-        if (due) metaRow.createSpan({ text: `Due: ${fmtValue(due, "date")}` });
-        const progWrap = card.createDiv({ cls: "cad-proj-progress-wrap" });
-        const progLabel = progWrap.createDiv({ cls: "cad-proj-progress-label" });
-        const progTextSpan = progLabel.createSpan({ text: "Loading milestones..." });
-        const progPctSpan = progLabel.createSpan({ cls: "cad-proj-progress-pct", text: "" });
-        const bar = progWrap.createDiv({ cls: "cad-proj-progress-bar" });
-        const fill = bar.createDiv({ cls: "cad-proj-progress-fill" });
-        fill.style.width = "0%";
-        const nextRow = card.createDiv({ cls: "cad-proj-next" });
-        readProjectMeta(view.app, e.file).then((pm) => {
-          progWrap.dataset.pctBand = pctBand(pm.percent);
-          progTextSpan.setText(`${pm.done}/${pm.total} milestones`);
-          progPctSpan.setText(`${pm.percent}%`);
-          fill.style.width = `${pm.percent}%`;
-          if (pm.next) {
-            nextRow.createSpan({ cls: "cad-proj-next-label", text: "NEXT \xB7 " });
-            nextRow.createSpan({ cls: "cad-proj-next-date", text: fmtValue(pm.next.date, "date") });
-            if (pm.next.title) nextRow.createSpan({ text: ` \u2014 ${pm.next.title}` });
-          }
-        });
-      } else {
-        const card = grid.createDiv({ cls: "cad-proj-card" });
-        const head = card.createDiv({ cls: "cad-proj-card-head" });
-        const primaryField2 = def.fields.find((f) => f.primary) || def.fields[0];
-        const titleText = entityValue(e, primaryField2.key, def) || e.basename;
-        const title = head.createEl("a", { cls: "cad-proj-title", text: titleText });
-        title.addEventListener("click", (ev) => {
-          ev.preventDefault();
-          view.openEntityDetail(targetEntity, e.file);
-        });
-        const pillRow = head.createDiv({ cls: "cad-proj-pills" });
-        const statusField = def.fields.find((f) => f.key === "status" || f.key === "type" || f.key === "tier") || def.fields.find((f) => f.type === "enum");
-        if (statusField) {
-          const val = entityValue(e, statusField.key, def);
-          if (val) {
-            const clean = Array.isArray(val) ? val[0] : val;
-            pillRow.createSpan({ cls: `cad-pill cad-pill-${String(clean).toLowerCase().replace(/\s+/g, "-")}`, text: String(clean) });
-          }
-        }
-        const metaRow = card.createDiv({ cls: "cad-proj-meta" });
-        let count = 0;
+};
+
+// src/modals/cross-section.ts
+var import_obsidian28 = require("obsidian");
+function buildCrossSectionConfig(form) {
+  return {
+    id: "xs_" + Math.random().toString(36).slice(2, 10),
+    parentEntity: form.parentEntity,
+    targetEntity: form.targetEntity,
+    linkField: form.linkField,
+    viewType: form.viewType
+  };
+}
+var CadenceCrossSectionModal = class extends import_obsidian28.Modal {
+  constructor(app, parentEntity, onSubmit) {
+    super(app);
+    this.parentEntity = parentEntity;
+    this.onSubmit = onSubmit;
+  }
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.addClass("cad-prompt-modal");
+    contentEl.createEl("h3", { text: "Add Cross-Linked Section" });
+    contentEl.createEl("label", { text: "Target Entity to display:", attr: { style: "display: block; font-weight: 500; font-size: 0.85em; margin-bottom: 4px; margin-top: 12px;" } });
+    const selectTarget = contentEl.createEl("select");
+    selectTarget.style.width = "100%";
+    selectTarget.style.padding = "6px 8px";
+    selectTarget.style.background = "var(--background-primary)";
+    selectTarget.style.color = "var(--text-normal)";
+    selectTarget.style.border = "1px solid var(--border-color)";
+    selectTarget.style.borderRadius = "4px";
+    Object.entries(ENTITIES).forEach(([key, def]) => {
+      if (key === this.parentEntity) return;
+      selectTarget.createEl("option", { value: key, text: def.plural });
+    });
+    contentEl.createEl("label", { text: "Linked Field (in target entity):", attr: { style: "display: block; font-weight: 500; font-size: 0.85em; margin-bottom: 4px; margin-top: 12px;" } });
+    const selectField = contentEl.createEl("select");
+    selectField.style.width = "100%";
+    selectField.style.padding = "6px 8px";
+    selectField.style.background = "var(--background-primary)";
+    selectField.style.color = "var(--text-normal)";
+    selectField.style.border = "1px solid var(--border-color)";
+    selectField.style.borderRadius = "4px";
+    const populateFields = () => {
+      selectField.empty();
+      const target = selectTarget.value;
+      const def = ENTITIES[target];
+      if (def && def.fields) {
         def.fields.forEach((f) => {
-          if (f.key !== primaryField2.key && (!statusField || f.key !== statusField.key) && count < 4) {
-            const val = entityValue(e, f.key, def);
-            if (val != null && val !== "") {
-              count++;
-              const fieldDiv = metaRow.createDiv();
-              fieldDiv.style.marginBottom = "2px";
-              fieldDiv.createSpan({ text: `${f.label}: `, attr: { style: "font-weight: 500; color: var(--text-muted);" } });
-              const isLinkProperty = f.key === "company" || f.key === "contact" || f.key === "partner" || f.key === "owner" || f.key === "project" || f.suggestionSource && f.suggestionSource.startsWith("folder:");
-              if (isLinkProperty) {
-                const links = parseLinkValues(val);
-                links.forEach((link, lidx) => {
-                  if (lidx > 0) fieldDiv.createSpan({ text: ", " });
-                  const aLink = fieldDiv.createEl("a", { text: link.display });
-                  aLink.style.textDecoration = "underline";
-                  aLink.style.cursor = "pointer";
-                  aLink.addEventListener("click", (ev) => {
-                    ev.preventDefault();
-                    ev.stopPropagation();
-                    const targetFile = view.app.vault.getMarkdownFiles().find((f2) => f2.basename.toLowerCase() === link.target.toLowerCase());
-                    let relatedKey = f.key === "owner" ? "contact" : f.key;
-                    if (f.suggestionSource && f.suggestionSource.startsWith("folder:")) {
-                      const folder = f.suggestionSource.replace("folder:", "").split("/").pop().toLowerCase();
-                      const found = Object.keys(ENTITIES).find((k) => ENTITIES[k].folder.toLowerCase().endsWith(folder) || ENTITIES[k].plural.toLowerCase() === folder);
-                      if (found) relatedKey = found;
-                    }
-                    if (targetFile) view.openEntityDetail(relatedKey, targetFile);
-                    else view.app.workspace.openLinkText(link.target, "", false);
-                  });
-                });
-              } else {
-                fieldDiv.createSpan({ text: fmtValue(val, f.type) });
-              }
-            }
-          }
+          if (f.primary) return;
+          selectField.createEl("option", { value: f.key, text: `${f.label} (${f.key})` });
         });
       }
+    };
+    selectTarget.addEventListener("change", populateFields);
+    populateFields();
+    contentEl.createEl("label", { text: "Display View Layout:", attr: { style: "display: block; font-weight: 500; font-size: 0.85em; margin-bottom: 4px; margin-top: 12px;" } });
+    const selectView = contentEl.createEl("select");
+    selectView.style.width = "100%";
+    selectView.style.padding = "6px 8px";
+    selectView.style.background = "var(--background-primary)";
+    selectView.style.color = "var(--text-normal)";
+    selectView.style.border = "1px solid var(--border-color)";
+    selectView.style.borderRadius = "4px";
+    [
+      { value: "table", text: "Table \u{1F4CB}" },
+      { value: "tile", text: "Tiles / Cards \u{1F3B4}" },
+      { value: "kanban", text: "Kanban Board \u{1F5C2}\uFE0F" }
+    ].forEach((opt) => {
+      selectView.createEl("option", { value: opt.value, text: opt.text });
     });
-  } else if (viewType === "kanban") {
-    const board = secWrap.createDiv({ cls: "cad-kanban-board" });
-    const groupField = def.fields.find((f) => f.key === "stage" || f.key === "status" || f.key === "type" || f.type === "enum") || def.fields[1];
-    const columns = groupField.options || ["To Do", "In Progress", "Done"];
-    const isMobile = !!(import_obsidian31.Platform && import_obsidian31.Platform.isMobile);
-    columns.forEach((colName) => {
-      const items = filteredList.filter((e) => {
-        const val = entityValue(e, groupField.key, def);
-        const cleanVal = Array.isArray(val) ? val[0] : val;
-        return String(cleanVal || "").toLowerCase() === colName.toLowerCase();
+    const submit = () => {
+      this.onSubmit(buildCrossSectionConfig({
+        parentEntity: this.parentEntity,
+        targetEntity: selectTarget.value,
+        linkField: selectField.value,
+        viewType: selectView.value
+      }));
+      this.close();
+    };
+    const row = contentEl.createDiv();
+    row.style.display = "flex";
+    row.style.justifyContent = "flex-end";
+    row.style.gap = "8px";
+    row.style.marginTop = "18px";
+    const cancel = row.createEl("button", { text: "Cancel" });
+    cancel.addEventListener("click", () => this.close());
+    const ok = row.createEl("button", { text: "Add Section", cls: "mod-cta" });
+    ok.addEventListener("click", submit);
+  }
+};
+
+// src/views/templates.ts
+async function renderTemplatesDashboard(view, root) {
+  root.addClass("cadence-dashboard");
+  root.addClass("cadence-projects");
+  view._renderPageHeader(root, "Templates Dashboard", "Manage and visually edit the templates for your entities");
+  const grid = root.createDiv({
+    cls: "cad-proj-grid"
+  });
+  {
+    const templatesFolder = "Cadence/Templates";
+    await ensureFolderSync(view.app, templatesFolder);
+    const dailyTemplatePath = `${templatesFolder}/daily.md`;
+    const dailyTFile = view.app.vault.getAbstractFileByPath(dailyTemplatePath);
+    const exists = !!(dailyTFile && dailyTFile instanceof import_obsidian29.TFile);
+    const card = grid.createDiv({
+      cls: "cad-proj-card cad-template-tile"
+    });
+    card.dataset.entity = "daily";
+    const head = card.createDiv({ attr: { style: "display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;" } });
+    const infoWrap = head.createDiv({ attr: { style: "display: flex; align-items: center; gap: 12px;" } });
+    const iconSpan = infoWrap.createSpan({ cls: "cad-template-tile-icon" });
+    try {
+      (0, import_obsidian29.setIcon)(iconSpan, "sun");
+    } catch (_) {
+      iconSpan.setText("\u2600\uFE0F");
+    }
+    const titleInfo = infoWrap.createDiv();
+    titleInfo.createDiv({ text: "PLANNER", attr: { style: "font-weight: 700; font-size: 0.7rem; letter-spacing: 0.12em; color: var(--text-muted);" } });
+    titleInfo.createEl("h3", { text: "Daily Note", attr: { style: "margin: 2px 0 0 0; font-size: 1.15em; font-weight: 700;" } });
+    const badge = head.createSpan(templateBadge(exists));
+    badge.style.fontSize = "0.7em";
+    badge.style.padding = "3px 8px";
+    card.createDiv({
+      text: `Target Folder: ${view.plugin.settings.dailyNoteFolder || "daily"}/`,
+      attr: { style: "font-size: 0.8em; font-family: monospace; color: var(--text-muted); background: var(--background-secondary); padding: 4px 8px; border-radius: 4px; margin-bottom: 12px; border: 1px solid var(--background-modifier-border);" }
+    });
+    const desc = card.createDiv({ text: `Defines properties and sections layout for each new daily note created in the planner.`, attr: { style: "font-size: 0.85em; color: var(--text-muted); margin-bottom: 18px; flex: 1; line-height: 1.4;" } });
+    const actions = card.createDiv({ attr: { style: "display: flex; gap: 8px; justify-content: flex-end; border-top: 1px solid var(--border-color); padding-top: 14px; margin-top: auto;" } });
+    if (exists) {
+      const editBtn = actions.createEl("button", { cls: "cad-btn primary", text: "Visual Editor" });
+      editBtn.style.padding = "5px 12px";
+      editBtn.style.height = "auto";
+      editBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        view.openTemplateDetail("daily", dailyTFile);
       });
-      const hasValField = def.fields.find((f) => f.key === "value" || f.key === "amount");
-      const colValueSum = hasValField ? items.reduce((s, e) => s + (Number(entityValue(e, hasValField.key, def)) || 0), 0) : 0;
-      const col = board.createDiv({ cls: "cad-kanban-col" });
-      col.dataset.stage = colName;
-      const colHead = col.createDiv({ cls: "cad-kanban-col-head" });
-      colHead.createDiv({ cls: "cad-kanban-col-title", text: colName.toUpperCase() });
-      colHead.createDiv({
-        cls: "cad-kanban-col-meta",
-        text: hasValField ? `${items.length} \xB7 ${fmtValue(colValueSum, "currency")}` : `${items.length}`
+      const openBtn = actions.createEl("button", { cls: "cad-btn", text: "Raw Note \u{1F4DD}" });
+      openBtn.style.padding = "5px 12px";
+      openBtn.style.height = "auto";
+      openBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        view.app.workspace.openLinkText(dailyTemplatePath, "", false);
       });
-      const list = col.createDiv({ cls: "cad-kanban-col-list" });
-      list.addEventListener("dragover", (ev) => {
-        ev.preventDefault();
-        try {
-          ev.dataTransfer.dropEffect = "move";
-        } catch (_) {
-        }
-        col.addClass("drag-over");
+    } else {
+      const resetBtn = actions.createEl("button", {
+        cls: "cad-btn primary",
+        text: "Enable Custom"
       });
-      list.addEventListener("dragleave", (ev) => {
-        if (!col.contains(ev.relatedTarget)) col.removeClass("drag-over");
+      resetBtn.style.padding = "5px 12px";
+      resetBtn.style.height = "auto";
+      resetBtn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        await view.app.vault.create(dailyTemplatePath, DAILY_TEMPLATE_CONTENT);
+        new import_obsidian29.Notice("Daily Note template successfully enabled.");
+        view.render();
       });
-      list.addEventListener("drop", async (ev) => {
-        ev.preventDefault();
-        col.removeClass("drag-over");
-        const path = ev.dataTransfer.getData("text/cadence-entity");
-        const fromStage = ev.dataTransfer.getData("text/cadence-stage");
-        if (!path || fromStage === colName) return;
-        const file = view.app.vault.getAbstractFileByPath(path);
-        if (!file || !(file instanceof import_obsidian31.TFile)) return;
-        try {
-          await view.app.fileManager.processFrontMatter(file, (fm) => {
-            const isList = groupField.type === "multitext" || groupField.type === "tags" || groupField.isList === true;
-            const isLink = groupField.suggestionSource && groupField.suggestionSource !== "none" && groupField.suggestionSource !== "tags" && groupField.suggestionSource !== "history";
-            if (isList) {
-              fm[groupField.key] = isLink ? [`[[${colName}]]`] : [colName];
-            } else {
-              fm[groupField.key] = isLink ? `[[${colName}]]` : colName;
-            }
-          });
-          new import_obsidian31.Notice(`Moved to ${colName}`);
-          view.render();
-        } catch (e) {
-          new import_obsidian31.Notice(`Failed to move: ${e.message}`);
-        }
-      });
-      if (!items.length) {
-        list.createDiv({ cls: "cad-empty", text: "\u2014" });
-      } else {
-        items.forEach((e) => {
-          const card = list.createDiv({ cls: "cad-kanban-card" });
-          card.dataset.path = e.file.path;
-          const primaryField2 = def.fields.find((f) => f.primary) || def.fields[0];
-          card.createDiv({ cls: "cad-kanban-card-title", text: entityValue(e, primaryField2.key, def) || e.basename });
-          const meta = card.createDiv({ cls: "cad-kanban-card-meta" });
-          if (hasValField) {
-            const v = entityValue(e, hasValField.key, def);
-            if (v) meta.createSpan({ cls: "cad-kanban-card-value", text: fmtValue(v, "currency") });
-          }
-          const relFields = ["company", "contact", "owner", "assigned"];
-          relFields.forEach((rf) => {
-            if (rf === groupField.key) return;
-            const rfDef = def.fields.find((f) => f.key === rf);
-            if (rfDef) {
-              const vals = parseLinkValues(entityValue(e, rf, def));
-              vals.forEach((v) => {
-                if (meta.children.length > 0) meta.createSpan({ text: " \xB7 " });
-                const link = meta.createEl("a", { text: v.display });
-                link.style.textDecoration = "underline";
-                link.style.cursor = "pointer";
-                link.addEventListener("click", (ev) => {
-                  ev.preventDefault();
-                  ev.stopPropagation();
-                  const targetFile = view.app.vault.getMarkdownFiles().find((f) => f.basename.toLowerCase() === v.target.toLowerCase());
-                  if (targetFile) view.openEntityDetail(rf === "owner" || rf === "assigned" ? "contact" : rf, targetFile);
-                  else view.app.workspace.openLinkText(v.target, "", false);
-                });
-              });
-            }
-          });
-          if (!isMobile) {
-            card.draggable = true;
-            card.addEventListener("dragstart", (ev) => {
-              card.addClass("dragging");
-              try {
-                ev.dataTransfer.effectAllowed = "move";
-                ev.dataTransfer.setData("text/cadence-entity", e.file.path);
-                ev.dataTransfer.setData("text/cadence-stage", colName);
-                ev.dataTransfer.setData("text/plain", `[[${e.file.basename}]]`);
-              } catch (_) {
-              }
-            });
-            card.addEventListener("dragend", () => card.removeClass("dragging"));
-          } else {
-            card.addClass("cad-kanban-card-touch");
-          }
-          card.addEventListener("click", () => view.openEntityDetail(targetEntity, e.file));
-        });
-      }
+    }
+    card.addEventListener("click", () => {
+      if (exists) view.openTemplateDetail("daily", dailyTFile);
     });
   }
-}
-function renderCrossSections(view, parent, parentEntity, parentName) {
-  const crossSections = view.plugin.settings.crossSections || [];
-  const configs = crossSections.filter((c) => c.parentEntity === parentEntity);
-  if (configs.length === 0) return;
-  configs.forEach((config) => {
-    const def = ENTITIES[config.targetEntity];
-    if (!def) return;
-    const filteredList = crossSectionRows(listEntities(view.app, config.targetEntity), config.linkField, parentName, frontmatterReader(view));
-    const secWrap = parent.createDiv({ attr: { style: "margin-top: 24px; margin-bottom: 24px;" } });
-    const head = secWrap.createDiv({ attr: { style: "display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px solid var(--border-color); padding-bottom: 6px;" } });
-    head.createEl("h3", {
-      text: `${def.plural.toUpperCase()} (${config.linkField.toUpperCase()}) \u2014 ${config.viewType.toUpperCase()}`,
-      attr: { style: "margin: 0; font-size: 1.1em; font-weight: 700; letter-spacing: 0.05em;" }
+  for (const [entityKey, def] of Object.entries(ENTITIES)) {
+    const templatesFolder = "Cadence/Templates";
+    await ensureFolderSync(view.app, templatesFolder);
+    let foundPath = null;
+    let exists = false;
+    const pathsToTry = templatePathCandidates(templatesFolder, entityKey, def);
+    for (const p of pathsToTry) {
+      const tFile = view.app.vault.getAbstractFileByPath(p);
+      if (tFile && tFile instanceof import_obsidian29.TFile) {
+        exists = true;
+        foundPath = p;
+        break;
+      }
+    }
+    const card = grid.createDiv({
+      cls: "cad-proj-card cad-template-tile"
     });
-    const delBtn = head.createEl("button", { text: "\xD7", attr: { style: "color: var(--text-error); border: 1px solid var(--text-error); padding: 2px 8px; font-weight: bold; border-radius: 4px; background: transparent; cursor: pointer;" } });
-    delBtn.title = "Supprimer cette section crois\xE9e";
-    delBtn.addEventListener("click", async () => {
-      if (!confirm("Supprimer cette section crois\xE9e ?")) return;
-      view.plugin.settings.crossSections = (view.plugin.settings.crossSections || []).filter((c) => c.id !== config.id);
-      await view.plugin.saveSettings();
+    card.dataset.entity = entityKey;
+    const head = card.createDiv({ attr: { style: "display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;" } });
+    const infoWrap = head.createDiv({ attr: { style: "display: flex; align-items: center; gap: 12px;" } });
+    const iconSpan = infoWrap.createSpan({ cls: "cad-template-tile-icon" });
+    try {
+      (0, import_obsidian29.setIcon)(iconSpan, def.icon || "file-text");
+    } catch (_) {
+      iconSpan.setText("\u{1F4DD}");
+    }
+    const titleInfo = infoWrap.createDiv();
+    titleInfo.createDiv({ text: def.label.toUpperCase(), attr: { style: "font-weight: 700; font-size: 0.7rem; letter-spacing: 0.12em; color: var(--text-muted);" } });
+    titleInfo.createEl("h3", { text: def.plural, attr: { style: "margin: 2px 0 0 0; font-size: 1.15em; font-weight: 700;" } });
+    const badge = head.createSpan(templateBadge(exists));
+    badge.style.fontSize = "0.7em";
+    badge.style.padding = "3px 8px";
+    card.createDiv({
+      text: `Target Folder: ${def.folder}/`,
+      attr: { style: "font-size: 0.8em; font-family: monospace; color: var(--text-muted); background: var(--background-secondary); padding: 4px 8px; border-radius: 4px; margin-bottom: 12px; border: 1px solid var(--background-modifier-border);" }
+    });
+    const desc = card.createDiv({
+      text: `Defines properties and sections layout for each new ${def.label.toLowerCase()} item created.`,
+      attr: { style: "font-size: 0.85em; color: var(--text-muted); margin-bottom: 18px; flex: 1; line-height: 1.4;" }
+    });
+    const actions = card.createDiv({ attr: { style: "display: flex; gap: 8px; justify-content: flex-end; border-top: 1px solid var(--border-color); padding-top: 14px; margin-top: auto;" } });
+    if (exists) {
+      const editBtn = actions.createEl("button", { cls: "cad-btn primary", text: "Visual Editor" });
+      editBtn.style.padding = "5px 12px";
+      editBtn.style.height = "auto";
+      editBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const tFile = view.app.vault.getAbstractFileByPath(foundPath);
+        if (tFile) view.openTemplateDetail(entityKey, tFile);
+      });
+      const openBtn = actions.createEl("button", { cls: "cad-btn", text: "Raw Note \u{1F4DD}" });
+      openBtn.style.padding = "5px 12px";
+      openBtn.style.height = "auto";
+      openBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const tFile = view.app.vault.getAbstractFileByPath(foundPath);
+        if (tFile) view.app.workspace.openLinkText(tFile.path, "", false);
+      });
+    }
+    const resetBtn = actions.createEl("button", {
+      cls: "cad-btn",
+      text: exists ? "Reset to Default" : "Enable Custom"
+    });
+    resetBtn.style.padding = "5px 12px";
+    resetBtn.style.height = "auto";
+    if (!exists) resetBtn.classList.add("primary");
+    resetBtn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      const templateContent = defaultTemplateContent(entityKey);
+      const targetPath = `${templatesFolder}/${entityKey}.md`;
+      let tFile = view.app.vault.getAbstractFileByPath(targetPath);
+      if (tFile && tFile instanceof import_obsidian29.TFile) {
+        if (!confirm(`Are you sure you want to reset the template for ${def.label}? Your visual changes will be overwritten.`)) return;
+        await view.app.vault.modify(tFile, templateContent);
+        new import_obsidian29.Notice(`Template reset for ${def.label}.`);
+      } else {
+        await view.app.vault.create(targetPath, templateContent);
+        new import_obsidian29.Notice(`Template successfully enabled for ${def.label}.`);
+      }
       view.render();
     });
-    if (filteredList.length === 0) {
-      secWrap.createDiv({ cls: "cad-empty", text: "Aucun \xE9l\xE9ment li\xE9 trouv\xE9." });
-      return;
+    card.addEventListener("click", () => {
+      const tFile = foundPath ? view.app.vault.getAbstractFileByPath(foundPath) : null;
+      if (tFile) {
+        view.openTemplateDetail(entityKey, tFile);
+      }
+    });
+  }
+}
+async function renderTemplateDetail(view, root, entityKey, file) {
+  root.addClass("cadence-project-detail");
+  const def = templateDetailDef(entityKey);
+  if (!file) {
+    view.closeEntityDetail();
+    return;
+  }
+  const content = await view.app.vault.read(file);
+  const sections = parseH2Sections(content);
+  const sectionKeys = Object.keys(sections);
+  const head = root.createDiv({ cls: "cad-detail-header" });
+  const headLeft = head.createDiv({ cls: "cad-detail-header-left" });
+  const back = headLeft.createEl("button", { cls: "cad-btn cad-detail-back", text: "\u2190 Templates" });
+  back.addEventListener("click", () => view.closeEntityDetail());
+  const breadcrumb = headLeft.createDiv({ cls: "cad-detail-breadcrumb" });
+  breadcrumb.createSpan({ cls: "cad-eyebrow", text: "TEMPLATE BUILDER" });
+  breadcrumb.createSpan({ cls: "cad-detail-title", text: def.label });
+  breadcrumb.createDiv({ cls: "cad-detail-path", text: file.path });
+  const headRight = head.createDiv({ cls: "cad-detail-header-right" });
+  const savedBadge = headRight.createSpan({ cls: "cad-detail-saved", text: "" });
+  const flashSaved = () => {
+    savedBadge.setText("Saved");
+    savedBadge.addClass("show");
+    clearTimeout(savedBadge._t);
+    savedBadge._t = setTimeout(() => savedBadge.removeClass("show"), 1400);
+  };
+  const openNote = headRight.createEl("button", { cls: "cad-btn", text: "View Raw Note \u{1F4DD}" });
+  openNote.addEventListener("click", () => view.app.workspace.openLinkText(file.path, "", false));
+  const deleteBtn = headRight.createEl("button", { cls: "cad-btn cad-btn-danger", text: "Delete" });
+  deleteBtn.addEventListener("click", async () => {
+    if (!confirm(`Delete this custom template? Cadence will fall back to using the default structure.`)) return;
+    try {
+      await view.app.vault.trash(file, true);
+      new import_obsidian29.Notice(`Custom template deleted.`);
+      view.closeEntityDetail();
+    } catch (e) {
+      new import_obsidian29.Notice(`Error: ${e.message}`);
     }
-    if (config.viewType === "table") {
-      const columns = def.columns || [def.fields[0].key];
-      view._renderEntityTable(secWrap, config.targetEntity, filteredList, columns);
-    } else if (config.viewType === "tile") {
-      const grid = secWrap.createDiv({ attr: { style: "display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-top: 12px;" } });
-      filteredList.forEach((e) => {
-        const card = grid.createDiv({ cls: "cad-proj-card", attr: { style: "cursor: pointer; padding: 16px; background: var(--background-secondary); border: 1px solid var(--border-color); border-radius: 6px;" } });
-        const title = card.createEl("h4", { text: entityValue(e, def.fields[0].key, def) || e.basename, attr: { style: "margin: 0 0 8px 0; font-weight: 600;" } });
-        card.addEventListener("click", () => view.openEntityDetail(config.targetEntity, e.file));
-        const meta = card.createDiv({ attr: { style: "font-size: 0.85em; color: var(--text-muted); display: flex; flex-direction: column; gap: 4px;" } });
-        def.fields.slice(1, 4).forEach((f) => {
-          const val = entityValue(e, f.key, def);
-          if (val != null && val !== "") {
-            meta.createDiv({ text: `${f.label}: ${fmtValue(val, f.type)}` });
-          }
-        });
-      });
-    } else if (config.viewType === "kanban") {
-      const kanbanWrap = secWrap.createDiv({ attr: { style: "display: flex; gap: 16px; overflow-x: auto; padding-bottom: 8px; margin-top: 12px;" } });
-      const groupField = def.fields.find((f) => f.key === "stage" || f.key === "status" || f.key === "type" || f.type === "enum") || def.fields[1];
-      const columns = groupField.options || ["To Do", "In Progress", "Done"];
-      columns.forEach((colName) => {
-        const col = kanbanWrap.createDiv({ cls: "cad-stat-card", attr: { style: "flex: 0 0 280px; padding: 12px; display: flex; flex-direction: column; min-height: 250px; background: var(--background-secondary); border: 1px solid var(--border-color); border-radius: 6px;" } });
-        col.createDiv({ text: colName.toUpperCase(), attr: { style: "font-weight: 700; font-size: 0.8em; letter-spacing: 0.08em; margin-bottom: 12px; border-bottom: 1px solid var(--border-color); padding-bottom: 4px;" } });
-        const colItems = filteredList.filter((e) => {
-          const val = entityValue(e, groupField.key, def);
-          const cleanVal = Array.isArray(val) ? val[0] : val;
-          return String(cleanVal || "").toLowerCase() === colName.toLowerCase();
-        });
-        if (colItems.length === 0) {
-          col.createDiv({ text: "Aucun \xE9l\xE9ment", attr: { style: "color: var(--text-faint); text-align: center; margin-top: 24px; font-size: 0.85em;" } });
-        } else {
-          const itemsList = col.createDiv({ attr: { style: "display: flex; flex-direction: column; gap: 8px;" } });
-          colItems.forEach((e) => {
-            const itemCard = itemsList.createDiv({ cls: "cad-dash-row", attr: { style: "padding: 8px 10px; cursor: pointer; border-radius: 4px; background: var(--background-primary); border: 1px solid var(--border-color); font-weight: 500;" } });
-            itemCard.setText(entityValue(e, def.fields[0].key, def) || e.basename);
-            itemCard.addEventListener("click", () => view.openEntityDetail(config.targetEntity, e.file));
-          });
+  });
+  const cols = root.createDiv({ cls: "cad-pd-cols" });
+  const left = cols.createDiv({ cls: "cad-pd-col" });
+  const right = cols.createDiv({ cls: "cad-pd-col" });
+  const { left: leftKeys, right: rightKeys } = splitSectionColumns(sectionKeys);
+  leftKeys.forEach((rawKey) => {
+    view._renderTemplateSectionWithDelete(left, file, sections, rawKey, flashSaved);
+  });
+  rightKeys.forEach((rawKey) => {
+    view._renderTemplateSectionWithDelete(right, file, sections, rawKey, flashSaved);
+  });
+  const toolbar = root.createDiv({ attr: { style: "margin-top: 32px; margin-bottom: 48px; display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 24px; border-top: 1px solid var(--border-color);" } });
+  toolbar.createDiv({ text: "\u2795 ADD BLOCK TO TEMPLATE", attr: { style: "font-weight: 700; font-size: 0.75rem; letter-spacing: 0.15em; color: var(--text-muted);" } });
+  const btnRow = toolbar.createDiv({ attr: { style: "display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;" } });
+  const addSectionHelper = async (cleanTitle, tag, defaultBody = "") => {
+    const curContent = await view.app.vault.read(file);
+    const nextContent = appendTemplateSection(curContent, cleanTitle, tag, defaultBody);
+    await view.app.vault.modify(file, nextContent);
+    new import_obsidian29.Notice(`Section "${cleanTitle}" added to template.`);
+    await view._propagateTemplateSectionAdd(entityKey, cleanTitle, tag, defaultBody);
+    view.render();
+  };
+  const addTextBtn = btnRow.createEl("button", { cls: "cad-btn", text: "\u{1F4DD} Text Area" });
+  addTextBtn.addEventListener("click", () => {
+    new CadencePromptModal(view.app, {
+      title: "New Text Section",
+      placeholder: "Enter text section title:",
+      defaultValue: "Notes",
+      cta: "Add Block",
+      onSubmit: (title) => {
+        addSectionHelper(title, "#notes", "_Enter your notes here..._");
+      }
+    }).open();
+  });
+  const addTasksBtn = btnRow.createEl("button", { cls: "cad-btn", text: "\u{1F4CB} Task List" });
+  addTasksBtn.addEventListener("click", () => {
+    new CadencePromptModal(view.app, {
+      title: "New Task List Block",
+      placeholder: "Enter task list section title:",
+      defaultValue: "Tasks",
+      cta: "Add Block",
+      onSubmit: (title) => {
+        addSectionHelper(title, "#tasks", "- [ ] First task in template");
+      }
+    }).open();
+  });
+  const addMilestonesBtn = btnRow.createEl("button", { cls: "cad-btn", text: "\u{1F4C5} Milestones / Timeline" });
+  addMilestonesBtn.addEventListener("click", () => {
+    new CadencePromptModal(view.app, {
+      title: "New Milestones Block",
+      placeholder: "Enter milestones section title:",
+      defaultValue: "Milestones",
+      cta: "Add Block",
+      onSubmit: (title) => {
+        const today = ymd(/* @__PURE__ */ new Date());
+        addSectionHelper(title, "#milestones", `- [ ] ${today} \u2014 First milestone in template`);
+      }
+    }).open();
+  });
+  const addCrossBtn = btnRow.createEl("button", { cls: "cad-btn", text: "\u{1F517} Cross-Linked Data" });
+  addCrossBtn.addEventListener("click", () => {
+    new CadenceCrossSectionModal(view.app, entityKey, async (config) => {
+      const block = crossSectionBlock(config);
+      new CadencePromptModal(view.app, {
+        title: "New Cross-Linked Section",
+        placeholder: "Enter section title:",
+        defaultValue: block.title,
+        cta: "Add Block",
+        onSubmit: (title) => {
+          addSectionHelper(title, block.tag, "");
         }
-      });
+      }).open();
+    }).open();
+  });
+  const addChartBtn = btnRow.createEl("button", { cls: "cad-btn", text: "\u{1F4CA} Analytics Chart" });
+  addChartBtn.addEventListener("click", () => {
+    new CadenceChartSectionModal(view.app, entityKey, (config) => {
+      const block = chartSectionBlock(config);
+      new CadencePromptModal(view.app, {
+        title: "New Analytics Chart",
+        placeholder: "Enter chart section title:",
+        defaultValue: block.title,
+        cta: "Add Chart",
+        onSubmit: (title) => {
+          addSectionHelper(title, block.tag, "");
+        }
+      }).open();
+    }).open();
+  });
+}
+function renderTemplateSectionWithDelete(view, parent, file, sections, rawKey, flashSaved, allRawKeys) {
+  const entityKey = file.basename;
+  const { cleanLabel, tag } = parseHeaderKey(rawKey);
+  const wrap = parent.createDiv({ attr: { style: "position: relative; margin-bottom: 12px; transition: transform 0.2s ease;" } });
+  wrap.draggable = true;
+  wrap.addEventListener("dragstart", (ev) => {
+    wrap.style.opacity = "0.5";
+    ev.dataTransfer.effectAllowed = "move";
+    ev.dataTransfer.setData("text/cadence-template-section", rawKey);
+  });
+  wrap.addEventListener("dragend", () => {
+    wrap.style.opacity = "1";
+    wrap.removeClass("drag-over");
+  });
+  wrap.addEventListener("dragover", (ev) => {
+    ev.preventDefault();
+    ev.dataTransfer.dropEffect = "move";
+    wrap.addClass("drag-over");
+    wrap.style.border = "2px dashed var(--interactive-accent)";
+    wrap.style.borderRadius = "6px";
+  });
+  wrap.addEventListener("dragleave", () => {
+    wrap.removeClass("drag-over");
+    wrap.style.border = "none";
+    wrap.style.borderRadius = "0";
+  });
+  wrap.addEventListener("drop", async (ev) => {
+    ev.preventDefault();
+    wrap.removeClass("drag-over");
+    wrap.style.border = "none";
+    wrap.style.borderRadius = "0";
+    const draggedRawKey = ev.dataTransfer.getData("text/cadence-template-section");
+    if (!draggedRawKey || draggedRawKey === rawKey) return;
+    const curContent = await view.app.vault.read(file);
+    const nextContent = moveTemplateSection(curContent, draggedRawKey, rawKey);
+    if (nextContent === null) return;
+    await view.app.vault.modify(file, nextContent);
+    view.render();
+  });
+  view._renderDynamicH2Section(wrap, file, sections, rawKey, flashSaved);
+  const cardHead = wrap.querySelector(".cad-pd-card-head");
+  if (!cardHead) return;
+  const ctrlRow = cardHead.createDiv({ attr: { style: "display: flex; align-items: center; gap: 8px; margin-left: 8px; flex-shrink: 0;" } });
+  const grip = ctrlRow.createDiv({ attr: { style: "cursor: grab; display: flex; align-items: center; justify-content: center; color: var(--text-muted); opacity: 0.7; padding: 2px 4px;" } });
+  grip.title = "Drag card to reorder";
+  try {
+    (0, import_obsidian29.setIcon)(grip, "grip-vertical");
+  } catch (_) {
+  }
+  const delBtn = ctrlRow.createEl("button", { text: "\xD7", attr: { style: "color: var(--text-error); padding: 0 4px; font-weight: bold; background: transparent; border: none; font-size: 1.25em; cursor: pointer;" } });
+  delBtn.title = `Remove section "${cleanLabel}" from template`;
+  delBtn.addEventListener("click", async (ev) => {
+    ev.stopPropagation();
+    const usedFiles = await view._getFilesUsingTemplateSection(entityKey, rawKey);
+    if (!confirm(deleteSectionMessage(cleanLabel, usedFiles.map((f) => f.basename)))) return;
+    const curContent = await view.app.vault.read(file);
+    const nextContent = removeTemplateSection(curContent, rawKey);
+    if (nextContent !== null) {
+      await view.app.vault.modify(file, nextContent);
+      await view._propagateTemplateSectionDelete(entityKey, rawKey);
+      new import_obsidian29.Notice(`Section "${cleanLabel}" removed.`);
+      view.render();
     }
   });
 }
-function renderDynamicH2Section(view, parent, file, sections, rawKey, flashSaved) {
-  const h2 = dynamicH2Kind(rawKey);
-  const { cleanLabel } = h2;
-  if (h2.kind === "tasks") {
-    const taskList = parseTasksList(sections[rawKey] || "");
-    view._renderTaskSection(parent, file, taskList, flashSaved, rawKey);
-  } else if (h2.kind === "milestones") {
-    const milestoneList = parseMilestones(sections[rawKey] || "");
-    view._renderMilestoneSection(parent, file, milestoneList, flashSaved, rawKey);
-  } else if (h2.kind === "cross") {
-    const { targetEntity, linkField, viewType } = h2;
-    const def = ENTITIES[targetEntity];
-    if (def) {
-      const parentName = file.basename;
-      const filteredList = crossSectionRows(listEntities(view.app, targetEntity), linkField, parentName, frontmatterReader(view));
-      const card = parent.createDiv({ cls: "cad-pd-card" });
-      card.style.gridColumn = "1 / -1";
-      const head = card.createDiv({ cls: "cad-pd-card-head" });
-      head.createDiv({ cls: "cad-pd-card-title", text: `${cleanLabel.toUpperCase()} \xB7 ${filteredList.length}` });
-      const addBtn = head.createEl("button", { cls: "cad-btn cad-btn-sm", text: `+ Add ${def.label}` });
-      addBtn.addEventListener("click", () => {
-        view._createEntityFromPrompt(targetEntity, { [linkField]: `[[${parentName}]]` });
-      });
-      const viewSwitch = head.createDiv({ attr: { style: "display: flex; gap: 3px; margin-left: 8px;" } });
-      const viewOptions = [
-        { v: "table", icon: "layout-list", title: "Table View" },
-        { v: "kanban", icon: "kanban", title: "Kanban Board" },
-        { v: "tile", icon: "layout-grid", title: "Tile Grid" }
-      ];
-      viewOptions.forEach(({ v, icon, title }) => {
-        const vBtn = viewSwitch.createEl("button", { attr: { style: `padding: 4px 6px; display: inline-flex; align-items: center; justify-content: center; border-radius: 4px; cursor: pointer; border: 1px solid var(--border-color); background: ${v === viewType ? "var(--interactive-accent)" : "transparent"}; color: ${v === viewType ? "var(--text-on-accent)" : "var(--text-muted)"};` } });
-        vBtn.title = title;
-        try {
-          (0, import_obsidian31.setIcon)(vBtn, icon);
-        } catch (_) {
-        }
-        if (v !== viewType) {
-          vBtn.addEventListener("click", async () => {
-            const newTag = `#cross-${targetEntity}-${linkField}-${v}`;
-            const curContent = await view.app.vault.read(file);
-            const escaped = rawKey.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-            const newContent = curContent.replace(
-              new RegExp(`^(## ${escaped})$`, "m"),
-              `## ${cleanLabel} ${newTag}`
-            );
-            await view.app.vault.modify(file, newContent);
-            view.render();
-          });
-        }
-      });
-      const body = card.createDiv({ attr: { style: "padding: 12px;" } });
-      view._renderSingleCrossSection(body, targetEntity, linkField, viewType, parentName, filteredList);
-    }
-  } else if (h2.kind === "chart") {
-    const { targetEntity, linkField, groupField, chartStyle } = h2;
-    const def = ENTITIES[targetEntity];
-    if (def) {
-      const parentName = file.basename;
-      const filteredList = crossSectionRows(listEntities(view.app, targetEntity), linkField, parentName, frontmatterReader(view));
-      const chartData2 = sectionChartData(filteredList, groupField, frontmatterReader(view));
-      const card = parent.createDiv({ cls: "cad-pd-card" });
-      card.style.gridColumn = "1 / -1";
-      const head = card.createDiv({ cls: "cad-pd-card-head" });
-      head.createDiv({ cls: "cad-pd-card-title", text: `${cleanLabel.toUpperCase()} \xB7 ${filteredList.length} ${def.plural}` });
-      const styleSwitch = head.createDiv({ attr: { style: "display: flex; gap: 3px; margin-left: 8px;" } });
-      [{ v: "donut", icon: "\u{1F369}" }, { v: "bar", icon: "\u{1F4CA}" }, { v: "kpi", icon: "\u{1F5C3}\uFE0F" }, { v: "list", icon: "\u{1F4CB}" }].forEach(({ v, icon }) => {
-        const sBtn = styleSwitch.createEl("button", {
-          text: icon,
-          attr: { style: `padding: 1px 5px; font-size: 0.85em; border-radius: 3px; cursor: pointer; border: 1px solid var(--border-color); background: ${v === chartStyle ? "var(--interactive-accent)" : "transparent"}; opacity: ${v === chartStyle ? "1" : "0.55"};` }
-        });
-        sBtn.title = v;
-        if (v !== chartStyle) {
-          sBtn.addEventListener("click", async () => {
-            const newTag = `#chart-${targetEntity}-${linkField}-${groupField}-${v}`;
-            const curContent = await view.app.vault.read(file);
-            const escaped = rawKey.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-            const newContent = curContent.replace(
-              new RegExp(`^(## ${escaped})$`, "m"),
-              `## ${cleanLabel} ${newTag}`
-            );
-            await view.app.vault.modify(file, newContent);
-            view.render();
-          });
-        }
-      });
-      const body = card.createDiv({ cls: "cad-dash-card-body", attr: { style: "flex: 1; min-height: 180px; display: flex; flex-direction: column; justify-content: center; padding: 14px;" } });
-      view._drawChart(body.createDiv(), chartStyle, chartData2);
-    }
-  } else if (h2.kind === "text") {
-    view._renderGenericTextSection(parent, file, sections, rawKey, flashSaved);
+async function getFilesUsingTemplateSection(view, entityKey, rawKey) {
+  const files = view._getEntityFiles(entityKey);
+  const notes = [];
+  for (const file of files) {
+    notes.push({ file, content: await view.app.vault.read(file) });
+  }
+  return filesUsingTemplateSection(notes, rawKey);
+}
+async function propagateTemplateSectionAdd(view, entityKey, cleanTitle, tag, defaultBody = "") {
+  const files = view._getEntityFiles(entityKey);
+  for (const file of files) {
+    const content = await view.app.vault.read(file);
+    const nextContent = propagateSectionAdd(content, { cleanTitle, tag, defaultBody });
+    if (nextContent !== null) await view.app.vault.modify(file, nextContent);
   }
 }
+async function propagateTemplateSectionDelete(view, entityKey, rawKey) {
+  const files = view._getEntityFiles(entityKey);
+  for (const file of files) {
+    const content = await view.app.vault.read(file);
+    const nextContent = propagateSectionDelete(content, rawKey);
+    if (nextContent !== null) await view.app.vault.modify(file, nextContent);
+  }
+}
+function templatePathCandidates(folder, entityKey, def) {
+  return [
+    `${folder}/${entityKey}.md`,
+    `${folder}/${def.label}.md`,
+    `${folder}/${def.plural}.md`,
+    `${folder}/${entityKey.toLowerCase()}.md`,
+    `${folder}/${def.label.toLowerCase()}.md`,
+    `${folder}/${def.plural.toLowerCase()}.md`
+  ];
+}
+function templateBadge(exists) {
+  return {
+    cls: exists ? "cad-pill cad-pill-active" : "cad-pill cad-pill-backlog",
+    text: exists ? "Active Template" : "Default"
+  };
+}
+function templateDetailDef(entityKey) {
+  return ENTITIES[entityKey] || { label: "Daily Note", plural: "Daily Notes", fields: [] };
+}
+function crossSectionBlock(config) {
+  return {
+    tag: `#cross-${config.targetEntity}-${config.linkField}-${config.viewType}`,
+    title: `Related ${ENTITIES[config.targetEntity]?.plural || "Links"}`
+  };
+}
+function chartSectionBlock(config) {
+  return {
+    tag: `#chart-${config.targetEntity}-${config.linkField}-${config.groupField}-${config.style}`,
+    title: `${ENTITIES[config.targetEntity]?.plural || config.targetEntity} by ${config.groupField}`
+  };
+}
+function templateHeader(cleanTitle, tag) {
+  return `## ${cleanTitle} ${tag}`.trim();
+}
+function appendTemplateSection(content, cleanTitle, tag, defaultBody = "") {
+  return appendSection(content, templateHeader(cleanTitle, tag), defaultBody);
+}
+function sameLabel(key, cleanLabel) {
+  return parseHeaderKey(key).cleanLabel.toLowerCase() === cleanLabel.toLowerCase();
+}
+function spliceSection(lines, idx) {
+  let endIdx = lines.length;
+  for (let i = idx + 1; i < lines.length; i++) {
+    if (/^##\s/.test(lines[i])) {
+      endIdx = i;
+      break;
+    }
+  }
+  lines.splice(idx, endIdx - idx);
+}
+function propagateSectionAdd(content, section) {
+  const sections = parseH2Sections(content);
+  const exists = Object.keys(sections).some((k) => sameLabel(k, section.cleanTitle));
+  if (exists) return null;
+  return appendSection(content, templateHeader(section.cleanTitle, section.tag), section.defaultBody ?? "");
+}
+function propagateSectionDelete(content, sectionKey) {
+  const { cleanLabel } = parseHeaderKey(sectionKey);
+  const lines = content.split("\n");
+  const idx = lines.findIndex((l) => {
+    if (!/^##\s/.test(l)) return false;
+    const key = l.trim().replace(/^##\s+/, "");
+    return sameLabel(key, cleanLabel);
+  });
+  if (idx === -1) return null;
+  spliceSection(lines, idx);
+  return lines.join("\n");
+}
+function removeTemplateSection(content, rawKey) {
+  const lines = content.split("\n");
+  const idx = lines.findIndex((l) => l.trim().replace(/^##\s+/, "") === rawKey);
+  if (idx === -1) return null;
+  spliceSection(lines, idx);
+  return lines.join("\n");
+}
+function moveTemplateSection(content, draggedRawKey, targetRawKey) {
+  if (draggedRawKey === targetRawKey) return null;
+  const lines = content.split("\n");
+  const keyAt = (ls, i) => ls[i].trim().replace(/^##\s+/, "");
+  const h2Indices = lines.map((l, i) => /^##\s/.test(l) ? i : -1).filter((i) => i >= 0);
+  const draggedIdx = h2Indices.findIndex((i) => keyAt(lines, i) === draggedRawKey);
+  const targetIdx = h2Indices.findIndex((i) => keyAt(lines, i) === targetRawKey);
+  if (draggedIdx === -1 || targetIdx === -1) return null;
+  const start = h2Indices[draggedIdx];
+  const end = draggedIdx + 1 < h2Indices.length ? h2Indices[draggedIdx + 1] : lines.length;
+  const draggedBlock = lines.slice(start, end);
+  lines.splice(start, draggedBlock.length);
+  const h2IndicesNew = lines.map((l, i) => /^##\s/.test(l) ? i : -1).filter((i) => i >= 0);
+  const targetIdxNew = h2IndicesNew.findIndex((i) => keyAt(lines, i) === targetRawKey);
+  lines.splice(h2IndicesNew[targetIdxNew], 0, ...draggedBlock);
+  return lines.join("\n");
+}
+function deleteSectionMessage(cleanLabel, usedNames) {
+  if (usedNames.length > 0) {
+    return `Warning: The section "${cleanLabel}" has active content in the following files:
+${usedNames.join(", ")}
 
-// src/legacy/cadence.js
-var CadenceAppView = class extends obsidian.ItemView {
+Are you sure you want to delete it from the template?`;
+  }
+  return `Remove the section "${cleanLabel}" from this template?`;
+}
+var TEMPLATE_PLACEHOLDERS = [
+  "_Enter your notes here...",
+  "_Company description",
+  "_Background, interests",
+  "_The outcome we want",
+  "- [ ] First task",
+  "- [ ] First milestone"
+];
+function sectionInUse(content, sectionKey) {
+  const { cleanLabel } = parseHeaderKey(sectionKey);
+  const sections = parseH2Sections(content);
+  const matchingKey = Object.keys(sections).find((k) => sameLabel(k, cleanLabel));
+  if (!matchingKey) return false;
+  const body = (sections[matchingKey] || "").trim();
+  return !!body && !TEMPLATE_PLACEHOLDERS.some((p) => body.startsWith(p));
+}
+function filesUsingTemplateSection(notes, sectionKey) {
+  return notes.filter((n) => sectionInUse(n.content, sectionKey)).map((n) => n.file);
+}
+
+// src/views/today.ts
+var import_obsidian30 = require("obsidian");
+async function quickAddTodayTask(view) {
+  if (view.plugin.settings.taskManagementSystem === "tasknotes") {
+    const commandId = "tasknotes:create-new-task";
+    const commands = view.app.commands;
+    const hasCommand = commands && commands.commands && commands.commands[commandId];
+    if (hasCommand) {
+      commands.executeCommandById(commandId);
+      return;
+    }
+  }
+  const text = await view._prompt({
+    title: "Quick add \u2014 today",
+    placeholder: "What needs doing?",
+    cta: "Add task"
+  });
+  if (!text) return;
+  const file = await ensureDailyNote(view.app, view.plugin.settings);
+  const content = await view.app.vault.read(file);
+  await view.app.vault.modify(file, appendDailyTask(content, view.plugin.settings, text));
+  new import_obsidian30.Notice("Added to today");
+}
+function todaySummary(tasksList, greet) {
+  const open = tasksList.filter((l) => / \[ \] /.test(l)).length;
+  return {
+    greeting: open === 0 ? `${greet}. Nothing on the books \u2014 your day is clear.` : `${greet}. You have ${open} ${open === 1 ? "thing" : "things"} to handle.`,
+    count: `${open} open \xB7 ${tasksList.length - open} done`
+  };
+}
+function taskNotesProjectPath(projects, files) {
+  if (!projects) return null;
+  const parsed = parseLinkValues(projects);
+  if (!parsed.length) return null;
+  const projFile = files.find((f) => f.basename === parsed[0].target);
+  return projFile ? projFile.path : null;
+}
+function customSectionKeys(sections, settings) {
+  const cleanTasksHeading = (settings.tasksHeading || "## Today").replace(/^##\s+/, "").trim().toLowerCase();
+  const cleanJournalHeading = (settings.journalHeading || "## Journal").replace(/^##\s+/, "").trim().toLowerCase();
+  return Object.keys(sections).filter((k) => {
+    const cleanK = parseHeaderKey(k).cleanLabel.toLowerCase();
+    return cleanK !== cleanTasksHeading && cleanK !== cleanJournalHeading;
+  });
+}
+function journalRows(value) {
+  return Math.max(8, value.split("\n").length + 2);
+}
+async function renderTodayPane(view, root) {
+  root.addClass("cadence-today");
+  view.todayFile = await ensureDailyNote(view.app, view.plugin.settings);
+  const fileContent = await view.app.vault.read(view.todayFile);
+  view.todayParsed = parseSections(fileContent, view.plugin.settings);
+  let tasksList = [];
+  if (view.plugin.settings.taskManagementSystem === "tasknotes") {
+    const today = taskNotesToday(listTaskNotesTasks(view.app), ymd(/* @__PURE__ */ new Date()));
+    view.todayTaskNotes = today.tasks;
+    tasksList = today.lines;
+  } else {
+    tasksList = view.todayParsed.tasks;
+  }
+  const info = dateInfo();
+  root.createDiv({ cls: "cad-eyebrow", text: info.weekday.toUpperCase() });
+  const hero = root.createDiv({ cls: "cad-date-hero" });
+  hero.createSpan({ cls: "cad-day", text: String(info.day) });
+  const monthCol = hero.createDiv();
+  monthCol.createDiv({ cls: "cad-month", text: info.month });
+  monthCol.createDiv({ cls: "cad-year", text: String(info.year) });
+  const summary = todaySummary(tasksList, greeting());
+  root.createDiv({ cls: "cad-greet", text: summary.greeting });
+  const taskSection = root.createDiv({ cls: "cad-section" });
+  const taskLabel = taskSection.createDiv({ cls: "cad-section-label" });
+  taskLabel.createSpan({ text: "TODAY" });
+  taskLabel.createSpan({ cls: "cad-count", text: summary.count });
+  if (!tasksList.length) {
+    taskSection.createDiv({ cls: "cad-empty", text: "No tasks in today's note yet." });
+  } else {
+    const dailyPath = view.todayFile.path;
+    taskLineRows(tasksList).forEach(({ checked, text }, idx) => {
+      const row = taskSection.createDiv({ cls: "cad-task-row" + (checked ? " done" : "") });
+      const cb = row.createEl("input", { type: "checkbox" });
+      cb.checked = checked;
+      cb.addEventListener("change", () => view.toggleTodayTask(idx, cb.checked));
+      if (view.plugin.settings.taskManagementSystem === "tasknotes") {
+        const taskObj = view.todayTaskNotes[idx];
+        const taskSpan = row.createEl("a", { cls: "cad-task-text", text });
+        taskSpan.style.cursor = "pointer";
+        taskSpan.addEventListener("click", (ev) => {
+          ev.preventDefault();
+          view.app.workspace.openLinkText(taskObj.file.path, "", false);
+        });
+      } else {
+        row.createSpan({ cls: "cad-task-text", text });
+      }
+      let linkedProject = null;
+      if (view.plugin.settings.taskManagementSystem === "tasknotes") {
+        const taskObj = view.todayTaskNotes[idx];
+        if (taskObj.projects) linkedProject = taskNotesProjectPath(taskObj.projects, view.app.vault.getMarkdownFiles());
+      } else {
+        linkedProject = view._getTaskProjectLink(dailyPath, text);
+      }
+      if (linkedProject) {
+        const chip = row.createEl("a", { cls: "cad-task-proj-chip", text: "\u{1F4C1} " + (projectNameFromPath(view.app, linkedProject) || "Project") });
+        chip.title = "Open linked project";
+        chip.addEventListener("click", (ev) => {
+          ev.preventDefault();
+          ev.stopPropagation();
+          const file = view.app.vault.getAbstractFileByPath(linkedProject);
+          if (file && file instanceof import_obsidian30.TFile) view.openEntityDetail("project", file);
+        });
+      }
+      if (view.plugin.settings.taskManagementSystem !== "tasknotes") {
+        const linkBtn = row.createEl("button", { cls: "cad-task-link-btn" + (linkedProject ? " linked" : ""), text: linkedProject ? "\u270E" : "\u{1F4C1}" });
+        linkBtn.title = linkedProject ? "Change linked project" : "Link to a project";
+        linkBtn.addEventListener("click", (ev) => {
+          ev.stopPropagation();
+          view._openTaskProjectPicker(dailyPath, text, linkedProject);
+        });
+      }
+    });
+  }
+  const quickWrap = taskSection.createDiv();
+  quickWrap.style.marginTop = "8px";
+  const quick = quickWrap.createEl("input", {
+    type: "text",
+    placeholder: "Quick add a task \u2014 Enter to save"
+  });
+  quick.style.width = "100%";
+  quick.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && quick.value.trim()) {
+      const v = quick.value.trim();
+      quick.value = "";
+      view.appendTodayTask(v);
+    }
+  });
+  const journalSection = root.createDiv({ cls: "cad-section" });
+  journalSection.createDiv({ cls: "cad-section-label" }).setText("TODAY\u2019S ENTRY");
+  const ta = journalSection.createEl("textarea", { cls: "cad-journal" });
+  ta.value = view.todayParsed.journal;
+  ta.placeholder = "Write what\u2019s on your mind\u2026";
+  ta.rows = journalRows(ta.value);
+  ta.addEventListener("input", () => {
+    ta.style.height = "auto";
+    ta.style.height = ta.scrollHeight + "px";
+    if (view._journalSaveTimer) clearTimeout(view._journalSaveTimer);
+    view._journalSaveTimer = setTimeout(() => view.saveTodayJournal(ta.value), 800);
+  });
+  setTimeout(() => {
+    ta.style.height = ta.scrollHeight + "px";
+  }, 0);
+  const allSections = parseH2Sections(fileContent);
+  const otherKeys = customSectionKeys(allSections, view.plugin.settings);
+  if (otherKeys.length > 0) {
+    const customWrap = root.createDiv({ cls: "cad-custom-sections" });
+    customWrap.style.marginTop = "24px";
+    customWrap.style.display = "grid";
+    customWrap.style.gridTemplateColumns = "repeat(auto-fit, minmax(320px, 1fr))";
+    customWrap.style.gap = "16px";
+    const flashSaved = () => {
+      new import_obsidian30.Notice("Section saved");
+    };
+    otherKeys.forEach((rawKey) => {
+      view._renderDynamicH2Section(customWrap, view.todayFile, allSections, rawKey, flashSaved);
+    });
+  }
+  const footer = root.createDiv();
+  footer.style.marginTop = "24px";
+  footer.style.fontSize = "12px";
+  footer.style.color = "var(--cad-ink-4)";
+  const link = footer.createEl("a", { text: "Open today's daily note \u2192" });
+  link.style.color = "var(--cad-emerald-deep)";
+  link.style.cursor = "pointer";
+  link.addEventListener("click", () => {
+    view.app.workspace.openLinkText(view.todayFile.path, "", false);
+  });
+}
+async function toggleTodayTask(view, idx, checked) {
+  if (view.plugin.settings.taskManagementSystem === "tasknotes") {
+    if (view.todayTaskNotes && view.todayTaskNotes[idx]) {
+      const taskObj = view.todayTaskNotes[idx];
+      await toggleTaskNotesTask(view.app, taskObj.file, checked);
+    }
+  } else {
+    const content = await view.app.vault.read(view.todayFile);
+    const { content: newContent, taskText } = toggleDailyTask(content, view.plugin.settings, idx, checked);
+    await view.app.vault.modify(view.todayFile, newContent);
+    if (taskText) {
+      await view._propagateTaskComplete(taskText, checked, { kind: "daily", file: view.todayFile, date: /* @__PURE__ */ new Date() });
+    }
+  }
+  view.render();
+}
+async function appendTodayTask(view, text) {
+  if (view.plugin.settings.taskManagementSystem === "tasknotes") {
+    await appendTaskNotesTask(view.app, text, /* @__PURE__ */ new Date());
+  } else {
+    const content = await view.app.vault.read(view.todayFile);
+    await view.app.vault.modify(view.todayFile, appendDailyTask(content, view.plugin.settings, text));
+  }
+  view.render();
+}
+async function saveTodayJournal(view, body) {
+  const content = await view.app.vault.read(view.todayFile);
+  await view.app.vault.modify(view.todayFile, replaceJournal(content, view.plugin.settings, body));
+}
+
+// src/views/app-view.ts
+function initAppViewState(view, plugin) {
+  view.plugin = plugin;
+  const raw = plugin.settings.defaultTab || "planner.today";
+  view.mode = view._migrateModeId(raw);
+  view.todayFile = null;
+  view.todayParsed = null;
+  view._journalSaveTimer = null;
+  view.plannerAnchor = startOfDay(/* @__PURE__ */ new Date());
+  view.detailFile = null;
+  view.detailEntityKey = null;
+  view.mobileNavOpen = false;
+}
+async function openEntityDetail(view, entityKey, file) {
+  if (!file || !entityKey) return;
+  view.detailEntityKey = entityKey;
+  view.detailFile = file;
+  await view.render();
+}
+async function openTemplateDetail(view, entityKey, file) {
+  if (!file || !entityKey) return;
+  view.detailEntityKey = "template:" + entityKey;
+  view.detailFile = file;
+  await view.render();
+}
+async function openEntityDetailFromFile(view, file) {
+  const key = entityKeyFromFile(view.app, file);
+  if (!key) {
+    view.app.workspace.openLinkText(file.path, "", false);
+    return;
+  }
+  return view.openEntityDetail(key, file);
+}
+async function closeEntityDetail(view) {
+  view.detailFile = null;
+  view.detailEntityKey = null;
+  await view.render();
+}
+async function onOpenAppView(view) {
+  view.containerEl.children[1].empty();
+  await view.render();
+  view.registerEvent(view.app.workspace.on("editor-change", (editor, info) => {
+    const file = info.file;
+    if (!file) return;
+    let shouldRender = false;
+    if (view.detailFile && file.path === view.detailFile.path) {
+      shouldRender = true;
+    } else if (view.mode === "planner.today" && view.todayFile && file.path === view.todayFile.path) {
+      shouldRender = true;
+    }
+    if (shouldRender) {
+      if (view._liveRenderTimer) clearTimeout(view._liveRenderTimer);
+      view._liveRenderTimer = setTimeout(() => {
+        view.render();
+      }, 300);
+    }
+  }));
+  view.registerEvent(view.app.vault.on("modify", (file) => {
+    if (view.detailFile && file && file.path === view.detailFile.path) {
+      if (view.app.workspace.getActiveLeaf() === view.leaf) return;
+      return view.render();
+    }
+    if (view.mode === "planner.today" && view.todayFile && file.path === view.todayFile.path) {
+      return view.render();
+    }
+    if (view.mode === "planner.calendar") {
+      const days = weekDates(view.plannerAnchor, view.plugin.settings.weekStartsOn);
+      const paths = days.map((d) => dailyNotePath(view.plugin.settings, d));
+      if (paths.includes(file.path)) return view.render();
+    }
+    if (view._modeUsesEntityFolder(file.path)) return view.render();
+  }));
+  const entityRefresh = (file) => {
+    if (view.detailFile && file && file.path === view.detailFile.path) return;
+    if (view._modeUsesEntityFolder(file && file.path)) view.render();
+  };
+  view.registerEvent(view.app.vault.on("create", entityRefresh));
+  view.registerEvent(view.app.vault.on("delete", (file) => {
+    if (view.detailFile && file && file.path === view.detailFile.path) {
+      view.closeEntityDetail();
+      return;
+    }
+    entityRefresh(file);
+  }));
+  view.registerEvent(view.app.vault.on("rename", (file, oldPath) => {
+    if (view.detailFile && file && file.path === view.detailFile.path) return;
+    if (view._modeUsesEntityFolder(file && file.path) || view._modeUsesEntityFolder(oldPath)) view.render();
+  }));
+  view.registerEvent(view.app.metadataCache.on("changed", (file) => {
+    if (view.detailFile && file && file.path === view.detailFile.path) {
+      if (view.app.workspace.getActiveLeaf() === view.leaf) return;
+      return view.render();
+    }
+    if (view._modeUsesEntityFolder(file && file.path)) view.render();
+  }));
+  view.registerEvent(view.app.workspace.on("active-leaf-change", (leaf) => {
+    if (leaf === view.leaf) {
+      view.render();
+    }
+  }));
+}
+async function renderAppView(view) {
+  if (view._isRendering) {
+    view._needsRenderAgain = true;
+    return;
+  }
+  view._isRendering = true;
+  view._needsRenderAgain = false;
+  try {
+    const root = view.containerEl.children[1];
+    root.empty();
+    root.addClass("cadence-app");
+    root.toggleClass("cad-dark", !!view.plugin.settings.cadenceAppDark);
+    const active = view._resolveSurface(view.mode) || SURFACE_BY_ID["planner.today"];
+    const topbar = root.createDiv({ cls: "cad-app-topbar" });
+    const burger = topbar.createEl("button", { cls: "cad-mobile-burger" });
+    try {
+      (0, import_obsidian31.setIcon)(burger, "menu");
+    } catch (_) {
+    }
+    burger.title = "Show nav";
+    burger.addEventListener("click", () => view._toggleMobileNav());
+    const brand = topbar.createDiv({ cls: "cad-app-brand" });
+    brand.createSpan({ cls: "cad-app-brand-mark", text: "\u25D0" });
+    brand.createSpan({ cls: "cad-app-brand-text", text: "Cadence" });
+    const topRight = topbar.createDiv({ cls: "cad-app-topbar-right" });
+    const dark = !!view.plugin.settings.cadenceAppDark;
+    const themeBtn = topRight.createEl("button", { cls: "cad-topbar-icon-btn" });
+    try {
+      (0, import_obsidian31.setIcon)(themeBtn, dark ? "sun" : "moon");
+    } catch (_) {
+    }
+    themeBtn.title = dark ? "Cadence: switch to light" : "Cadence: switch to dark";
+    themeBtn.addEventListener("click", () => view._toggleCadenceDark());
+    const eyebrow = topRight.createDiv({ cls: "cad-app-topbar-meta" });
+    eyebrow.setText(active.label.toUpperCase());
+    const body = root.createDiv({ cls: "cad-app-body" });
+    const backdrop = body.createDiv({ cls: "cad-mobile-backdrop" });
+    backdrop.addEventListener("click", () => view._toggleMobileNav(false));
+    const nav = body.createDiv({ cls: "cad-app-nav" });
+    const collapsed = view.plugin.settings.collapsedGroups || {};
+    const visibleGroups = view._visibleNavGroups();
+    visibleGroups.forEach((group) => {
+      const groupEl = nav.createDiv({ cls: "cad-nav-group" });
+      const isCollapsed = !!collapsed[group.id];
+      if (group.label) {
+        const head = groupEl.createDiv({ cls: "cad-nav-group-head" });
+        const chev = head.createSpan({ cls: "cad-nav-group-chev" });
+        try {
+          (0, import_obsidian31.setIcon)(chev, isCollapsed ? "chevron-right" : "chevron-down");
+        } catch (_) {
+        }
+        head.createSpan({ cls: "cad-nav-group-label", text: group.label.toUpperCase() });
+        head.addEventListener("click", () => view.toggleGroup(group.id));
+      }
+      if (!isCollapsed || !group.label) {
+        const list = groupEl.createDiv({ cls: "cad-nav-group-items" });
+        group.items.forEach((s) => {
+          const item = list.createDiv({
+            cls: "cad-app-nav-item" + (view.mode === s.id ? " active" : "")
+          });
+          const ic = item.createSpan({ cls: "cad-app-nav-icon" });
+          try {
+            (0, import_obsidian31.setIcon)(ic, s.icon);
+          } catch (_) {
+          }
+          item.createSpan({ cls: "cad-app-nav-label", text: s.label });
+          if (!BUILT_SURFACES.has(s.id) && !s.id.startsWith("custom.")) {
+            item.createSpan({ cls: "cad-app-nav-badge", text: "soon" });
+          }
+          if (s.id === "planner.inbox") {
+            const overdue = view._inboxOverdueCount();
+            if (overdue > 0) item.createSpan({ cls: "cad-app-nav-badge cad-nav-badge-alert", text: String(overdue) });
+          }
+          item.addEventListener("click", () => {
+            view.setMode(s.id);
+            if (view.mobileNavOpen) view._toggleMobileNav(false);
+          });
+        });
+      }
+    });
+    const content = body.createDiv({ cls: "cad-app-content" });
+    if (view.detailFile && view.detailEntityKey) {
+      const exists = view.app.vault.getAbstractFileByPath(view.detailFile.path);
+      if (!exists) {
+        view.detailFile = null;
+        view.detailEntityKey = null;
+      } else {
+        try {
+          if (view.detailEntityKey.startsWith("template:")) {
+            const entityKey = view.detailEntityKey.slice("template:".length);
+            await view.renderTemplateDetail(content, entityKey, view.detailFile);
+          } else {
+            await view.renderEntityDetail(content, view.detailEntityKey, view.detailFile);
+          }
+          return;
+        } catch (e) {
+          console.error("Cadence: Failed to render detail view", e);
+          view.detailFile = null;
+          view.detailEntityKey = null;
+        }
+      }
+    }
+    const route = routeFor(view.mode, view.plugin.settings.customPages || []);
+    if (route.kind === "surface") {
+      await view[route.method](content);
+    } else if (route.kind === "entityList") {
+      await view.renderEntityList(content, route.entityKey);
+    } else if (route.kind === "inherited") {
+      await {}[route.name]();
+    } else {
+      view.renderComingSoon(content, active);
+    }
+  } finally {
+    view._isRendering = false;
+    if (view._needsRenderAgain) {
+      view._needsRenderAgain = false;
+      view.render();
+    }
+  }
+}
+function renderComingSoon(view, root, surface2) {
+  root.addClass("cadence-soon");
+  const wrap = root.createDiv({ cls: "cad-soon-wrap" });
+  wrap.createDiv({ cls: "cad-eyebrow", text: "COMING SOON" });
+  wrap.createDiv({ cls: "cad-soon-title", text: surface2.label });
+  wrap.createDiv({ cls: "cad-soon-desc", text: surface2.desc });
+  const ic = wrap.createDiv({ cls: "cad-soon-icon" });
+  try {
+    (0, import_obsidian31.setIcon)(ic, surface2.icon);
+  } catch (_) {
+  }
+  const meta = wrap.createDiv({ cls: "cad-soon-meta" });
+  meta.setText("This surface is scaffolded but not yet built. Tell the team to flesh it out next.");
+}
+function renderPageHeader(view, root, title, subtitle, actions) {
+  const head = root.createDiv({ cls: "cad-page-header" });
+  const left = head.createDiv({ cls: "cad-page-header-left" });
+  left.createDiv({ cls: "cad-eyebrow", text: "CADENCE" });
+  left.createDiv({ cls: "cad-page-title", text: title });
+  if (subtitle) left.createDiv({ cls: "cad-page-subtitle", text: subtitle });
+  const right = head.createDiv({ cls: "cad-page-header-right" });
+  if (typeof actions === "function") actions(right);
+  return head;
+}
+async function openSettingsTab(view, root) {
+  root.addClass("cadence-soon");
+  const wrap = root.createDiv({ cls: "cad-soon-wrap" });
+  const ic = wrap.createDiv({ cls: "cad-soon-icon" });
+  try {
+    (0, import_obsidian31.setIcon)(ic, "settings-2");
+  } catch (_) {
+  }
+  wrap.createDiv({ cls: "cad-eyebrow", text: "CADENCE" });
+  wrap.createDiv({ cls: "cad-soon-title", text: "Settings" });
+  wrap.createDiv({ cls: "cad-soon-desc", text: "Configure folders, headings, week start, default tab, and the (future) Cadence API connection." });
+  const btn = wrap.createEl("button", { cls: "cad-btn primary", text: "Open Cadence settings" });
+  btn.style.marginTop = "12px";
+  btn.addEventListener("click", () => {
+    view.app.setting.open();
+    view.app.setting.openTabById(view.plugin.manifest.id);
+  });
+}
+function openPrompt(view, opts) {
+  return new Promise((resolve) => {
+    new CadencePromptModal(view.app, {
+      title: opts.title || "Enter a name",
+      placeholder: opts.placeholder || "",
+      defaultValue: opts.defaultValue || "",
+      cta: opts.cta || "Create",
+      onSubmit: resolve
+    }).open();
+  });
+}
+async function createEntityFromPrompt(view, entityKey, defaults = {}) {
+  const def = ENTITIES[entityKey];
+  new CadenceEntityCreateModal(view.app, entityKey, {
+    defaults,
+    onSubmit: async (result) => {
+      if (!result) return;
+      try {
+        const file = await createEntity(view.app, entityKey, result.name);
+        const { extras, links } = planEntityLinks(def, defaults, result.values);
+        for (const link of links) {
+          const targetFile = view.app.vault.getMarkdownFiles().find((tf) => tf.basename.toLowerCase() === link.name.toLowerCase());
+          if (!targetFile) {
+            try {
+              await createEntity(view.app, link.creationSource, link.name);
+              new import_obsidian31.Notice(`Created new ${link.label}: ${link.name}`);
+            } catch (e) {
+              console.warn(`Failed to auto-create ${link.creationSource}`, e);
+            }
+          }
+        }
+        if (Object.keys(extras).length) {
+          await view.app.fileManager.processFrontMatter(file, (fm) => {
+            Object.entries(extras).forEach(([k, v]) => {
+              if (v == null || v === "" || Array.isArray(v) && v.length === 0) return;
+              fm[k] = v;
+            });
+          });
+        }
+        new import_obsidian31.Notice(`Created ${def.label}: ${file.basename}
+Saved to ${file.path}`, 4e3);
+        await view.openEntityDetail(entityKey, file);
+      } catch (e) {
+        new import_obsidian31.Notice(`Cadence: failed to create ${def.label} \u2014 ${e.message}`);
+      }
+    }
+  }).open();
+}
+function planEntityLinks(def, defaults, values) {
+  const primaryKey = def.fields[0].key;
+  const extras = Object.assign({}, defaults, values);
+  delete extras[primaryKey];
+  const links = [];
+  for (const f of def.fields) {
+    const suggestionSource = getFieldSuggestionSource(f);
+    if (suggestionSource !== "none" && suggestionSource !== "tags" && suggestionSource !== "history") {
+      const key = f.key;
+      if (extras[key]) {
+        const rawVal = extras[key];
+        const parts = Array.isArray(rawVal) ? rawVal.map(String) : String(rawVal).split(",");
+        const names = parts.map((n) => n.replace(/^\[\[|\]\]$/g, "").trim()).filter(Boolean);
+        extras[key] = names.map((n) => `[[${n}]]`);
+        const creationSource = suggestionSource === "history" ? "folder:Cadence/Shared" : suggestionSource;
+        let targetEntityKey = ENTITIES[suggestionSource] ? suggestionSource : null;
+        if (suggestionSource.startsWith("folder:")) {
+          const customFolderPath = suggestionSource.slice("folder:".length);
+          const normalizedPath = customFolderPath.replace(/\/+$/, "").toLowerCase();
+          for (const [ek, edef] of Object.entries(ENTITIES)) {
+            if (edef && edef.folder && edef.folder.replace(/\/+$/, "").toLowerCase() === normalizedPath) {
+              targetEntityKey = ek;
+              break;
+            }
+          }
+        }
+        const label = targetEntityKey ? ENTITIES[targetEntityKey].label : "Note";
+        for (const name of names) links.push({ name, creationSource, label });
+      }
+    }
+  }
+  return { extras, links };
+}
+var CadenceAppView = class extends import_obsidian31.ItemView {
   constructor(leaf, plugin) {
     super(leaf);
     initAppViewState(this, plugin);
@@ -11564,7 +11570,9 @@ var CadenceAppView = class extends obsidian.ItemView {
   async onClose() {
   }
 };
-var CadencePlugin = class extends obsidian.Plugin {
+
+// src/main.ts
+var CadencePlugin = class extends import_obsidian32.Plugin {
   async onload() {
     await this.loadSettings();
     this.app.workspace.onLayoutReady(async () => {
@@ -11691,9 +11699,9 @@ var CadencePlugin = class extends obsidian.Plugin {
         }
         const noteLabel = sameDay(noteDate, /* @__PURE__ */ new Date()) ? "today's note" : `${ymd(noteDate)} note`;
         if (result.when) {
-          new obsidian.Notice(`Reminder set \xB7 ${reminderTimeStr(result.when)}${dailyNoteAppended ? ` \xB7 added to ${noteLabel}` : ""}`);
+          new import_obsidian32.Notice(`Reminder set \xB7 ${reminderTimeStr(result.when)}${dailyNoteAppended ? ` \xB7 added to ${noteLabel}` : ""}`);
         } else {
-          new obsidian.Notice(`Captured to Inbox${dailyNoteAppended ? ` \xB7 added to ${noteLabel}` : ""}`);
+          new import_obsidian32.Notice(`Captured to Inbox${dailyNoteAppended ? ` \xB7 added to ${noteLabel}` : ""}`);
         }
       }
     }).open();
@@ -11758,6 +11766,4 @@ var CadencePlugin = class extends obsidian.Plugin {
     return saveSettings(this);
   }
 };
-
-// src/main.ts
 module.exports = CadencePlugin;
