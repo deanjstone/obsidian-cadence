@@ -514,3 +514,20 @@ describe("renderEntityList: every routed surface", () => {
     expect(root.children[4].querySelectorAll("a").concat(root.children[2].querySelectorAll("a"), root.children[3].querySelectorAll("div.cad-kanban-card-title")).map((a) => a.text)).toEqual(["A"]);
   });
 });
+
+describe("renderEntityList: gaps found by the mutation check", () => {
+  it("the primary cell opens the list's own entity type", async () => {
+    const deal: MockFileSpec = { path: "Cadence/Pipeline/D.md", frontmatter: { title: "D", stage: "Won" } };
+    const { view, root, opened, file } = setup([deal], "crm.pipeline", { pageLayouts: { "crm.pipeline": "table" } });
+    await view.renderEntityList(root, "deal");
+    rows(root)[0].children[0].children[0].trigger("click");
+    expect(opened.mock.calls).toEqual([["deal", file(deal.path)]]);
+  });
+
+  it("search matches the file's basename even when no column holds it", async () => {
+    const { view, root } = setup([contact("zz-file", { name: "Someone" })]);
+    await view.renderEntityList(root, "contact");
+    type(search(root), "zz-");
+    expect(names(root)).toEqual(["Someone"]);
+  });
+});

@@ -413,3 +413,11 @@ describe("renderEntityKanban (no call site)", () => {
     expect(mobile.root.children[1].children[1].children[1].children[0].text).toBe("—");
   });
 });
+
+describe("kanban: gaps found by the mutation check", () => {
+  it("the group-by selector selects the saved field even when it isn't first", async () => {
+    const { view, root } = setup([{ path: "Cadence/Partners/P.md", frontmatter: { name: "P" } }], "prm.partners", { pageKanbanGroupBy: { partner: "status" } });
+    await view.renderEntityList(root, "partner");
+    expect(groupSelect(root).options.map((o) => [o.value, o.selected])).toEqual([["tier", false], ["status", true]]);
+  });
+});
