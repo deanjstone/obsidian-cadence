@@ -169,6 +169,11 @@ export class Vault {
     this.listeners.set(name, list);
     return { name, callback };
   }
+
+  /** Run every handler registered with on(name), in order, and wait for them. */
+  async trigger(name: string, ...args: unknown[]): Promise<void> {
+    for (const callback of this.listeners.get(name) ?? []) await callback(...args);
+  }
 }
 
 export class MetadataCache {
@@ -187,15 +192,27 @@ export class MetadataCache {
     const fm = this.frontmatter.get(file.path);
     return fm ? { frontmatter: fm } : null;
   }
+  private listeners = new Map<string, Array<(...args: unknown[]) => unknown>>();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- each event passes its own args, as in obsidian.d.ts
   on(name: string, callback: (...args: any[]) => unknown) {
+    const list = this.listeners.get(name) ?? [];
+    list.push(callback);
+    this.listeners.set(name, list);
     return { name, callback };
+  }
+
+  /** Run every handler registered with on(name), in order, and wait for them. */
+  async trigger(name: string, ...args: unknown[]): Promise<void> {
+    for (const callback of this.listeners.get(name) ?? []) await callback(...args);
   }
 }
 
 export class FileManager {
+  /** Every processFrontMatter() call's path, in order. */
+  readonly processed: string[] = [];
   constructor(private metadata: MetadataCache) {}
   async processFrontMatter(file: TFile, fn: (fm: Frontmatter) => void): Promise<void> {
+    this.processed.push(file.path);
     const existing = this.metadata.getFileCache(file)?.frontmatter ?? {};
     this.metadata.setFrontmatter(file, existing);
     fn(existing);
@@ -275,10 +292,15 @@ export function createMockApp(files: MockFileSpec[] = []): App {
 export class Notice {
   static readonly messages: string[] = [];
   message: string;
-  constructor(message: string, _duration?: number) {
+  duration?: number;
+  constructor(message: string, duration?: number) {
     this.message = message;
+    this.duration = duration;
     Notice.messages.push(message);
+    Notice.durations.push(duration);
   }
+  /** The duration argument of every Notice, parallel to `messages`. */
+  static readonly durations: Array<number | undefined> = [];
   hide() {}
 }
 
