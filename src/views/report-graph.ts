@@ -3,7 +3,8 @@ import type { AppViewHost } from './host';
 
 /* The relationship graph (reports.graph): a canvas force layout over every
    note under Cadence/, one node per note and one edge per resolved link
-   between two of them. Drawing and the pointer are manual-QA only. */
+   between two of them. The graph, the layout step, hit testing and zoom are
+   pure seams; the canvas drawing and the pointer wiring are manual-QA only. */
 
 export type GraphNodeType = 'contact' | 'company' | 'partner' | 'deal' | 'project' | 'activity' | 'lead' | 'note';
 
@@ -26,6 +27,207 @@ export interface GraphLink {
   source: GraphNode;
   target: GraphNode;
 }
+
+/* ── Pure seams: plain data in, plain data out ── */
+
+export interface EntityGraph {
+  nodes: GraphNode[];
+  links: GraphLink[];
+}
+
+export interface GraphPoint {
+  x: number;
+  y: number;
+}
+
+/* The pan offset (screen px) and zoom factor. */
+export interface GraphTransform extends GraphPoint {
+  k: number;
+}
+
+const TYPE_BY_FOLDER: Array<[string, GraphNodeType]> = [
+  ['Cadence/Contacts/', 'contact'],
+  ['Cadence/Companies/', 'company'],
+  ['Cadence/Partners/', 'partner'],
+  ['Cadence/Pipeline/', 'deal'],
+  ['Cadence/Projects/', 'project'],
+  ['Cadence/Activities/', 'activity'],
+  ['Cadence/Leads/', 'lead'],
+];
+
+/* A note's node type, by folder. Every other note (registrations,
+   commissions, certifications, sequences, loose notes) is a 'note'. */
+export function graphNodeType(path: string): GraphNodeType {
+  for (const [folder, type] of TYPE_BY_FOLDER) if (path.startsWith(folder)) return type;
+  return 'note';
+}
+
+export function graphNodeRadius(type: GraphNodeType): number {
+  return type === 'company' ? 7 : (type === 'project' ? 6.5 : 5);
+}
+
+// Colors mapping to native Obsidian style & pastel highlights
+export const GRAPH_TYPE_COLORS: Record<GraphNodeType, string> = {
+  contact: 'var(--graph-node-resolved, #f59e0b)',  // warm orange
+  company: '#0ea5e9',  // sky blue
+  partner: '#ec4899',  // rose pink
+  deal: '#10b981',     // emerald green
+  project: '#8b5cf6',  // violet purple
+  activity: '#64748b', // slate gray
+  lead: '#a855f7',     // purple
+  note: 'var(--graph-node, #94a3b8)'      // gray
+};
+
+export function graphNodeColor(type: GraphNodeType): string {
+  return GRAPH_TYPE_COLORS[type] || GRAPH_TYPE_COLORS.note;
+}
+
+/* One node per markdown note under Cadence/, in file order, each starting
+   at a random point in 150–650 × 100–350 (x drawn before y). One edge per
+   resolved link from one graph note to another, in the source's link
+   order: a self-link is an edge, and links both ways are two. */
+export function buildEntityGraph(
+  files: TFile[], resolvedLinks: Record<string, Record<string, number>>, random: () => number = Math.random,
+): EntityGraph {
+  const nodes: GraphNode[] = [];
+  const nodeMap = new Map<string, GraphNode>();
+  files.filter(f => f.path.startsWith('Cadence/')).forEach((file) => {
+    const type = graphNodeType(file.path);
+    const node: GraphNode = {
+      id: file.path,
+      name: file.basename,
+      type,
+      file,
+      x: random() * 500 + 150,
+      y: random() * 250 + 100,
+      vx: 0,
+      vy: 0,
+      radius: graphNodeRadius(type),
+    };
+    nodes.push(node);
+    nodeMap.set(file.path, node);
+  });
+
+  const links: GraphLink[] = [];
+  nodes.forEach((sourceNode) => {
+    const targets = resolvedLinks[sourceNode.id] || {};
+    for (const targetPath of Object.keys(targets)) {
+      const targetNode = nodeMap.get(targetPath);
+      if (targetNode) {
+        links.push({ source: sourceNode, target: targetNode });
+      }
+    }
+  });
+  return { nodes, links };
+}
+
+/* One step of the force layout, moving the nodes in place: nodes closer
+   than 160px repel, each link pulls toward 65px, gravity pulls toward the
+   centre (harder past 250px), then each node moves by its velocity and the
+   velocity damps by 0.92. The pinned (dragged) node is neither pushed nor
+   moved. Deterministic: the only randomness is buildEntityGraph's start. */
+export function layoutGraph(graph: EntityGraph, size: { width: number; height: number }, pinned: GraphNode | null = null): void {
+  const { nodes, links } = graph;
+
+  // 1. Repulsion force between nodes
+  for (let i = 0; i < nodes.length; i++) {
+    const n1 = nodes[i];
+    for (let j = i + 1; j < nodes.length; j++) {
+      const n2 = nodes[j];
+      const dx = n2.x - n1.x;
+      const dy = n2.y - n1.y;
+      const distSq = dx * dx + dy * dy || 1;
+      const dist = Math.sqrt(distSq);
+      if (dist < 160) {
+        const force = (160 - dist) * 0.04;
+        const fx = (dx / dist) * force;
+        const fy = (dy / dist) * force;
+        if (n1 !== pinned) { n1.vx -= fx; n1.vy -= fy; }
+        if (n2 !== pinned) { n2.vx += fx; n2.vy += fy; }
+      }
+    }
+  }
+
+  // 2. Attraction force along links
+  links.forEach((l) => {
+    const dx = l.target.x - l.source.x;
+    const dy = l.target.y - l.source.y;
+    const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+    const desiredDist = 65;
+    const force = (dist - desiredDist) * 0.009;
+    const fx = (dx / dist) * force;
+    const fy = (dy / dist) * force;
+    if (l.source !== pinned) { l.source.vx += fx; l.source.vy += fy; }
+    if (l.target !== pinned) { l.target.vx -= fx; l.target.vy -= fy; }
+  });
+
+  // 3. Gravity pulling to center & Update position
+  const cx = size.width / 2;
+  const cy = size.height / 2;
+  nodes.forEach((n) => {
+    if (n === pinned) return;
+
+    const dx = cx - n.x;
+    const dy = cy - n.y;
+    const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+
+    let gravity = 0.0003;
+    if (dist > 250) {
+      gravity = 0.0012; // soft pull back bounds
+    }
+
+    n.vx += dx * gravity;
+    n.vy += dy * gravity;
+
+    // Apply velocities and damp (glide damping = 0.92 for buttery smooth!)
+    n.x += n.vx;
+    n.y += n.vy;
+    n.vx *= 0.92;
+    n.vy *= 0.92;
+  });
+}
+
+/* A screen point (relative to the canvas) in graph space. */
+export function toGraphPoint(screen: GraphPoint, transform: GraphTransform): GraphPoint {
+  return {
+    x: (screen.x - transform.x) / transform.k,
+    y: (screen.y - transform.y) / transform.k,
+  };
+}
+
+/* The node under a graph-space point: within its radius + 8 (exclusive),
+   the last-drawn node winning, else null. */
+export function nodeAt(nodes: GraphNode[], point: GraphPoint): GraphNode | null {
+  for (let i = nodes.length - 1; i >= 0; i--) {
+    const n = nodes[i];
+    const dx = point.x - n.x;
+    const dy = point.y - n.y;
+    if (dx * dx + dy * dy < (n.radius + 8) * (n.radius + 8)) {
+      return n;
+    }
+  }
+  return null;
+}
+
+/* The transform after a wheel step at `mouse`: the zoom scales by
+   exp(-deltaY × 0.00075), clamped to 0.15–4, keeping the point under the
+   pointer fixed. */
+export function zoomAt(transform: GraphTransform, mouse: GraphPoint, deltaY: number): GraphTransform {
+  const zoomIntensity = 0.05;
+  const factor = Math.exp(-deltaY * zoomIntensity * 0.015);
+  const newK = Math.max(0.15, Math.min(4, transform.k * factor));
+  return {
+    x: mouse.x - (mouse.x - transform.x) * (newK / transform.k),
+    y: mouse.y - (mouse.y - transform.y) * (newK / transform.k),
+    k: newK,
+  };
+}
+
+export function graphTooltip(node: Pick<GraphNode, 'type' | 'name'>): string {
+  return `${node.type.toUpperCase()}: ${node.name}`;
+}
+
+/* ── Surface ── */
 
 export async function renderReportGraph(view: AppViewHost, root: HTMLElement): Promise<void> {
   root.addClass('cadence-report');
@@ -63,59 +265,7 @@ export async function renderReportGraph(view: AppViewHost, root: HTMLElement): P
   tooltip.style.boxShadow = 'var(--shadow-s)';
 
   // Gather Nodes & Links
-  const rawFiles = view.app.vault.getMarkdownFiles().filter(f => f.path.startsWith('Cadence/'));
-  const resolvedLinks = view.app.metadataCache.resolvedLinks || {};
-
-  const nodes: GraphNode[] = [];
-  const nodeMap = new Map<string, GraphNode>();
-
-  rawFiles.forEach((file) => {
-    let type: GraphNodeType = 'note';
-    if (file.path.startsWith('Cadence/Contacts/')) type = 'contact';
-    else if (file.path.startsWith('Cadence/Companies/')) type = 'company';
-    else if (file.path.startsWith('Cadence/Partners/')) type = 'partner';
-    else if (file.path.startsWith('Cadence/Pipeline/')) type = 'deal';
-    else if (file.path.startsWith('Cadence/Projects/')) type = 'project';
-    else if (file.path.startsWith('Cadence/Activities/')) type = 'activity';
-    else if (file.path.startsWith('Cadence/Leads/')) type = 'lead';
-
-    const node: GraphNode = {
-      id: file.path,
-      name: file.basename,
-      type,
-      file,
-      x: Math.random() * 500 + 150,
-      y: Math.random() * 250 + 100,
-      vx: 0,
-      vy: 0,
-      radius: type === 'company' ? 7 : (type === 'project' ? 6.5 : 5)
-    };
-    nodes.push(node);
-    nodeMap.set(file.path, node);
-  });
-
-  const links: GraphLink[] = [];
-  nodes.forEach((sourceNode) => {
-    const targets = resolvedLinks[sourceNode.id] || {};
-    for (const targetPath of Object.keys(targets)) {
-      const targetNode = nodeMap.get(targetPath);
-      if (targetNode) {
-        links.push({ source: sourceNode, target: targetNode });
-      }
-    }
-  });
-
-  // Colors mapping to native Obsidian style & pastel highlights
-  const typeColors: Record<GraphNodeType, string> = {
-    contact: 'var(--graph-node-resolved, #f59e0b)',  // warm orange
-    company: '#0ea5e9',  // sky blue
-    partner: '#ec4899',  // rose pink
-    deal: '#10b981',     // emerald green
-    project: '#8b5cf6',  // violet purple
-    activity: '#64748b', // slate gray
-    lead: '#a855f7',     // purple
-    note: 'var(--graph-node, #94a3b8)'      // gray
-  };
+  const { nodes, links } = buildEntityGraph(view.app.vault.getMarkdownFiles(), view.app.metadataCache.resolvedLinks || {});
 
   let width = canvas.clientWidth || 800;
   let height = canvas.clientHeight || 400;
@@ -125,7 +275,7 @@ export async function renderReportGraph(view: AppViewHost, root: HTMLElement): P
   ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
 
   // Zoom & Pan state
-  let transform = { x: 0, y: 0, k: 1 };
+  let transform: GraphTransform = { x: 0, y: 0, k: 1 };
   let isPanning = false;
   let panStart = { x: 0, y: 0 };
   let draggedNode: GraphNode | null = null;
@@ -154,15 +304,7 @@ export async function renderReportGraph(view: AppViewHost, root: HTMLElement): P
     };
   };
 
-  const getCanvasPos = (e: MouseEvent) => {
-    const rect = canvas.getBoundingClientRect();
-    const screenX = e.clientX - rect.left;
-    const screenY = e.clientY - rect.top;
-    return {
-      x: (screenX - transform.x) / transform.k,
-      y: (screenY - transform.y) / transform.k
-    };
-  };
+  const getCanvasPos = (e: MouseEvent) => toGraphPoint(getMousePos(e), transform);
 
   // Interaction Events
   canvas.addEventListener('mousedown', (e) => {
@@ -170,16 +312,7 @@ export async function renderReportGraph(view: AppViewHost, root: HTMLElement): P
     hasMovedSinceDown = false;
 
     const canvasPos = getCanvasPos(e);
-    let found: GraphNode | null = null;
-    for (let i = nodes.length - 1; i >= 0; i--) {
-      const n = nodes[i];
-      const dx = canvasPos.x - n.x;
-      const dy = canvasPos.y - n.y;
-      if (dx * dx + dy * dy < (n.radius + 8) * (n.radius + 8)) {
-        found = n;
-        break;
-      }
-    }
+    const found = nodeAt(nodes, canvasPos);
 
     if (found) {
       draggedNode = found;
@@ -209,16 +342,7 @@ export async function renderReportGraph(view: AppViewHost, root: HTMLElement): P
     }
 
     // Hover check using canvasPos
-    let found: GraphNode | null = null;
-    for (let i = nodes.length - 1; i >= 0; i--) {
-      const n = nodes[i];
-      const dx = canvasPos.x - n.x;
-      const dy = canvasPos.y - n.y;
-      if (dx * dx + dy * dy < (n.radius + 8) * (n.radius + 8)) {
-        found = n;
-        break;
-      }
-    }
+    const found = nodeAt(nodes, canvasPos);
 
     hoveredNode = found;
     if (hoveredNode) {
@@ -229,7 +353,7 @@ export async function renderReportGraph(view: AppViewHost, root: HTMLElement): P
       const screenY = e.clientY - rect.top;
       tooltip.style.left = `${screenX + 12}px`;
       tooltip.style.top = `${screenY + 12}px`;
-      tooltip.setText(`${hoveredNode.type.toUpperCase()}: ${hoveredNode.name}`);
+      tooltip.setText(graphTooltip(hoveredNode));
     } else {
       canvas.style.cursor = isPanning ? 'grabbing' : 'default';
       tooltip.style.display = 'none';
@@ -260,13 +384,7 @@ export async function renderReportGraph(view: AppViewHost, root: HTMLElement): P
     e.preventDefault();
     const mouse = getMousePos(e);
 
-    const zoomIntensity = 0.05;
-    const factor = Math.exp(-e.deltaY * zoomIntensity * 0.015);
-    const newK = Math.max(0.15, Math.min(4, transform.k * factor));
-
-    transform.x = mouse.x - (mouse.x - transform.x) * (newK / transform.k);
-    transform.y = mouse.y - (mouse.y - transform.y) * (newK / transform.k);
-    transform.k = newK;
+    transform = zoomAt(transform, mouse, e.deltaY);
   });
 
   // Physics Engine
@@ -276,62 +394,8 @@ export async function renderReportGraph(view: AppViewHost, root: HTMLElement): P
       return;
     }
 
-    // 1. Repulsion force between nodes
-    for (let i = 0; i < nodes.length; i++) {
-      const n1 = nodes[i];
-      for (let j = i + 1; j < nodes.length; j++) {
-        const n2 = nodes[j];
-        const dx = n2.x - n1.x;
-        const dy = n2.y - n1.y;
-        const distSq = dx * dx + dy * dy || 1;
-        const dist = Math.sqrt(distSq);
-        if (dist < 160) {
-          const force = (160 - dist) * 0.04;
-          const fx = (dx / dist) * force;
-          const fy = (dy / dist) * force;
-          if (n1 !== draggedNode) { n1.vx -= fx; n1.vy -= fy; }
-          if (n2 !== draggedNode) { n2.vx += fx; n2.vy += fy; }
-        }
-      }
-    }
-
-    // 2. Attraction force along links
-    links.forEach((l) => {
-      const dx = l.target.x - l.source.x;
-      const dy = l.target.y - l.source.y;
-      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-      const desiredDist = 65;
-      const force = (dist - desiredDist) * 0.009;
-      const fx = (dx / dist) * force;
-      const fy = (dy / dist) * force;
-      if (l.source !== draggedNode) { l.source.vx += fx; l.source.vy += fy; }
-      if (l.target !== draggedNode) { l.target.vx -= fx; l.target.vy -= fy; }
-    });
-
-    // 3. Gravity pulling to center & Update position
-    const cx = width / 2;
-    const cy = height / 2;
-    nodes.forEach((n) => {
-      if (n === draggedNode) return;
-
-      const dx = cx - n.x;
-      const dy = cy - n.y;
-      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-
-      let gravity = 0.0003;
-      if (dist > 250) {
-        gravity = 0.0012; // soft pull back bounds
-      }
-
-      n.vx += dx * gravity;
-      n.vy += dy * gravity;
-
-      // Apply velocities and damp (glide damping = 0.92 for buttery smooth!)
-      n.x += n.vx;
-      n.y += n.vy;
-      n.vx *= 0.92;
-      n.vy *= 0.92;
-    });
+    // 1–3. Repulsion, link attraction, gravity, then move
+    layoutGraph({ nodes, links }, { width, height }, draggedNode);
 
     // 4. Render
     ctx.clearRect(0, 0, width, height);
@@ -354,7 +418,7 @@ export async function renderReportGraph(view: AppViewHost, root: HTMLElement): P
     nodes.forEach((n) => {
       ctx.beginPath();
       ctx.arc(n.x, n.y, n.radius, 0, Math.PI * 2);
-      ctx.fillStyle = typeColors[n.type] || typeColors.note;
+      ctx.fillStyle = graphNodeColor(n.type);
       ctx.fill();
 
       // Highlight ring if hovered

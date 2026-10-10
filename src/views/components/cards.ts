@@ -22,6 +22,14 @@ export interface DashCardRow {
   file?: TFile | null;
 }
 
+/** A mini stat inside a card row. `sub` is omitted where the card has none. */
+export interface MiniStat {
+  label: string;
+  value: string;
+  accent: string;
+  sub?: string;
+}
+
 /** A stat card: label, value, optional sub line and accent. */
 export interface StatCard {
   label: string;
