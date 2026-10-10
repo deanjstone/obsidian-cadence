@@ -74,6 +74,21 @@ describe("buildEntityCreateValues", () => {
     ]);
     expect(result).toEqual({ name: "S", values: { name: "S", labels: ["a", "b"], notes: ["x"], assigned: ["[[Jo]]"] } });
   });
+  it("links the reference keys even when the field's suggestion source is 'none'", () => {
+    const def = {
+      folder: "Cadence/Widgets", label: "Widget", plural: "Widgets", columns: [],
+      fields: [
+        { key: "name", label: "Name" },
+        { key: "owner", label: "Owner", suggestionSource: "none" },
+        { key: "region", label: "Region", suggestionSource: "none" },
+      ],
+    };
+    expect(buildEntityCreateValues(def, [
+      { key: "name", value: "W" },
+      { key: "owner", value: "Sam" },
+      { key: "region", value: "EU" },
+    ])).toEqual({ name: "W", values: { name: "W", owner: ["[[Sam]]"], region: "EU" } });
+  });
 });
 
 describe("entityCreateSuggestions", () => {
