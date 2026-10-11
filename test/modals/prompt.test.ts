@@ -38,8 +38,11 @@ describe("CadencePromptModal", () => {
     expect(modal._submitted).toBe(false);
   });
 
-  it("throws when constructed without an options object (flagged)", () => {
-    expect(() => new (CadencePromptModal as Any)(app)).toThrow(TypeError);
+  it("defaults every option when constructed without an options object", () => {
+    const modal: Any = new (CadencePromptModal as Any)(app);
+    expect([modal.title, modal.placeholder, modal.defaultValue, modal.cta, modal.onSubmit]).toEqual([
+      "Enter a name", "", "", "Create", undefined,
+    ]);
   });
 
   it("renders a heading, a prefilled input and Cancel/CTA buttons, then focuses and selects the input", () => {
@@ -124,14 +127,16 @@ describe("CadencePromptModal", () => {
     expect(onSubmit.mock.calls).toEqual([[null]]);
   });
 
-  it("closes quietly without onSubmit, but throws on submit without it (flagged)", () => {
+  it("closes and submits quietly without onSubmit", () => {
     const quiet: Any = new CadencePromptModal(app, {});
     quiet.open();
     expect(() => quiet.close()).not.toThrow();
 
     const modal: Any = new CadencePromptModal(app, { defaultValue: "x" });
     modal.open();
-    expect(() => buttonByText(contentOf(modal), "Create").trigger("click")).toThrow(TypeError);
+    const content = contentOf(modal);
+    expect(() => buttonByText(content, "Create").trigger("click")).not.toThrow();
     expect(modal._submitted).toBe(true);
+    expect(content.children).toHaveLength(0);
   });
 });

@@ -18,7 +18,7 @@ export class CadencePromptModal extends Modal {
   declare onSubmit: ((value: string | null) => void) | undefined;
   declare _submitted: boolean;
 
-  constructor(app: App, opts: PromptModalOptions) {
+  constructor(app: App, opts: PromptModalOptions = {}) {
     super(app);
     this.title = opts.title || 'Enter a name';
     this.placeholder = opts.placeholder || '';
@@ -46,8 +46,7 @@ export class CadencePromptModal extends Modal {
       if (!v) { input.focus(); return; }
       this._submitted = true;
       this.close();
-      // Throws when constructed without onSubmit (flagged, not fixed).
-      this.onSubmit!(v);
+      this.onSubmit?.(v);
     };
 
     input.addEventListener('keydown', (e) => {

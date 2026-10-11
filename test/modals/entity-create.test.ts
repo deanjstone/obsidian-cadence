@@ -39,8 +39,9 @@ function openCreate(entityKey: string, opts: Record<string, unknown> = {}) {
 }
 
 describe("CadenceEntityCreateModal onOpen", () => {
-  it("throws when constructed without an options object", () => {
-    expect(() => new (CadenceEntityCreateModal as Any)(app, "contact")).toThrow(TypeError);
+  it("defaults its options when constructed without an options object", () => {
+    const modal: Any = new (CadenceEntityCreateModal as Any)(app, "contact");
+    expect([modal.onSubmit, modal.defaults]).toEqual([undefined, {}]);
   });
 
   it("throws on open for an unknown entity key", () => {
@@ -139,12 +140,16 @@ describe("CadenceEntityCreateModal onOpen", () => {
     expect(field("company").value).toBe("[[Acme]]");
   });
 
-  it("blanks an enum whose caller default is not one of its options", () => {
-    const { field } = openCreate("deal", { defaults: { stage: "Archived" } });
-    expect(field("stage").value).toBe("");
+  it("offers and selects an enum's caller default that is not one of its options, after them", () => {
+    const { field, fill, submit, onSubmit } = openCreate("deal", { defaults: { stage: "Archived" } });
+    expect(field("stage").value).toBe("Archived");
+    expect(optionValues(field("stage"))).toEqual(["", ...ENTITIES.deal.fields[1].options!, "Archived"]);
+    fill({ title: "Old deal" });
+    submit();
+    expect(onSubmit.mock.calls[0][0].values.stage).toBe("Archived");
   });
 
-  it("skips a non-enum `type` field; if it is the first field nothing is starred or required (flagged)", () => {
+  it("skips a non-enum `type` field, and stars and requires the first field it shows", () => {
     ENTITIES.widget = {
       folder: "Cadence/Widgets", label: "Widget", plural: "Widgets", columns: [],
       fields: [
@@ -153,8 +158,8 @@ describe("CadenceEntityCreateModal onOpen", () => {
       ],
     };
     const { rows, field, fill, submit, onSubmit } = openCreate("widget");
-    expect(rows.map((r) => r.children[0].text)).toEqual(["NAME"]);
-    expect(field("name").required).toBe(false);
+    expect(rows.map((r) => r.children[0].text)).toEqual(["NAME *"]);
+    expect(field("name").required).toBe(true);
     expect(field("name").placeholder).toBe("");
     fill({ name: "Gizmo" });
     submit();
@@ -179,7 +184,7 @@ describe("CadenceEntityCreateModal submit", () => {
     expect(content.children.length).toBeGreaterThan(0);
   });
 
-  it("closes, then submits the trimmed name and the untrimmed primary value (flagged)", () => {
+  it("closes, then submits the trimmed name and the trimmed primary value", () => {
     const { modal, content, fill, submit, onSubmit } = openCreate("company");
     const order: string[] = [];
     const close = modal.close.bind(modal);
@@ -188,7 +193,7 @@ describe("CadenceEntityCreateModal submit", () => {
     fill({ name: "  Acme Corp " });
     submit();
     expect(order).toEqual(["close", "submit"]);
-    expect(onSubmit).toHaveBeenCalledExactlyOnceWith({ name: "Acme Corp", values: { name: "  Acme Corp " } });
+    expect(onSubmit).toHaveBeenCalledExactlyOnceWith({ name: "Acme Corp", values: { name: "Acme Corp" } });
     expect(content.children).toHaveLength(0);
     expect(modal._submitted).toBe(true);
   });
@@ -309,14 +314,14 @@ describe("CadenceEntityCreateModal submit", () => {
     expect(plain.onSubmit.mock.calls).toEqual([[null]]);
   });
 
-  it("closes quietly without an onSubmit, but submitting then throws", () => {
+  it("closes and submits quietly without an onSubmit", () => {
     const modal: Any = new CadenceEntityCreateModal(app, "contact", {});
     modal.open();
     const content = contentOf(modal);
     expect(() => modal.close()).not.toThrow();
     modal.open();
     (content.findAll("input")[0] as FakeElement).value = "Jane";
-    expect(() => buttonByText(content, "Create Contact").trigger("click")).toThrow(TypeError);
+    expect(() => buttonByText(content, "Create Contact").trigger("click")).not.toThrow();
     expect(content.children).toHaveLength(0);
   });
 });

@@ -7,6 +7,21 @@ import type { EntityDef } from '../types/entities';
 /** CSV header → entity field key, or null when the column is skipped. */
 export type CsvMapping = Record<string, string | null>;
 
+/** The headers with each repeat suffixed ` (2)`, ` (3)`, …, skipping any
+    name already taken, so every column gets its own mapping entry (#60). */
+export function uniqueCsvHeaders(headers: string[]): string[] {
+  const taken = new Set(headers);
+  const seen = new Set<string>();
+  return headers.map((h) => {
+    if (!seen.has(h)) { seen.add(h); return h; }
+    let n = 2;
+    const named = (i: number) => (h ? `${h} (${i})` : `(${i})`);
+    while (taken.has(named(n)) || seen.has(named(n))) n++;
+    seen.add(named(n));
+    return named(n);
+  });
+}
+
 export function autoDetectCsvMapping(def: EntityDef | undefined, headers: string[]): CsvMapping {
   const mapping: CsvMapping = {};
   if (!def || !headers.length) return mapping;

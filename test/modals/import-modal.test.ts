@@ -68,11 +68,12 @@ describe("CadenceImportModal onOpen", () => {
     expect(buttonByText(content, "Pick .csv from vault").type).toBe("button");
   });
 
-  it("selects nothing for an unknown entity key, so the select falls back to its first option", () => {
-    const { modal, entitySelect } = openImport({ entityKey: "nope" });
-    expect(entitySelect.options.some((o) => o.selected && o.value === "nope")).toBe(false);
+  it("falls back to contacts for an unknown entity key, so what it shows is what it imports", () => {
+    const { modal, entitySelect, preview, type } = openImport({ entityKey: "nope" });
     expect(entitySelect.value).toBe("contact");
-    expect(modal.entityKey).toBe("nope");
+    expect(modal.entityKey).toBe("contact");
+    type("Name\nJane\n");
+    expect(summaryOf(preview).text).toBe("Will create 1 contact in Cadence/Contacts/  ·  1 column mapped");
   });
 
   it("focuses the textarea from the Paste button", () => {
@@ -126,12 +127,19 @@ describe("CadenceImportModal onOpen", () => {
     expect(importBtn.disabled).toBe(true);
   });
 
-  it("enables Import for a header-only CSV and offers to create 0 notes (flagged)", () => {
-    const { preview, importBtn, type } = openImport();
+  it("disables Import for a header-only CSV and says there are no rows", async () => {
+    const onSubmit = vi.fn();
+    const { modal, preview, importBtn, type } = openImport({ onSubmit });
     type("Name,Email\n");
     expect(bodyRows(preview)[0].findAll("td")[2].text).toBe("");
-    expect(summaryOf(preview).text).toBe("Will create 0 contacts in Cadence/Contacts/  ·  2 columns mapped");
-    expect(importBtn.disabled).toBe(false);
+    const summary = summaryOf(preview);
+    expect(summary.classes).toEqual(["cad-import-summary", "cad-import-summary-warn"]);
+    expect(summary.text).toBe("The CSV has a header row but no data rows, so there is nothing to import.");
+    expect(importBtn.disabled).toBe(true);
+    await modal._submitImport();
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(Notice.messages).toEqual([]);
+    expect(importBtn.text).toBe("Import");
   });
 
   it("goes back to the empty preview, Import disabled, when the textarea is cleared", () => {
@@ -172,15 +180,17 @@ describe("CadenceImportModal onOpen", () => {
     expect(summaryOf(preview).text).toBe("Will create 1 deal in Cadence/Pipeline/  ·  2 columns mapped");
   });
 
-  it("shares one mapping entry between duplicate header names (flagged)", () => {
+  it("gives each duplicate header name its own column and mapping entry", () => {
     const { modal, preview, type } = openImport();
     type("Name,Name\nJane,Doe\n");
-    expect(modal.mapping).toEqual({ Name: "name" });
+    expect(bodyRows(preview).map((r) => r.findAll("td")[0].text)).toEqual(["Name", "Name (2)"]);
+    expect(modal.mapping).toEqual({ Name: "name", "Name (2)": "name" });
     expect(mappingSelects(preview).map((s) => s.value)).toEqual(["name", "name"]);
     const second = mappingSelects(preview)[1];
     second.value = "";
     second.trigger("change");
-    expect(mappingSelects(preview).map((s) => s.value)).toEqual(["", ""]);
+    expect(mappingSelects(preview).map((s) => s.value)).toEqual(["name", ""]);
+    expect(bodyRows(preview).map((r) => r.findAll("td")[2].text)).toEqual(["Jane", "Doe"]);
   });
 
   it("imports from the Import button, then closes and reports the counts", async () => {
@@ -209,14 +219,15 @@ describe("CadenceImportModal onOpen", () => {
     expect(app.vault.created).toEqual([]);
   });
 
-  it("keeps the parsed CSV across close and reopen, but the new textarea is empty (flagged)", () => {
+  it("starts empty when closed and reopened, matching its empty textarea", () => {
     const { modal, content, type } = openImport();
     type("Name\nJane\n");
     modal.close();
     modal.open();
     expect((content.findAll("textarea")[0] as FakeElement).value).toBe("");
-    expect(modal.csvText).toBe("Name\nJane\n");
-    expect(summaryOf(modal.previewEl).text).toBe("Will create 1 contact in Cadence/Contacts/  ·  1 column mapped");
+    expect(modal.csvText).toBe("");
+    expect([modal.headers, modal.rows, modal.mapping]).toEqual([[], [], {}]);
+    expect((modal.previewEl as FakeElement).children.map((c) => c.text)).toEqual(["Paste or pick a CSV to preview…"]);
     expect(buttonByText(content, "Import").disabled).toBe(true);
   });
 });

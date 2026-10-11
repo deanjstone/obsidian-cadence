@@ -1,11 +1,18 @@
-import { Modal, type App } from 'obsidian';
+import { Modal, Notice, type App } from 'obsidian';
 import { ENTITIES } from '../constants/entities';
 import type { EntityKey } from '../types/entities';
 import type { ChartSectionConfig } from '../types/modals';
+import { noLinkFieldMessage, sectionId } from './cross-section';
 
-/** The onSubmit payload, copied from the form values. */
-export function buildChartSectionConfig(form: ChartSectionConfig): ChartSectionConfig {
+/** Raw form values, as read from the modal's selects. */
+export type ChartSectionForm = Omit<ChartSectionConfig, 'id'>;
+
+/** The onSubmit payload: the form values plus a `ch_` id, as cross-section
+    gives its payload an `xs_` id and the parent (#60). */
+export function buildChartSectionConfig(form: ChartSectionForm): ChartSectionConfig {
   return {
+    id: sectionId('ch_'),
+    parentEntity: form.parentEntity,
     targetEntity: form.targetEntity,
     linkField: form.linkField,
     groupField: form.groupField,
@@ -42,8 +49,6 @@ export class CadenceChartSectionModal extends Modal {
     contentEl.addClass('cad-prompt-modal');
     contentEl.createEl('h3', { text: 'Add Analytics Chart Block' });
 
-    // Passed as a `style` key, which DomElementInfo does not have: Obsidian
-    // ignores it and these labels render unstyled (flagged, not fixed).
     const style = 'display: block; font-weight: 500; font-size: 0.85em; margin-bottom: 4px; margin-top: 12px;';
     const selStyle = (el: HTMLElement) => {
       el.style.width = '100%';
@@ -55,20 +60,21 @@ export class CadenceChartSectionModal extends Modal {
     };
 
     // 1. Target entity
-    contentEl.createEl('label', { text: 'Entity to chart:', style } as DomElementInfo);
+    contentEl.createEl('label', { text: 'Entity to chart:', attr: { style } });
     const selTarget = contentEl.createEl('select');
     selStyle(selTarget);
     Object.entries(ENTITIES).forEach(([key, def]) => {
+      if (key === this.parentEntity) return;
       selTarget.createEl('option', { value: key, text: def.plural });
     });
 
     // 2. Link field (which field on the target entity points back to the parent)
-    contentEl.createEl('label', { text: 'Link field (field on target that references this entity):', style } as DomElementInfo);
+    contentEl.createEl('label', { text: 'Link field (field on target that references this entity):', attr: { style } });
     const selLink = contentEl.createEl('select');
     selStyle(selLink);
 
     // 3. Group-by field (which field to aggregate)
-    contentEl.createEl('label', { text: 'Group by field (property to chart):', style } as DomElementInfo);
+    contentEl.createEl('label', { text: 'Group by field (property to chart):', attr: { style } });
     const selGroup = contentEl.createEl('select');
     selStyle(selGroup);
 
@@ -92,7 +98,7 @@ export class CadenceChartSectionModal extends Modal {
     selTarget.addEventListener('change', refreshFields);
 
     // 4. Chart style
-    contentEl.createEl('label', { text: 'Chart Style:', style } as DomElementInfo);
+    contentEl.createEl('label', { text: 'Chart Style:', attr: { style } });
     const selStyle2 = contentEl.createEl('select');
     selStyle(selStyle2);
     [
@@ -107,7 +113,10 @@ export class CadenceChartSectionModal extends Modal {
     row.createEl('button', { text: 'Cancel' }).addEventListener('click', () => this.close());
     const ok = row.createEl('button', { text: 'Add Chart', cls: 'mod-cta' });
     ok.addEventListener('click', () => {
+      const blank = noLinkFieldMessage(selTarget.value, selLink.value);
+      if (blank) { new Notice(blank); return; }
       this.onSubmit(buildChartSectionConfig({
+        parentEntity: this.parentEntity,
         targetEntity: selTarget.value,
         linkField: selLink.value,
         groupField: selGroup.value,

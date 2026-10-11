@@ -43,11 +43,10 @@ describe("csvImportSummary", () => {
     });
   });
 
-  it("is ready with zero rows (flagged)", () => {
-    expect(csvImportSummary(ENTITIES.contact, { Name: "name" }, 0)).toEqual({
-      ready: true,
-      text: "Will create 0 contacts in Cadence/Contacts/  ·  1 column mapped",
-    });
+  it("is not ready with zero rows, mapped or not", () => {
+    const text = "The CSV has a header row but no data rows, so there is nothing to import.";
+    expect(csvImportSummary(ENTITIES.contact, { Name: "name" }, 0)).toEqual({ ready: false, text });
+    expect(csvImportSummary(ENTITIES.deal, { Amount: "value" }, 0)).toEqual({ ready: false, text });
   });
 });
 

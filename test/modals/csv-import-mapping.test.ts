@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ENTITIES } from "../../src/constants/entities";
-import { autoDetectCsvMapping, csvRowExtras } from "../../src/modals/csv-import-mapping";
+import { autoDetectCsvMapping, csvRowExtras, uniqueCsvHeaders } from "../../src/modals/csv-import-mapping";
 
 /* Direct tests for the state logic lifted out of CadenceImportModal. The
    modal-level characterization tests in csv-import.test.ts still exercise it
@@ -46,5 +46,16 @@ describe("csvRowExtras", () => {
   });
   it("treats a missing cell as empty", () => {
     expect(csvRowExtras(ENTITIES.deal, mapping, headers, ["Deal"], "title")).toEqual({});
+  });
+});
+
+describe("uniqueCsvHeaders", () => {
+  it("suffixes the second and later copies of a header with (n), leaving unique ones alone", () => {
+    expect(uniqueCsvHeaders(["Name", "Email", "Name", "Name"])).toEqual(["Name", "Email", "Name (2)", "Name (3)"]);
+    expect(uniqueCsvHeaders(["", ""])).toEqual(["", "(2)"]);
+  });
+
+  it("never collides with a header that already reads like a suffixed copy", () => {
+    expect(uniqueCsvHeaders(["Name", "Name (2)", "Name"])).toEqual(["Name", "Name (2)", "Name (3)"]);
   });
 });

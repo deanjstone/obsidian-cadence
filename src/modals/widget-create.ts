@@ -25,12 +25,15 @@ export function buildWidgetConfig(form: WidgetForm): WidgetConfig | null {
 }
 
 /* Dashboard chart widget: title, group-by field and chart style. Also
-   accepts (app, onSubmit), in which case the entity is 'project'. */
+   accepts (app, onSubmit), in which case the entity is 'project'. onCancel
+   is called when it closes without submitting. */
 export class CadenceWidgetCreateModal extends Modal {
   declare entityKey: EntityKey;
   declare onSubmit: WidgetSubmit | undefined;
+  declare onCancel: (() => void) | undefined;
+  declare _submitted: boolean;
 
-  constructor(app: App, entityKey: EntityKey | WidgetSubmit | undefined, onSubmit?: WidgetSubmit) {
+  constructor(app: App, entityKey?: EntityKey | WidgetSubmit, onSubmit?: WidgetSubmit, onCancel?: () => void) {
     super(app);
     // If only two args were passed, onSubmit is the second arg
     if (typeof entityKey === 'function') {
@@ -40,10 +43,13 @@ export class CadenceWidgetCreateModal extends Modal {
       this.entityKey = entityKey || 'project';
       this.onSubmit = onSubmit;
     }
+    this.onCancel = onCancel;
+    this._submitted = false;
   }
   onOpen() {
     const { contentEl } = this;
     contentEl.empty();
+    this._submitted = false;
     contentEl.addClass('cad-prompt-modal');
     contentEl.createEl('h3', { text: 'Add Custom Chart Widget' });
 
@@ -97,9 +103,13 @@ export class CadenceWidgetCreateModal extends Modal {
         inputTitle.focus();
         return;
       }
+      if (!config.groupBy) {
+        new Notice(`There is no property to group ${entityLabel} by.`);
+        return;
+      }
 
-      // Throws when constructed without onSubmit (flagged, not fixed).
-      this.onSubmit!(config);
+      this._submitted = true;
+      this.onSubmit?.(config);
       this.close();
     };
 
@@ -114,8 +124,16 @@ export class CadenceWidgetCreateModal extends Modal {
     cancel.addEventListener('click', () => this.close());
 
     const ok = row.createEl('button', { text: 'Create Widget', cls: 'mod-cta' });
+    ok.disabled = !selectProp.options.length;
     ok.addEventListener('click', submit);
 
     setTimeout(() => inputTitle.focus(), 0);
+  }
+  onClose() {
+    if (!this._submitted && this.onCancel) {
+      this._submitted = true;
+      this.onCancel();
+    }
+    this.contentEl.empty();
   }
 }

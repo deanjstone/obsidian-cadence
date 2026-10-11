@@ -1,4 +1,4 @@
-import { Modal, type App } from 'obsidian';
+import { Modal, Notice, type App } from 'obsidian';
 import { ENTITIES } from '../constants/entities';
 import type { EntityKey } from '../types/entities';
 import type { CrossSectionConfig } from '../types/modals';
@@ -6,10 +6,23 @@ import type { CrossSectionConfig } from '../types/modals';
 /** Raw form values, as read from the modal's selects. */
 export type CrossSectionForm = Omit<CrossSectionConfig, 'id'>;
 
+/** `prefix` + 8 base-36 digits of Math.random(), zero-padded when the
+    number has fewer digits, so an id is never short (#60). */
+export function sectionId(prefix: string): string {
+  return prefix + Math.random().toString(36).slice(2, 10).padEnd(8, '0');
+}
+
+/** The notice a section modal shows when the target has no field to link
+    by, or null when there is one. */
+export function noLinkFieldMessage(targetEntity: EntityKey, linkField: string): string | null {
+  if (linkField) return null;
+  return `${ENTITIES[targetEntity]?.plural || targetEntity} have no field to link by.`;
+}
+
 /** The onSubmit payload: the form plus an `xs_` id from Math.random(). */
 export function buildCrossSectionConfig(form: CrossSectionForm): CrossSectionConfig {
   return {
-    id: 'xs_' + Math.random().toString(36).slice(2, 10),
+    id: sectionId('xs_'),
     parentEntity: form.parentEntity,
     targetEntity: form.targetEntity,
     linkField: form.linkField,
@@ -90,6 +103,8 @@ export class CadenceCrossSectionModal extends Modal {
     });
 
     const submit = () => {
+      const blank = noLinkFieldMessage(selectTarget.value, selectField.value);
+      if (blank) { new Notice(blank); return; }
       this.onSubmit(buildCrossSectionConfig({
         parentEntity: this.parentEntity,
         targetEntity: selectTarget.value,

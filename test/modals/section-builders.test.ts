@@ -42,20 +42,21 @@ describe("buildCrossSectionConfig", () => {
     expect(buildCrossSectionConfig(form)).toEqual({ id: "xs_4fzzzxjy", ...form });
   });
 
-  it("puts id first and copies the form without mutating it", () => {
+  it("puts id first, pads it to 8 characters, and copies the form without mutating it", () => {
     vi.spyOn(Math, "random").mockReturnValue(0.5);
     const config = buildCrossSectionConfig(form);
     expect(Object.keys(config)).toEqual(["id", "parentEntity", "targetEntity", "linkField", "viewType"]);
-    expect(config.id).toBe("xs_i");
+    expect(config.id).toBe("xs_i0000000");
     expect(form).not.toHaveProperty("id");
   });
 });
 
 describe("buildChartSectionConfig", () => {
-  it("copies exactly the four form fields into a new object", () => {
-    const form = { targetEntity: "deal", linkField: "company", groupField: "stage", style: "kpi", extra: 1 };
+  it("adds a ch_ id and copies exactly the five form fields into a new object", () => {
+    vi.spyOn(Math, "random").mockReturnValue(0.5);
+    const form = { parentEntity: "company", targetEntity: "deal", linkField: "company", groupField: "stage", style: "kpi", extra: 1 };
     const config = buildChartSectionConfig(form);
-    expect(config).toEqual({ targetEntity: "deal", linkField: "company", groupField: "stage", style: "kpi" });
+    expect(config).toEqual({ id: "ch_i0000000", parentEntity: "company", targetEntity: "deal", linkField: "company", groupField: "stage", style: "kpi" });
     expect(config).not.toBe(form);
   });
 });

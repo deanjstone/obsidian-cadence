@@ -45,8 +45,9 @@ describe("CadenceCaptureModal", () => {
     expect(modal._submitted).toBe(false);
   });
 
-  it("throws when constructed without an options object (flagged)", () => {
-    expect(() => new (CadenceCaptureModal as Any)(app)).toThrow(TypeError);
+  it("defaults every option when constructed without an options object", () => {
+    const modal: Any = new (CadenceCaptureModal as Any)(app);
+    expect([modal.defaultText, modal.defaultWhen, modal.defaultRepeat, modal.onSubmit]).toEqual(["", null, "none", undefined]);
   });
 
   it("renders the form: text input, Remind me toggle, hidden schedule fields and actions", () => {
@@ -233,7 +234,7 @@ describe("CadenceCaptureModal", () => {
     expect(closed.content.children).toHaveLength(0);
   });
 
-  it("closes quietly without onSubmit, but throws on submit after closing (flagged)", () => {
+  it("closes and submits quietly without onSubmit", () => {
     const quiet: Any = new CadenceCaptureModal(app, {});
     quiet.open();
     expect(() => quiet.close()).not.toThrow();
@@ -241,7 +242,8 @@ describe("CadenceCaptureModal", () => {
     const modal: Any = new CadenceCaptureModal(app, { defaultText: "x" });
     modal.open();
     const content = contentOf(modal);
-    expect(() => buttonByText(content, "Capture").trigger("click")).toThrow(TypeError);
+    expect(() => buttonByText(content, "Capture").trigger("click")).not.toThrow();
+    expect(modal._submitted).toBe(true);
     expect(content.children).toHaveLength(0);
   });
 

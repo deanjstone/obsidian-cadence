@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createMockApp, type App, type FakeElement } from "../mocks/obsidian";
+import { createMockApp, Notice, type App, type FakeElement } from "../mocks/obsidian";
 import { buttonByText, contentOf, optionTexts, optionValues } from "../helpers/dom";
 import { ENTITIES } from "../../src/constants/entities";
 import { CadenceChartSectionModal } from "../../src/modals/chart-section";
@@ -14,6 +14,7 @@ type Any = any;
 let app: App;
 beforeEach(() => {
   app = createMockApp();
+  Notice.messages.length = 0;
 });
 afterEach(() => {
   vi.restoreAllMocks();
@@ -40,11 +41,11 @@ describe("CadenceChartSectionModal", () => {
     expect([modal.parentEntity, modal.onSubmit]).toEqual(["company", onSubmit]);
   });
 
-  it("offers every entity as a target, the parent included (flagged: cross-section excludes it)", () => {
+  it("offers every entity except the parent as a target, as cross-section does", () => {
     const { content, target, link, group, style } = openChart("company");
     expect(content.findAll("h3").map((h) => h.text)).toEqual(["Add Analytics Chart Block"]);
-    expect(optionValues(target)).toEqual(Object.keys(ENTITIES));
-    expect(optionTexts(target)[1]).toBe("Companies");
+    expect(optionValues(target)).toEqual(Object.keys(ENTITIES).filter((k) => k !== "company"));
+    expect(optionTexts(target)[1]).toBe("Partners");
     expect(optionValues(link)).toEqual(["email", "phone", "company", "role", "lastContact", "tags"]);
     expect(optionValues(group)).toEqual(optionValues(link));
     expect(optionTexts(group)[0]).toBe("Email (email)");
@@ -52,7 +53,7 @@ describe("CadenceChartSectionModal", () => {
     expect(content.findAll("button").map((b) => b.text)).toEqual(["Cancel", "Add Chart"]);
   });
 
-  it("passes label styling as an unknown createEl key, so labels are unstyled (flagged)", () => {
+  it("styles its labels through attr, as the other section modals do", () => {
     const { content } = openChart("company");
     const labels = content.findAll("label");
     expect(labels.map((l) => l.text)).toEqual([
@@ -61,7 +62,9 @@ describe("CadenceChartSectionModal", () => {
       "Group by field (property to chart):",
       "Chart Style:",
     ]);
-    for (const label of labels) expect(label.attrs).toEqual({});
+    for (const label of labels) {
+      expect(label.attrs).toEqual({ style: "display: block; font-weight: 500; font-size: 0.85em; margin-bottom: 4px; margin-top: 12px;" });
+    }
   });
 
   it("pre-selects the parent's key as link field and the first stage/status/type/priority field as group", () => {
@@ -83,15 +86,33 @@ describe("CadenceChartSectionModal", () => {
     expect([unknown.link.value, unknown.group.value]).toEqual(["email", "email"]);
   });
 
-  it("submits target, link, group and style with no id or parent, then closes", () => {
+  it("submits an id, the parent, target, link, group and style, then closes", () => {
+    vi.spyOn(Math, "random").mockReturnValue(0.123456789);
     const { content, link, group, style, pick, onSubmit, close } = openChart("company");
     pick("deal");
     group.value = "owner";
     style.value = "bar";
     expect(link.value).toBe("company");
     buttonByText(content, "Add Chart").trigger("click");
-    expect(onSubmit.mock.calls).toEqual([[{ targetEntity: "deal", linkField: "company", groupField: "owner", style: "bar" }]]);
+    expect(onSubmit.mock.calls).toEqual([[{
+      id: "ch_4fzzzxjy", parentEntity: "company", targetEntity: "deal", linkField: "company", groupField: "owner", style: "bar",
+    }]]);
     expect(onSubmit.mock.invocationCallOrder[0]).toBeLessThan(close.mock.invocationCallOrder[0]);
+  });
+
+  it("won't submit a blank link or group field: it notices and stays open", () => {
+    ENTITIES.gadget = { folder: "Cadence/Gadgets", label: "Gadget", plural: "Gadgets", columns: [], fields: [{ key: "name", label: "Name", primary: true }] };
+    try {
+      const { content, pick, link, onSubmit, close } = openChart("company");
+      pick("gadget");
+      expect(link.options).toHaveLength(0);
+      buttonByText(content, "Add Chart").trigger("click");
+      expect(Notice.messages).toEqual(["Gadgets have no field to link by."]);
+      expect(onSubmit).not.toHaveBeenCalled();
+      expect(close).not.toHaveBeenCalled();
+    } finally {
+      delete ENTITIES.gadget;
+    }
   });
 
   it("closes from Cancel without calling onSubmit", () => {

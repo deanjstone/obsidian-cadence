@@ -76,6 +76,11 @@ describe("filterReminderProjects", () => {
     expect(names("zzz")).toEqual([]);
   });
 
+  it("matches the file path too, case-insensitively", () => {
+    expect(names("projects/ops")).toEqual(["Ops cleanup"]);
+    expect(names(".MD")).toHaveLength(3);
+  });
+
   it("returns everything for a blank, null or undefined query", () => {
     expect(names("")).toHaveLength(3);
     expect(names(null)).toHaveLength(3);

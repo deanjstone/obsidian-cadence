@@ -62,10 +62,11 @@ export function buildReminderPatch(form: ReminderForm, reminder: Partial<Reminde
   return fields;
 }
 
-/** Projects whose name contains the query, case-insensitively. */
+/** Projects whose name or file path contains the query,
+    case-insensitively (#60). */
 export function filterReminderProjects(projects: ReminderProjectChoice[], query: string | null | undefined): ReminderProjectChoice[] {
   const q = (query || '').toLowerCase();
-  return projects.filter((p) => p.name.toLowerCase().includes(q));
+  return projects.filter((p) => p.name.toLowerCase().includes(q) || p.file.path.toLowerCase().includes(q));
 }
 
 /* Picker over the vault's project notes; onChoose links the reminder. */

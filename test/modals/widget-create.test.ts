@@ -22,11 +22,11 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-function openWidget(entityKey?: unknown) {
+function openWidget(entityKey?: unknown, onCancel?: () => void) {
   const onSubmit = vi.fn();
   const modal: Any = entityKey === undefined
     ? new CadenceWidgetCreateModal(app, onSubmit)
-    : new CadenceWidgetCreateModal(app, entityKey as Any, onSubmit);
+    : new CadenceWidgetCreateModal(app, entityKey as Any, onSubmit, onCancel);
   const close = vi.spyOn(modal, "close");
   modal.open();
   const content = contentOf(modal);
@@ -65,11 +65,13 @@ describe("CadenceWidgetCreateModal", () => {
     expect(title.focusCount).toBe(1);
   });
 
-  it("uses the raw key and offers no fields for an unknown entity", () => {
+  it("uses the raw key for an unknown entity, and disables Create with no field to group by", () => {
     const { content, title, groupBy } = openWidget("zzz");
     expect(content.findAll("label")[1].text).toBe("Group ZZZ by Property:");
     expect(title.placeholder).toBe("e.g. ZZZ by Group");
     expect(groupBy.options).toHaveLength(0);
+    expect(buttonByText(content, "Create Widget").disabled).toBe(true);
+    expect(buttonByText(openWidget("deal").content, "Create Widget").disabled).toBe(false);
   });
 
   it("warns and refocuses on a blank title without submitting or closing", () => {
@@ -98,17 +100,44 @@ describe("CadenceWidgetCreateModal", () => {
     expect(onSubmit.mock.invocationCallOrder[0]).toBeLessThan(close.mock.invocationCallOrder[0]);
   });
 
-  it("submits an empty groupBy when the entity has no fields", () => {
-    const { content, title, onSubmit } = openWidget("zzz");
+  it("won't submit an empty groupBy when the entity has no fields: it notices and stays open", () => {
+    const { content, title, onSubmit, close } = openWidget("zzz");
     title.value = "T";
     buttonByText(content, "Create Widget").trigger("click");
-    expect(onSubmit.mock.calls[0][0]).toMatchObject({ groupBy: "", style: "donut" });
+    expect(Notice.messages).toEqual(["There is no property to group zzz by."]);
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(close).not.toHaveBeenCalled();
   });
 
-  it("closes from Cancel without calling onSubmit (no onClose callback)", () => {
-    const { content, onSubmit, close } = openWidget();
+  it("calls onCancel once from Cancel or a plain close, never onSubmit, and empties its content", () => {
+    const onCancel = vi.fn();
+    const { content, onSubmit, close } = openWidget("project", onCancel);
     buttonByText(content, "Cancel").trigger("click");
     expect(close).toHaveBeenCalledTimes(1);
     expect(onSubmit).not.toHaveBeenCalled();
+    expect(onCancel).toHaveBeenCalledTimes(1);
+    expect(content.children).toHaveLength(0);
+
+    const plain = openWidget("project", onCancel);
+    plain.modal.close();
+    expect(onCancel).toHaveBeenCalledTimes(2);
+  });
+
+  it("doesn't call onCancel after a submit", () => {
+    const onCancel = vi.fn();
+    const { content, title, onSubmit } = openWidget("project", onCancel);
+    title.value = "T";
+    buttonByText(content, "Create Widget").trigger("click");
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    expect(onCancel).not.toHaveBeenCalled();
+  });
+
+  it("submits quietly without onSubmit", () => {
+    const modal: Any = new CadenceWidgetCreateModal(app, undefined);
+    modal.open();
+    const content = contentOf(modal);
+    (content.findAll("input")[0] as FakeElement).value = "T";
+    expect(() => buttonByText(content, "Create Widget").trigger("click")).not.toThrow();
+    expect(() => modal.close()).not.toThrow();
   });
 });
