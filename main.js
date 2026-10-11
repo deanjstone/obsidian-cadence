@@ -3513,6 +3513,11 @@ var CadencePromptModal = class extends import_obsidian11.Modal {
 };
 
 // src/utils/field-edit.ts
+function numberValue(raw) {
+  if (raw == null || String(raw).trim() === "") return null;
+  const n = Number(raw);
+  return isNaN(n) ? null : n;
+}
 function coerceFieldEdit(def, key, raw) {
   let value = raw;
   const fdef = def.fields.find((f) => f.key === key);
@@ -3524,8 +3529,7 @@ function coerceFieldEdit(def, key, raw) {
         value = (raw || "").split(",").map((t) => t.trim()).filter(Boolean);
       }
     } else if (fdef.type === "number" || fdef.type === "currency") {
-      const n = Number(raw);
-      value = isNaN(n) ? null : n;
+      value = numberValue(raw);
     } else if (key === "stage") {
       value = raw ? [raw] : null;
     } else if (raw === "") {
@@ -3550,6 +3554,7 @@ function enumCurrent(current) {
 }
 function isChipField(f) {
   const fieldType = f.type || "text";
+  if (f.isList === true && (fieldType === "text" || fieldType === "email")) return true;
   return fieldType === "tags" || fieldType === "multitext" || getFieldSuggestionSource(f) !== "none";
 }
 var DETAIL_LIST_KEYS = ["tags", "owner", "assigned", "contacts", "domain", "industry", "role", "with", "related"];
@@ -3660,12 +3665,8 @@ function metaInputType(fieldType) {
   return fieldType === "date" ? "date" : fieldType === "number" || fieldType === "currency" ? "number" : "text";
 }
 function metaInputValue(fieldType, raw) {
-  let val = raw || null;
-  if (fieldType === "number" || fieldType === "currency") {
-    const n = Number(raw);
-    val = isNaN(n) ? null : n;
-  }
-  return val;
+  if (fieldType === "number" || fieldType === "currency") return numberValue(raw);
+  return raw || null;
 }
 function splitSectionColumns(keys) {
   const left = [];
@@ -4067,7 +4068,7 @@ var CadenceConfirmModal = class extends import_obsidian13.Modal {
 
 // src/views/company-detail.ts
 function companyDetailTitle(fm, basename) {
-  return fm.name || basename;
+  return fm.name != null && fm.name !== "" ? fm.name : basename;
 }
 function companyMetaFields(def) {
   return def.fields.filter((f) => !f.primary && !(f.key === "type" && f.type !== "enum"));
@@ -4093,6 +4094,14 @@ async function renderCompanyDetail(view, root, file) {
     savedBadge.addClass("show");
     clearTimeout(savedBadge._t);
     savedBadge._t = setTimeout(() => savedBadge.removeClass("show"), 1400);
+  };
+  const writeField = async (key, value) => {
+    try {
+      await view.app.fileManager.processFrontMatter(file, (frontmatter) => applyFieldEdit(frontmatter, key, value));
+      flashSaved();
+    } catch (e) {
+      new import_obsidian14.Notice(`Save failed: ${e.message}`);
+    }
   };
   const openNote = headRight.createEl("button", { cls: "cad-btn", text: "Open as note" });
   openNote.addEventListener("click", () => view.app.workspace.openLinkText(file.path, "", false));
@@ -4259,9 +4268,7 @@ async function renderCompanyDetail(view, root, file) {
         });
       };
       const save = async () => {
-        const val = chipWriteValue(valuesList, isPlainChip, isList);
-        await view.app.fileManager.processFrontMatter(file, (frontmatter) => applyFieldEdit(frontmatter, key, val));
-        flashSaved();
+        await writeField(key, chipWriteValue(valuesList, isPlainChip, isList));
       };
       const addVal = async (raw) => {
         const added = chipAdd(valuesList, raw, isList);
@@ -4321,9 +4328,7 @@ async function renderCompanyDetail(view, root, file) {
         if (enumCurrent(current) === opt) o.selected = true;
       });
       const commit = async () => {
-        const val = sel.value || null;
-        await view.app.fileManager.processFrontMatter(file, (frontmatter) => applyFieldEdit(frontmatter, key, val));
-        flashSaved();
+        await writeField(key, coerceFieldEdit(def, key, sel.value));
       };
       sel.addEventListener("change", commit);
     } else {
@@ -4336,11 +4341,7 @@ async function renderCompanyDetail(view, root, file) {
         inp.value = String(current);
       }
       let t;
-      const commit = () => {
-        const val = metaInputValue(fieldType, inp.value);
-        view.app.fileManager.processFrontMatter(file, (frontmatter) => applyFieldEdit(frontmatter, key, val));
-        flashSaved();
-      };
+      const commit = () => writeField(key, metaInputValue(fieldType, inp.value));
       inp.addEventListener("input", () => {
         clearTimeout(t);
         t = setTimeout(commit, 350);
@@ -5500,7 +5501,7 @@ function detailControl(f) {
   if (fieldType === "enum") return "enum";
   if (fieldType === "date") return "date";
   if (fieldType === "number" || fieldType === "currency") return "number";
-  if (fieldType === "email") return "email";
+  if (fieldType === "email") return f.isList === true ? "chips" : "email";
   return isChipField(f) ? "chips" : "text";
 }
 async function renderEntityDetail(view, root, entityKey, file) {
@@ -5921,7 +5922,7 @@ function kanbanColumnMeta(items, def) {
   return `${items.length}`;
 }
 function kanbanDropValue(fDef, stage) {
-  const isList = fDef && (fDef.type === "multitext" || fDef.type === "tags" || fDef.isList === true);
+  const isList = fDef && (fDef.type === "multitext" || fDef.type === "tags" || fDef.isList === true || fDef.key === "stage");
   const isLink = fDef && fDef.suggestionSource && fDef.suggestionSource !== "none" && fDef.suggestionSource !== "tags" && fDef.suggestionSource !== "history";
   if (isList) {
     return isLink ? [`[[${stage}]]`] : [stage];
@@ -7977,12 +7978,17 @@ function projectDetailTitle(fm, basename) {
 }
 var PROJECT_STATUS_FALLBACK = ["active", "on_hold", "backlog", "done", "cancelled"];
 var PROJECT_PRIORITY_FALLBACK = ["low", "medium", "high"];
+function withStored(options, stored) {
+  if (stored == null || stored === "") return options;
+  const value = String(stored);
+  return options.includes(value) ? options : [...options, value];
+}
 function projectPills(fm, statusOptions, priorityOptions) {
   const status = String(fm.status || "active");
   const priority = String(fm.priority || "");
   return [
-    { key: "status", cls: "cad-pill cad-pill-" + status.toLowerCase().replace(/\s+/g, "-"), options: statusOptions, current: status },
-    { key: "priority", cls: "cad-pill cad-pill-prio-" + (priority || "medium").toLowerCase(), options: priorityOptions, current: priority || "medium" }
+    { key: "status", cls: "cad-pill cad-pill-" + status.toLowerCase().replace(/\s+/g, "-"), options: withStored(statusOptions, fm.status), current: status },
+    { key: "priority", cls: "cad-pill cad-pill-prio-" + (priority || "medium").toLowerCase(), options: withStored(priorityOptions, fm.priority), current: priority || "medium" }
   ];
 }
 function projectMetaFields(def) {
@@ -7990,7 +7996,7 @@ function projectMetaFields(def) {
 }
 function writeProjectFrontmatter(frontmatter, patch) {
   Object.entries(patch).forEach(([k, v]) => {
-    if (v == null || v === "") delete frontmatter[k];
+    if (v == null || v === "" || Array.isArray(v) && v.length === 0) delete frontmatter[k];
     else frontmatter[k] = v;
   });
 }
@@ -8020,12 +8026,14 @@ function milestoneDateValue(date) {
 function milestoneDateFromInput(value) {
   return value ? parseYmd(value) : null;
 }
+function milestoneNotesFromInput(value) {
+  return value.trim() ? value : "";
+}
 function commitMilestones(content, items, rawKey = "Milestones") {
   const body = stringifyMilestones(items);
   return replaceSection(content, `## ${rawKey}`, body || "");
 }
 function updateItem(items, idx, patch) {
-  if (!(idx in items)) throw new TypeError(`No item at index ${idx}`);
   return items.map((item, i) => i === idx ? { ...item, ...patch } : item);
 }
 function removeItem(items, idx) {
@@ -8083,7 +8091,7 @@ function taskNotePath(folderPath, text, exists) {
 }
 function taskNoteContent(text, today, projectBasename) {
   return `---
-title: ${text}
+title: ${JSON.stringify(text)}
 status: open
 scheduled: ${ymd(today)}
 projects: "[[${projectBasename}]]"
@@ -8093,6 +8101,26 @@ priority: normal
 }
 function replaceItems(items, next) {
   items.splice(0, items.length, ...next);
+}
+function rowHandle(items, item) {
+  let current = item;
+  return {
+    index: () => items.indexOf(current),
+    item: () => items.includes(current) ? current : void 0,
+    patch(patch) {
+      const at = items.indexOf(current);
+      if (at === -1) return false;
+      replaceItems(items, updateItem(items, at, patch));
+      current = items[at];
+      return true;
+    },
+    remove() {
+      const at = items.indexOf(current);
+      if (at === -1) return false;
+      replaceItems(items, removeItem(items, at));
+      return true;
+    }
+  };
 }
 async function renderProjectDetail(view, root, file) {
   root.addClass("cadence-project-detail");
@@ -8421,13 +8449,14 @@ function renderMilestoneSection(view, parent, file, milestones, flashSaved, rawK
       list.createDiv({ cls: "cad-empty", text: "No milestones yet \u2014 add the first one." });
       return;
     }
-    items.forEach((m, idx) => {
+    items.forEach((m) => {
+      const mile = rowHandle(items, m);
       const wrapper = list.createDiv({ cls: "cad-mile-wrapper" });
       const row = wrapper.createDiv({ cls: "cad-pd-mile-row" + (m.done ? " done" : "") });
       const cb = row.createEl("input", { type: "checkbox" });
       cb.checked = !!m.done;
       cb.addEventListener("change", async () => {
-        replaceItems(items, updateItem(items, idx, { done: cb.checked }));
+        if (!mile.patch({ done: cb.checked })) return;
         await view._commitMilestones(file, items, flashSaved, false, rawKey);
       });
       const dateInp = row.createEl("input", { type: "date", cls: "cad-pd-mile-date" });
@@ -8437,7 +8466,7 @@ function renderMilestoneSection(view, parent, file, milestones, flashSaved, rawK
       dateInp.addEventListener("input", () => {
         clearTimeout(dt);
         dt = setTimeout(async () => {
-          replaceItems(items, updateItem(items, idx, { date: milestoneDateFromInput(dateInp.value) }));
+          if (!mile.patch({ date: milestoneDateFromInput(dateInp.value) })) return;
           await view._commitMilestones(file, items, flashSaved, true, rawKey);
         }, 350);
       });
@@ -8448,23 +8477,24 @@ function renderMilestoneSection(view, parent, file, milestones, flashSaved, rawK
       titleInp.addEventListener("input", () => {
         clearTimeout(tt);
         tt = setTimeout(async () => {
-          replaceItems(items, updateItem(items, idx, { title: titleInp.value }));
+          if (!mile.patch({ title: titleInp.value })) return;
           await view._commitMilestones(file, items, flashSaved, true, rawKey);
         }, 400);
       });
       const del = row.createEl("button", { cls: "cad-btn cad-btn-sm cad-btn-danger", text: "\xD7" });
       del.title = "Delete milestone";
       del.addEventListener("click", async () => {
-        replaceItems(items, removeItem(items, idx));
+        if (!mile.remove()) return;
         await view._commitMilestones(file, items, flashSaved, false, rawKey);
       });
       const notesEl = wrapper.createDiv({ cls: "cad-mile-notes-section" });
       const renderNotesIdle = () => {
         notesEl.empty();
-        const hasNotes = (items[idx].notes || "").trim().length > 0;
+        const notes = mile.item()?.notes || "";
+        const hasNotes = notes.trim().length > 0;
         if (hasNotes) {
           const preview = notesEl.createDiv({ cls: "cad-mile-notes-preview" });
-          preview.setText(items[idx].notes);
+          preview.setText(notes);
           preview.title = "Click to edit notes";
           preview.addEventListener("click", openNotesEditor);
         } else {
@@ -8478,24 +8508,27 @@ function renderMilestoneSection(view, parent, file, milestones, flashSaved, rawK
       const openNotesEditor = () => {
         notesEl.empty();
         const ta = notesEl.createEl("textarea", { cls: "cad-mile-notes-textarea" });
-        ta.value = items[idx].notes || "";
+        ta.value = mile.item()?.notes || "";
         ta.placeholder = "Notes \u2014 context, follow-ups, what happened\u2026";
         const autosize = () => {
           ta.style.height = "auto";
           ta.style.height = Math.max(60, ta.scrollHeight + 2) + "px";
         };
         let nt;
+        const saveNotes = async () => {
+          const notes = milestoneNotesFromInput(ta.value);
+          if (notes === (mile.item()?.notes || "")) return;
+          if (!mile.patch({ notes })) return;
+          await view._commitMilestones(file, items, flashSaved, true, rawKey);
+        };
         ta.addEventListener("input", () => {
           autosize();
           clearTimeout(nt);
-          nt = setTimeout(async () => {
-            replaceItems(items, updateItem(items, idx, { notes: ta.value }));
-            await view._commitMilestones(file, items, flashSaved, true, rawKey);
-          }, 400);
+          nt = setTimeout(saveNotes, 400);
         });
         ta.addEventListener("blur", async () => {
-          replaceItems(items, updateItem(items, idx, { notes: ta.value }));
-          await view._commitMilestones(file, items, flashSaved, true, rawKey);
+          clearTimeout(nt);
+          await saveNotes();
           renderNotesIdle();
         });
         setTimeout(() => {
@@ -8538,6 +8571,7 @@ function renderTaskSection(view, parent, file, tasks, flashSaved, rawKey = "Task
       return;
     }
     items.forEach((t, idx) => {
+      const task = rowHandle(items, t);
       const row = list.createDiv({ cls: "cad-pd-task-row" + (t.done ? " done" : "") });
       const cb = row.createEl("input", { type: "checkbox" });
       cb.checked = !!t.done;
@@ -8547,7 +8581,7 @@ function renderTaskSection(view, parent, file, tasks, flashSaved, rawKey = "Task
           await toggleTaskNotesTask(view.app, taskObj.file, cb.checked);
           await view._propagateTaskComplete(taskObj.title, cb.checked, { kind: "tasknotes", file: taskObj.file });
         } else {
-          await tickProjectTaskRow(view, file, items, idx, cb.checked, flashSaved, rawKey);
+          await tickProjectTaskRow(view, file, items, task, cb.checked, flashSaved, rawKey);
         }
         view.render();
       });
@@ -8569,7 +8603,7 @@ function renderTaskSection(view, parent, file, tasks, flashSaved, rawKey = "Task
         titleInp.addEventListener("input", () => {
           clearTimeout(tt);
           tt = setTimeout(async () => {
-            replaceItems(items, updateItem(items, idx, { title: titleInp.value }));
+            if (!task.patch({ title: titleInp.value })) return;
             await view._commitTasks(file, items, flashSaved, true, rawKey);
           }, 400);
         });
@@ -8577,14 +8611,14 @@ function renderTaskSection(view, parent, file, tasks, flashSaved, rawKey = "Task
         const bell = row.createEl("button", { cls: bellState.cls, text: bellState.text });
         bell.title = bellState.title;
         bell.addEventListener("click", async () => {
-          replaceItems(items, updateItem(items, idx, { title: titleInp.value }));
-          await view._commitTasks(file, items, flashSaved, true, rawKey);
           const taskText = titleInp.value.trim();
           if (!taskText) {
             new import_obsidian23.Notice("Add a task title first.");
             titleInp.focus();
             return;
           }
+          if (!task.patch({ title: titleInp.value })) return;
+          await view._commitTasks(file, items, flashSaved, true, rawKey);
           const existing = findProjectTaskReminder(view.plugin, file.path, taskText);
           if (existing) {
             new CadenceReminderEditModal(view.app, view.plugin, existing).open();
@@ -8596,7 +8630,7 @@ function renderTaskSection(view, parent, file, tasks, flashSaved, rawKey = "Task
       if (view.plugin.settings.taskManagementSystem !== "tasknotes") {
         const del = row.createEl("button", { cls: "cad-btn cad-btn-sm cad-btn-danger", text: "\xD7" });
         del.addEventListener("click", async () => {
-          replaceItems(items, removeItem(items, idx));
+          if (!task.remove()) return;
           await view._commitTasks(file, items, flashSaved, false, rawKey);
         });
       }
@@ -8624,8 +8658,9 @@ function renderTaskSection(view, parent, file, tasks, flashSaved, rawKey = "Task
     await view._commitTasks(file, tasks, flashSaved, false, rawKey);
   });
 }
-async function tickProjectTaskRow(view, file, items, idx, checked, flashSaved, rawKey) {
-  const ref = taskRefAt(items.map((item) => item.title || ""), idx);
+async function tickProjectTaskRow(view, file, items, task, checked, flashSaved, rawKey) {
+  const idx = task.index();
+  const ref = idx === -1 ? null : taskRefAt(items.map((item) => item.title || ""), idx);
   const content = await view.app.vault.read(file);
   const toggled = ref ? toggleProjectTaskByRef(content, rawKey, ref, checked) : null;
   if (!toggled) {
@@ -8633,7 +8668,7 @@ async function tickProjectTaskRow(view, file, items, idx, checked, flashSaved, r
     return;
   }
   await view.app.vault.modify(file, toggled.content);
-  replaceItems(items, updateItem(items, idx, { done: checked }));
+  task.patch({ done: checked });
   if (typeof flashSaved === "function") flashSaved();
   if (toggled.taskText) await view._propagateTaskComplete(toggled.taskText, checked, { kind: "project", file });
 }
