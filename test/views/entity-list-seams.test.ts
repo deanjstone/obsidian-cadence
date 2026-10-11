@@ -28,7 +28,9 @@ describe("listLayout", () => {
     ["crm.pipeline", undefined, "kanban"],
     ["crm.contacts", undefined, "table"],
     ["crm.pipeline", { "crm.pipeline": "table" }, "table"],
-    ["custom-1", { "custom-1": "gallery" }, "gallery"],
+    ["custom-1", { "custom-1": "gallery" }, "table"],
+    ["crm.pipeline", { "crm.pipeline": "list" }, "kanban"],
+    ["custom-1", { "custom-1": "cards" }, "cards"],
     ["crm.contacts", { "crm.contacts": "" }, "table"],
   ])("%s with %j → %s", (mode, saved, layout) => {
     expect(listLayout(mode, saved)).toBe(layout);
@@ -207,8 +209,9 @@ describe("primaryField and tableCell", () => {
 
 describe("card seams", () => {
   it.each([
-    ["partner", "tier"],
+    ["partner", "status"],
     ["activity", "type"],
+    ["certification", undefined],
     ["deal", "stage"],
     ["sequence", "status"],
     ["contact", undefined],

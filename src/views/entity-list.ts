@@ -19,10 +19,16 @@ export interface EntityListOptions {
   columns?: string[];
 }
 
-/** The saved layout for a surface, else cards for Projects, kanban for the
-    Pipeline and a table elsewhere. Any saved string is returned as-is. */
+const LIST_LAYOUTS = ['table', 'kanban', 'cards'];
+
+/** The saved layout for a surface when it is table, kanban or cards, else
+    cards for Projects, kanban for the Pipeline and a table elsewhere. An
+    unknown saved value (`list`, hand-edited) falls back, and is left in
+    the settings as it is (#57, #74). */
 export function listLayout(mode: string, pageLayouts: Record<string, string> | undefined): string {
-  return pageLayouts?.[mode] || (mode === 'projects.projects' ? 'cards' : (mode === 'crm.pipeline' ? 'kanban' : 'table'));
+  const saved = pageLayouts?.[mode];
+  if (saved && LIST_LAYOUTS.includes(saved)) return saved;
+  return mode === 'projects.projects' ? 'cards' : (mode === 'crm.pipeline' ? 'kanban' : 'table');
 }
 
 /** `3 contacts in Cadence/Contacts`, with the singular label for one. */
@@ -207,9 +213,10 @@ export function tableCell(f: EntityField): TableCell {
   return { kind: 'text' };
 }
 
-/** The card pill's field: the first status, type or tier field, else the first enum. */
+/** The card pill's field: status, else type, else tier, else the first enum
+    (so a partner pills on its status, not its tier, #57). */
 export function cardStatusField(def: EntityDef): EntityField | undefined {
-  return def.fields.find(f => f.key === 'status' || f.key === 'type' || f.key === 'tier') || def.fields.find(f => f.type === 'enum');
+  return ['status', 'type', 'tier'].map(k => def.fields.find(f => f.key === k)).find(Boolean) || def.fields.find(f => f.type === 'enum');
 }
 
 /** A card pill's text: the first item of an array. */

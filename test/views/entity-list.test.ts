@@ -170,10 +170,13 @@ describe("renderEntityList: layout", () => {
     ]);
   });
 
-  it("QUIRK: an unknown saved layout shows no container at all", async () => {
-    const { view, root } = setup(CONTACTS, "crm.contacts", { pageLayouts: { "crm.contacts": "gallery" } });
+  it("an unknown saved layout shows the surface's default layout, and keeps the saved value", async () => {
+    const { view, root, plugin } = setup(CONTACTS, "crm.contacts", { pageLayouts: { "crm.contacts": "gallery" } });
     await view.renderEntityList(root, "contact");
-    expect(wraps(root).map(([, d]) => d)).toEqual(["none", "none", "none"]);
+    expect(wraps(root).map(([, d]) => d)).toEqual(["block", "none", "none"]);
+    expect(names(root)).toEqual(["Bob Smith", "carol", "Jane Doe"]);
+    expect(actions(root)[0].children[0].style.background).toBe("var(--background-modifier-border)");
+    expect(plugin.settings.pageLayouts).toEqual({ "crm.contacts": "gallery" });
   });
 });
 
@@ -457,7 +460,7 @@ describe("renderEntityList: a custom entity (custom pages)", () => {
 });
 
 describe("renderEntityList: card grid", () => {
-  it("non-project cards take the pill from the first status/type/tier field, and comma-separate links", async () => {
+  it("non-project cards take the pill from status before type and tier, and comma-separate links", async () => {
     const partner: MockFileSpec = {
       path: "Cadence/Partners/Initech.md",
       frontmatter: { name: "Initech", tier: "Gold", status: "Active", owner: "[[Sam]], [[Kim]]", region: "EMEA" },
@@ -465,10 +468,9 @@ describe("renderEntityList: card grid", () => {
     const { view, root } = setup([partner], "prm.partners", { pageLayouts: { "prm.partners": "cards" } });
     await view.renderEntityList(root, "partner");
     const card = root.children[4].querySelectorAll("div.cad-proj-card")[0];
-    // fields.find matches in field order, so tier wins over status.
-    expect(card.children[0].children[1].children.map((p) => p.text)).toEqual(["Gold"]);
+    expect(card.children[0].children[1].children.map((p) => p.text)).toEqual(["Active"]);
     expect(card.children[1].children.map((d) => d.children.map((c) => c.text))).toEqual([
-      ["Status: ", "Active"],
+      ["Tier: ", "Gold"],
       ["Owner: ", "Sam", ", ", "Kim"],
       ["Region: ", "EMEA"],
     ]);

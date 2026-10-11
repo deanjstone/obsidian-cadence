@@ -6235,8 +6235,11 @@ async function renderEntityKanban(view, root, entityKey, groupBy, groups) {
 }
 
 // src/views/entity-list.ts
+var LIST_LAYOUTS = ["table", "kanban", "cards"];
 function listLayout(mode, pageLayouts) {
-  return pageLayouts?.[mode] || (mode === "projects.projects" ? "cards" : mode === "crm.pipeline" ? "kanban" : "table");
+  const saved = pageLayouts?.[mode];
+  if (saved && LIST_LAYOUTS.includes(saved)) return saved;
+  return mode === "projects.projects" ? "cards" : mode === "crm.pipeline" ? "kanban" : "table";
 }
 function listSubtitle(count, def) {
   return `${count} ${count === 1 ? def.label.toLowerCase() : def.plural.toLowerCase()} in ${def.folder}`;
@@ -6354,7 +6357,7 @@ function tableCell(f) {
   return { kind: "text" };
 }
 function cardStatusField(def) {
-  return def.fields.find((f) => f.key === "status" || f.key === "type" || f.key === "tier") || def.fields.find((f) => f.type === "enum");
+  return ["status", "type", "tier"].map((k) => def.fields.find((f) => f.key === k)).find(Boolean) || def.fields.find((f) => f.type === "enum");
 }
 function pillText(val) {
   const clean = Array.isArray(val) ? val[0] : val;
