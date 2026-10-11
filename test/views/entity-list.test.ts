@@ -232,12 +232,12 @@ describe("renderEntityList: search and filters", () => {
     expect(tds.map((td) => [td.text, (td as Any).colSpan, td.style.textAlign])).toEqual([["No matching entries found.", 7, "center"]]);
   });
 
-  it("QUIRK: options are case-sensitive but matching is not, so 'Active' and 'active' both list and both match", async () => {
+  it("options fold case like matching does, so 'Active' and 'active' list once and both match", async () => {
     const files = [contact("A", { name: "A", company: "Active" }), contact("B", { name: "B", company: "active" })];
     const { view, root } = setup(files);
     await view.renderEntityList(root, "contact");
-    expect(filters(root)[0].options.map((o) => o.value)).toEqual(["", "Active", "active"]);
-    choose(filters(root)[0], "active");
+    expect(filters(root)[0].options.map((o) => o.value)).toEqual(["", "Active"]);
+    choose(filters(root)[0], "Active");
     expect(names(root)).toEqual(["A", "B"]);
   });
 

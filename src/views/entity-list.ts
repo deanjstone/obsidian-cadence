@@ -44,8 +44,16 @@ export function filterableKeys(def: EntityDef): string[] {
 
 export interface FilterOption {
   field: EntityField;
-  /** Distinct values, links unwrapped, sorted by code unit (so case-sensitive). */
+  /** Distinct values, links unwrapped, once in any case (first-seen
+      spelling), sorted case-insensitively: filters match in any case too. */
   values: string[];
+}
+
+/** A filter's view of a value: what the note stores, so an entity with no
+    `type` has none, rather than entityValue's fallback to its entity key. */
+function filterValue(e: Entity, k: string, def: EntityDef): unknown {
+  const raw = e.frontmatter?.[k];
+  return raw == null || raw === '' ? '' : entityValue(e, k, def);
 }
 
 /** One filter select per filterable key with at least one value among `entities`. */
@@ -54,24 +62,19 @@ export function filterOptions(entities: Entity[], def: EntityDef): FilterOption[
     const fdef = def.fields.find(f => f.key === k);
     if (!fdef) return [];
 
-    const uniqueVals = new Set<string>();
+    const uniqueVals = new Map<string, string>();
     entities.forEach(e => {
-      const val = entityValue(e, k, def);
-      if (Array.isArray(val)) {
-        val.forEach(v => {
-          if (v) {
-            const clean = unwrapLink(v);
-            if (clean) uniqueVals.add(clean);
-          }
-        });
-      } else if (val != null && val !== '') {
-        const clean = unwrapLink(val);
-        if (clean) uniqueVals.add(clean);
-      }
+      const val = filterValue(e, k, def);
+      (Array.isArray(val) ? val : [val]).forEach(v => {
+        if (v == null || v === '') return;
+        const clean = unwrapLink(v);
+        if (clean && !uniqueVals.has(clean.toLowerCase())) uniqueVals.set(clean.toLowerCase(), clean);
+      });
     });
 
     if (uniqueVals.size === 0) return [];
-    return [{ field: fdef, values: Array.from(uniqueVals).sort() }];
+    const values = Array.from(uniqueVals.values()).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+    return [{ field: fdef, values }];
   });
 }
 
@@ -113,7 +116,7 @@ export function filterEntities(list: Entity[], def: EntityDef, cols: EntityField
 
     for (const [k, filterVal] of Object.entries(query.filters)) {
       if (!filterVal) continue;
-      const val = entityValue(e, k, def);
+      const val = filterValue(e, k, def);
       if (Array.isArray(val)) {
         const cleanVals = val.map(v => unwrapLink(v).toLowerCase());
         if (!cleanVals.includes(filterVal.toLowerCase())) return false;

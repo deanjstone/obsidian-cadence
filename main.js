@@ -6019,7 +6019,7 @@ var import_obsidian19 = require("obsidian");
 // src/views/kanban.ts
 var import_obsidian18 = require("obsidian");
 function unwrapLink(value) {
-  return String(value).replace(/^\[\[|\]\]$/g, "").trim();
+  return String(value).trim().replace(/^\[\[|\]\]$/g, "").trim();
 }
 function isRelationField(f) {
   return !["none", "tags", "history"].includes(getFieldSuggestionSource(f));
@@ -6253,27 +6253,26 @@ function filterableKeys(def) {
     return !!fdef && (fdef.type === "enum" || ["company", "role", "with", "related", "status", "tier", "type"].includes(k));
   });
 }
+function filterValue(e, k, def) {
+  const raw = e.frontmatter?.[k];
+  return raw == null || raw === "" ? "" : entityValue(e, k, def);
+}
 function filterOptions(entities, def) {
   return filterableKeys(def).flatMap((k) => {
     const fdef = def.fields.find((f) => f.key === k);
     if (!fdef) return [];
-    const uniqueVals = /* @__PURE__ */ new Set();
+    const uniqueVals = /* @__PURE__ */ new Map();
     entities.forEach((e) => {
-      const val = entityValue(e, k, def);
-      if (Array.isArray(val)) {
-        val.forEach((v) => {
-          if (v) {
-            const clean = unwrapLink(v);
-            if (clean) uniqueVals.add(clean);
-          }
-        });
-      } else if (val != null && val !== "") {
-        const clean = unwrapLink(val);
-        if (clean) uniqueVals.add(clean);
-      }
+      const val = filterValue(e, k, def);
+      (Array.isArray(val) ? val : [val]).forEach((v) => {
+        if (v == null || v === "") return;
+        const clean = unwrapLink(v);
+        if (clean && !uniqueVals.has(clean.toLowerCase())) uniqueVals.set(clean.toLowerCase(), clean);
+      });
     });
     if (uniqueVals.size === 0) return [];
-    return [{ field: fdef, values: Array.from(uniqueVals).sort() }];
+    const values = Array.from(uniqueVals.values()).sort((a, b) => a.localeCompare(b, void 0, { numeric: true, sensitivity: "base" }));
+    return [{ field: fdef, values }];
   });
 }
 function listColumns(def, columns) {
@@ -6300,7 +6299,7 @@ function filterEntities(list, def, cols, query) {
     }
     for (const [k, filterVal] of Object.entries(query.filters)) {
       if (!filterVal) continue;
-      const val = entityValue(e, k, def);
+      const val = filterValue(e, k, def);
       if (Array.isArray(val)) {
         const cleanVals = val.map((v) => unwrapLink(v).toLowerCase());
         if (!cleanVals.includes(filterVal.toLowerCase())) return false;

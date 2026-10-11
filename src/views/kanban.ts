@@ -13,9 +13,10 @@ export interface KanbanParams {
   groups: string[];
 }
 
-/** A `[[Link]]` value with its brackets and outer whitespace removed. */
+/** A `[[Link]]` value with its brackets and outer whitespace removed, even
+    when the whitespace is outside the brackets (#57). */
 export function unwrapLink(value: unknown): string {
-  return String(value).replace(/^\[\[|\]\]$/g, '').trim();
+  return String(value).trim().replace(/^\[\[|\]\]$/g, '').trim();
 }
 
 /** True for a field whose values link to notes: a relation key (owner,

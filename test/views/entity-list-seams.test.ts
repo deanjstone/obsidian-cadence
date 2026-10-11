@@ -53,20 +53,24 @@ describe("filterableKeys and filterOptions", () => {
     expect(filterableKeys(ENTITIES[key])).toEqual(expected);
   });
 
-  it("lists distinct values per key, unwrapped and sorted, dropping keys with none (QUIRK: a padded link stays wrapped)", () => {
+  it("lists distinct values per key, unwrapped (padded links too), once in any case and sorted case-insensitively, dropping keys with none", () => {
     const list = [
       entity("a", { company: ["[[Beta]]", "", "[[alpha]]"], role: "" }),
       entity("b", { company: " [[Beta]] " }),
       entity("c", { company: "Alpha" }),
     ];
-    expect(filterOptions(list, contact).map((o) => [o.field.key, o.values])).toEqual([["company", ["Alpha", "Beta", "[[Beta]]", "alpha"]]]);
+    expect(filterOptions(list, contact).map((o) => [o.field.key, o.values])).toEqual([["company", ["alpha", "Beta"]]]);
+    expect(names(filterEntities(list, contact, contact.fields, { search: "", filters: { company: "Beta" } }))).toEqual(["a", "b"]);
   });
 
-  it("QUIRK: a registered entity with a type field but no type value filters on its own entity key", () => {
+  it("a registered entity with a type field but no type value has no type to filter on", () => {
     const def: EntityDef = { ...company, fields: [...company.fields, { key: "type", label: "Type" }] };
     ENTITIES.vendor = def;
     try {
-      expect(filterOptions([entity("a", {})], def).map((o) => [o.field.key, o.values])).toEqual([["type", ["vendor"]]]);
+      const list = [entity("a", {}), entity("b", { type: "Supplier" })];
+      expect(filterOptions(list, def).map((o) => [o.field.key, o.values])).toEqual([["type", ["Supplier"]]]);
+      expect(filterOptions([entity("a", {})], def)).toEqual([]);
+      expect(names(filterEntities(list, def, def.fields, { search: "", filters: { type: "vendor" } }))).toEqual([]);
     } finally {
       delete ENTITIES.vendor;
     }
@@ -249,9 +253,9 @@ describe("card seams", () => {
 });
 
 describe("kanban seams", () => {
-  it("unwrapLink strips one [[ and one ]] at the ends, then trims", () => {
+  it("unwrapLink trims, strips one [[ and one ]] at the ends, then trims", () => {
     expect([unwrapLink("[[A]]"), unwrapLink(" [[A]] "), unwrapLink("[[A|b]]"), unwrapLink(3), unwrapLink("[[[[A]]]]")]).toEqual([
-      "A", "[[A]]", "A|b", "3", "[[A]]",
+      "A", "A", "A|b", "3", "[[A]]",
     ]);
   });
 
