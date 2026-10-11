@@ -63,7 +63,7 @@ describe("_renderEntityLinks", () => {
     const { view, parent, opened, app } = setup([{ path: "Venues/Hall.md" }]);
     view._renderEntityLinks(parent, "Hall", "folder:Venues");
     view._renderEntityLinks(parent, "Hall", "note");
-    expect(parent.children.map((c) => c.classes[0])).toEqual(["cad-folder:Venues-link", "cad-note-link"]);
+    expect(parent.children.map((c) => c.classes)).toEqual([["cad-note-link"], ["cad-note-link"]]);
     parent.children.forEach((c) => c.trigger("click"));
     expect(opened).not.toHaveBeenCalled();
     expect(app.workspace.openedLinks).toEqual([["Venues/Hall.md", "", false], ["Venues/Hall.md", "", false]]);
@@ -154,8 +154,7 @@ describe("_renderEntityTable", () => {
       const cells = parent.findAll("td");
       const pill = cells[1].children[0];
       expect([pill.localName, pill.text, pill.style.fontSize, pill.style.padding]).toEqual(["span", "Closed Won", "10px", "2px 6px"]);
-      // QUIRK: a multi-word stage yields a split class list (`cad-pill-closed won`).
-      expect(pill.classes).toEqual(["cad-pill", "cad-pill-closed", "won"]);
+      expect(pill.classes).toEqual(["cad-pill", "cad-pill-closed-won"]);
       expect(cells[2].children.map((c) => c.classes[0])).toEqual(["cad-company-link"]);
     } finally {
       ENTITIES.deal.fields = original;

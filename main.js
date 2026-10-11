@@ -4665,9 +4665,7 @@ function renderEntityLinks(view, parent, val, targetEntityKey, prefix = "") {
     if (targetEntityKey && targetEntityKey.startsWith("folder:")) {
       const folderPath = targetEntityKey.slice("folder:".length).replace(/\/+$/, "").toLowerCase();
       const matchedKey = Object.keys(ENTITIES).find((k) => ENTITIES[k].folder.replace(/\/+$/, "").toLowerCase() === folderPath);
-      if (matchedKey) {
-        resolvedKey = matchedKey;
-      }
+      resolvedKey = matchedKey || "note";
     }
     const link = parent.createEl("a", { text: item.display, cls: `cad-${resolvedKey}-link` });
     link.style.textDecoration = "underline";
@@ -4740,7 +4738,7 @@ function renderEntityTable(view, parent, entityKey, filteredList, columns) {
         } else if (f.key === "related") {
           view._renderEntityLinks(td, val, "project");
         } else if (f.key === "stage" && val) {
-          const span = td.createSpan({ cls: `cad-pill cad-pill-${val.toLowerCase()}`, text: formatted });
+          const span = td.createSpan({ cls: `cad-pill cad-pill-${String(val).trim().toLowerCase().replace(/\s+/g, "-")}`, text: formatted });
           span.style.fontSize = "10px";
           span.style.padding = "2px 6px";
         } else {
