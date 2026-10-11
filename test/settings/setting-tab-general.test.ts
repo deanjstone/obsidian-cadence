@@ -105,10 +105,10 @@ describe("Modules", () => {
     expect(component<ToggleComponent>(settingByName(container, "PRM")).value).toBe(true);
   });
 
-  it("QUIRK: with no modules object, drawing the page creates one with PRM on (the defaults have it off)", () => {
+  it("with no modules object, drawing the page creates one from the defaults, PRM off", () => {
     const { container, plugin } = shown({ settings: { modules: undefined } });
-    expect(plugin.settings.modules).toEqual({ crm: true, prm: true, planner: true, projects: true });
-    expect(component<ToggleComponent>(settingByName(container, "PRM")).value).toBe(true);
+    expect(plugin.settings.modules).toEqual({ crm: true, prm: false, planner: true, projects: true });
+    expect(component<ToggleComponent>(settingByName(container, "PRM")).value).toBe(false);
     expect(plugin.saved).toEqual([]);
   });
 
@@ -386,9 +386,9 @@ describe("App", () => {
     expect(plugin.saved).toHaveLength(1);
   });
 
-  it("QUIRK: with no default tab set, the dropdown shows Planner · Today, not the Home default", () => {
+  it("with no default tab set, the dropdown shows the Home default", () => {
     const d = component<DropdownComponent>(settingByName(shown({ settings: { defaultTab: "" } }).container, "Default tab"));
-    expect(d.getValue()).toBe("planner.today");
+    expect(d.getValue()).toBe("home");
   });
 });
 

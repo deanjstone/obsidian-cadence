@@ -12,6 +12,7 @@ import {
   weekStartsOnFromOption,
 } from "../../src/settings/setting-tab";
 import type { NavGroup } from "../../src/constants/nav";
+import { DEFAULT_SETTINGS } from "../../src/constants/settings";
 import type { Reminder } from "../../src/types/reminders";
 import type { SettingTabSettings } from "../../src/types/settings";
 
@@ -31,10 +32,11 @@ describe("ensureModules", () => {
     expect(modules).toEqual({ crm: false, prm: false, planner: true, projects: false });
   });
 
-  it("creates every module on (PRM included) when missing, and backfills projects", () => {
+  it("creates the default modules (PRM off) when missing, as a copy, and backfills projects", () => {
     const s = settings();
-    expect(ensureModules(s)).toEqual({ crm: true, prm: true, planner: true, projects: true });
-    expect(s.modules).toEqual({ crm: true, prm: true, planner: true, projects: true });
+    expect(ensureModules(s)).toEqual({ crm: true, prm: false, planner: true, projects: true });
+    expect(s.modules).toEqual({ crm: true, prm: false, planner: true, projects: true });
+    expect(s.modules).not.toBe(DEFAULT_SETTINGS.modules);
     const old = settings({ modules: { crm: false } });
     expect(ensureModules(old)).toEqual({ crm: false, projects: true });
   });
@@ -99,9 +101,9 @@ describe("App seams", () => {
     ]);
   });
 
-  it("QUIRK: falls back to planner.today for an unset default tab", () => {
+  it("falls back to home for an unset default tab", () => {
     expect(defaultTabValue(settings({ defaultTab: "crm.pipeline" }))).toBe("crm.pipeline");
-    expect(defaultTabValue(settings({ defaultTab: "" }))).toBe("planner.today");
-    expect(defaultTabValue(settings())).toBe("planner.today");
+    expect(defaultTabValue(settings({ defaultTab: "" }))).toBe("home");
+    expect(defaultTabValue(settings())).toBe("home");
   });
 });

@@ -6,7 +6,8 @@ import { ENTITIES } from "../../src/constants/entities";
 
 /* Characterization tests for the Custom Navigation Pages section of
    CadenceSettingTab.display(): the page table, deleting a page (which also
-   drops its entity schema from the settings and from ENTITIES), and the
+   drops its custom entity schema from the settings and from ENTITIES, unless
+   another page still shows it or it is a core entity), and the
    add-page form (which derives an entity key from the label and registers
    a two-field schema). */
 
@@ -78,10 +79,16 @@ describe("Custom Navigation Pages: list", () => {
     expect(rows(section)).toEqual([
       ["Areas", "Planner", "planner_area", "Card Grid ⚃", "Delete"],
       ["Ideas", "inbox", "Contact", "Table View ☰", "Delete"],
-      ["Odd", "Reports", "nope", "", "Delete"],
+      ["Odd", "Reports", "nope", "list", "Delete"],
       ["Vendors", "CRM", "crm_vendor", "Kanban Board 🗂", "Delete"],
     ]);
     expect(section.children.map((c) => c.localName)).toEqual(["table", "div"]);
+  });
+
+  it("shows an unknown default layout by its stored value, not an empty cell", () => {
+    const { section } = shown({ customPages: [pages[3]] });
+    const layoutCell = section.findAll("tbody")[0].findAll("tr")[0].children[3];
+    expect(layoutCell.text).toBe("list");
   });
 
   it("does not reorder the stored pages when sorting the table", () => {
@@ -129,23 +136,28 @@ describe("Custom Navigation Pages: delete", () => {
     expect(calls).toEqual([]);
   });
 
-  it("QUIRK: deleting one of two pages that share an entity drops the schema the other still shows", async () => {
-    ENTITIES.crm_vendor = { folder: "Cadence/Vendors", label: "Vendor", plural: "Vendors", fields: [], columns: ["name"] };
+  it("deleting one of two pages that share an entity keeps the schema the other still shows", async () => {
+    const vendor = { folder: "Cadence/Vendors", label: "Vendor", plural: "Vendors", fields: [], columns: ["name"] };
+    ENTITIES.crm_vendor = vendor;
+    const schema: Any[] = [];
     const twin = { ...pages[0], id: "custom.9", label: "Vendors again" };
-    const { section, plugin, calls } = shown({ customPages: [pages[0], twin], customEntities: { crm_vendor: [] } });
+    const { section, plugin, calls } = shown({ customPages: [pages[0], twin], customEntities: { crm_vendor: schema } });
     buttonByText(section, "Delete").trigger("click");
     await vi.waitFor(() => expect(calls).toEqual(["save", "refresh", "display"]));
     expect(plugin.settings.customPages.map((p: Any) => p.id)).toEqual(["custom.9"]);
-    expect(plugin.settings.customEntities.crm_vendor).toBeUndefined();
-    expect(ENTITIES.crm_vendor).toBeUndefined();
+    expect(plugin.settings.customEntities.crm_vendor).toBe(schema);
+    expect(ENTITIES.crm_vendor).toBe(vendor);
   });
 
-  it("QUIRK: a page pointed at a core entity deletes that core entity from ENTITIES and the settings", async () => {
-    const { section, plugin, calls } = shown({ customPages: [pages[2]], customEntities: { contact: [] } });
+  it("a page pointed at a core entity never deletes that core entity from ENTITIES or the settings", async () => {
+    const contact = ENTITIES.contact;
+    const schema: Any[] = [];
+    const { section, plugin, calls } = shown({ customPages: [pages[2]], customEntities: { contact: schema } });
     buttonByText(section, "Delete").trigger("click");
     await vi.waitFor(() => expect(calls).toEqual(["save", "refresh", "display"]));
-    expect(ENTITIES.contact).toBeUndefined();
-    expect(plugin.settings.customEntities.contact).toBeUndefined();
+    expect(plugin.settings.customPages).toEqual([]);
+    expect(ENTITIES.contact).toBe(contact);
+    expect(plugin.settings.customEntities.contact).toBe(schema);
   });
 });
 
@@ -263,20 +275,23 @@ describe("Custom Navigation Pages: add form", () => {
     expect(ENTITIES.prm_product.fields).toBe(existing);
   });
 
-  it("QUIRK: adding the same label twice makes a second page on the same entity", async () => {
+  it("refuses the same label twice, with a notice, rather than a second page on the same entity", async () => {
     vi.useFakeTimers({ toFake: ["Date"], now: 10 });
     const first = shown();
     form(first.section).label.value = "Products";
     form(first.section).add.trigger("click");
     await vi.waitFor(() => expect(first.calls).toContain("display"));
+    first.calls.length = 0;
+    Notice.messages.length = 0;
     vi.setSystemTime(11);
     const again = form(pagesDiv(first.container));
     again.label.value = "Products";
     again.add.trigger("click");
-    await vi.waitFor(() => expect(first.plugin.settings.customPages).toHaveLength(2));
+    await vi.waitFor(() => expect(Notice.messages).toHaveLength(1));
+    expect(Notice.messages).toEqual(['A page for this entity already exists: "Products".']);
+    expect(first.calls).toEqual([]);
     expect(first.plugin.settings.customPages.map((p: Any) => [p.id, p.entityKey])).toEqual([
       ["custom.10", "planner_product"],
-      ["custom.11", "planner_product"],
     ]);
   });
 });

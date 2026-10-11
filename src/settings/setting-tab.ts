@@ -1,6 +1,6 @@
 import { PluginSettingTab, Setting, type App } from 'obsidian';
 import { NAV_GROUPS, VIEW_TYPE_CADENCE_APP, type NavGroup } from '../constants/nav';
-import { CURRENCY_OPTIONS } from '../constants/settings';
+import { CURRENCY_OPTIONS, DEFAULT_SETTINGS } from '../constants/settings';
 import type { Reminder } from '../types/reminders';
 import type { SettingTabSettings } from '../types/settings';
 import { renderCustomPagesSettings, type Option } from './custom-pages';
@@ -52,11 +52,11 @@ export const MODULE_TOGGLES: Array<{ key: string; label: string; desc: string }>
   { key: 'prm', label: 'PRM', desc: 'Partners, Registrations, Commissions, Leads, Certifications, Analytics + Partner reports.' },
 ];
 
-/* settings.modules, created or backfilled in place. Flagged quirk: a
-   missing object is created with PRM on, although the defaults have it off. */
+/* settings.modules, created (as a copy of the defaults) or backfilled in
+   place. */
 export function ensureModules(settings: SettingTabSettings): Record<string, boolean> {
   if (!settings.modules) {
-    settings.modules = { crm: true, prm: true, planner: true, projects: true };
+    settings.modules = { ...DEFAULT_SETTINGS.modules };
   }
   if (settings.modules.projects === undefined) {
     settings.modules.projects = true;
@@ -189,10 +189,10 @@ export function defaultTabOptions(groups: NavGroup[]): Option[] {
   }));
 }
 
-/* Flagged quirk: an unset default tab shows as Planner · Today, while the
-   defaults (and the app) use Home. */
+/* The default tab's dropdown value; an unset one shows the default, Home,
+   as the app opens it. */
 export function defaultTabValue(settings: SettingTabSettings): string {
-  return settings.defaultTab || 'planner.today';
+  return settings.defaultTab || DEFAULT_SETTINGS.defaultTab;
 }
 
 export function renderAppSettings(tab: SettingTabHost, containerEl: HTMLElement): void {

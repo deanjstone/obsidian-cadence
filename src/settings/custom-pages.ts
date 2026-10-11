@@ -1,5 +1,6 @@
 import { Notice } from 'obsidian';
 import { ENTITIES } from '../constants/entities';
+import { CORE_ENTITY_KEYS } from '../plugin/settings';
 import type { EntityDef, EntityField } from '../types/entities';
 import type { CustomPage, SettingTabSettings } from '../types/settings';
 import type { SettingTabHost } from './host';
@@ -8,7 +9,7 @@ import type { SettingTabHost } from './host';
    The settings section that lists, deletes and adds settings.customPages.
    Adding a page also registers a two-field entity schema for it, in
    settings.customEntities and in the live ENTITIES registry; deleting a
-   page drops both. */
+   page drops both, unless the entity is core or another page shows it. */
 
 export interface Option {
   value: string;
@@ -66,9 +67,9 @@ export function sectionLabel(sectionId: string): string {
   return SECTION_LABELS[sectionId] || sectionId;
 }
 
-/* The table's layout label; undefined (an empty cell) for an unknown layout. */
-export function customPageLayoutLabel(layout: string | undefined): string | undefined {
-  return LAYOUT_LABELS[layout || 'table'];
+/* The table's layout label; the stored value itself for an unknown layout. */
+export function customPageLayoutLabel(layout: string | undefined): string {
+  return LAYOUT_LABELS[layout || 'table'] || layout!;
 }
 
 export interface CustomPageRow {
@@ -76,7 +77,7 @@ export interface CustomPageRow {
   label: string;
   section: string;
   entity: string;
-  layout: string | undefined;
+  layout: string;
 }
 
 /* The table's rows: a copy of the pages sorted by label, each with its
@@ -118,7 +119,8 @@ export interface CustomPageForm {
 
 /* Adds a page from the form, in place: the schema (an existing one for the
    same key is reused), the ENTITIES entry, the page and its layout
-   preference. Returns the notice to show, with the page when it was added.
+   preference. Refuses a label whose entity another page already shows.
+   Returns the notice to show, with the page when it was added.
    `now` is the page id's timestamp. */
 export function addCustomPage(
   settings: SettingTabSettings,
@@ -130,6 +132,9 @@ export function addCustomPage(
   if (!val) return { notice: 'Please enter a page label.' };
 
   const { singular, entityKey } = customPageEntityKey(val, form.sectionId);
+
+  const existing = (settings.customPages || []).find(page => page.entityKey === entityKey);
+  if (existing) return { notice: `A page for this entity already exists: "${existing.label}".` };
 
   if (!settings.customEntities) {
     settings.customEntities = {};
@@ -173,14 +178,16 @@ export function addCustomPage(
   return { notice: `Page "${val}" added successfully.`, page: newPage };
 }
 
-/* Deletes a page by id, in place, with its entity's schema and ENTITIES
-   entry. Returns false when no page has that id. Flagged quirk: the entity
-   goes even if another page (or the core app) still uses it. */
+/* Deletes a page by id, in place. Its entity's schema and ENTITIES entry go
+   with it, unless the entity is a core one or another page still shows it.
+   Returns false when no page has that id. */
 export function deleteCustomPage(settings: SettingTabSettings, entities: Record<string, EntityDef>, pageId: string): boolean {
   const originalIndex = settings.customPages!.findIndex(page => page.id === pageId);
   if (originalIndex < 0) return false;
   const entityKey = settings.customPages![originalIndex].entityKey;
   settings.customPages!.splice(originalIndex, 1);
+  if (CORE_ENTITY_KEYS.includes(entityKey)) return true;
+  if (settings.customPages!.some(page => page.entityKey === entityKey)) return true;
   if (settings.customEntities && settings.customEntities[entityKey]) {
     delete settings.customEntities[entityKey];
   }

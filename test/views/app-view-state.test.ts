@@ -31,9 +31,9 @@ describe("CadenceAppView constructor and View contract", () => {
     expect(view.mobileNavOpen).toBe(false);
   });
 
-  it("falls back to planner.today when no default tab is set, and to home for an unknown one", () => {
-    expect(makeAppView({ settings: { defaultTab: "" } }).view.mode).toBe("planner.today");
-    expect(makeAppView({ settings: { defaultTab: undefined } }).view.mode).toBe("planner.today");
+  it("falls back to home when no default tab is set, and for an unknown one", () => {
+    expect(makeAppView({ settings: { defaultTab: "" } }).view.mode).toBe("home");
+    expect(makeAppView({ settings: { defaultTab: undefined } }).view.mode).toBe("home");
     expect(makeAppView({ settings: { defaultTab: "crm.nope" } }).view.mode).toBe("home");
     expect(makeAppView({ settings: { defaultTab: "custom.1", customPages: pages } }).view.mode).toBe("custom.1");
   });
