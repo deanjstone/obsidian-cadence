@@ -362,6 +362,19 @@ describe("a project note is deleted", () => {
     expect(fm(app, jane.path)).not.toHaveProperty("project");
   });
 
+  it("keeps the project while another project note of that name remains, as for a same-named note in a sub-folder", async () => {
+    const { app } = await loadedVault([
+      { path: jane.path, frontmatter: { type: "contact", project: ["[[Apollo]]", "[[Kickoff]]"] } },
+      apollo,
+      { path: "Cadence/Projects/Kickoff.md", frontmatter: { type: "project" } },
+    ]);
+    await app.vault.trigger("delete", new TFile("Cadence/Projects/Archive/Apollo.md"));
+    await app.vault.trigger("delete", new TFile("Cadence/Projects/Apollo/kickoff.md"));
+    expect(fm(app, jane.path)?.project).toEqual(["[[Apollo]]", "[[Kickoff]]"]);
+    expect(app.fileManager.processed).toEqual([]);
+    expect(Notice.messages).toEqual([]);
+  });
+
   it("ignores notes outside the projects folder, non-markdown files and files without a path", async () => {
     const { app, plugin } = await loadedVault([jane]);
     await app.vault.trigger("delete", new TFile("Cadence/Website relaunch.md"));

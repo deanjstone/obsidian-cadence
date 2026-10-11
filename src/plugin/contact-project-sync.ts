@@ -328,6 +328,11 @@ export async function handleProjectDeletion(plugin: PluginHost, file: TFile | nu
   const projectName = file.basename;
   if (!projectName) return;
 
+  // Projects can sit in sub-folders, so a deleted note there counts only
+  // when no other project note of that name remains (#45).
+  const remaining = listEntityFiles(plugin.app, 'project');
+  if (remaining.some(f => f.path !== file.path && f.basename.toLowerCase() === projectName.toLowerCase())) return;
+
   try {
     plugin._syncInProgress = true;
 
