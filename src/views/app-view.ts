@@ -1,6 +1,7 @@
 import { ItemView, Notice, setIcon, type TAbstractFile, type TFile, type WorkspaceLeaf } from 'obsidian';
 import { ENTITIES } from '../constants/entities';
 import { BUILT_SURFACES, SURFACE_BY_ID, VIEW_TYPE_CADENCE_APP, type NavSurface } from '../constants/nav';
+import { DEFAULT_SETTINGS } from '../constants/settings';
 import type { Entity, EntityDef, EntityKey, TaskNotesTask } from '../types/entities';
 import type { ChartStyle } from '../types/modals';
 import type { Reminder, ReminderBucket } from '../types/reminders';
@@ -71,7 +72,7 @@ interface SettingWindow {
 export function initAppViewState(view: AppViewHost, plugin: AppViewPlugin): void {
   view.plugin = plugin;
   // Migrate mode IDs saved by older versions
-  const raw = plugin.settings.defaultTab || 'planner.today';
+  const raw = plugin.settings.defaultTab || DEFAULT_SETTINGS.defaultTab;
   view.mode = view._migrateModeId(raw);
   // Today state
   view.todayFile = null;

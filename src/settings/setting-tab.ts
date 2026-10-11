@@ -189,10 +189,10 @@ export function defaultTabOptions(groups: NavGroup[]): Option[] {
   }));
 }
 
-/* Flagged quirk: an unset default tab shows as Planner · Today, while the
-   defaults (and the app) use Home. */
+/* The default tab's dropdown value; an unset one shows the default, Home,
+   as the app opens it. */
 export function defaultTabValue(settings: SettingTabSettings): string {
-  return settings.defaultTab || 'planner.today';
+  return settings.defaultTab || DEFAULT_SETTINGS.defaultTab;
 }
 
 export function renderAppSettings(tab: SettingTabHost, containerEl: HTMLElement): void {

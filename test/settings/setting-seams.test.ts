@@ -101,9 +101,9 @@ describe("App seams", () => {
     ]);
   });
 
-  it("QUIRK: falls back to planner.today for an unset default tab", () => {
+  it("falls back to home for an unset default tab", () => {
     expect(defaultTabValue(settings({ defaultTab: "crm.pipeline" }))).toBe("crm.pipeline");
-    expect(defaultTabValue(settings({ defaultTab: "" }))).toBe("planner.today");
-    expect(defaultTabValue(settings())).toBe("planner.today");
+    expect(defaultTabValue(settings({ defaultTab: "" }))).toBe("home");
+    expect(defaultTabValue(settings())).toBe("home");
   });
 });

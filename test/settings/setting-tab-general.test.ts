@@ -386,9 +386,9 @@ describe("App", () => {
     expect(plugin.saved).toHaveLength(1);
   });
 
-  it("QUIRK: with no default tab set, the dropdown shows Planner · Today, not the Home default", () => {
+  it("with no default tab set, the dropdown shows the Home default", () => {
     const d = component<DropdownComponent>(settingByName(shown({ settings: { defaultTab: "" } }).container, "Default tab"));
-    expect(d.getValue()).toBe("planner.today");
+    expect(d.getValue()).toBe("home");
   });
 });
 
