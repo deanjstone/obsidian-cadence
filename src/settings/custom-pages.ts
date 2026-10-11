@@ -119,7 +119,8 @@ export interface CustomPageForm {
 
 /* Adds a page from the form, in place: the schema (an existing one for the
    same key is reused), the ENTITIES entry, the page and its layout
-   preference. Returns the notice to show, with the page when it was added.
+   preference. Refuses a label whose entity another page already shows.
+   Returns the notice to show, with the page when it was added.
    `now` is the page id's timestamp. */
 export function addCustomPage(
   settings: SettingTabSettings,
@@ -131,6 +132,9 @@ export function addCustomPage(
   if (!val) return { notice: 'Please enter a page label.' };
 
   const { singular, entityKey } = customPageEntityKey(val, form.sectionId);
+
+  const existing = (settings.customPages || []).find(page => page.entityKey === entityKey);
+  if (existing) return { notice: `A page for this entity already exists: "${existing.label}".` };
 
   if (!settings.customEntities) {
     settings.customEntities = {};

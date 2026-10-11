@@ -269,20 +269,23 @@ describe("Custom Navigation Pages: add form", () => {
     expect(ENTITIES.prm_product.fields).toBe(existing);
   });
 
-  it("QUIRK: adding the same label twice makes a second page on the same entity", async () => {
+  it("refuses the same label twice, with a notice, rather than a second page on the same entity", async () => {
     vi.useFakeTimers({ toFake: ["Date"], now: 10 });
     const first = shown();
     form(first.section).label.value = "Products";
     form(first.section).add.trigger("click");
     await vi.waitFor(() => expect(first.calls).toContain("display"));
+    first.calls.length = 0;
+    Notice.messages.length = 0;
     vi.setSystemTime(11);
     const again = form(pagesDiv(first.container));
     again.label.value = "Products";
     again.add.trigger("click");
-    await vi.waitFor(() => expect(first.plugin.settings.customPages).toHaveLength(2));
+    await vi.waitFor(() => expect(Notice.messages).toHaveLength(1));
+    expect(Notice.messages).toEqual(['A page for this entity already exists: "Products".']);
+    expect(first.calls).toEqual([]);
     expect(first.plugin.settings.customPages.map((p: Any) => [p.id, p.entityKey])).toEqual([
       ["custom.10", "planner_product"],
-      ["custom.11", "planner_product"],
     ]);
   });
 });
