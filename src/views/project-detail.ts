@@ -141,9 +141,8 @@ export function commitMilestones(content: string, items: MilestoneInput[], rawKe
 }
 
 /** The list with item `idx` replaced by a copy carrying `patch`. A missing
-    item throws, as assigning to it did before. */
+    item leaves the list as it was, as removeItem does (#50). */
 export function updateItem<T>(items: T[], idx: number, patch: Partial<T>): T[] {
-  if (!(idx in items)) throw new TypeError(`No item at index ${idx}`);
   return items.map((item, i) => (i === idx ? { ...item, ...patch } : item));
 }
 
@@ -249,6 +248,40 @@ priority: normal
    operation's result replaces its contents rather than the reference. */
 function replaceItems<T>(items: T[], next: T[]): void {
   items.splice(0, items.length, ...next);
+}
+
+/* A row's hold on the shared list. It finds its item by identity, not by
+   the index it was drawn at, so an edit still pending when an earlier row
+   is deleted lands on this row, and one whose row is gone is dropped (#50). */
+interface RowHandle<T> {
+  /** The row's current index, or -1 once it is deleted. */
+  index(): number;
+  item(): T | undefined;
+  /** Patch the row's item; false (and no change) once it is deleted. */
+  patch(patch: Partial<T>): boolean;
+  /** Remove the row's item; false when it is already gone. */
+  remove(): boolean;
+}
+
+function rowHandle<T>(items: T[], item: T): RowHandle<T> {
+  let current = item;
+  return {
+    index: () => items.indexOf(current),
+    item: () => (items.includes(current) ? current : undefined),
+    patch(patch) {
+      const at = items.indexOf(current);
+      if (at === -1) return false;
+      replaceItems(items, updateItem(items, at, patch));
+      current = items[at];
+      return true;
+    },
+    remove() {
+      const at = items.indexOf(current);
+      if (at === -1) return false;
+      replaceItems(items, removeItem(items, at));
+      return true;
+    },
+  };
 }
 
 /* ── Project DETAIL view (real PM surface) ─────── */
@@ -620,13 +653,14 @@ export function renderMilestoneSection(
       list.createDiv({ cls: 'cad-empty', text: 'No milestones yet — add the first one.' });
       return;
     }
-    items.forEach((m, idx) => {
+    items.forEach((m) => {
+      const mile = rowHandle(items, m);
       const wrapper = list.createDiv({ cls: 'cad-mile-wrapper' });
       const row = wrapper.createDiv({ cls: 'cad-pd-mile-row' + (m.done ? ' done' : '') });
       const cb = row.createEl('input', { type: 'checkbox' });
       cb.checked = !!m.done;
       cb.addEventListener('change', async () => {
-        replaceItems(items, updateItem(items, idx, { done: cb.checked }));
+        if (!mile.patch({ done: cb.checked })) return;
         await view._commitMilestones(file, items, flashSaved, false, rawKey);
       });
       const dateInp = row.createEl('input', { type: 'date', cls: 'cad-pd-mile-date' });
@@ -636,7 +670,7 @@ export function renderMilestoneSection(
       dateInp.addEventListener('input', () => {
         clearTimeout(dt);
         dt = setTimeout(async () => {
-          replaceItems(items, updateItem(items, idx, { date: milestoneDateFromInput(dateInp.value) }));
+          if (!mile.patch({ date: milestoneDateFromInput(dateInp.value) })) return;
           await view._commitMilestones(file, items, flashSaved, true, rawKey);
         }, 350);
       });
@@ -647,14 +681,14 @@ export function renderMilestoneSection(
       titleInp.addEventListener('input', () => {
         clearTimeout(tt);
         tt = setTimeout(async () => {
-          replaceItems(items, updateItem(items, idx, { title: titleInp.value }));
+          if (!mile.patch({ title: titleInp.value })) return;
           await view._commitMilestones(file, items, flashSaved, true, rawKey);
         }, 400);
       });
       const del = row.createEl('button', { cls: 'cad-btn cad-btn-sm cad-btn-danger', text: '×' });
       del.title = 'Delete milestone';
       del.addEventListener('click', async () => {
-        replaceItems(items, removeItem(items, idx));
+        if (!mile.remove()) return;
         await view._commitMilestones(file, items, flashSaved, false, rawKey);
       });
 
@@ -662,10 +696,11 @@ export function renderMilestoneSection(
       const notesEl = wrapper.createDiv({ cls: 'cad-mile-notes-section' });
       const renderNotesIdle = () => {
         notesEl.empty();
-        const hasNotes = (items[idx].notes || '').trim().length > 0;
+        const notes = mile.item()?.notes || '';
+        const hasNotes = notes.trim().length > 0;
         if (hasNotes) {
           const preview = notesEl.createDiv({ cls: 'cad-mile-notes-preview' });
-          preview.setText(items[idx].notes);
+          preview.setText(notes);
           preview.title = 'Click to edit notes';
           preview.addEventListener('click', openNotesEditor);
         } else {
@@ -676,7 +711,7 @@ export function renderMilestoneSection(
       const openNotesEditor = () => {
         notesEl.empty();
         const ta = notesEl.createEl('textarea', { cls: 'cad-mile-notes-textarea' });
-        ta.value = items[idx].notes || '';
+        ta.value = mile.item()?.notes || '';
         ta.placeholder = 'Notes — context, follow-ups, what happened…';
         const autosize = () => {
           ta.style.height = 'auto';
@@ -687,13 +722,12 @@ export function renderMilestoneSection(
           autosize();
           clearTimeout(nt);
           nt = setTimeout(async () => {
-            replaceItems(items, updateItem(items, idx, { notes: ta.value }));
+            if (!mile.patch({ notes: ta.value })) return;
             await view._commitMilestones(file, items, flashSaved, true, rawKey);
           }, 400);
         });
         ta.addEventListener('blur', async () => {
-          replaceItems(items, updateItem(items, idx, { notes: ta.value }));
-          await view._commitMilestones(file, items, flashSaved, true, rawKey);
+          if (mile.patch({ notes: ta.value })) await view._commitMilestones(file, items, flashSaved, true, rawKey);
           renderNotesIdle();
         });
         setTimeout(() => { ta.focus(); autosize(); }, 0);
@@ -745,6 +779,7 @@ export function renderTaskSection(
       return;
     }
     items.forEach((t, idx) => {
+      const task = rowHandle(items, t);
       const row = list.createDiv({ cls: 'cad-pd-task-row' + (t.done ? ' done' : '') });
       const cb = row.createEl('input', { type: 'checkbox' });
       cb.checked = !!t.done;
@@ -754,7 +789,7 @@ export function renderTaskSection(
           await toggleTaskNotesTask(view.app, taskObj.file, cb.checked);
           await view._propagateTaskComplete(taskObj.title, cb.checked, { kind: 'tasknotes', file: taskObj.file });
         } else {
-          await tickProjectTaskRow(view, file, items, idx, cb.checked, flashSaved, rawKey);
+          await tickProjectTaskRow(view, file, items, task, cb.checked, flashSaved, rawKey);
         }
         view.render();
       });
@@ -777,7 +812,7 @@ export function renderTaskSection(
         titleInp.addEventListener('input', () => {
           clearTimeout(tt);
           tt = setTimeout(async () => {
-            replaceItems(items, updateItem(items, idx, { title: titleInp.value }));
+            if (!task.patch({ title: titleInp.value })) return;
             await view._commitTasks(file, items, flashSaved, true, rawKey);
           }, 400);
         });
@@ -787,7 +822,7 @@ export function renderTaskSection(
         const bell = row.createEl('button', { cls: bellState.cls, text: bellState.text });
         bell.title = bellState.title;
         bell.addEventListener('click', async () => {
-          replaceItems(items, updateItem(items, idx, { title: titleInp.value }));
+          if (!task.patch({ title: titleInp.value })) return;
           await view._commitTasks(file, items, flashSaved, true, rawKey);
 
           const taskText = titleInp.value.trim();
@@ -808,7 +843,7 @@ export function renderTaskSection(
       if (view.plugin.settings.taskManagementSystem !== 'tasknotes') {
         const del = row.createEl('button', { cls: 'cad-btn cad-btn-sm cad-btn-danger', text: '×' });
         del.addEventListener('click', async () => {
-          replaceItems(items, removeItem(items, idx));
+          if (!task.remove()) return;
           await view._commitTasks(file, items, flashSaved, false, rawKey);
         });
       }
@@ -846,9 +881,10 @@ export function renderTaskSection(
    is gone from the section it writes nothing and says so. The caller
    re-renders once. */
 async function tickProjectTaskRow(
-  view: AppViewHost, file: TFile, items: TaskItem[], idx: number, checked: boolean, flashSaved: FlashSaved | undefined, rawKey: string,
+  view: AppViewHost, file: TFile, items: TaskItem[], task: RowHandle<TaskItem>, checked: boolean, flashSaved: FlashSaved | undefined, rawKey: string,
 ): Promise<void> {
-  const ref = taskRefAt(items.map((item) => item.title || ''), idx);
+  const idx = task.index();
+  const ref = idx === -1 ? null : taskRefAt(items.map((item) => item.title || ''), idx);
   const content = await view.app.vault.read(file);
   const toggled = ref ? toggleProjectTaskByRef(content, rawKey, ref, checked) : null;
   if (!toggled) {
@@ -856,7 +892,7 @@ async function tickProjectTaskRow(
     return;
   }
   await view.app.vault.modify(file, toggled.content);
-  replaceItems(items, updateItem(items, idx, { done: checked }));
+  task.patch({ done: checked });
   if (typeof flashSaved === 'function') flashSaved();
   if (toggled.taskText) await view._propagateTaskComplete(toggled.taskText, checked, { kind: 'project', file });
 }

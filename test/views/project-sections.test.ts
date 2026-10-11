@@ -184,6 +184,27 @@ describe("_renderMilestoneSection", () => {
     expect(await section("## Milestones")).toBe("- [ ] 2026-11-01 — Beta\n- [x] Go live\n- [ ] 2026-10-10\n");
   });
 
+  it("a pending edit lands on the row it was made on after an earlier row is deleted", async () => {
+    const { parent, milestones, section } = setup();
+    milestones();
+    type(mileRow(parent, 1).children[2], "Beta 2");
+    type(mileRow(parent, 2).children[1], "2027-02-01");
+    mileRow(parent, 0).children[3].trigger("click");
+    await flush();
+    await vi.advanceTimersByTimeAsync(400);
+    expect(await section("## Milestones")).toBe("- [ ] 2026-11-01 — Beta 2\n- [ ] 2027-02-01 — Launch\n");
+  });
+
+  it("a pending edit on a deleted row is dropped, without throwing", async () => {
+    const { parent, milestones, section } = setup();
+    milestones();
+    type(mileRow(parent, 2).children[2], "Go live");
+    mileRow(parent, 2).children[3].trigger("click");
+    await flush();
+    await vi.advanceTimersByTimeAsync(400);
+    expect(await section("## Milestones")).toBe("- [x] 2026-09-15 — Kickoff\n    Went well\n- [ ] 2026-11-01 — Beta\n");
+  });
+
   it("shows notes as a preview, or a + Add notes link", () => {
     const { parent, milestones } = setup();
     milestones();
@@ -326,6 +347,21 @@ describe("_renderTaskSection (native)", () => {
     await flush();
     expect(await section("## Tasks")).toBe("- [x] Hire two\n");
     expect(rendered).toHaveBeenCalledTimes(1);
+  });
+
+  it("a pending title edit lands on its own task after an earlier task is deleted, and is dropped with its task", async () => {
+    const { parent, tasks, section } = setup();
+    tasks();
+    type(taskRow(parent, 1).children[1], "Hire two");
+    taskRow(parent, 0).children[3].trigger("click");
+    await flush();
+    await vi.advanceTimersByTimeAsync(400);
+    expect(await section("## Tasks")).toBe("- [x] Hire two\n");
+    type(taskRow(parent, 1).children[1], "Hire three");
+    taskRow(parent, 1).children[3].trigger("click");
+    await flush();
+    await vi.advanceTimersByTimeAsync(400);
+    expect(await section("## Tasks")).toBe("");
   });
 
   it("+ Add appends an empty task to the shared list, keeping a pending edit", async () => {

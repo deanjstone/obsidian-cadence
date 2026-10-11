@@ -126,8 +126,10 @@ describe("milestone seams", () => {
     expect(items).toHaveLength(2);
   });
 
-  it("updateItem throws for a missing item, as assigning to it did", () => {
-    expect(() => updateItem(ms(), 2, { title: "x" })).toThrow(TypeError);
+  it("updateItem leaves the list alone for a missing item, as removeItem does", () => {
+    const items = ms();
+    expect(updateItem(items, 2, { title: "x" })).toEqual(items);
+    expect(updateItem(items, -1, { title: "x" })).toEqual(items);
   });
 
   it("addMilestone appends an untitled open milestone dated today, without notes", () => {
