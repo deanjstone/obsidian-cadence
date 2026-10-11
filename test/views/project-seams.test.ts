@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { TFile } from "../mocks/obsidian";
+import { withTimezone, ZONES } from "../helpers/timezone";
 import { ENTITIES } from "../../src/constants/entities";
 import { metaControl } from "../../src/utils/field-edit";
 import { reminderTimeStr } from "../../src/utils/reminders";
@@ -94,11 +95,16 @@ describe("milestone seams", () => {
     expect(milestoneCardTitle("Road map #milestones", [])).toBe("ROAD MAP · 0/0");
   });
 
-  it("milestoneDateValue and milestoneDateFromInput", () => {
-    expect(milestoneDateValue(new Date("2026-09-15T23:00:00Z"))).toBe("2026-09-15");
-    expect([milestoneDateValue(null), milestoneDateValue(new Date("x")), milestoneDateValue("2026-09-15")]).toEqual([null, null, null]);
-    expect(milestoneDateFromInput("2027-02-01")?.toISOString()).toBe("2027-02-01T00:00:00.000Z");
-    expect(milestoneDateFromInput("")).toBeNull();
+  it("milestoneDateValue and milestoneDateFromInput: the local date, in every zone", async () => {
+    for (const tz of ZONES) {
+      await withTimezone(tz, () => {
+        expect(milestoneDateValue(new Date(2026, 8, 15, 23))).toBe("2026-09-15");
+        expect(milestoneDateValue(new Date(2026, 8, 15, 0, 30))).toBe("2026-09-15");
+        expect([milestoneDateValue(null), milestoneDateValue(new Date("x")), milestoneDateValue("2026-09-15")]).toEqual([null, null, null]);
+        expect(milestoneDateFromInput("2027-02-01")?.getTime()).toBe(new Date(2027, 1, 1).getTime());
+        expect(milestoneDateFromInput("")).toBeNull();
+      });
+    }
   });
 
   it("commitMilestones: rewrites the section, or appends it under the raw key", () => {

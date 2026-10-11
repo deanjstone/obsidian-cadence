@@ -2,7 +2,7 @@ import { TFile } from 'obsidian';
 import { ENTITIES } from '../constants/entities';
 import type { Entity, EntityDef } from '../types/entities';
 import type { DailyNoteSettings } from '../types/settings';
-import { addDays, dailyNotePath, startOfDay, startOfWeek, ymd } from '../utils/dates';
+import { addDays, dailyNotePath, parseYmd, startOfDay, startOfWeek, ymd } from '../utils/dates';
 import { crmSummary, dealValue, sumValues } from '../utils/deals';
 import { entityValue, getDealStages, listEntities } from '../utils/entities';
 import { fmtValue } from '../utils/format';
@@ -258,15 +258,16 @@ export function partnersReport(
   });
 
   const horizon = now + 90 * DAY_MS;
+  const today = startOfDay(now).getTime();
   const upcoming = certs
     .map((e) => {
       const exp = entityValue(e, 'expires', certDef);
       if (!exp) return null;
-      const d = new Date(exp as string);
+      const d = parseYmd(exp) ?? new Date(exp as string);
       if (isNaN(d.getTime())) return null;
       return { entity: e, date: d };
     })
-    .filter((x): x is { entity: Entity; date: Date } => (x && x.date.getTime() >= now && x.date.getTime() <= horizon) as boolean)
+    .filter((x): x is { entity: Entity; date: Date } => (x && x.date.getTime() >= today && x.date.getTime() <= horizon) as boolean)
     .sort((a, b) => (a.date as unknown as number) - (b.date as unknown as number))
     .slice(0, 8);
 

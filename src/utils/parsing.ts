@@ -1,4 +1,5 @@
 import type { DailyNoteSettings } from '../types/settings';
+import { parseYmd } from './dates';
 
 export interface LinkValue {
   target: string;
@@ -109,11 +110,11 @@ export function parseMilestones(text: string | null | undefined): Milestone[] {
       const done = / \[(x|X)\] /.test(line);
       const rest = line.replace(/^\s*-\s\[(x|X| )\]\s/, '');
       const m = rest.match(/^(\d{4}-\d{2}-\d{2})\s*(?:[—–-]\s*)?(.+)?$/);
-      const date = m && m[1] ? new Date(m[1]) : null;
+      const date = m && m[1] ? parseYmd(m[1]) : null;
       const title = m ? (m[2] || '').trim() : rest.trim();
       current = {
         done,
-        date: (date && !isNaN(date.getTime())) ? date : null,
+        date,
         title,
         notes: '',
       };

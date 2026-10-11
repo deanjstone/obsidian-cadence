@@ -151,6 +151,15 @@ function pad(n) {
 function ymd(d = /* @__PURE__ */ new Date()) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
+function parseYmd(s) {
+  if (typeof s !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
+  const utc = new Date(s);
+  if (isNaN(utc.getTime())) return null;
+  const d = /* @__PURE__ */ new Date(0);
+  d.setFullYear(utc.getUTCFullYear(), utc.getUTCMonth(), utc.getUTCDate());
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
 function dailyNotePath(settings, date = /* @__PURE__ */ new Date()) {
   const folder = (settings.dailyNoteFolder || "").replace(/\/$/, "");
   const name = ymd(date);
@@ -658,11 +667,11 @@ function parseMilestones(text) {
       const done = / \[(x|X)\] /.test(line);
       const rest = line.replace(/^\s*-\s\[(x|X| )\]\s/, "");
       const m = rest.match(/^(\d{4}-\d{2}-\d{2})\s*(?:[—–-]\s*)?(.+)?$/);
-      const date = m && m[1] ? new Date(m[1]) : null;
+      const date = m && m[1] ? parseYmd(m[1]) : null;
       const title = m ? (m[2] || "").trim() : rest.trim();
       current = {
         done,
-        date: date && !isNaN(date.getTime()) ? date : null,
+        date,
         title,
         notes: ""
       };
@@ -7993,10 +8002,10 @@ function milestoneCardTitle(rawKey, milestones) {
   return `${cleanLabel.toUpperCase()} \xB7 ${milestones.filter((m) => m.done).length}/${milestones.length}`;
 }
 function milestoneDateValue(date) {
-  return date instanceof Date && !isNaN(date.getTime()) ? date.toISOString().slice(0, 10) : null;
+  return date instanceof Date && !isNaN(date.getTime()) ? ymd(date) : null;
 }
 function milestoneDateFromInput(value) {
-  return value ? new Date(value) : null;
+  return value ? parseYmd(value) : null;
 }
 function commitMilestones(content, items, rawKey = "Milestones") {
   const body = stringifyMilestones(items);
@@ -9518,13 +9527,14 @@ function partnersReport(deals, partners, certs, now, defs = { deal: ENTITIES.dea
     tierMap.set(t, tierMap.get(t) + 1);
   });
   const horizon = now + 90 * DAY_MS2;
+  const today = startOfDay(now).getTime();
   const upcoming = certs.map((e) => {
     const exp = entityValue(e, "expires", certDef);
     if (!exp) return null;
-    const d = new Date(exp);
+    const d = parseYmd(exp) ?? new Date(exp);
     if (isNaN(d.getTime())) return null;
     return { entity: e, date: d };
-  }).filter((x) => x && x.date.getTime() >= now && x.date.getTime() <= horizon).sort((a, b) => a.date - b.date).slice(0, 8);
+  }).filter((x) => x && x.date.getTime() >= today && x.date.getTime() <= horizon).sort((a, b) => a.date - b.date).slice(0, 8);
   return {
     partnerSourced,
     partnerWon,

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { FakeElement, type MockFileSpec } from "../mocks/obsidian";
 import { makeAppView } from "../helpers/app-view";
+import { withTimezone, ZONES } from "../helpers/timezone";
 import { fmtValue } from "../../src/utils/format";
 
 /* Characterization tests for the Partners report, renderReportPartners:
@@ -157,7 +158,7 @@ describe("renderReportPartners: deals by partner", () => {
 });
 
 describe("renderReportPartners: certification expiries", () => {
-  it("lists certs expiring from now to 90 days out, soonest first, with the partner linked", async () => {
+  it("lists certs expiring from today to 90 days out, soonest first, with the partner linked", async () => {
     const { view, root, sections, app } = setup(ALL);
     await view.renderReportPartners(root);
     const [parent, title, rows, empty] = section(sections, "CERTS EXPIRING");
@@ -166,6 +167,7 @@ describe("renderReportPartners: certification expiries", () => {
     const file = (n: string) => app.vault.getAbstractFileByPath(`Cadence/Certifications/${n}.md`);
     const exp = (s: string) => ` · expires ${fmtValue(new Date(s), "date")}`;
     expect(rows).toEqual([
+      { title: "Today", metaParts: [{ text: "—", entityKey: "partner" }, { text: exp("2026-10-11") }], file: file("C7") },
       { title: "ISO", metaParts: [{ text: "[[Acme]]", entityKey: "partner" }, { text: exp("2026-10-20") }], file: file("C1") },
       { title: "C2", metaParts: [{ text: "—", entityKey: "partner" }, { text: exp("2026-12-31") }], file: file("C2") },
       { title: "Edge", metaParts: [{ text: "[[Beta]]", entityKey: "partner" }, { text: exp("2027-01-09") }], file: file("C8") },
@@ -173,10 +175,16 @@ describe("renderReportPartners: certification expiries", () => {
     expect(empty).toBe("No certifications expiring in the next 90 days.");
   });
 
-  it("QUIRK: a cert expiring today is already past, because a bare date is midnight UTC", async () => {
-    const { view, root, sections } = setup([CERTS[6]]);
-    await view.renderReportPartners(root);
-    expect(section(sections, "CERTS EXPIRING")[2]).toEqual([]);
+  it("a cert expiring today is still upcoming, in every zone", async () => {
+    for (const tz of ZONES) {
+      await withTimezone(tz, async () => {
+        const { view, root, sections } = setup([CERTS[6], CERTS[3]]);
+        await view.renderReportPartners(root);
+        expect(section(sections, "CERTS EXPIRING")[2].map((r: Any) => r.title)).toEqual(["Today"]);
+        vi.useRealTimers();
+        vi.restoreAllMocks();
+      });
+    }
   });
 
   it("caps the list at 8", async () => {
