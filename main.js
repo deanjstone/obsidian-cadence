@@ -9320,15 +9320,7 @@ async function renderProjectsView(view, root) {
 }
 
 // src/views/report-graph.ts
-var TYPE_BY_FOLDER = [
-  ["Cadence/Contacts/", "contact"],
-  ["Cadence/Companies/", "company"],
-  ["Cadence/Partners/", "partner"],
-  ["Cadence/Pipeline/", "deal"],
-  ["Cadence/Projects/", "project"],
-  ["Cadence/Activities/", "activity"],
-  ["Cadence/Leads/", "lead"]
-];
+var TYPE_BY_FOLDER = Object.entries(ENTITIES).map(([key, def]) => [`${def.folder}/`, key]);
 function graphNodeType(path) {
   for (const [folder, type] of TYPE_BY_FOLDER) if (path.startsWith(folder)) return type;
   return "note";
@@ -9351,6 +9343,14 @@ var GRAPH_TYPE_COLORS = {
   // slate gray
   lead: "#a855f7",
   // purple
+  registration: "#14b8a6",
+  // teal
+  commission: "#eab308",
+  // amber
+  certification: "#6366f1",
+  // indigo
+  sequence: "#84cc16",
+  // lime
   note: "var(--graph-node, #94a3b8)"
   // gray
 };
@@ -9541,6 +9541,10 @@ async function renderReportGraph(view, root) {
     };
   };
   const getCanvasPos = (e) => toGraphPoint(getMousePos(e), transform);
+  const openNode = (node) => {
+    if (node.type === "note") view.openEntityDetailFromFile(node.file);
+    else view.openEntityDetail(node.type, node.file);
+  };
   canvas.addEventListener("mousedown", (e) => {
     dragStartPos = { x: e.clientX, y: e.clientY };
     hasMovedSinceDown = false;
@@ -9588,9 +9592,7 @@ async function renderReportGraph(view, root) {
   canvas.addEventListener("mouseup", (e) => {
     isPanning = false;
     canvas.style.cursor = hoveredNode ? "pointer" : "default";
-    if (!hasMovedSinceDown && hoveredNode) {
-      view.openEntityDetail(hoveredNode.type, hoveredNode.file);
-    }
+    if (!hasMovedSinceDown && hoveredNode) openNode(hoveredNode);
     draggedNode = null;
   });
   canvas.addEventListener("mouseleave", () => {

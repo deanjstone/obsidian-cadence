@@ -1,4 +1,6 @@
 import type { TFile } from 'obsidian';
+import { ENTITIES } from '../constants/entities';
+import type { CoreEntityKey } from '../types/entities';
 import type { AppViewHost } from './host';
 
 /* The relationship graph (reports.graph): a canvas force layout over every
@@ -6,7 +8,7 @@ import type { AppViewHost } from './host';
    between two of them. The graph, the layout step, hit testing and zoom are
    pure seams; the canvas drawing and the pointer wiring are manual-QA only. */
 
-export type GraphNodeType = 'contact' | 'company' | 'partner' | 'deal' | 'project' | 'activity' | 'lead' | 'note';
+export type GraphNodeType = CoreEntityKey | 'note';
 
 /* A note on the graph. The layout moves x and y in place. */
 export interface GraphNode {
@@ -45,18 +47,10 @@ export interface GraphTransform extends GraphPoint {
   k: number;
 }
 
-const TYPE_BY_FOLDER: Array<[string, GraphNodeType]> = [
-  ['Cadence/Contacts/', 'contact'],
-  ['Cadence/Companies/', 'company'],
-  ['Cadence/Partners/', 'partner'],
-  ['Cadence/Pipeline/', 'deal'],
-  ['Cadence/Projects/', 'project'],
-  ['Cadence/Activities/', 'activity'],
-  ['Cadence/Leads/', 'lead'],
-];
+const TYPE_BY_FOLDER = Object.entries(ENTITIES).map(([key, def]) => [`${def.folder}/`, key as CoreEntityKey] as const);
 
-/* A note's node type, by folder. Every other note (registrations,
-   commissions, certifications, sequences, loose notes) is a 'note'. */
+/* A note's node type: the entity whose folder holds it, else (a loose
+   note under Cadence/) a 'note'. */
 export function graphNodeType(path: string): GraphNodeType {
   for (const [folder, type] of TYPE_BY_FOLDER) if (path.startsWith(folder)) return type;
   return 'note';
@@ -75,6 +69,10 @@ export const GRAPH_TYPE_COLORS: Record<GraphNodeType, string> = {
   project: '#8b5cf6',  // violet purple
   activity: '#64748b', // slate gray
   lead: '#a855f7',     // purple
+  registration: '#14b8a6', // teal
+  commission: '#eab308',   // amber
+  certification: '#6366f1', // indigo
+  sequence: '#84cc16',     // lime
   note: 'var(--graph-node, #94a3b8)'      // gray
 };
 
@@ -306,6 +304,12 @@ export async function renderReportGraph(view: AppViewHost, root: HTMLElement): P
 
   const getCanvasPos = (e: MouseEvent) => toGraphPoint(getMousePos(e), transform);
 
+  // An entity opens its detail; a loose note opens as markdown.
+  const openNode = (node: GraphNode) => {
+    if (node.type === 'note') view.openEntityDetailFromFile(node.file);
+    else view.openEntityDetail(node.type, node.file);
+  };
+
   // Interaction Events
   canvas.addEventListener('mousedown', (e) => {
     dragStartPos = { x: e.clientX, y: e.clientY };
@@ -364,9 +368,7 @@ export async function renderReportGraph(view: AppViewHost, root: HTMLElement): P
     isPanning = false;
     canvas.style.cursor = hoveredNode ? 'pointer' : 'default';
 
-    if (!hasMovedSinceDown && hoveredNode) {
-      view.openEntityDetail(hoveredNode.type, hoveredNode.file);
-    }
+    if (!hasMovedSinceDown && hoveredNode) openNode(hoveredNode);
 
     draggedNode = null;
   });

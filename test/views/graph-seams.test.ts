@@ -25,14 +25,16 @@ const seq = (...values: number[]) => {
 const SIZE = { width: 800, height: 400 };
 
 describe("graphNodeType, graphNodeRadius, graphNodeColor, graphTooltip", () => {
-  it("types a note by its Cadence folder, else 'note'", () => {
+  it("types a note by its entity's folder, every entity included, else 'note'", () => {
     const paths = [
       "Cadence/Contacts/a.md", "Cadence/Companies/a.md", "Cadence/Partners/a.md", "Cadence/Pipeline/a.md",
       "Cadence/Projects/sub/a.md", "Cadence/Activities/a.md", "Cadence/Leads/a.md", "Cadence/Registrations/a.md",
-      "Cadence/Certifications/a.md", "Cadence/ContactsOld/a.md", "Cadence/a.md", "Other/Contacts/a.md",
+      "Cadence/Commissions/a.md", "Cadence/Certifications/a.md", "Cadence/Sequences/a.md",
+      "Cadence/ContactsOld/a.md", "Cadence/a.md", "Other/Contacts/a.md",
     ];
     expect(paths.map(graphNodeType)).toEqual([
-      "contact", "company", "partner", "deal", "project", "activity", "lead", "note", "note", "note", "note", "note",
+      "contact", "company", "partner", "deal", "project", "activity", "lead", "registration", "commission",
+      "certification", "sequence", "note", "note", "note",
     ]);
   });
 
@@ -44,7 +46,11 @@ describe("graphNodeType, graphNodeRadius, graphNodeColor, graphTooltip", () => {
     expect(graphNodeColor("deal")).toBe("#10b981");
     expect(graphNodeColor("contact")).toBe("var(--graph-node-resolved, #f59e0b)");
     expect(graphNodeColor("bogus" as Any)).toBe(GRAPH_TYPE_COLORS.note);
-    expect(Object.keys(GRAPH_TYPE_COLORS)).toEqual(["contact", "company", "partner", "deal", "project", "activity", "lead", "note"]);
+    expect(Object.keys(GRAPH_TYPE_COLORS)).toEqual([
+      "contact", "company", "partner", "deal", "project", "activity", "lead",
+      "registration", "commission", "certification", "sequence", "note",
+    ]);
+    expect(new Set(Object.values(GRAPH_TYPE_COLORS)).size).toBe(12);
   });
 
   it("labels the tooltip TYPE: name", () => {

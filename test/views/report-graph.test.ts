@@ -146,7 +146,7 @@ describe("renderReportGraph: nodes and edges", () => {
     expect(ops(drawn, "arc").map((o) => o[3])).toEqual([5, 7, 5, 5, 6.5, 5, 5, 5, 5]);
     expect(fills).toEqual([
       "var(--graph-node-resolved, #f59e0b)", "#0ea5e9", "#ec4899", "#10b981", "#8b5cf6", "#64748b", "#a855f7",
-      "var(--graph-node, #94a3b8)", "var(--graph-node, #94a3b8)",
+      "#14b8a6", "var(--graph-node, #94a3b8)",
     ]);
     expect(ops(drawn, "fillText").map((o) => o[1])).toEqual(["Jane", "Acme", "Beta", "Deal", "Proj", "Call", "Lead", "Reg", "Loose"]);
   });
@@ -286,8 +286,8 @@ describe("renderReportGraph: pointer", () => {
     expect([tooltip.text, tooltip.style.left, tooltip.style.top]).toEqual(["COMPANY: Acme", "412px", "237px"]);
   });
 
-  it("a click (down and up within 4px) on a hovered node opens it as its type; a non-entity note opens as 'note'", async () => {
-    const { canvas, opened, file } = await rendered([JANE, LOOSE], { random: [0, 0, 1, 1] });
+  it("a click (down and up within 4px) on a hovered node opens it as its type; a loose note opens as a markdown note", async () => {
+    const { canvas, opened, file, app } = await rendered([JANE, LOOSE], { random: [0, 0, 1, 1] });
     canvas.trigger("mousemove", pointer(150, 100));
     canvas.trigger("mousedown", pointer(150, 100));
     canvas.trigger("mousemove", pointer(153, 100));
@@ -295,7 +295,22 @@ describe("renderReportGraph: pointer", () => {
     canvas.trigger("mousemove", pointer(650, 350));
     canvas.trigger("mousedown", pointer(650, 350));
     canvas.trigger("mouseup", pointer(650, 350));
-    expect(opened.mock.calls).toEqual([["contact", file("Cadence/Contacts/Jane.md")], ["note", file("Cadence/Loose.md")]]);
+    expect(opened.mock.calls).toEqual([["contact", file("Cadence/Contacts/Jane.md")]]);
+    expect(app.workspace.openedLinks).toEqual([["Cadence/Loose.md", "", false]]);
+  });
+
+  it("a registration, commission, certification or sequence opens as its own entity", async () => {
+    const files = ["Registrations/R", "Commissions/C", "Certifications/Z", "Sequences/S"].map((p) => note(`Cadence/${p}.md`));
+    const { canvas, opened, file } = await rendered(files, { random: [0, 0, 1, 1, 0, 1, 1, 0] });
+    for (const [x, y] of [[150, 100], [650, 350], [150, 350], [650, 100]]) {
+      canvas.trigger("mousemove", pointer(x, y));
+      canvas.trigger("mousedown", pointer(x, y));
+      canvas.trigger("mouseup", pointer(x, y));
+    }
+    expect(opened.mock.calls).toEqual([
+      ["registration", file("Cadence/Registrations/R.md")], ["commission", file("Cadence/Commissions/C.md")],
+      ["certification", file("Cadence/Certifications/Z.md")], ["sequence", file("Cadence/Sequences/S.md")],
+    ]);
   });
 
   it("a pointer that moves more than 4px between press and release opens nothing", async () => {
