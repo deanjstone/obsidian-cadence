@@ -8042,9 +8042,11 @@ function prmAnalytics(partners, deals, defs = { partner: ENTITIES.partner, deal:
     conversion: { won: partnerWon.length, closed, pct: conv, band: pctBand(conv) }
   };
 }
+var TEAM_ROLE = /\b(team|admin|member)s?\b/i;
 function isTeamMember(entity, def = ENTITIES.contact) {
-  const role = String(entityValue(entity, "role", def) || "").toLowerCase();
-  return role.includes("team") || role.includes("admin") || role.includes("member");
+  const role = entityValue(entity, "role", def);
+  const roles = Array.isArray(role) ? role : [role];
+  return roles.some((r) => r != null && TEAM_ROLE.test(String(r)));
 }
 function teamListOptions() {
   return {

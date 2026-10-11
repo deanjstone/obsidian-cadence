@@ -94,10 +94,10 @@ describe("prmAnalytics", () => {
 });
 
 describe("isTeamMember and teamListOptions", () => {
-  it("matches team, admin or member anywhere in the role, in any case", () => {
+  it("matches team, admin or member as a whole word in the role, in any case", () => {
     const roles = ["Team", "admin", "MEMBER", "Teammate", "Remember", "Sales", "", undefined, ["Sales", "Admin"]];
     expect(roles.map((role) => isTeamMember(entity("c", role === undefined ? {} : { role })))).toEqual([
-      true, true, true, true, true, false, false, false, true,
+      true, true, true, false, false, false, false, false, true,
     ]);
   });
 
