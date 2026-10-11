@@ -33,9 +33,10 @@ type SavedBadge = HTMLElement & { _t?: ReturnType<typeof setTimeout> };
 
 /* ── Pure seams: plain data in, plain data out ── */
 
-/** The page title: `name` when truthy, else the basename. */
+/** The page title: `name` unless it is missing or empty, else the basename,
+    as on the company page, so a name of 0 is kept (#79). */
 export function projectDetailTitle(fm: Frontmatter, basename: string): unknown {
-  return fm.name || basename;
+  return (fm.name != null && fm.name !== '') ? fm.name : basename;
 }
 
 /** The status and priority options when the project def has none. */

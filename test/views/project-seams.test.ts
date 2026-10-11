@@ -20,9 +20,11 @@ import type { Milestone } from "../../src/utils/parsing";
 const DOC = "## Brief\nGo\n## Milestones\n- [ ] Old\n## Tasks\n- [ ] Old\n## Notes\nN\n";
 
 describe("project page seams", () => {
-  it("projectDetailTitle: name when truthy, else the basename", () => {
+  it("projectDetailTitle: the name unless it is missing or empty, else the basename, as the company page does", () => {
     expect(projectDetailTitle({ name: "Apollo" }, "apollo")).toBe("Apollo");
-    expect(projectDetailTitle({ name: 0 }, "zero")).toBe("zero");
+    expect(projectDetailTitle({ name: 0 }, "zero")).toBe(0);
+    expect(projectDetailTitle({ name: "" }, "file")).toBe("file");
+    expect(projectDetailTitle({ name: null }, "file")).toBe("file");
     expect(projectDetailTitle({}, "bare")).toBe("bare");
   });
 
