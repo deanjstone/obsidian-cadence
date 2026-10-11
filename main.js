@@ -9896,6 +9896,7 @@ function activityReport(activities, def, now, weekStartsOn) {
   };
 }
 var WEEKDAY_ACCENTS = ["emerald", "mint", "sky", "warn", "rose", "mint", "sky"];
+var WEEKDAY_LABELS = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
 function productivityDates(now, weekStartsOn) {
   const today = startOfDay(now);
   const first = addDays(startOfWeek(today, weekStartsOn), -11 * 7);
@@ -9950,14 +9951,14 @@ function productivityReport(notes, now, settings) {
     weeks.push({ done: wd, open: wo, label: ws.toLocaleDateString(void 0, { month: "short", day: "numeric" }) });
   }
   const maxWeek = Math.max(1, ...weeks.map((w) => w.done));
-  const wsOn = settings.weekStartsOn;
+  const wsOn = settings.weekStartsOn ?? 1;
   const dayBuckets = Array.from({ length: 7 }, () => ({ done: 0, open: 0 }));
   perDay.forEach((p) => {
     const idx = (p.date.getDay() - wsOn + 7) % 7;
     dayBuckets[idx].done += p.done;
     dayBuckets[idx].open += p.open;
   });
-  const dayLabels = wsOn === 1 ? ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"] : ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
+  const dayLabels = WEEKDAY_LABELS.map((_, i) => WEEKDAY_LABELS[(wsOn + i) % 7]);
   return {
     totalOpen,
     totalDone,

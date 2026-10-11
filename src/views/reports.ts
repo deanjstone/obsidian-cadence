@@ -386,6 +386,7 @@ export function activityReport(activities: Entity[], def: EntityDef, now: Date, 
 }
 
 const WEEKDAY_ACCENTS = ['emerald', 'mint', 'sky', 'warn', 'rose', 'mint', 'sky'];
+const WEEKDAY_LABELS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
 
 export type ProductivitySettings = Pick<DailyNoteSettings, 'tasksHeading' | 'journalHeading'> & { weekStartsOn?: number };
 
@@ -471,7 +472,7 @@ export function productivityReport(notes: Map<string, string>, now: Date, settin
   }
   const maxWeek = Math.max(1, ...weeks.map((w) => w.done));
 
-  const wsOn = settings.weekStartsOn!;
+  const wsOn = settings.weekStartsOn ?? 1;
   const dayBuckets = Array.from({ length: 7 }, () => ({ done: 0, open: 0 }));
   perDay.forEach((p) => {
     // p.date.getDay() returns 0 (Sun) .. 6 (Sat). Re-index based on weekStartsOn.
@@ -479,9 +480,7 @@ export function productivityReport(notes: Map<string, string>, now: Date, settin
     dayBuckets[idx].done += p.done;
     dayBuckets[idx].open += p.open;
   });
-  const dayLabels = wsOn === 1
-    ? ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN']
-    : ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+  const dayLabels = WEEKDAY_LABELS.map((_, i) => WEEKDAY_LABELS[(wsOn + i) % 7]);
 
   return {
     totalOpen, totalDone, journalChars: totalJournalChars, activeDays, streak, completion,
