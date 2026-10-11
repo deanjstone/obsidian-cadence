@@ -9848,10 +9848,13 @@ function partnersReport(deals, partners, certs, now, defs = { deal: ENTITIES.dea
   };
 }
 var ACTIVITY_ACCENTS = ["sky", "mint", "warn", "rose"];
+function orDash(value) {
+  return value == null || String(value).trim() === "" ? "\u2014" : value;
+}
 function activityReport(activities, def, now, weekStartsOn) {
   const counts = /* @__PURE__ */ new Map();
   activities.forEach((e) => {
-    const t = String(entityValue(e, "type", def) || "unspecified");
+    const t = String(entityValue(e, "type", def) ?? "").trim().toLowerCase() || "unspecified";
     counts.set(t, (counts.get(t) || 0) + 1);
   });
   const stats = [{ label: "TOTAL", value: activities.length, sub: "all activities", accent: "emerald" }];
@@ -9886,9 +9889,9 @@ function activityReport(activities, def, now, weekStartsOn) {
     recent: newestFirst(activities, (e) => entityValue(e, "when", def)).slice(0, 10).map((e) => ({
       title: entityTitle(e, "subject", def),
       metaParts: [
-        { text: entityValue(e, "type", def) || "\u2014" },
+        { text: orDash(entityValue(e, "type", def)) },
         { text: " \xB7 " },
-        { text: entityValue(e, "with", def) || "\u2014", entityKey: "contact" },
+        { text: orDash(entityValue(e, "with", def)), entityKey: "contact" },
         { text: ` \xB7 ${fmtValue(entityValue(e, "when", def), "date")}` }
       ],
       file: e.file

@@ -318,21 +318,27 @@ export function partnersReport(
 const ACTIVITY_ACCENTS = ['sky', 'mint', 'warn', 'rose'];
 
 export interface ActivityReport {
-  /** The total, then one card per type in first-seen order (case-sensitive; 'unspecified' for none). */
+  /** The total, then one card per type in first-seen order (in any case; 'unspecified' for none or blank). */
   stats: StatCard[];
   /** The 8 weeks up to the current one, oldest first, from `weekStartsOn`. */
   weeks: Array<{ start: Date; end: Date; count: number; label: string }>;
   bars: ReportBar[];
   /** The top 8 `with` values by activity count; blank ones are skipped. */
   topContacts: DashCardRow[];
-  /** The 10 latest by `when`, newest first (newestFirst); undated and unreadable last. */
+  /** The 10 latest by `when`, newest first (newestFirst); undated and unreadable last. A blank
+      type or `with` shows as `—`, as in top contacts. */
   recent: DashCardRow[];
+}
+
+/* A value to show, or `—` when it is missing or blank. */
+function orDash(value: unknown): string {
+  return value == null || String(value).trim() === '' ? '—' : (value as string);
 }
 
 export function activityReport(activities: Entity[], def: EntityDef, now: Date, weekStartsOn?: number): ActivityReport {
   const counts = new Map<string, number>();
   activities.forEach((e) => {
-    const t = String(entityValue(e, 'type', def) || 'unspecified');
+    const t = String(entityValue(e, 'type', def) ?? '').trim().toLowerCase() || 'unspecified';
     counts.set(t, (counts.get(t) || 0) + 1);
   });
   const stats: StatCard[] = [{ label: 'TOTAL', value: activities.length, sub: 'all activities', accent: 'emerald' }];
@@ -375,9 +381,9 @@ export function activityReport(activities: Entity[], def: EntityDef, now: Date, 
       .map((e) => ({
         title: entityTitle(e, 'subject', def),
         metaParts: [
-          { text: (entityValue(e, 'type', def) as string) || '—' },
+          { text: orDash(entityValue(e, 'type', def)) },
           { text: ' · ' },
-          { text: (entityValue(e, 'with', def) as string) || '—', entityKey: 'contact' },
+          { text: orDash(entityValue(e, 'with', def)), entityKey: 'contact' },
           { text: ` · ${fmtValue(entityValue(e, 'when', def), 'date')}` },
         ],
         file: e.file,
