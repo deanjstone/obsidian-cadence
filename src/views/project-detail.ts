@@ -810,7 +810,7 @@ export function renderTaskSection(
 
       if (view.plugin.settings.taskManagementSystem === 'tasknotes') {
         const taskObj = fileTaskNotes[idx];
-        const taskLink = row.createEl('a', { cls: 'cad-task-text', text: t.title || 'Untitled Task' });
+        const taskLink = row.createEl('a', { cls: 'cad-task-text', text: t.title });
         taskLink.style.cursor = 'pointer';
         taskLink.style.flex = '1';
         taskLink.style.marginRight = '8px';

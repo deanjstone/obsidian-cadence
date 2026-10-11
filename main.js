@@ -3562,8 +3562,6 @@ function buildEntityCreateValues(def, inputs) {
       } else {
         raw = parts;
       }
-    } else if (isEntityRef) {
-      raw = `[[${raw.replace(/^\[\[|\]\]$/g, "").trim()}]]`;
     } else if (type === "number" || type === "currency") {
       const n = Number(raw);
       raw = isNaN(n) ? null : n;
@@ -8755,7 +8753,7 @@ function renderTaskSection(view, parent, file, tasks, flashSaved, rawKey = "Task
       });
       if (view.plugin.settings.taskManagementSystem === "tasknotes") {
         const taskObj = fileTaskNotes[idx];
-        const taskLink = row.createEl("a", { cls: "cad-task-text", text: t.title || "Untitled Task" });
+        const taskLink = row.createEl("a", { cls: "cad-task-text", text: t.title });
         taskLink.style.cursor = "pointer";
         taskLink.style.flex = "1";
         taskLink.style.marginRight = "8px";
