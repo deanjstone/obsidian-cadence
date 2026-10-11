@@ -42,6 +42,12 @@ export interface GraphPoint {
   y: number;
 }
 
+/* A pointer's viewport position: a MouseEvent or a Touch. */
+export interface ClientPoint {
+  clientX: number;
+  clientY: number;
+}
+
 /* The pan offset (screen px) and zoom factor. */
 export interface GraphTransform extends GraphPoint {
   k: number;
@@ -294,7 +300,7 @@ export async function renderReportGraph(view: AppViewHost, root: HTMLElement): P
   resizeObserver.observe(canvas);
 
   // Coordinate conversions
-  const getMousePos = (e: MouseEvent) => {
+  const getMousePos = (e: ClientPoint) => {
     const rect = canvas.getBoundingClientRect();
     return {
       x: e.clientX - rect.left,
@@ -302,7 +308,7 @@ export async function renderReportGraph(view: AppViewHost, root: HTMLElement): P
     };
   };
 
-  const getCanvasPos = (e: MouseEvent) => toGraphPoint(getMousePos(e), transform);
+  const getCanvasPos = (e: ClientPoint) => toGraphPoint(getMousePos(e), transform);
 
   // An entity opens its detail; a loose note opens as markdown.
   const openNode = (node: GraphNode) => {
@@ -310,8 +316,10 @@ export async function renderReportGraph(view: AppViewHost, root: HTMLElement): P
     else view.openEntityDetail(node.type, node.file);
   };
 
-  // Interaction Events
-  canvas.addEventListener('mousedown', (e) => {
+  /* A press, move and release, shared by the mouse and a single touch. The
+     pressed node is held from the press, so a click needs no mousemove
+     first: a release within 4px of the press opens it. */
+  const press = (e: ClientPoint) => {
     dragStartPos = { x: e.clientX, y: e.clientY };
     hasMovedSinceDown = false;
 
@@ -325,9 +333,9 @@ export async function renderReportGraph(view: AppViewHost, root: HTMLElement): P
       panStart = { x: e.clientX - transform.x, y: e.clientY - transform.y };
       canvas.style.cursor = 'grabbing';
     }
-  });
+  };
 
-  canvas.addEventListener('mousemove', (e) => {
+  const move = (e: ClientPoint) => {
     const dist = Math.hypot(e.clientX - dragStartPos.x, e.clientY - dragStartPos.y);
     if (dist > 4) {
       hasMovedSinceDown = true;
@@ -362,24 +370,54 @@ export async function renderReportGraph(view: AppViewHost, root: HTMLElement): P
       canvas.style.cursor = isPanning ? 'grabbing' : 'default';
       tooltip.style.display = 'none';
     }
-  });
+  };
 
-  canvas.addEventListener('mouseup', (e) => {
+  const release = () => {
+    const pressed = draggedNode;
     isPanning = false;
+    draggedNode = null;
     canvas.style.cursor = hoveredNode ? 'pointer' : 'default';
 
-    if (!hasMovedSinceDown && hoveredNode) openNode(hoveredNode);
+    if (!hasMovedSinceDown && pressed) openNode(pressed);
+  };
 
-    draggedNode = null;
-  });
-
-  canvas.addEventListener('mouseleave', () => {
+  const leave = () => {
     draggedNode = null;
     isPanning = false;
     hoveredNode = null;
     tooltip.style.display = 'none';
     canvas.style.cursor = 'default';
-  });
+  };
+
+  // Interaction Events
+  canvas.addEventListener('mousedown', (e) => press(e));
+  canvas.addEventListener('mousemove', (e) => move(e));
+  canvas.addEventListener('mouseup', () => release());
+  canvas.addEventListener('mouseleave', () => leave());
+
+  /* One finger drags, pans and taps like the mouse, and claims the touch
+     (no scroll, no emulated mouse events). A second finger is left to the
+     browser and drops the drag. */
+  canvas.addEventListener('touchstart', (e) => {
+    if (e.touches.length !== 1) {
+      leave();
+      return;
+    }
+    e.preventDefault();
+    press(e.touches[0]);
+  }, { passive: false });
+  canvas.addEventListener('touchmove', (e) => {
+    if (e.touches.length !== 1 || (!draggedNode && !isPanning)) return;
+    e.preventDefault();
+    move(e.touches[0]);
+  }, { passive: false });
+  canvas.addEventListener('touchend', (e) => {
+    if (!draggedNode && !isPanning) return;
+    e.preventDefault();
+    release();
+    leave();
+  }, { passive: false });
+  canvas.addEventListener('touchcancel', () => leave());
 
   // Elegant scroll wheel zoom centered at mouse position
   canvas.addEventListener('wheel', (e) => {

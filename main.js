@@ -9545,7 +9545,7 @@ async function renderReportGraph(view, root) {
     if (node.type === "note") view.openEntityDetailFromFile(node.file);
     else view.openEntityDetail(node.type, node.file);
   };
-  canvas.addEventListener("mousedown", (e) => {
+  const press = (e) => {
     dragStartPos = { x: e.clientX, y: e.clientY };
     hasMovedSinceDown = false;
     const canvasPos = getCanvasPos(e);
@@ -9557,8 +9557,8 @@ async function renderReportGraph(view, root) {
       panStart = { x: e.clientX - transform.x, y: e.clientY - transform.y };
       canvas.style.cursor = "grabbing";
     }
-  });
-  canvas.addEventListener("mousemove", (e) => {
+  };
+  const move = (e) => {
     const dist = Math.hypot(e.clientX - dragStartPos.x, e.clientY - dragStartPos.y);
     if (dist > 4) {
       hasMovedSinceDown = true;
@@ -9588,20 +9588,45 @@ async function renderReportGraph(view, root) {
       canvas.style.cursor = isPanning ? "grabbing" : "default";
       tooltip.style.display = "none";
     }
-  });
-  canvas.addEventListener("mouseup", (e) => {
+  };
+  const release = () => {
+    const pressed = draggedNode;
     isPanning = false;
-    canvas.style.cursor = hoveredNode ? "pointer" : "default";
-    if (!hasMovedSinceDown && hoveredNode) openNode(hoveredNode);
     draggedNode = null;
-  });
-  canvas.addEventListener("mouseleave", () => {
+    canvas.style.cursor = hoveredNode ? "pointer" : "default";
+    if (!hasMovedSinceDown && pressed) openNode(pressed);
+  };
+  const leave = () => {
     draggedNode = null;
     isPanning = false;
     hoveredNode = null;
     tooltip.style.display = "none";
     canvas.style.cursor = "default";
-  });
+  };
+  canvas.addEventListener("mousedown", (e) => press(e));
+  canvas.addEventListener("mousemove", (e) => move(e));
+  canvas.addEventListener("mouseup", () => release());
+  canvas.addEventListener("mouseleave", () => leave());
+  canvas.addEventListener("touchstart", (e) => {
+    if (e.touches.length !== 1) {
+      leave();
+      return;
+    }
+    e.preventDefault();
+    press(e.touches[0]);
+  }, { passive: false });
+  canvas.addEventListener("touchmove", (e) => {
+    if (e.touches.length !== 1 || !draggedNode && !isPanning) return;
+    e.preventDefault();
+    move(e.touches[0]);
+  }, { passive: false });
+  canvas.addEventListener("touchend", (e) => {
+    if (!draggedNode && !isPanning) return;
+    e.preventDefault();
+    release();
+    leave();
+  }, { passive: false });
+  canvas.addEventListener("touchcancel", () => leave());
   canvas.addEventListener("wheel", (e) => {
     e.preventDefault();
     const mouse = getMousePos(e);

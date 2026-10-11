@@ -322,10 +322,50 @@ describe("renderReportGraph: pointer", () => {
     expect(opened).not.toHaveBeenCalled();
   });
 
-  it("QUIRK: a press and release with no mousemove opens nothing, since only mousemove sets the hovered node", async () => {
-    const { canvas, opened } = await rendered([JANE], { random: [0.5, 0.5] });
+  it("a press and release with no mousemove opens the pressed node", async () => {
+    const { canvas, opened, file } = await rendered([JANE], { random: [0.5, 0.5] });
     canvas.trigger("mousedown", pointer(400, 225));
     canvas.trigger("mouseup", pointer(400, 225));
+    expect(opened.mock.calls).toEqual([["contact", file("Cadence/Contacts/Jane.md")]]);
+  });
+
+  it("a release with no press on the canvas opens nothing, even over a hovered node", async () => {
+    const { canvas, opened } = await rendered([JANE], { random: [0.5, 0.5] });
+    canvas.trigger("mousemove", pointer(400, 225));
+    canvas.trigger("mouseup", pointer(400, 225));
+    expect(opened).not.toHaveBeenCalled();
+  });
+
+  it("a tap opens the tapped node, and claims the touch so no mouse events follow", async () => {
+    const { canvas, opened, file } = await rendered([JANE], { random: [0.5, 0.5] });
+    const start = canvas.trigger("touchstart", { touches: [pointer(400, 225)] });
+    const end = canvas.trigger("touchend", { touches: [], changedTouches: [pointer(401, 226)] });
+    expect([start.defaultPrevented, end.defaultPrevented]).toEqual([true, true]);
+    expect(opened.mock.calls).toEqual([["contact", file("Cadence/Contacts/Jane.md")]]);
+  });
+
+  it("a touch that moves more than 4px drags the node and opens nothing; a touch on empty space pans", async () => {
+    const { canvas, opened, frame } = await rendered([JANE], { random: [0.5, 0.5] });
+    canvas.trigger("touchstart", { touches: [pointer(400, 225)] });
+    const move = canvas.trigger("touchmove", { touches: [pointer(300, 150)] });
+    expect(move.defaultPrevented).toBe(true);
+    const [held] = ops(frame(), "arc");
+    expect([held[1], held[2]]).toEqual([300, 150]);
+    canvas.trigger("touchend", { touches: [], changedTouches: [pointer(300, 150)] });
+    expect(opened).not.toHaveBeenCalled();
+    canvas.trigger("touchstart", { touches: [pointer(10, 10)] });
+    canvas.trigger("touchmove", { touches: [pointer(40, 30)] });
+    expect(frame().slice(1, 4)).toEqual([["save"], ["translate", 30, 20], ["scale", 1, 1]]);
+    canvas.trigger("touchend", { touches: [], changedTouches: [pointer(40, 30)] });
+    expect(opened).not.toHaveBeenCalled();
+  });
+
+  it("a second finger is left to the browser and ends the drag", async () => {
+    const { canvas, opened } = await rendered([JANE], { random: [0.5, 0.5] });
+    canvas.trigger("touchstart", { touches: [pointer(400, 225)] });
+    const second = canvas.trigger("touchstart", { touches: [pointer(400, 225), pointer(500, 300)] });
+    expect(second.defaultPrevented).toBe(false);
+    canvas.trigger("touchend", { touches: [pointer(500, 300)], changedTouches: [pointer(400, 225)] });
     expect(opened).not.toHaveBeenCalled();
   });
 
