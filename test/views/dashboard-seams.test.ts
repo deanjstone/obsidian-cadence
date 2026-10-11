@@ -191,6 +191,11 @@ describe("crmSummary / crmStatCards", () => {
       { label: "AVG DEAL", value: cur(5300 / 3), sub: "3 won deals", accent: "warn" },
     ]);
   });
+
+  it("says 1 won deal, not 1 won deals", () => {
+    const one = crmSummary([entity("W", { stage: "Won", value: 500 })], deal);
+    expect(crmStatCards(one).at(-1)).toEqual({ label: "AVG DEAL", value: cur(500), sub: "1 won deal", accent: "warn" });
+  });
 });
 
 describe("pipelineByStage", () => {

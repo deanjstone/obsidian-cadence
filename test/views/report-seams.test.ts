@@ -152,7 +152,7 @@ describe("salesReport", () => {
     expect(report.captureRate).toBe(60);
     expect(report.stats).toEqual([
       { label: "REVENUE", value: cur(600), sub: "3 deals", accent: "emerald" },
-      { label: "LOST", value: cur(400), sub: "1 deals", accent: "rose" },
+      { label: "LOST", value: cur(400), sub: "1 deal", accent: "rose" },
       { label: "CAPTURE", value: "60%", sub: "of closed value", accent: "mint" },
       { label: "AVG DEAL", value: cur(200), sub: "won deals", accent: "sky" },
     ]);
@@ -163,7 +163,7 @@ describe("salesReport", () => {
       ["2026-05-01", "May", 100, 1], ["2026-06-01", "Jun", 0, 0], ["2026-07-01", "Jul", 0, 0],
       ["2026-08-01", "Aug", 0, 0], ["2026-09-01", "Sep", 0, 0], ["2026-10-01", "Oct", 300, 1],
     ]);
-    expect(report.bars.map((b) => [b.label, b.band, b.title]).at(0)).toEqual(["May", "low", `May — ${cur(100)} · 1 deals`]);
+    expect(report.bars.map((b) => [b.label, b.band, b.title]).at(0)).toEqual(["May", "low", `May — ${cur(100)} · 1 deal`]);
   });
 
   it("ranks wins and owners", () => {
@@ -250,6 +250,7 @@ describe("activityReport", () => {
     const sunday = activityReport(acts, activity, now, 0);
     expect(sunday.weeks.map((w) => [ymd(w.start), w.count]).slice(-2)).toEqual([["2026-10-04", 2], ["2026-10-11", 0]]);
     expect(sunday.bars.at(-2)).toEqual({ label: "Oct 4", title: "Week of Oct 4 — 2 activities", height: "100%", band: "high" });
+    expect(monday.bars.at(-1)!.title).toBe("Week of Oct 5 — 1 activity");
   });
 
   it("defaults the week start to Monday", () => {

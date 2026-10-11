@@ -192,7 +192,7 @@ describe("renderEntityList: search and filters", () => {
     const { view, root } = setup(CONTACTS);
     await view.renderEntityList(root, "contact");
     expect(filters(root).map((s) => s.options.map((o) => [o.value, o.text]))).toEqual([
-      [["", "All Companys"], ["Acme Corp", "Acme Corp"], ["Globex", "Globex"]],
+      [["", "All Companies"], ["Acme Corp", "Acme Corp"], ["Globex", "Globex"]],
       [["", "All Roles"], ["CTO", "CTO"], ["Sales", "Sales"], ["Team lead", "Team lead"]],
     ]);
   });
