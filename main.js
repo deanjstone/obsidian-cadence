@@ -211,22 +211,24 @@ function fromLocalDatetimeValue(s) {
 }
 
 // src/modals/capture.ts
+var CAPTURE_TIME_MESSAGES = {
+  "no-time": "Pick a time, or untick Remind me.",
+  "bad-time": "Couldn't read that time. Fix it, or untick Remind me."
+};
 function buildCaptureResult(form) {
   const text = form.text.trim();
   if (!text) return null;
-  const result = { text, when: null, repeat: "none" };
-  if (form.scheduled && form.datetimeValue) {
-    const d = fromLocalDatetimeValue(form.datetimeValue);
-    if (d && !isNaN(d.getTime())) {
-      result.when = d.toISOString();
-      result.repeat = form.repeat || "none";
-    }
-  }
-  return result;
+  if (!form.scheduled) return { text, when: null, repeat: "none" };
+  if (form.badInput) return "bad-time";
+  if (!form.datetimeValue) return "no-time";
+  const d = fromLocalDatetimeValue(form.datetimeValue);
+  if (!d || isNaN(d.getTime())) return "bad-time";
+  return { text, when: d.toISOString(), repeat: form.repeat || "none" };
 }
 function defaultCaptureWhen(now) {
   const dft = new Date(now.getTime() + 60 * 60 * 1e3);
-  dft.setMinutes(Math.ceil(dft.getMinutes() / 15) * 15, 0, 0);
+  const minutes = dft.getMinutes() + (dft.getSeconds() * 1e3 + dft.getMilliseconds()) / 6e4;
+  dft.setMinutes(Math.ceil(minutes / 15) * 15, 0, 0);
   return dft;
 }
 var QUICK_PICK_DELTA_MS = {
@@ -288,6 +290,7 @@ var CadenceCaptureModal = class extends import_obsidian.Modal {
     if (this.defaultWhen) {
       const d = new Date(this.defaultWhen);
       if (!isNaN(d.getTime())) dateInput.value = toLocalDatetimeValue(d);
+      else new import_obsidian.Notice(`Couldn't read the reminder time "${this.defaultWhen}". Pick a time, or untick Remind me.`);
     } else {
       dateInput.value = toLocalDatetimeValue(defaultCaptureWhen(/* @__PURE__ */ new Date()));
     }
@@ -304,12 +307,7 @@ var CadenceCaptureModal = class extends import_obsidian.Modal {
       b.type = "button";
       return b;
     };
-    for (const kind of ["+15m", "+1h", "+3h"]) mkQ(kind).addEventListener("click", () => pick(kind));
-    const tomorrow = mkQ("Tomorrow 9am");
-    tomorrow.addEventListener("click", () => {
-      dateInput.value = toLocalDatetimeValue(/* @__PURE__ */ new Date(NaN));
-    });
-    tomorrow.addEventListener("click", () => pick("Tomorrow 9am"));
+    for (const kind of ["+15m", "+1h", "+3h", "Tomorrow 9am"]) mkQ(kind).addEventListener("click", () => pick(kind));
     const repeatRow = schedFields.createDiv({ cls: "cad-form-row" });
     repeatRow.style.marginTop = "10px";
     repeatRow.createDiv({ cls: "cad-form-label", text: "REPEAT" });
@@ -336,14 +334,21 @@ var CadenceCaptureModal = class extends import_obsidian.Modal {
     const ok = row.createEl("button", { cls: "cad-btn primary", text: "Capture" });
     ok.type = "button";
     const submit = () => {
+      if (this._submitted) return;
       const result = buildCaptureResult({
         text: textInput.value,
         scheduled: schedCb.checked,
         datetimeValue: dateInput.value,
+        badInput: dateInput.validity?.badInput,
         repeat: repeatSelect.value
       });
       if (!result) {
         textInput.focus();
+        return;
+      }
+      if (typeof result === "string") {
+        new import_obsidian.Notice(CAPTURE_TIME_MESSAGES[result]);
+        dateInput.focus();
         return;
       }
       this._submitted = true;
@@ -356,7 +361,10 @@ var CadenceCaptureModal = class extends import_obsidian.Modal {
         e.preventDefault();
         submit();
       }
-      if (e.key === "Escape") this.close();
+      if (e.key === "Escape") {
+        e.preventDefault();
+        this.close();
+      }
     });
     setTimeout(() => textInput.focus(), 0);
   }
@@ -6594,25 +6602,25 @@ var import_obsidian21 = require("obsidian");
 
 // src/modals/reminder-edit.ts
 var import_obsidian20 = require("obsidian");
+var BAD_TIME_MESSAGE = "Couldn't read that time, so nothing was saved. Fix it, or Clear it to unschedule.";
 function buildReminderPatch(form, reminder) {
   const text = form.text.trim();
   if (!text) return null;
+  let when = null;
+  if (form.badInput) return "bad-time";
+  if (form.datetimeValue) {
+    const d = fromLocalDatetimeValue(form.datetimeValue);
+    if (!d || isNaN(d.getTime())) return "bad-time";
+    when = d.toISOString();
+  }
   const fields = {
     text,
     notes: form.notes,
     repeat: form.repeat || "none",
-    project: reminder.project || null
+    project: reminder.project || null,
+    when
   };
-  if (form.datetimeValue) {
-    const d = fromLocalDatetimeValue(form.datetimeValue);
-    if (d && !isNaN(d.getTime())) {
-      fields.when = d.toISOString();
-      if (fields.when !== reminder.when) fields.notified = false;
-    }
-  } else {
-    fields.when = null;
-    fields.notified = false;
-  }
+  if (when !== (reminder.when || null)) fields.notified = false;
   return fields;
 }
 function filterReminderProjects(projects, query) {
@@ -6641,8 +6649,10 @@ var CadenceReminderEditModal = class extends import_obsidian20.Modal {
     super(app);
     this.plugin = plugin;
     this.reminder = reminder;
+    this.project = reminder.project || null;
     this.isNew = opts && opts.isNew || false;
     this._submitted = false;
+    this._busy = false;
   }
   onOpen() {
     const { contentEl } = this;
@@ -6686,19 +6696,24 @@ var CadenceReminderEditModal = class extends import_obsidian20.Modal {
     const projectField = projectRow.createDiv({ cls: "cad-rem-project-field" });
     const renderProjectField = () => {
       projectField.empty();
-      if (this.reminder.project) {
-        const chip = projectField.createEl("a", { cls: "cad-rem-project-chip", text: "\u{1F4C1} " + (projectNameFromPath(this.app, this.reminder.project) || "Project") });
+      if (this.project) {
+        const projectPath = this.project;
+        const chip = projectField.createEl("a", { cls: "cad-rem-project-chip", text: "\u{1F4C1} " + (projectNameFromPath(this.app, projectPath) || "Project") });
         chip.title = "Open project (closes this modal)";
         chip.addEventListener("click", (e) => {
           e.preventDefault();
-          const file = this.app.vault.getAbstractFileByPath(this.reminder.project);
-          if (file && file instanceof import_obsidian20.TFile) {
-            this._submitted = true;
-            this.close();
-            const leaf = this.app.workspace.getLeavesOfType(VIEW_TYPE_CADENCE_APP)[0];
-            if (leaf && leaf.view && typeof leaf.view.openEntityDetail === "function") {
-              leaf.view.openEntityDetail("project", file);
-            }
+          const file = this.app.vault.getAbstractFileByPath(projectPath);
+          if (!(file instanceof import_obsidian20.TFile)) {
+            new import_obsidian20.Notice(`Project note not found: ${projectPath}`);
+            return;
+          }
+          this._submitted = true;
+          this.close();
+          const leaf = this.app.workspace.getLeavesOfType(VIEW_TYPE_CADENCE_APP)[0];
+          if (leaf && leaf.view && typeof leaf.view.openEntityDetail === "function") {
+            leaf.view.openEntityDetail("project", file);
+          } else {
+            this.app.workspace.openLinkText(file.path, "", false);
           }
         });
         const changeBtn = projectField.createEl("button", { cls: "cad-btn cad-btn-sm", text: "Change" });
@@ -6707,7 +6722,7 @@ var CadenceReminderEditModal = class extends import_obsidian20.Modal {
         const removeBtn = projectField.createEl("button", { cls: "cad-btn cad-btn-sm cad-btn-danger", text: "Remove" });
         removeBtn.type = "button";
         removeBtn.addEventListener("click", () => {
-          this.reminder.project = null;
+          this.project = null;
           renderProjectField();
         });
       } else {
@@ -6731,11 +6746,24 @@ var CadenceReminderEditModal = class extends import_obsidian20.Modal {
       const del = actions.createEl("button", { cls: "cad-btn cad-btn-danger", text: "Delete" });
       del.type = "button";
       del.style.marginRight = "auto";
-      del.addEventListener("click", async () => {
-        if (!confirm("Delete this reminder?")) return;
-        await this.plugin.deleteReminder(this.reminder.id);
-        this._submitted = true;
-        this.close();
+      del.addEventListener("click", () => {
+        if (this._busy) return;
+        new CadenceConfirmModal(this.app, {
+          title: "Delete reminder",
+          message: "Delete this reminder?",
+          confirmLabel: "Delete",
+          onConfirm: async () => {
+            if (this._busy) return;
+            this._busy = true;
+            try {
+              await this.plugin.deleteReminder(this.reminder.id);
+            } finally {
+              this._busy = false;
+            }
+            this._submitted = true;
+            this.close();
+          }
+        }).open();
       });
     }
     const cancel = actions.createEl("button", { cls: "cad-btn", text: "Cancel" });
@@ -6744,21 +6772,33 @@ var CadenceReminderEditModal = class extends import_obsidian20.Modal {
     const save = actions.createEl("button", { cls: "cad-btn primary", text: this.isNew ? "Create reminder" : "Save" });
     save.type = "button";
     const submit = async () => {
+      if (this._busy || this._submitted) return;
       const fields = buildReminderPatch({
         text: textInput.value,
         notes: notesArea.value,
         repeat: repeatSel.value,
-        datetimeValue: dateInput.value
-      }, this.reminder);
+        datetimeValue: dateInput.value,
+        badInput: dateInput.validity?.badInput
+      }, { ...this.reminder, project: this.project });
       if (!fields) {
         textInput.focus();
         return;
       }
-      if (this.isNew) {
-        await this.plugin.addReminder(fields);
-        new import_obsidian20.Notice(fields.when ? `Reminder set \xB7 ${reminderTimeStr(fields.when)}` : "Captured to Inbox");
-      } else {
-        await this.plugin.updateReminder(this.reminder.id, fields);
+      if (fields === "bad-time") {
+        new import_obsidian20.Notice(BAD_TIME_MESSAGE);
+        dateInput.focus();
+        return;
+      }
+      this._busy = true;
+      try {
+        if (this.isNew) {
+          await this.plugin.addReminder(fields);
+          new import_obsidian20.Notice(fields.when ? `Reminder set \xB7 ${reminderTimeStr(fields.when)}` : "Captured to Inbox");
+        } else {
+          await this.plugin.updateReminder(this.reminder.id, fields);
+        }
+      } finally {
+        this._busy = false;
       }
       this._submitted = true;
       this.close();
@@ -6790,9 +6830,8 @@ var CadenceReminderEditModal = class extends import_obsidian20.Modal {
       return;
     }
     const projects = projectFiles.map((f) => ({ file: f, name: projectNameFromPath(this.app, f.path) }));
-    const reminder = this.reminder;
     const picker = new ReminderProjectSuggestModal(this.app, projects, (item) => {
-      reminder.project = item.file.path;
+      this.project = item.file.path;
       rerender();
     });
     picker.open();
@@ -7664,9 +7703,12 @@ function renderInboxRow(view, parent, r, bucket) {
       await view.plugin.completeReminder(r.id);
       if (r.text) await view._propagateTaskComplete(r.text, true, { kind: "reminder", id: r.id });
     },
-    delete: () => {
-      if (confirm("Delete this reminder?")) view.plugin.deleteReminder(r.id);
-    }
+    delete: () => new CadenceConfirmModal(view.app, {
+      title: "Delete reminder",
+      message: "Delete this reminder?",
+      confirmLabel: "Delete",
+      onConfirm: () => view.plugin.deleteReminder(r.id)
+    }).open()
   };
   inboxRowActions(!!r.when).forEach(({ action, label, title }) => {
     const b = mk(label, title, handlers[action]);
@@ -11785,14 +11827,15 @@ var CadencePlugin = class extends import_obsidian32.Plugin {
       defaultRepeat: prefill && prefill.repeat ? prefill.repeat : "none",
       onSubmit: async (result) => {
         if (!result) return;
+        const whenDate = result.when ? new Date(result.when) : null;
+        const unreadable = whenDate !== null && isNaN(whenDate.getTime());
+        const when = whenDate && !unreadable ? result.when : null;
         await this.addReminder({
           text: result.text,
-          when: result.when,
-          repeat: result.repeat || "none"
+          when,
+          repeat: when ? result.repeat || "none" : "none"
         });
-        const targetDate = result.when ? new Date(result.when) : /* @__PURE__ */ new Date();
-        let noteDate = /* @__PURE__ */ new Date();
-        if (!isNaN(targetDate.getTime())) noteDate = targetDate;
+        const noteDate = when ? whenDate : /* @__PURE__ */ new Date();
         let dailyNoteAppended = false;
         try {
           const file = await ensureDailyNote(this.app, this.settings, noteDate);
@@ -11805,10 +11848,13 @@ var CadencePlugin = class extends import_obsidian32.Plugin {
         } catch (_) {
         }
         const noteLabel = sameDay(noteDate, /* @__PURE__ */ new Date()) ? "today's note" : `${ymd(noteDate)} note`;
-        if (result.when) {
-          new import_obsidian32.Notice(`Reminder set \xB7 ${reminderTimeStr(result.when)}${dailyNoteAppended ? ` \xB7 added to ${noteLabel}` : ""}`);
+        const appended = dailyNoteAppended ? ` \xB7 added to ${noteLabel}` : "";
+        if (when) {
+          new import_obsidian32.Notice(`Reminder set \xB7 ${reminderTimeStr(when)}${appended}`);
+        } else if (unreadable) {
+          new import_obsidian32.Notice(`Captured to Inbox (couldn't read the time "${result.when}")${appended}`);
         } else {
-          new import_obsidian32.Notice(`Captured to Inbox${dailyNoteAppended ? ` \xB7 added to ${noteLabel}` : ""}`);
+          new import_obsidian32.Notice(`Captured to Inbox${appended}`);
         }
       }
     }).open();
