@@ -274,23 +274,43 @@ describe("_renderTaskSection (native)", () => {
     expect(list(parent).children.map((c) => [c.classes, c.text])).toEqual([[["cad-empty"], "No tasks yet."]]);
   });
 
-  it("ticking rewrites the section, propagates the task and re-renders twice", async () => {
+  it("ticking edits only that line, propagates the task and re-renders once", async () => {
     const { parent, tasks, section, propagated, rendered, flashSaved, file } = setup();
-    tasks();
+    const list = tasks();
     tick(taskRow(parent, 0).children[0], true);
     await flush();
-    expect(await section("## Tasks")).toBe("- [x] Plan\n- [x] Hire\n");
+    expect(await section("## Tasks")).toBe("- [x] Plan\n- [x] Hire");
+    expect(list.map((t) => t.done)).toEqual([true, true]);
     expect(propagated.mock.calls).toEqual([["Plan", true, { kind: "project", file: file() }]]);
-    expect([flashSaved.mock.calls.length, rendered.mock.calls.length]).toEqual([1, 2]);
+    expect([flashSaved.mock.calls.length, rendered.mock.calls.length]).toEqual([1, 1]);
+  });
+
+  it("says so when the row's section is gone, and ticks the task the row showed after lines were added, keeping the rest", async () => {
+    const { parent, tasks, read, app, file, propagated, rendered } = setup();
+    tasks();
+    await app.vault.modify(file(), "## Tasks #todo\nIntro\n- [ ] New\n  - [x] Plan\n- [x] Hire\n## Notes\nN\n");
+    tick(taskRow(parent, 1).children[0], false);
+    await flush();
+    expect(await read()).toBe("## Tasks #todo\nIntro\n- [ ] New\n  - [x] Plan\n- [x] Hire\n## Notes\nN\n");
+    expect(Notice.messages).toEqual(["That task changed in the note, so nothing was ticked."]);
+    expect(rendered).toHaveBeenCalledTimes(1);
+
+    Notice.messages.length = 0;
+    await app.vault.modify(file(), "## Tasks\nIntro\n- [ ] New\n  - [ ] Plan\n- [x] Hire\n## Notes\nN\n");
+    tick(taskRow(parent, 1).children[0], false);
+    await flush();
+    expect(await read()).toBe("## Tasks\nIntro\n- [ ] New\n  - [ ] Plan\n- [ ] Hire\n## Notes\nN\n");
+    expect(Notice.messages).toEqual([]);
+    expect(propagated.mock.calls).toEqual([["Hire", false, { kind: "project", file: file() }]]);
   });
 
   it("a blank task is not propagated", async () => {
-    const { parent, tasks, propagated, section } = setup();
+    const { parent, tasks, propagated, section } = setup([{ ...APOLLO, body: "## Tasks\n- [ ]  \n- [ ] B\n## Notes\nN\n" }]);
     tasks(parseTasksList("- [ ]  \n- [ ] B"));
     tick(taskRow(parent, 0).children[0], true);
     await flush();
     expect(propagated).not.toHaveBeenCalled();
-    expect(await section("## Tasks")).toBe("- [x]  \n- [ ] B\n");
+    expect(await section("## Tasks")).toBe("- [x]  \n- [ ] B");
   });
 
   it("a title edit writes 400ms later without re-rendering; × deletes and re-renders", async () => {

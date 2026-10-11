@@ -98,12 +98,16 @@ export interface TaskRef {
   occurrence: number;
 }
 
+/** The ref of the task at `idx` in a list of task texts, or null past the end. */
+export function taskRefAt(texts: string[], idx: number): TaskRef | null {
+  const text = texts[idx];
+  if (text === undefined) return null;
+  return { text, occurrence: texts.slice(0, idx).filter((t) => t === text).length };
+}
+
 /** The ref of the checklist line at `idx`, or null past the end. */
 export function taskLineRef(lines: string[], idx: number): TaskRef | null {
-  if (lines[idx] === undefined) return null;
-  const texts = lines.map((line) => line.replace(TASK_PREFIX, ''));
-  const text = texts[idx];
-  return { text, occurrence: texts.slice(0, idx).filter((t) => t === text).length };
+  return taskRefAt(lines.map((line) => line.replace(TASK_PREFIX, '')), idx);
 }
 
 /** The index of the line `ref` names, or -1 when it is gone. */
@@ -153,6 +157,24 @@ export function toggleDailyTask(content: string, settings: TaskHeadings, idx: nu
 export function toggleDailyTaskByRef(content: string, settings: TaskHeadings, ref: TaskRef, checked: boolean): { content: string; taskText: string } | null {
   const idx = findTaskLine(parseSections(content, settings).tasks, ref);
   return idx === -1 ? null : toggleDailyTask(content, settings, idx, checked);
+}
+
+/** Ticks the task `ref` names in a project's `## <rawKey>` section (the
+    last one with that key, as parseH2Sections reads it), editing only that
+    line. Null when the task is gone from the section. */
+export function toggleProjectTaskByRef(content: string, rawKey: string, ref: TaskRef, checked: boolean): { content: string; taskText: string } | null {
+  const lines = content.split('\n');
+  const isHeading = (line: string) => /^##\s/.test(line);
+  const start = lines.map((line) => isHeading(line) && line.replace(/^##\s+/, '').trim() === rawKey).lastIndexOf(true);
+  if (start === -1) return null;
+  const indexes: number[] = [];
+  for (let i = start + 1; i < lines.length && !isHeading(lines[i]); i++) {
+    if (TASK_PREFIX.test(lines[i])) indexes.push(i);
+  }
+  const at = findTaskLine(indexes.map((i) => lines[i]), ref);
+  if (at === -1) return null;
+  const toggled = toggleTaskLine(lines, indexes[at], checked)!;
+  return { content: toggled.tasks.join('\n'), taskText: toggled.taskText };
 }
 
 /** Appends an open task under the tasks heading (added at the end if missing). */

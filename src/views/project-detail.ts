@@ -16,6 +16,7 @@ import {
   parseHeaderKey, replaceSection, stringifyMilestones, stringifyTasks, type Milestone, type MilestoneInput, type TaskItem,
 } from '../utils/parsing';
 import { findProjectTaskReminder, reminderTimeStr } from '../utils/reminders';
+import { taskRefAt, toggleProjectTaskByRef } from '../utils/task-lines';
 import { listTaskNotesTasksForFile, toggleTaskNotesTask } from '../utils/tasknotes';
 import { ensureFolderSync, type VaultNode } from '../utils/vault';
 import type { FlashSaved, ProjectTextSectionDef } from './components/sections';
@@ -754,10 +755,7 @@ export function renderTaskSection(
           await toggleTaskNotesTask(view.app, taskObj.file, cb.checked);
           await view._propagateTaskComplete(taskObj.title, cb.checked, { kind: 'tasknotes', file: taskObj.file });
         } else {
-          replaceItems(items, updateItem(items, idx, { done: cb.checked }));
-          await view._commitTasks(file, items, flashSaved, false, rawKey);
-          const txt = (items[idx].title || '').trim();
-          if (txt) await view._propagateTaskComplete(txt, cb.checked, { kind: 'project', file });
+          await tickProjectTaskRow(view, file, items, idx, cb.checked, flashSaved, rawKey);
         }
         view.render();
       });
@@ -842,6 +840,26 @@ export function renderTaskSection(
     replaceItems(tasks, addTask(tasks));
     await view._commitTasks(file, tasks, flashSaved, false, rawKey);
   });
+}
+
+/* A native row's tick: re-reads the note, finds the task the row showed
+   by its ref, ticks that line only and propagates its text. When the task
+   is gone from the section it writes nothing and says so. The caller
+   re-renders once. */
+async function tickProjectTaskRow(
+  view: AppViewHost, file: TFile, items: TaskItem[], idx: number, checked: boolean, flashSaved: FlashSaved | undefined, rawKey: string,
+): Promise<void> {
+  const ref = taskRefAt(items.map((item) => item.title || ''), idx);
+  const content = await view.app.vault.read(file);
+  const toggled = ref ? toggleProjectTaskByRef(content, rawKey, ref, checked) : null;
+  if (!toggled) {
+    new Notice('That task changed in the note, so nothing was ticked.');
+    return;
+  }
+  await view.app.vault.modify(file, toggled.content);
+  replaceItems(items, updateItem(items, idx, { done: checked }));
+  if (typeof flashSaved === 'function') flashSaved();
+  if (toggled.taskText) await view._propagateTaskComplete(toggled.taskText, checked, { kind: 'project', file });
 }
 
 export async function saveTasks(
