@@ -6038,14 +6038,7 @@ function kanbanOptions(def, groupBy) {
 function distinctGroups(entities, groupBy, def) {
   const uniqueVals = /* @__PURE__ */ new Set();
   entities.forEach((e) => {
-    const val = entityValue(e, groupBy, def);
-    if (val) {
-      const parts = Array.isArray(val) ? val : String(val).split(",");
-      parts.forEach((v) => {
-        const clean = unwrapLink(v);
-        if (clean) uniqueVals.add(clean);
-      });
-    }
+    kanbanValues(entityValue(e, groupBy, def)).forEach((v) => uniqueVals.add(v));
   });
   return Array.from(uniqueVals);
 }
@@ -6062,7 +6055,8 @@ function kanbanGroupByFields(def) {
 }
 function kanbanValues(val) {
   if (val == null || val === "") return [];
-  return (Array.isArray(val) ? val : [val]).map(unwrapLink).filter(Boolean);
+  const parts = Array.isArray(val) ? val : String(val).split(/,(?![^[]*\]\])/);
+  return parts.map(unwrapLink).filter(Boolean);
 }
 function kanbanGroups(list, groupBy, groups, def) {
   const columns = groups.map((stage) => ({ stage, items: [] }));
@@ -6322,6 +6316,8 @@ function sortEntities(list, def, sort) {
       let valB = entityValue(b, currentSortField, def);
       if (valA && typeof valA === "string") valA = unwrapLink(valA);
       if (valB && typeof valB === "string") valB = unwrapLink(valB);
+      if (Array.isArray(valA)) valA = valA.map(unwrapLink).join(", ");
+      if (Array.isArray(valB)) valB = valB.map(unwrapLink).join(", ");
       if (valA == null) valA = "";
       if (valB == null) valB = "";
       let diff = 0;

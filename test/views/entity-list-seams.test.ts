@@ -151,10 +151,9 @@ describe("sortEntities and nextSort", () => {
     expect(names(sortEntities(list, deal, { field: "company", asc: true }))).toEqual(["z", "y", "x"]);
   });
 
-  it("QUIRK: an array value is not unwrapped, so it sorts by its joined text", () => {
-    const list = [entity("y", { company: "b" }), entity("x", { company: ["[[z]]"] })];
-    // "[[z]]" sorts before "b" on its brackets.
-    expect(names(sortEntities(list, deal, { field: "company", asc: true }))).toEqual(["x", "y"]);
+  it("an array value sorts by its items, links unwrapped", () => {
+    const list = [entity("y", { company: "b" }), entity("x", { company: ["[[z]]"] }), entity("w", { company: ["[[a]]", "[[c]]"] })];
+    expect(names(sortEntities(list, deal, { field: "company", asc: true }))).toEqual(["w", "y", "x"]);
   });
 
   it("sorts currency by number, not as text", () => {
@@ -300,8 +299,12 @@ describe("kanban seams", () => {
     expect(distinctGroups([], "owner", deal)).toEqual([]);
   });
 
-  it("QUIRK: a link containing a comma is split", () => {
-    expect(distinctGroups([entity("a", { owner: "[[Smith, J]]" })], "owner", deal)).toEqual(["Smith", "J"]);
+  it("a link containing a comma is one group, and the board puts its entity there", () => {
+    const list = [entity("a", { owner: "[[Smith, J]]" }), entity("b", { owner: "Lee, [[Smith, J]]" })];
+    expect(distinctGroups(list, "owner", deal)).toEqual(["Smith, J", "Lee"]);
+    expect(kanbanGroups(list, "owner", ["Smith, J", "Lee"], deal).map((c) => [c.stage, names(c.items)])).toEqual([
+      ["Smith, J", ["a"]], ["Lee", ["b"]],
+    ]);
   });
 
   it("kanbanGroupByFields keeps typed non-primary enum/text/multitext/tags fields and relation fields", () => {

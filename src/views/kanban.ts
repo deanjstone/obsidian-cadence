@@ -44,18 +44,12 @@ export function kanbanOptions(def: EntityDef, groupBy: string): string[] {
 }
 
 /** Columns for a field without options: its distinct values in first-seen
-    order (arrays flattened, strings comma-split, links unwrapped), or none. */
+    order (arrays flattened, strings comma-split outside links, links
+    unwrapped), or none. */
 export function distinctGroups(entities: Entity[], groupBy: string, def: EntityDef): string[] {
   const uniqueVals = new Set<string>();
   entities.forEach(e => {
-    const val = entityValue(e, groupBy, def);
-    if (val) {
-      const parts = Array.isArray(val) ? val : String(val).split(',');
-      parts.forEach(v => {
-        const clean = unwrapLink(v);
-        if (clean) uniqueVals.add(clean);
-      });
-    }
+    kanbanValues(entityValue(e, groupBy, def)).forEach(v => uniqueVals.add(v));
   });
   return Array.from(uniqueVals);
 }
@@ -95,11 +89,13 @@ export interface KanbanColumn {
   blank?: boolean;
 }
 
-/** An entity's group-by values: each item of an array, or the one value,
-    links unwrapped, blanks dropped. */
+/** An entity's group-by values: each item of an array, or a string split
+    on commas outside `[[ ]]` (so `[[Smith, J]]` stays whole, #57), links
+    unwrapped, blanks dropped. */
 export function kanbanValues(val: unknown): string[] {
   if (val == null || val === '') return [];
-  return (Array.isArray(val) ? val : [val]).map(unwrapLink).filter(Boolean);
+  const parts = Array.isArray(val) ? val : String(val).split(/,(?![^[]*\]\])/);
+  return parts.map(unwrapLink).filter(Boolean);
 }
 
 /** One column per group, in order, then a column per value off the groups

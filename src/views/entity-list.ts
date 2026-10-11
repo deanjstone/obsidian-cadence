@@ -137,8 +137,9 @@ export interface ListSort {
 }
 
 /** A sorted copy: numbers and currency numerically, dates by time (invalid
-    as 0), anything else as text, numeric-aware and case-insensitive. String
-    values have their [[ ]] stripped; arrays are compared as joined text. */
+    as 0), anything else as text, numeric-aware and case-insensitive. Values
+    have their [[ ]] stripped; an array is compared as its unwrapped items,
+    comma-joined (#57). */
 export function sortEntities(list: Entity[], def: EntityDef, sort: ListSort): Entity[] {
   const sorted = list.slice();
   const currentSortField = sort.field;
@@ -152,6 +153,8 @@ export function sortEntities(list: Entity[], def: EntityDef, sort: ListSort): En
 
       if (valA && typeof valA === 'string') valA = unwrapLink(valA);
       if (valB && typeof valB === 'string') valB = unwrapLink(valB);
+      if (Array.isArray(valA)) valA = valA.map(unwrapLink).join(', ');
+      if (Array.isArray(valB)) valB = valB.map(unwrapLink).join(', ');
 
       if (valA == null) valA = '';
       if (valB == null) valB = '';
