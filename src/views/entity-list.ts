@@ -441,7 +441,7 @@ export async function renderEntityList(
         th.style.cursor = 'pointer';
         th.style.userSelect = 'none';
         const thSpan = th.createSpan({ text: f.label + ' ' });
-        const indicator = th.createSpan({ text: f.key === sort.field ? '▲' : '↕' });
+        const indicator = th.createSpan({ text: f.key === sort.field ? (sort.asc ? '▲' : '▼') : '↕' });
         indicator.style.opacity = f.key === sort.field ? '1' : '0.4';
         indicator.style.marginLeft = '4px';
 

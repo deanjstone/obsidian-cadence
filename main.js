@@ -6528,7 +6528,7 @@ async function renderEntityList(view, root, entityKey, opts = {}) {
         th.style.cursor = "pointer";
         th.style.userSelect = "none";
         const thSpan = th.createSpan({ text: f.label + " " });
-        const indicator = th.createSpan({ text: f.key === sort.field ? "\u25B2" : "\u2195" });
+        const indicator = th.createSpan({ text: f.key === sort.field ? sort.asc ? "\u25B2" : "\u25BC" : "\u2195" });
         indicator.style.opacity = f.key === sort.field ? "1" : "0.4";
         indicator.style.marginLeft = "4px";
         headers.push({ key: f.key, th, indicator });

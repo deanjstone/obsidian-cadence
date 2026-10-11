@@ -296,11 +296,14 @@ describe("renderEntityList: table", () => {
     expect([ths[0].style.cursor, ths[0].style.userSelect]).toEqual(["pointer", "none"]);
   });
 
-  it("QUIRK: clicking the sorted header reverses it but still shows ▲", async () => {
+  it("clicking the sorted header reverses it and shows ▼; a third click shows ▲ again", async () => {
     const { view, root } = setup(CONTACTS);
     await view.renderEntityList(root, "contact");
     table(root).querySelectorAll("th")[0].trigger("click");
     expect(names(root)).toEqual(["Jane Doe", "carol", "Bob Smith"]);
+    expect(table(root).querySelectorAll("th")[0].children[1].text).toBe("▼");
+    table(root).querySelectorAll("th")[0].trigger("click");
+    expect(names(root)).toEqual(["Bob Smith", "carol", "Jane Doe"]);
     expect(table(root).querySelectorAll("th")[0].children[1].text).toBe("▲");
   });
 
