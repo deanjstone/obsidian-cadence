@@ -479,7 +479,7 @@ describe("Custom Entity Properties: options and source", () => {
     expect(ENTITIES.crm_vendor.fields[2].options).toEqual(["Gold", "Silver"]);
   });
 
-  it("shows a permanently locked enum's options read-only (the project's status, the deal's stage)", async () => {
+  it("shows a permanently locked enum's options read-only (the project's status and priority)", async () => {
     const { editor, calls } = shown();
     const input = cell(editor(), "status").children[0];
     expect([input.disabled, input.value]).toEqual([true, "active, on_hold, backlog, done, cancelled"]);
@@ -488,8 +488,20 @@ describe("Custom Entity Properties: options and source", () => {
     await Promise.resolve();
     expect(calls).toEqual([]);
     expect(ENTITIES.project.fields[1].options).toEqual(["active", "on_hold", "backlog", "done", "cancelled"]);
-    expect(cell(shown({ entity: "deal" }).editor(), "stage").children[0].disabled).toBe(true);
+    expect(cell(editor(), "priority").children[0].disabled).toBe(true);
     expect(cell(shown({ entity: "partner" }).editor(), "status").children[0].disabled).toBe(false);
+  });
+
+  it("lets the deal's stage options be edited, while its key, type and delete stay locked (#73)", async () => {
+    const { editor, calls } = shown({ entity: "deal" });
+    const stage = row(editor(), "stage");
+    expect([stage.drag.children[0].text, stage.key.disabled, stage.type.disabled, stage.del.disabled]).toEqual(["🔒", true, true, true]);
+    const input = stage.options.children[0];
+    expect([input.disabled, input.value]).toEqual([false, "Lead, Qualified, Proposal, Negotiation, Won, Lost"]);
+    input.value = "Discovery, Lead, Demo, Negotiation, Won, Lost";
+    input.trigger("change");
+    await vi.waitFor(() => expect(calls).toEqual(["save", "register", "refresh"]));
+    expect(ENTITIES.deal.fields.find((f) => f.key === "stage")!.options).toEqual(["Discovery", "Lead", "Demo", "Negotiation", "Won", "Lost"]);
   });
 
   it("offers suggestion sources for list and tag fields, selecting the field's source", () => {
