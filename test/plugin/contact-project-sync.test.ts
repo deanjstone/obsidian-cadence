@@ -146,14 +146,14 @@ describe("a project note changes", () => {
     expect(Notice.messages).toEqual(['Lien automatique : Projet "Apollo" associé au contact "Sam Lee".']);
   });
 
-  it("QUIRK: appends to the contact's projects and rewrites them all as links", async () => {
+  it("appends a link to the contact's projects and leaves its plain names as typed", async () => {
     const { app } = await loadedVault([
       { path: sam.path, frontmatter: { type: "contact", project: "Website relaunch" } },
       website,
       { path: apollo.path, frontmatter: { type: "project", contacts: ["Sam Lee"] } },
     ]);
     await changed(app, apollo.path);
-    expect(fm(app, sam.path)?.project).toEqual(["[[Website relaunch]]", "[[Apollo]]"]);
+    expect(fm(app, sam.path)?.project).toEqual(["Website relaunch", "[[Apollo]]"]);
   });
 
   it("reads every contact field: owner, contact, contacts, with, assigned and contact-sourced fields", async () => {
@@ -259,6 +259,17 @@ describe("any other note changes", () => {
     const { app } = await loadedVault([sam, apollo, { path: "Daily/2026-03-10.md", frontmatter: { met: "Sam Lee", about: ["[[apollo]]"] } }]);
     await changed(app, "Daily/2026-03-10.md");
     expect(fm(app, sam.path)?.project).toBe("[[Apollo]]");
+  });
+
+  it("adds a backed project without rewriting the contact's plain names as links", async () => {
+    const { app } = await loadedVault([
+      { path: sam.path, frontmatter: { type: "contact", project: "Website relaunch, Hand list" } },
+      website,
+      apollo,
+      { path: "Notes/n.md", frontmatter: { owner: "[[Sam Lee]]", project: "[[Apollo]]" } },
+    ]);
+    await changed(app, "Notes/n.md");
+    expect(fm(app, sam.path)?.project).toEqual(["Website relaunch", "Hand list", "[[Apollo]]"]);
   });
 
   it("writes nothing when the contacts already match", async () => {

@@ -16,7 +16,7 @@ import type { PluginHost } from './host';
    value holds (extractEntitiesFromValue), which fields name contacts or
    projects, which contact–project pairs a note backs (noteLinks,
    collectValidLinks), and the `project` value to write (projectLinkValue,
-   addProjectLink, removeProjectLink, contactProjectsPlan). */
+   appendProjectLink, removeProjectLink, contactProjectsPlan). */
 
 /* A note as the sync sees it: its entity type, name and frontmatter. */
 export interface SyncNote {
@@ -173,6 +173,24 @@ export function addProjectLink(current: string[], projectName: string): string[]
   return [...current, projectName];
 }
 
+/* A contact's `project` value as the items it holds, each as typed: a
+   list's items, or a string split on the commas outside its links. */
+function projectItems(value: unknown): string[] {
+  if (Array.isArray(value)) return value.map(String);
+  if (value == null) return [];
+  return String(value).split(/,(?![^[]*\]\])/).map(s => s.trim()).filter(Boolean);
+}
+
+/* The contact's `project` value with a link to `projectName` appended, or
+   null when it already lists it (case-insensitive). The other items stay as
+   typed: a plain name is not rewritten as a link (#45). */
+export function appendProjectLink(value: unknown, projectName: string): string | string[] | null {
+  const names = extractEntitiesFromValue(value);
+  if (addProjectLink(names, projectName) === names) return null;
+  const items = [...projectItems(value), `[[${projectName}]]`];
+  return items.length === 1 ? items[0] : items;
+}
+
 /* The contact's project names without `projectName` (case-insensitive). */
 export function removeProjectLink(current: string[], projectName: string): string[] {
   return current.filter(p => p.toLowerCase() !== projectName.toLowerCase());
@@ -241,10 +259,8 @@ export async function syncContactProjectRelationships(plugin: PluginHost, change
         if (projectListsContact && !listsProject) {
           // User manually added contact to project sheet!
           await plugin.app.fileManager.processFrontMatter(contactFile, (cfm: Frontmatter) => {
-            const currentProjects = extractEntitiesFromValue(cfm.project);
-            if (!currentProjects.some(p => p.toLowerCase() === projectLower)) {
-              writeProjectLinks(cfm, addProjectLink(currentProjects, changedFile.basename));
-            }
+            const value = appendProjectLink(cfm.project, changedFile.basename);
+            if (value !== null) cfm.project = value;
           });
           new Notice(`Lien automatique : Projet "${changedFile.basename}" associé au contact "${contactFile.basename}".`);
         }
@@ -282,7 +298,10 @@ export async function syncContactProjectRelationships(plugin: PluginHost, change
         const plan = contactProjectsPlan(existingProjects, Array.from(projectNamesToLink));
         if (plan) {
           await plugin.app.fileManager.processFrontMatter(contactFile, (cfm: Frontmatter) => {
-            writeProjectLinks(cfm, [...extractEntitiesFromValue(cfm.project), ...plan.added]);
+            for (const name of plan.added) {
+              const value = appendProjectLink(cfm.project, name);
+              if (value !== null) cfm.project = value;
+            }
           });
           new Notice(`Lien automatique : Projet "${plan.added.join(', ')}" associé à "${contactFile.basename}".`);
         }

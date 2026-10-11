@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  addProjectLink, collectValidLinks, contactProjectsPlan, extractEntitiesFromValue, isContactField,
+  addProjectLink, appendProjectLink, collectValidLinks, contactProjectsPlan, extractEntitiesFromValue, isContactField,
   isProjectField, noteLinks, projectLinkValue, removeProjectLink, writeProjectLinks, type SyncNote,
 } from "../../src/plugin/contact-project-sync";
 import type { EntityDef, Frontmatter } from "../../src/types/entities";
@@ -117,6 +117,15 @@ describe("project link values", () => {
     expect(fm).toEqual({ project: "[[A]]", name: "Jane" });
     writeProjectLinks(fm, []);
     expect(fm).toEqual({ name: "Jane" });
+  });
+
+  it("appendProjectLink appends a link to the raw value, keeping each item as typed", () => {
+    expect(appendProjectLink(undefined, "Apollo")).toBe("[[Apollo]]");
+    expect(appendProjectLink("", "Apollo")).toBe("[[Apollo]]");
+    expect(appendProjectLink("Zeta", "Apollo")).toEqual(["Zeta", "[[Apollo]]"]);
+    expect(appendProjectLink("Zeta, [[Old|the old one]]", "Apollo")).toEqual(["Zeta", "[[Old|the old one]]", "[[Apollo]]"]);
+    expect(appendProjectLink(["[[Zeta]]", "plain"], "Apollo")).toEqual(["[[Zeta]]", "plain", "[[Apollo]]"]);
+    expect(appendProjectLink(["apollo"], "Apollo")).toBeNull();
   });
 
   it("addProjectLink appends a missing project only", () => {
