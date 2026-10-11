@@ -41,7 +41,7 @@ import { renderPRMAnalytics, renderTeam } from './prm';
 import {
   renderMilestoneSection, renderProjectDetail, renderTaskSection, saveMilestones, saveProjectFrontmatter, saveTasks,
 } from './project-detail';
-import { renderProjectsDashboard, renderProjectsView } from './projects-dashboard';
+import { renderProjectsDashboard } from './projects-dashboard';
 import { renderReportGraph } from './report-graph';
 import {
   renderProductivity, renderReportActivity, renderReportPartners, renderReportPipeline, renderReportSales,
@@ -601,9 +601,6 @@ export class CadenceAppView extends ItemView implements AppViewHost {
   _renderEntityLinks(parent: HTMLElement, val: unknown, targetEntityKey: string, prefix?: string) { return renderEntityLinks(this, parent, val, targetEntityKey, prefix); }
 
   _renderOwnerLinks(parent: HTMLElement, ownerVal: unknown, showPrefix?: boolean) { return renderOwnerLinks(this, parent, ownerVal, showPrefix); }
-
-  /* ── Projects: rich card grid with milestone progress ─ */
-  renderProjectsView(root: HTMLElement) { return renderProjectsView(this, root); }
 
   /* ── Home / Command Centre ───────────────── */
   renderHome(root: HTMLElement) { return renderHome(this, root); }

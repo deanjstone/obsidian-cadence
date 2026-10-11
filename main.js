@@ -8981,32 +8981,6 @@ async function dropOntoCard(view, def, path, key, value) {
     new import_obsidian23.Notice(`Failed to change ${key}: ${e.message}`);
   }
 }
-function statusKey(status) {
-  return status.toLowerCase().replace(/\s+/g, "_");
-}
-function projectsViewGroups(projects, statusOptions, def) {
-  const groups = {};
-  statusOptions.forEach((opt) => {
-    groups[statusKey(opt)] = [];
-  });
-  projects.forEach((p) => {
-    const status = statusKey(String(entityValue(p.entity, "status", def) || (statusOptions[0] || "active")));
-    const key = groups[status] ? status : Object.keys(groups)[0];
-    if (key) groups[key].push(p);
-  });
-  const order = statusOptions.map(statusKey);
-  return order.filter((key) => groups[key] && groups[key].length).map((key) => ({
-    label: (statusOptions.find((opt) => statusKey(opt) === key) || key).toUpperCase(),
-    items: groups[key]
-  }));
-}
-function projectCardPills(entity, def) {
-  const status = String(entityValue(entity, "status", def) || "active");
-  const priority = String(entityValue(entity, "priority", def) || "");
-  const pills = [{ cls: `cad-pill cad-pill-${status.toLowerCase().replace(/\s+/g, "-")}`, text: status }];
-  if (priority) pills.push({ cls: `cad-pill cad-pill-prio-${priority.toLowerCase()}`, text: priority });
-  return pills;
-}
 async function renderProjectsDashboard(view, root) {
   root.addClass("cadence-dashboard");
   root.addClass("cadence-list");
@@ -9250,62 +9224,6 @@ async function renderProjectsDashboard(view, root) {
     }).open();
   });
   renderWidgets();
-}
-async function renderProjectsView(view, root) {
-  root.addClass("cadence-projects");
-  const def = ENTITIES.project;
-  const files = listEntityFiles(view.app, "project");
-  view._renderPageHeader(root, "Projects", `${files.length} ${files.length === 1 ? "project" : "projects"} in ${def.folder}`, (right) => {
-    const importBtn = right.createEl("button", { cls: "cad-btn", text: "Import CSV" });
-    importBtn.addEventListener("click", () => new CadenceImportModal(view.app, { entityKey: "project" }).open());
-    const btn = right.createEl("button", { cls: "cad-btn primary", text: "+ New Project" });
-    btn.addEventListener("click", () => view._createEntityFromPrompt("project"));
-  });
-  if (!files.length) {
-    const empty = root.createDiv({ cls: "cad-empty-state" });
-    empty.createDiv({ cls: "cad-empty-state-title", text: "No projects yet" });
-    empty.createDiv({ cls: "cad-empty-state-desc", text: `Hit "+ New Project" \u2014 you'll get a templated note with Brief, Scope, Milestones, Tasks, Risks and Stakeholders sections ready to fill in.` });
-    return;
-  }
-  const projects = await Promise.all(files.map(async (f) => {
-    const e = readEntity(view.app, f);
-    const meta = await readProjectMeta(view.app, f);
-    return { entity: e, meta };
-  }));
-  const statusOptions = getEnumOptions("project", "status", PROJECT_STATUSES);
-  projectsViewGroups(projects, statusOptions, def).forEach(({ label, items }) => {
-    root.createDiv({ cls: "cad-section-label-lg", text: label });
-    const section = root.createDiv({ cls: "cad-proj-grid" });
-    items.forEach((p) => {
-      const card = section.createDiv({ cls: "cad-proj-card" });
-      const head = card.createDiv({ cls: "cad-proj-card-head" });
-      const title = head.createEl("a", { cls: "cad-proj-title", text: projectRowName(p.entity, def) });
-      title.addEventListener("click", (ev) => {
-        ev.preventDefault();
-        view.openEntityDetail("project", p.entity.file);
-      });
-      const pillRow = head.createDiv({ cls: "cad-proj-pills" });
-      projectCardPills(p.entity, def).forEach((pill) => pillRow.createSpan(pill));
-      const metaRow = card.createDiv({ cls: "cad-proj-meta" });
-      const owner = entityValue(p.entity, "owner", def);
-      const due = entityValue(p.entity, "due", def);
-      if (owner) view._renderOwnerLinks(metaRow, owner);
-      if (due) metaRow.createSpan({ text: `Due: ${fmtValue(due, "date")}` });
-      const progWrap = card.createDiv({ cls: "cad-proj-progress-wrap" });
-      const progLabel = progWrap.createDiv({ cls: "cad-proj-progress-label" });
-      progLabel.createSpan({ text: `${p.meta.done}/${p.meta.total} milestones` });
-      progLabel.createSpan({ cls: "cad-proj-progress-pct", text: `${p.meta.percent}%` });
-      const bar = progWrap.createDiv({ cls: "cad-proj-progress-bar" });
-      const fill = bar.createDiv({ cls: "cad-proj-progress-fill" });
-      fill.style.width = `${p.meta.percent}%`;
-      if (p.meta.next) {
-        const nextRow = card.createDiv({ cls: "cad-proj-next" });
-        nextRow.createSpan({ cls: "cad-proj-next-label", text: "NEXT \xB7 " });
-        nextRow.createSpan({ cls: "cad-proj-next-date", text: fmtValue(p.meta.next.date, "date") });
-        if (p.meta.next.title) nextRow.createSpan({ text: ` \u2014 ${p.meta.next.title}` });
-      }
-    });
-  });
 }
 
 // src/views/report-graph.ts
@@ -11810,10 +11728,6 @@ var CadenceAppView = class extends import_obsidian30.ItemView {
   }
   _renderOwnerLinks(parent, ownerVal, showPrefix) {
     return renderOwnerLinks(this, parent, ownerVal, showPrefix);
-  }
-  /* ── Projects: rich card grid with milestone progress ─ */
-  renderProjectsView(root) {
-    return renderProjectsView(this, root);
   }
   /* ── Home / Command Centre ───────────────── */
   renderHome(root) {

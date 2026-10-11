@@ -8,15 +8,15 @@ import {
   crmStatCards, crmSummary, customerBase, dealValue, hotDeals, pipelineByStage, recentActivities, staleDeals,
 } from "../../src/views/crm-dashboard";
 import {
-  PROJECT_PRIORITIES, PROJECT_STATUSES, acceptsDrop, dashRowPill, dropChanges, dashboardOptions, priorityAccent, projectCardPills,
-  projectRowName, projectsSummary, projectsViewGroups, statusAccent, type ProjectCardData,
+  PROJECT_PRIORITIES, PROJECT_STATUSES, acceptsDrop, dashRowPill, dropChanges, dashboardOptions, priorityAccent,
+  projectRowName, projectsSummary, statusAccent,
 } from "../../src/views/projects-dashboard";
 import { fmtValue } from "../../src/utils/format";
-import type { Entity, EntityDef, ProjectMeta } from "../../src/types/entities";
+import type { Entity, EntityDef } from "../../src/types/entities";
 import type { WidgetConfig } from "../../src/types/modals";
 
 /* Direct tests for the plain-data seams lifted out of the Projects and CRM
-   dashboards and the uncalled card grid. No view, no vault: entities are
+   dashboards. No view, no vault: entities are
    plain objects. */
 
 const DAY = 86400000;
@@ -118,42 +118,6 @@ describe("dashboard rows", () => {
     expect([dropChanges("Done", "done"), dropChanges(["high"], "high"), dropChanges("", "active"), dropChanges(undefined, "active"), dropChanges("active", "done")]).toEqual([
       false, false, true, true, true,
     ]);
-  });
-});
-
-describe("projectsViewGroups", () => {
-  const meta = { done: 0, total: 0, percent: 0, next: null } as unknown as ProjectMeta;
-  const card = (name: string, status?: unknown): ProjectCardData => ({ entity: entity(name, status === undefined ? {} : { status }), meta });
-  const labelled = (groups: Array<{ label: string; items: ProjectCardData[] }>) => groups.map((g) => [g.label, g.items.map((p) => p.entity.basename)]);
-
-  it("groups by status option order, dropping empty groups", () => {
-    const groups = projectsViewGroups([card("A", "done"), card("B", "active"), card("C", "Done")], PROJECT_STATUSES, project);
-    expect(labelled(groups)).toEqual([["ACTIVE", ["B"]], ["DONE", ["A", "C"]]]);
-  });
-
-  it("folds case and spaces, puts a blank status in the first option and an unknown one in the first group", () => {
-    const options = ["In Flight", "Parked"];
-    const groups = projectsViewGroups([card("A", "parked"), card("B"), card("C", "archived"), card("D", "in  flight")], options, project);
-    expect(labelled(groups)).toEqual([["IN FLIGHT", ["B", "C", "D"]], ["PARKED", ["A"]]]);
-  });
-
-  it("QUIRK: two options that fold to the same key render that group twice", () => {
-    const groups = projectsViewGroups([card("A", "on hold")], ["On Hold", "on_hold"], project);
-    expect(labelled(groups)).toEqual([["ON HOLD", ["A"]], ["ON HOLD", ["A"]]]);
-  });
-
-  it("returns nothing with no options", () => {
-    expect(projectsViewGroups([card("A", "x")], [], project)).toEqual([]);
-  });
-});
-
-describe("projectCardPills", () => {
-  it("status (dashes, default active) then priority (prio- class) when set", () => {
-    expect(projectCardPills(entity("A", { status: "On Hold", priority: "High" }), project)).toEqual([
-      { cls: "cad-pill cad-pill-on-hold", text: "On Hold" },
-      { cls: "cad-pill cad-pill-prio-high", text: "High" },
-    ]);
-    expect(projectCardPills(entity("B", {}), project)).toEqual([{ cls: "cad-pill cad-pill-active", text: "active" }]);
   });
 });
 

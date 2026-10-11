@@ -191,8 +191,6 @@ export interface AppViewHost {
 
   /* ── Projects and CRM dashboards (src/views/projects-dashboard.ts, src/views/crm-dashboard.ts) ── */
   renderProjectsDashboard(root: HTMLElement): Promise<void>;
-  /** Flagged: no call site (projects.projects routes to renderEntityList); characterized and kept. */
-  renderProjectsView(root: HTMLElement): Promise<void>;
   /** The CRM dashboard; the moved function is renderCrmDashboard. */
   renderDashboard(root: HTMLElement): Promise<void>;
 
