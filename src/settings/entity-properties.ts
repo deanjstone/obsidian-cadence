@@ -326,27 +326,9 @@ export function applyPropertyEdit(entities: Record<string, EntityDef>, entityKey
       }
 
       const oldKey = field.key;
-      // Migrate files of the current selected entity
+      if (sanitized === oldKey) return { ok: true, migrations, rerender: true };
       migrations.push({ kind: 'key', entityKey, oldKey, newKey: sanitized });
-      // Migrate files and update keys of any other entity sharing the same old key
-      for (const [ek, ent] of Object.entries(entities)) {
-        if (ek === entityKey) continue;
-        const targetField = ent.fields.find(f => f.key === oldKey);
-        if (targetField) {
-          migrations.push({ kind: 'key', entityKey: ek, oldKey, newKey: sanitized });
-          targetField.key = sanitized;
-        }
-      }
       field.key = sanitized;
-      // After key is renamed, check if the new key matches any existing fields in other entities to sync with them
-      const matchingField = Object.values(entities)
-        .flatMap(ent => ent.fields)
-        .find(f => f.key === sanitized && f !== field);
-      if (matchingField) {
-        copyPropertyShape(field, matchingField);
-        return { ok: true, migrations, notice: `Linked key to existing property "${sanitized}".`, rerender: true };
-      }
-      syncSharedProperties(entities, field);
       return { ok: true, migrations, rerender: true };
     }
     case 'type': {

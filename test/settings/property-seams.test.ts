@@ -238,22 +238,31 @@ describe("applyPropertyEdit", () => {
     expect(r).toEqual(before);
   });
 
-  it("renames a key here and in every entity sharing it, returning their migrations in order, and links to the shared field", () => {
+  it("renames a key in this entity only, with one migration and no link, even when other entities share the old or new key", () => {
     const r = registry();
+    const others = structuredClone([r.partner, r.deal]);
     const field = r.vendor.fields[2];
-    const result = applyPropertyEdit(r, "vendor", { kind: "key", field, index: 2, value: "Zone" });
-    expect(result).toEqual({
+    expect(applyPropertyEdit(r, "vendor", { kind: "key", field, index: 2, value: "Zone" })).toEqual({
       ok: true,
-      migrations: [
-        { kind: "key", entityKey: "vendor", oldKey: "region", newKey: "zone" },
-        { kind: "key", entityKey: "partner", oldKey: "region", newKey: "zone" },
-        { kind: "key", entityKey: "deal", oldKey: "region", newKey: "zone" },
-      ],
-      notice: 'Linked key to existing property "zone".',
+      migrations: [{ kind: "key", entityKey: "vendor", oldKey: "region", newKey: "zone" }],
       rerender: true,
     });
-    expect([field.key, r.partner.fields[1].key, r.deal.fields[2].key]).toEqual(["zone", "zone", "zone"]);
-    expect(field).toEqual({ key: "zone", label: "Area", type: "multitext", options: ["x"], suggestionSource: "history" });
+    expect(field).toEqual({ key: "zone", label: "Region" });
+    const notes = r.vendor.fields[3];
+    expect(applyPropertyEdit(r, "vendor", { kind: "key", field: notes, index: 3, value: "stage" })).toEqual({
+      ok: true,
+      migrations: [{ kind: "key", entityKey: "vendor", oldKey: "notes", newKey: "stage" }],
+      rerender: true,
+    });
+    expect(notes).toEqual({ key: "stage", label: "Notes", type: "text", locked: false });
+    expect([r.partner, r.deal]).toEqual(others);
+  });
+
+  it("re-entering a field's own key in another case changes nothing and migrates nothing", () => {
+    const r = registry();
+    const before = structuredClone(r);
+    expect(applyPropertyEdit(r, "vendor", { kind: "key", field: r.vendor.fields[2], index: 2, value: " REGION " })).toEqual({ ok: true, migrations: [], rerender: true });
+    expect(r).toEqual(before);
   });
 
   it("renames a key no other entity has, with one migration and no notice", () => {

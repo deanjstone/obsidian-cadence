@@ -334,19 +334,20 @@ describe("Custom Entity Properties: technical key", () => {
     expect(row(made.editor(), "remarks2").label.value).toBe("Notes");
   });
 
-  it("links to an existing property of that key: copies its label, type, options and source, with a notice", async () => {
+  it("renaming to a key another entity uses keeps this field's own label, type, options and source, with no link notice", async () => {
     addVendor([{ key: "grade", label: "Grade", type: "text", options: ["x"], suggestionSource: "none" }]);
+    const partnerTier = structuredClone(ENTITIES.partner.fields[1]);
     const { editor, calls } = shown({ entity: "crm_vendor" });
     const r = row(editor(), "grade");
     r.key.value = "tier";
     r.key.trigger("change");
     await vi.waitFor(() => expect(calls).toHaveLength(3));
-    expect(ENTITIES.crm_vendor.fields[2]).toEqual({ key: "tier", label: "Tier", type: "enum", options: ["Gold", "Silver", "Bronze", "Standard"], locked: false });
-    expect(ENTITIES.crm_vendor.fields[2].options).not.toBe(ENTITIES.partner.fields[1].options);
-    expect(Notice.messages).toEqual(['Linked key to existing property "tier".']);
+    expect(ENTITIES.crm_vendor.fields[2]).toEqual({ key: "tier", label: "Grade", type: "text", options: ["x"], suggestionSource: "none", locked: false });
+    expect(ENTITIES.partner.fields[1]).toEqual(partnerTier);
+    expect(Notice.messages).toEqual([]);
   });
 
-  it("QUIRK: renames the same key in every other entity (migrating their notes), then reports the cascade's own rename as a link", async () => {
+  it("renames the key in this entity only: other entities keep theirs, and their notes are not migrated", async () => {
     addVendor([{ key: "region", label: "Region" }]);
     const files = [
       { path: "Cadence/Vendors/V.md", frontmatter: { region: "EU" } },
@@ -357,25 +358,22 @@ describe("Custom Entity Properties: technical key", () => {
     r.key.value = "zone";
     r.key.trigger("change");
     await vi.waitFor(() => expect(made.calls).toHaveLength(3));
-    expect(ENTITIES.partner.fields.map((f: Any) => f.key)).toEqual(["name", "tier", "status", "owner", "zone"]);
+    expect(ENTITIES.crm_vendor.fields.map((f: Any) => f.key)).toEqual(["name", "type", "zone"]);
+    expect(ENTITIES.partner.fields.map((f: Any) => f.key)).toEqual(["name", "tier", "status", "owner", "region"]);
     const fm = (path: string) => made.app.metadataCache.getFileCache(made.app.vault.getAbstractFileByPath(path) as Any)?.frontmatter;
-    expect([fm("Cadence/Vendors/V.md"), fm("Cadence/Partners/P.md")]).toEqual([{ zone: "EU" }, { zone: "US" }]);
-    expect(Notice.messages).toEqual([
-      'Renamed frontmatter key "region" to "zone" in 1 files.',
-      'Renamed frontmatter key "region" to "zone" in 1 files.',
-      'Linked key to existing property "zone".',
-    ]);
+    expect([fm("Cadence/Vendors/V.md"), fm("Cadence/Partners/P.md")]).toEqual([{ zone: "EU" }, { region: "US" }]);
+    expect(Notice.messages).toEqual(['Renamed frontmatter key "region" to "zone" in 1 files.']);
   });
 
-  it("QUIRK: re-entering the field's own key in another case relinks it to another entity's field of that key", async () => {
+  it("re-entering the field's own key in another case keeps the field as it is", async () => {
     addVendor([{ key: "region", label: "Territory", type: "multitext" }]);
     const { editor, calls } = shown({ entity: "crm_vendor" });
     const r = row(editor(), "region");
     r.key.value = "REGION";
     r.key.trigger("change");
     await vi.waitFor(() => expect(calls).toHaveLength(3));
-    expect(ENTITIES.crm_vendor.fields[2]).toEqual({ key: "region", label: "Region", locked: false });
-    expect(Notice.messages).toEqual(['Linked key to existing property "region".']);
+    expect(ENTITIES.crm_vendor.fields[2]).toEqual({ key: "region", label: "Territory", type: "multitext", locked: false });
+    expect(Notice.messages).toEqual([]);
   });
 });
 
