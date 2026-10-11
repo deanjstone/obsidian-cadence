@@ -234,7 +234,7 @@ describe("_renderSingleCrossSection", () => {
       [["span", "Email: "], ["span", "jane@acme.test"]],
       [["span", "Company: "], ["a", "Acme Corp"]],
       [["span", "Role: "], ["span", "CTO"]],
-      [["span", "Last contact: "], ["span", fmtValue("2026-09-30", "date")]],
+      [["span", "Project: "], ["a", "Website relaunch"]],
     ]);
     const companyLink = fields[1].children[1];
     const event = companyLink.trigger("click");

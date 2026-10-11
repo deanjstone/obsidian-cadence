@@ -229,6 +229,7 @@ describe("renderEntityDetail: fields", () => {
       ["PHONE", "chips"],
       ["COMPANY", "chips"],
       ["ROLE", "chips"],
+      ["PROJECT", "chips"],
       ["LAST CONTACT", "input:date"],
       ["TAGS", "chips"],
     ]);

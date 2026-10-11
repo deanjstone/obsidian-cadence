@@ -81,7 +81,7 @@ describe("filterableKeys and filterOptions", () => {
 
 describe("listColumns", () => {
   it("puts def.columns first, then the other fields", () => {
-    expect(keys(listColumns(contact))).toEqual(["name", "company", "email", "phone", "role", "lastContact", "tags"]);
+    expect(keys(listColumns(contact))).toEqual(["name", "company", "email", "phone", "role", "lastContact", "project", "tags"]);
   });
 
   it("shows only the given columns, in order, dropping unknown keys", () => {
@@ -312,7 +312,7 @@ describe("kanban seams", () => {
 
   it("kanbanGroupByFields keeps typed non-primary enum/text/multitext/tags fields and relation fields", () => {
     expect(keys(kanbanGroupByFields(deal))).toEqual(["stage", "company", "contact", "owner"]);
-    expect(keys(kanbanGroupByFields(contact))).toEqual(["company", "tags"]);
+    expect(keys(kanbanGroupByFields(contact))).toEqual(["company", "project", "tags"]);
     expect(keys(kanbanGroupByFields(certification))).toEqual(["partner"]);
     expect(keys(kanbanGroupByFields({ ...certification, fields: [{ key: "lead", label: "", suggestionSource: "folder:Cadence/Contacts" }, { key: "h", label: "", suggestionSource: "history" }] }))).toEqual(["lead"]);
   });

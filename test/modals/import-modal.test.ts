@@ -90,7 +90,7 @@ describe("CadenceImportModal onOpen", () => {
     const rows = bodyRows(preview);
     expect(rows.map((r) => r.findAll("td")[0].text)).toEqual(["Name", "Email", "Notes"]);
     const [nameSel, emailSel, notesSel] = mappingSelects(preview);
-    expect(optionValues(nameSel)).toEqual(["", "name", "email", "phone", "company", "role", "lastContact", "tags"]);
+    expect(optionValues(nameSel)).toEqual(["", "name", "email", "phone", "company", "role", "project", "lastContact", "tags"]);
     expect(optionTexts(nameSel)[0]).toBe("— skip —");
     expect(nameSel.value).toBe("name");
     expect(emailSel.value).toBe("email");
