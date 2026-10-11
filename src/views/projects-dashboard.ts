@@ -110,11 +110,12 @@ export function projectRowName(entity: Entity, def: EntityDef): string {
 }
 
 /* A dashboard row's pill (priority on a status card, status on a priority
-   card), or null when the value is blank. */
+   card), or null when the value is blank. The class folds spaces to '-',
+   as the card grid and the detail page do. */
 export function dashRowPill(value: unknown): { cls: string; text: string } | null {
   if (!value) return null;
   return {
-    cls: `cad-pill cad-pill-${String(value).toLowerCase().replace(/\s+/g, '_')}`,
+    cls: `cad-pill cad-pill-${String(value).toLowerCase().replace(/\s+/g, '-')}`,
     text: String(value).replace(/_/g, ' ')
   };
 }

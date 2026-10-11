@@ -226,6 +226,12 @@ describe("renderProjectsDashboard: priority board", () => {
     expect(cardRows(statusCard(root, "on_hold"))[0].children[0].attrs.style).toContain("max-width: 140px;");
   });
 
+  it("pills a multi-word status with a - class, as the card grid and detail page do", async () => {
+    const { view, root } = setup([project("H", { name: "H", status: "On Hold", priority: "low" })]);
+    await view.renderProjectsDashboard(root);
+    expect(cardRows(prioCard(root, "low")).map(rowView)).toEqual([["H", ["On Hold", ["cad-pill", "cad-pill-on-hold"]]]]);
+  });
+
   it("takes the priorities from the def, with sky for an unknown one", async () => {
     const field = ENTITIES.project.fields.find((f) => f.key === "priority")!;
     const saved = field.options;

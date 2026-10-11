@@ -101,8 +101,8 @@ describe("dashboard rows", () => {
     expect(projectRowName(entity("B", {}), project)).toBe("B");
   });
 
-  it("dashRowPill: _ class, spaces from underscores, null when blank", () => {
-    expect(dashRowPill("On Hold_x")).toEqual({ cls: "cad-pill cad-pill-on_hold_x", text: "On Hold x" });
+  it("dashRowPill: spaces as - in the class (as pillClass), spaces from underscores in the text, null when blank", () => {
+    expect(dashRowPill("On Hold_x")).toEqual({ cls: "cad-pill cad-pill-on-hold_x", text: "On Hold x" });
     expect(dashRowPill(["high"])).toEqual({ cls: "cad-pill cad-pill-high", text: "high" });
     expect([dashRowPill(""), dashRowPill(undefined), dashRowPill(0)]).toEqual([null, null, null]);
   });
