@@ -7098,32 +7098,36 @@ function computeBriefing(data, now) {
   }
   const contacts = data.contacts;
   const openDeals = deals.filter((e) => dealOutcome(e, dealDef) === "open");
-  const dealContactNames = new Set(
-    openDeals.map((d) => String(entityValue(d, "contact", dealDef) || "").trim()).filter(Boolean)
-  );
+  const dealContacts = openDeals.map((d) => ({
+    deal: d,
+    names: new Set(linkedNames(entityValue(d, "contact", dealDef)).map((n) => n.toLowerCase()))
+  }));
+  const dealFor = (c, name) => dealContacts.find(({ names }) => names.has(name.toLowerCase()) || names.has(c.basename.toLowerCase()));
   const staleCutoffMs = todayMs - 30 * 864e5;
   let staleSample = null;
   let staleCount = 0;
   contacts.forEach((c) => {
     const name = String(entityValue(c, "name", contactDef) || "").trim();
-    if (!name || !dealContactNames.has(name)) return;
+    if (!name) return;
+    const linked = dealFor(c, name);
+    if (!linked) return;
     const lc = entityValue(c, "lastContact", contactDef);
-    const lcMs = lc ? new Date(lc).getTime() : null;
-    if (lcMs != null && !isNaN(lcMs) && lcMs >= staleCutoffMs) return;
+    const lcMs = lc ? new Date(lc).getTime() : NaN;
+    if (!isNaN(lcMs) && lcMs >= staleCutoffMs) return;
     staleCount++;
-    if (!staleSample) staleSample = { contact: c, name, lcMs };
+    if (!staleSample) staleSample = { contact: c, name, deal: linked.deal, lc, lcMs };
   });
   if (staleSample) {
-    const days = staleSample.lcMs ? Math.floor((todayMs - staleSample.lcMs) / 864e5) : null;
-    const linkedDeal = openDeals.find((d) => String(entityValue(d, "contact", dealDef) || "").trim() === staleSample.name);
-    const dealName = linkedDeal ? entityValue(linkedDeal, "title", dealDef) || "" : "";
-    const ago = days === null ? "never contacted" : `${days} ${days === 1 ? "day" : "days"} quiet`;
+    const { contact, name, deal, lc, lcMs } = staleSample;
+    const days = Math.floor((todayMs - lcMs) / 864e5);
+    const dealName = entityValue(deal, "title", dealDef) || "";
+    const ago = !lc ? "never contacted" : isNaN(lcMs) ? "last contact unreadable" : `${days} ${days === 1 ? "day" : "days"} quiet`;
     const more = staleCount > 1 ? ` (+${staleCount - 1} more)` : "";
     items.push({
       icon: "\u{1F464}",
       tone: "warn",
-      text: `${staleSample.name} \u2014 ${ago}${dealName ? ` \xB7 ${dealName}` : ""}${more}`,
-      target: { kind: "file", file: staleSample.contact.file }
+      text: `${name} \u2014 ${ago}${dealName ? ` \xB7 ${dealName}` : ""}${more}`,
+      target: { kind: "file", file: contact.file }
     });
   }
   const upcoming = [];

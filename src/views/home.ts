@@ -3,7 +3,7 @@ import { ENTITIES } from '../constants/entities';
 import { CadenceReminderEditModal } from '../modals/reminder-edit';
 import { addDays, dailyNotePath, greeting, newestFirst, startOfDay, startOfWeek, ymd } from '../utils/dates';
 import { findDailyNote } from '../utils/daily-notes';
-import { dealClosedAt, dealOutcome } from '../utils/deals';
+import { dealClosedAt, dealOutcome, linkedNames } from '../utils/deals';
 import {
   entityValue, listEntities, listEntityFiles, projectNameFromPath, readEntity, readProjectMeta,
 } from '../utils/entities';
@@ -239,35 +239,42 @@ export function computeBriefing(data: BriefingData, now: Date): BriefingEntry[] 
     });
   }
 
-  /* 5. Stale contacts on open deals (>30 days since lastContact) */
+  /* 5. Stale contacts on open deals (>30 days since lastContact). A deal
+     names its contacts as links or text (linkedNames); each matches a
+     contact's name, else its file name, in any case (#55). */
   const contacts = data.contacts;
   const openDeals = deals.filter((e) => dealOutcome(e, dealDef) === 'open');
-  const dealContactNames = new Set(
-    openDeals.map((d) => String(entityValue(d, 'contact', dealDef) || '').trim()).filter(Boolean)
-  );
+  const dealContacts = openDeals.map((d) => ({
+    deal: d,
+    names: new Set(linkedNames(entityValue(d, 'contact', dealDef)).map((n) => n.toLowerCase())),
+  }));
+  const dealFor = (c: Entity, name: string) => dealContacts.find(({ names }) =>
+    names.has(name.toLowerCase()) || names.has(c.basename.toLowerCase()));
   const staleCutoffMs = todayMs - 30 * 86400000;
-  let staleSample = null as { contact: Entity; name: string; lcMs: number | null } | null;
+  let staleSample = null as { contact: Entity; name: string; deal: Entity; lc: unknown; lcMs: number } | null;
   let staleCount = 0;
   contacts.forEach((c) => {
     const name = String(entityValue(c, 'name', contactDef) || '').trim();
-    if (!name || !dealContactNames.has(name)) return;
+    if (!name) return;
+    const linked = dealFor(c, name);
+    if (!linked) return;
     const lc = entityValue(c, 'lastContact', contactDef);
-    const lcMs = lc ? new Date(lc as string).getTime() : null;
-    if (lcMs != null && !isNaN(lcMs) && lcMs >= staleCutoffMs) return;
+    const lcMs = lc ? new Date(lc as string).getTime() : NaN;
+    if (!isNaN(lcMs) && lcMs >= staleCutoffMs) return;
     staleCount++;
-    if (!staleSample) staleSample = { contact: c, name, lcMs };
+    if (!staleSample) staleSample = { contact: c, name, deal: linked.deal, lc, lcMs };
   });
   if (staleSample) {
-    const days = staleSample.lcMs ? Math.floor((todayMs - staleSample.lcMs) / 86400000) : null;
-    const linkedDeal = openDeals.find((d) => String(entityValue(d, 'contact', dealDef) || '').trim() === staleSample!.name);
-    const dealName = linkedDeal ? entityValue(linkedDeal, 'title', dealDef) || '' : '';
-    const ago = days === null ? 'never contacted' : `${days} ${days === 1 ? 'day' : 'days'} quiet`;
+    const { contact, name, deal, lc, lcMs } = staleSample;
+    const days = Math.floor((todayMs - lcMs) / 86400000);
+    const dealName = entityValue(deal, 'title', dealDef) || '';
+    const ago = !lc ? 'never contacted' : isNaN(lcMs) ? 'last contact unreadable' : `${days} ${days === 1 ? 'day' : 'days'} quiet`;
     const more = staleCount > 1 ? ` (+${staleCount - 1} more)` : '';
     items.push({
       icon: '👤',
       tone: 'warn',
-      text: `${staleSample.name} — ${ago}${dealName ? ` · ${dealName}` : ''}${more}`,
-      target: { kind: 'file', file: staleSample.contact.file },
+      text: `${name} — ${ago}${dealName ? ` · ${dealName}` : ''}${more}`,
+      target: { kind: 'file', file: contact.file },
     });
   }
 

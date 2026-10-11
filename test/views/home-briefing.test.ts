@@ -204,17 +204,30 @@ describe("_computeBriefing: stale contacts on open deals", () => {
     expect(shape(await view._computeBriefing())).toEqual([["👤", "warn", "Jane Doe — never contacted · Acme renewal (+1 more)"]]);
   });
 
-  it("QUIRK: an unparseable lastContact counts as stale and reads 'never contacted'", async () => {
+  it("an unparseable lastContact counts as stale and says it can't be read", async () => {
     const { view } = setup([openDeal, contact("Jane Doe", { lastContact: "last spring" })], quietTasks);
-    expect(shape(await view._computeBriefing())).toEqual([["👤", "warn", "Jane Doe — never contacted · Acme renewal"]]);
+    expect(shape(await view._computeBriefing())).toEqual([["👤", "warn", "Jane Doe — last contact unreadable · Acme renewal"]]);
   });
 
-  it("QUIRK: a wiki-link deal contact, as the forms write it, never matches the contact's name", async () => {
+  it("a wiki-link deal contact, as the forms write it, matches the contact", async () => {
     const { view } = setup([
       deal("Acme renewal", { title: "Acme renewal", stage: "Proposal", contact: ["[[Jane Doe]]"] }),
       contact("Jane Doe", { lastContact: "2026-01-01" }),
     ], quietTasks);
-    expect(await view._computeBriefing()).toEqual([]);
+    expect(shape(await view._computeBriefing())).toEqual([["👤", "warn", "Jane Doe — 282 days quiet · Acme renewal"]]);
+  });
+
+  it("matches a deal's contacts to a contact's name or file name, in any case, naming the deal", async () => {
+    const { view, openFromFile, file } = setup([
+      deal("Acme renewal", { title: "Acme renewal", stage: "Proposal", contact: "[[jane-doe|Jane]], [[Someone Else]]" }),
+      { path: "Cadence/Contacts/jane-doe.md", frontmatter: { type: "contact", name: "Jane Doe", lastContact: "2026-01-01" } },
+      deal("Globex", { title: "Globex", stage: "Lead", contact: ["[[BOB ROE]]"] }),
+      contact("Bob Roe", { lastContact: "2026-01-01" }),
+    ], quietTasks);
+    const items: Item[] = await view._computeBriefing();
+    expect(shape(items)).toEqual([["👤", "warn", "Jane Doe — 282 days quiet · Acme renewal (+1 more)"]]);
+    items[0].action!();
+    expect(openFromFile.mock.calls).toEqual([[file("Cadence/Contacts/jane-doe.md")]]);
   });
 
   it("ignores contacts whose only deals are Won or Lost, and leaves out a blank deal title", async () => {
