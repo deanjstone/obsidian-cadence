@@ -342,6 +342,17 @@ describe("_briefingHeadline", () => {
   });
 });
 
+describe("_briefingHeadline: time of day", () => {
+  it("follows the clock: this afternoon at 14:00, this evening at 20:00", () => {
+    const { view } = setup();
+    const rose = [{ icon: "", tone: "rose", text: "" }];
+    vi.setSystemTime(new Date(2026, 9, 10, 14));
+    expect(view._briefingHeadline(rose)).toBe("A couple of things need attention this afternoon.");
+    vi.setSystemTime(new Date(2026, 9, 10, 20));
+    expect(view._briefingHeadline(rose)).toBe("A couple of things need attention this evening.");
+  });
+});
+
 describe("_renderBriefing", () => {
   const five: Item[] = ["a", "b", "c", "d", "e"].map((t, i) => ({ icon: `i${i}`, tone: i === 1 ? "" : "sky", text: t }));
 

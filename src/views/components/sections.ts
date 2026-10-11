@@ -436,16 +436,16 @@ export function renderCrossSections(view: AppViewHost, parent: HTMLElement, pare
 });
 
     const delBtn = head.createEl('button', { text: '×', attr: { style: 'color: var(--text-error); border: 1px solid var(--text-error); padding: 2px 8px; font-weight: bold; border-radius: 4px; background: transparent; cursor: pointer;' } });
-    delBtn.title = 'Supprimer cette section croisée';
+    delBtn.title = 'Delete this cross section';
     delBtn.addEventListener('click', async () => {
-      if (!confirm('Supprimer cette section croisée ?')) return;
+      if (!confirm('Delete this cross section?')) return;
       view.plugin.settings.crossSections = (view.plugin.settings.crossSections || []).filter(c => c.id !== config.id);
       await view.plugin.saveSettings();
       view.render();
     });
 
     if (filteredList.length === 0) {
-      secWrap.createDiv({ cls: 'cad-empty', text: 'Aucun élément lié trouvé.' });
+      secWrap.createDiv({ cls: 'cad-empty', text: 'No linked items found.' });
       return;
     }
 
@@ -484,7 +484,7 @@ export function renderCrossSections(view: AppViewHost, parent: HTMLElement, pare
         });
 
         if (colItems.length === 0) {
-          col.createDiv({ text: 'Aucun élément', attr: { style: 'color: var(--text-faint); text-align: center; margin-top: 24px; font-size: 0.85em;' } });
+          col.createDiv({ text: 'No items', attr: { style: 'color: var(--text-faint); text-align: center; margin-top: 24px; font-size: 0.85em;' } });
         } else {
           const itemsList = col.createDiv({ attr: { style: 'display: flex; flex-direction: column; gap: 8px;' } });
           colItems.forEach(e => {

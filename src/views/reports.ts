@@ -5,7 +5,7 @@ import type { DailyNoteSettings } from '../types/settings';
 import { addDays, dailyNotePath, newestFirst, parseYmd, startOfDay, startOfWeek, ymd } from '../utils/dates';
 import { crmSummary, dealClosedAt, dealOutcome, dealValue, dealsByStage, linkedNames, partnerResolver, stageConfidence, sumValues } from '../utils/deals';
 import { entityValue, getDealStages, listEntities } from '../utils/entities';
-import { fmtValue } from '../utils/format';
+import { countLabel, fmtValue } from '../utils/format';
 import { parseSections } from '../utils/parsing';
 import { countTaskLines } from '../utils/task-lines';
 import type { DashCardRow, MiniStat, StatCard } from './components/cards';
@@ -199,15 +199,15 @@ export function salesReport(deals: Entity[], def: EntityDef, now: Date): SalesRe
   return {
     won, lost, captureRate,
     stats: [
-      { label: 'REVENUE', value: fmtValue(wonValue, 'currency'), sub: `${won.length} deals`, accent: 'emerald' },
-      { label: 'LOST', value: fmtValue(lostValue, 'currency'), sub: `${lost.length} deals`, accent: 'rose' },
+      { label: 'REVENUE', value: fmtValue(wonValue, 'currency'), sub: countLabel(won.length, 'deal'), accent: 'emerald' },
+      { label: 'LOST', value: fmtValue(lostValue, 'currency'), sub: countLabel(lost.length, 'deal'), accent: 'rose' },
       { label: 'CAPTURE', value: `${captureRate}%`, sub: 'of closed value', accent: 'mint' },
       { label: 'AVG DEAL', value: fmtValue(avgDeal, 'currency'), sub: 'won deals', accent: 'sky' },
     ],
     months,
     bars: months.map((m) => ({
       label: m.label,
-      title: `${m.label} — ${fmtValue(m.revenue, 'currency')} · ${m.count} deals`,
+      title: `${m.label} — ${fmtValue(m.revenue, 'currency')} · ${countLabel(m.count, 'deal')}`,
       ...reportBar(m.revenue, maxRev),
     })),
     topWins: [...won]
@@ -371,7 +371,7 @@ export function activityReport(activities: Entity[], def: EntityDef, now: Date, 
   return {
     stats,
     weeks,
-    bars: weeks.map((w) => ({ label: w.label, title: `Week of ${w.label} — ${w.count} activities`, ...reportBar(w.count, maxWeek) })),
+    bars: weeks.map((w) => ({ label: w.label, title: `Week of ${w.label} — ${countLabel(w.count, 'activity')}`, ...reportBar(w.count, maxWeek) })),
     topContacts: [...contactCounts.entries()]
       .sort((a, b) => b[1] - a[1])
       .slice(0, 8)

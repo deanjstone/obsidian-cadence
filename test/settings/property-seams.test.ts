@@ -165,7 +165,7 @@ describe("key suggestions and cell helpers", () => {
   it("formats folder sources and badges", () => {
     expect([folderSource("A"), folderSource("")]).toEqual(["folder:A", "none"]);
     expect(folderBadge("A")).toEqual({ text: "A", color: "var(--text-normal)" });
-    expect(folderBadge("")).toEqual({ text: "Aucun dossier", color: "var(--text-faint)" });
+    expect(folderBadge("")).toEqual({ text: "No folder", color: "var(--text-faint)" });
   });
 
   it("lists folders from getAllFolders, or from note paths only when it lists none", () => {
@@ -302,7 +302,7 @@ describe("applyPropertyEdit", () => {
     const r = registry();
     expect(applyPropertyEdit(r, "vendor", { kind: "move", from: 3, to: 1 })).toEqual({
       ok: false,
-      notice: "Impossible de réordonner : les propriétés verrouillées (🔒) doivent conserver leur position initiale.",
+      notice: "Cannot reorder: locked properties (🔒) must keep their original position.",
     });
     expect(r.vendor.fields.map((f) => f.key)).toEqual(["name", "type", "region", "notes"]);
   });
@@ -316,7 +316,7 @@ describe("FolderSuggestModal", () => {
     });
     const chosen: string[] = [];
     const modal = new FolderSuggestModal(createMockApp() as Any, ["Areas", "Cadence/Contacts"], (f) => chosen.push(f));
-    expect(placeholders).toEqual(["Rechercher un dossier du vault…"]);
+    expect(placeholders).toEqual(["Search vault folders…"]);
     expect(modal.getSuggestions("CAD")).toEqual(["Cadence/Contacts"]);
     expect(modal.getSuggestions("")).toEqual(["Areas", "Cadence/Contacts"]);
     const el = { spans: [] as string[], createEl(_tag: string, o: { text: string }) { this.spans.push(o.text); } };

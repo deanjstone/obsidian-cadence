@@ -3,7 +3,7 @@ import { ENTITIES } from '../constants/entities';
 import { CadenceImportModal } from '../modals/import-modal';
 import { closedPatch } from '../utils/deals';
 import { entityValue, getFieldSuggestionSource, listEntities, readProjectMeta } from '../utils/entities';
-import { fmtValue, pctBand } from '../utils/format';
+import { fmtValue, pctBand, pluralize } from '../utils/format';
 import { parseLinkValues } from '../utils/parsing';
 import type { Entity, EntityDef, EntityField } from '../types/entities';
 import type { AppViewHost } from './host';
@@ -408,7 +408,7 @@ export async function renderEntityList(
     sel.style.border = '1px solid var(--border-color)';
     sel.style.borderRadius = '4px';
 
-    sel.createEl('option', { value: '', text: `All ${fdef.label}s` });
+    sel.createEl('option', { value: '', text: `All ${pluralize(fdef.label)}` });
     values.forEach(v => {
       sel.createEl('option', { value: v, text: v });
     });

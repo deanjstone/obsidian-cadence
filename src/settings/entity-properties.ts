@@ -194,7 +194,7 @@ export function folderSource(path: string): string {
 
 /* The folder badge's text and colour. */
 export function folderBadge(path: string): { text: string; color: string } {
-  return { text: path || 'Aucun dossier', color: path ? 'var(--text-normal)' : 'var(--text-faint)' };
+  return { text: path || 'No folder', color: path ? 'var(--text-normal)' : 'var(--text-faint)' };
 }
 
 /* The folder picker's list, sorted: the vault's folders when it lists any
@@ -334,7 +334,7 @@ export function applyPropertyEdit(entities: Record<string, EntityDef>, entityKey
     case 'move': {
       const candidateFields = moveField(def.fields, edit.from, edit.to, (f) => isFieldLocked(entityKey, f));
       if (!candidateFields) {
-        return { ok: false, notice: 'Impossible de réordonner : les propriétés verrouillées (🔒) doivent conserver leur position initiale.' };
+        return { ok: false, notice: 'Cannot reorder: locked properties (🔒) must keep their original position.' };
       }
       def.fields = candidateFields;
       return { ok: true, migrations, rerender: true };
@@ -351,7 +351,7 @@ export class FolderSuggestModal extends SuggestModal<string> {
     super(app);
     this.folders = folders;
     this.onChoose = onChoose;
-    this.setPlaceholder('Rechercher un dossier du vault…');
+    this.setPlaceholder('Search vault folders…');
   }
 
   getSuggestions(q: string): string[] {
@@ -644,7 +644,7 @@ export function renderEntityPropertiesSettings(tab: SettingTabHost, containerEl:
 
         const pickFolderBtn = folderPickerWrap.createEl('button', {
           cls: 'cad-btn cad-btn-sm cad-folder-pick-btn',
-          text: '📂 Choisir',
+          text: '📂 Choose',
         });
         pickFolderBtn.type = 'button';
         pickFolderBtn.style.flexShrink = '0';

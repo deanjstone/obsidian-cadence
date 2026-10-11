@@ -22,6 +22,9 @@ export interface CustomPage {
   /** Module toggle that hides the page; defaults to sectionId. */
   module?: string;
   entityKey: string;
+  /** The entity's singular label, asked for when the page is added. Pages
+      saved before that have none; their label is guessed on load. */
+  singular?: string;
   /** 'table' | 'kanban' | 'cards', chosen when the page is added. */
   defaultLayout?: string;
 }

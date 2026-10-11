@@ -67,7 +67,7 @@ describe("renderReportSales: layout and stats", () => {
     await view.renderReportSales(root);
     expect(stats(root)).toEqual([
       ["emerald", "REVENUE", cur(20000), "5 deals"],
-      ["rose", "LOST", cur(4000), "1 deals"],
+      ["rose", "LOST", cur(4000), "1 deal"],
       ["mint", "CAPTURE", "83%", "of closed value"],
       ["sky", "AVG DEAL", cur(4000), "won deals"],
     ]);
@@ -93,7 +93,7 @@ describe("renderReportSales: revenue by month", () => {
       ["May", "0%", "empty", `May — ${cur(0)} · 0 deals`],
       ["Jun", "0%", "empty", `Jun — ${cur(0)} · 0 deals`],
       ["Jul", "0%", "empty", `Jul — ${cur(0)} · 0 deals`],
-      ["Aug", `${(3000 / 14000) * 100}%`, "low", `Aug — ${cur(3000)} · 1 deals`],
+      ["Aug", `${(3000 / 14000) * 100}%`, "low", `Aug — ${cur(3000)} · 1 deal`],
       ["Sep", "0%", "empty", `Sep — ${cur(0)} · 0 deals`],
       ["Oct", "100%", "high", `Oct — ${cur(14000)} · 2 deals`],
     ]);
@@ -112,7 +112,7 @@ describe("renderReportSales: revenue by month", () => {
   it("scales to at least 1 so an all-zero chart has no NaN heights", async () => {
     const { view, root } = setup([deal("Z", { stage: "Won", value: 0 }, Date.UTC(2026, 9, 1))]);
     await view.renderReportSales(root);
-    expect(bars(root).map((b) => [b[1], b[2], b[3]]).at(-1)).toEqual(["0%", "empty", `Oct — ${cur(0)} · 1 deals`]);
+    expect(bars(root).map((b) => [b[1], b[2], b[3]]).at(-1)).toEqual(["0%", "empty", `Oct — ${cur(0)} · 1 deal`]);
   });
 
   it("windows by calendar month across a year boundary", async () => {
@@ -124,9 +124,9 @@ describe("renderReportSales: revenue by month", () => {
     const { view, root } = setup(files, Date.UTC(2026, 3, 15, 12));
     await view.renderReportSales(root);
     expect(bars(root).map((b) => [b[0], b[3]])).toEqual([
-      ["Nov", `Nov — ${cur(20)} · 1 deals`],
+      ["Nov", `Nov — ${cur(20)} · 1 deal`],
       ["Dec", `Dec — ${cur(0)} · 0 deals`],
-      ["Jan", `Jan — ${cur(40)} · 1 deals`],
+      ["Jan", `Jan — ${cur(40)} · 1 deal`],
       ["Feb", `Feb — ${cur(0)} · 0 deals`],
       ["Mar", `Mar — ${cur(0)} · 0 deals`],
       ["Apr", `Apr — ${cur(0)} · 0 deals`],
@@ -137,7 +137,7 @@ describe("renderReportSales: revenue by month", () => {
     const closed = deal("Closed", { stage: "Won", value: 7, closed: "1970-01-15" });
     const { view, root } = setup([W4, deal("Zero", { stage: "Won", value: 5 }, 0), closed], Date.UTC(1970, 2, 1));
     await view.renderReportSales(root);
-    expect(bars(root).map((b) => b[3]).at(-3)).toEqual(`Jan — ${cur(7)} · 1 deals`);
+    expect(bars(root).map((b) => b[3]).at(-3)).toEqual(`Jan — ${cur(7)} · 1 deal`);
   });
 
   it("an edit doesn't move a win with a `closed` date, in any zone", async () => {
@@ -146,7 +146,7 @@ describe("renderReportSales: revenue by month", () => {
         const { view, root } = setup([deal("Edited", { stage: ["Won"], value: 10, closed: "2026-08-01" }, Date.UTC(2026, 9, 5))]);
         await view.renderReportSales(root);
         expect(bars(root).map((b) => [b[0], b[3]]).slice(3)).toEqual([
-          ["Aug", `Aug — ${cur(10)} · 1 deals`], ["Sep", `Sep — ${cur(0)} · 0 deals`], ["Oct", `Oct — ${cur(0)} · 0 deals`],
+          ["Aug", `Aug — ${cur(10)} · 1 deal`], ["Sep", `Sep — ${cur(0)} · 0 deals`], ["Oct", `Oct — ${cur(0)} · 0 deals`],
         ]);
         vi.useRealTimers();
         vi.restoreAllMocks();
@@ -157,7 +157,7 @@ describe("renderReportSales: revenue by month", () => {
   it("falls back to the file mtime for an unreadable `closed` value", async () => {
     const { view, root } = setup([deal("Odd", { stage: "Won", value: 3, closed: "someday" }, Date.UTC(2026, 9, 2))]);
     await view.renderReportSales(root);
-    expect(bars(root).at(-1)![3]).toBe(`Oct — ${cur(3)} · 1 deals`);
+    expect(bars(root).at(-1)![3]).toBe(`Oct — ${cur(3)} · 1 deal`);
   });
 });
 

@@ -92,13 +92,13 @@ describe("renderReportActivity: activity by week", () => {
     const { view, root } = setup(ACTS);
     await view.renderReportActivity(root);
     expect(bars(root)).toEqual([
-      ["Aug 17", "50%", "mid", "Week of Aug 17 — 1 activities"],
+      ["Aug 17", "50%", "mid", "Week of Aug 17 — 1 activity"],
       ["Aug 24", "0%", "empty", "Week of Aug 24 — 0 activities"],
       ["Aug 31", "0%", "empty", "Week of Aug 31 — 0 activities"],
       ["Sep 7", "0%", "empty", "Week of Sep 7 — 0 activities"],
       ["Sep 14", "0%", "empty", "Week of Sep 14 — 0 activities"],
       ["Sep 21", "0%", "empty", "Week of Sep 21 — 0 activities"],
-      ["Sep 28", "50%", "mid", "Week of Sep 28 — 1 activities"],
+      ["Sep 28", "50%", "mid", "Week of Sep 28 — 1 activity"],
       ["Oct 5", "100%", "high", "Week of Oct 5 — 2 activities"],
     ]);
   });
@@ -107,8 +107,8 @@ describe("renderReportActivity: activity by week", () => {
     const { view, root } = setup([A1, A2], { weekStartsOn: 0 });
     await view.renderReportActivity(root);
     expect(bars(root).map((b) => [b[0], b[3]]).slice(-2)).toEqual([
-      ["Oct 4", "Week of Oct 4 — 1 activities"],
-      ["Oct 11", "Week of Oct 11 — 1 activities"],
+      ["Oct 4", "Week of Oct 4 — 1 activity"],
+      ["Oct 11", "Week of Oct 11 — 1 activity"],
     ]);
   });
 

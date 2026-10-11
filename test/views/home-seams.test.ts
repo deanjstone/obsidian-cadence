@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { TFile } from "../mocks/obsidian";
 import {
+  briefingHeadline,
   computeBriefing, countTaskLines, countWeekTaskNotes, inboxRowMeta, isHomeActiveProject, nextUpcomingMilestone, selectInboxCard,
   selectPartnerRows, selectPipelineCard, selectRecentActivities, selectTodayCard, selectUpcomingItems, taskNotesToday,
   toggleTaskLine, visibleBriefing, weekProgress, type BriefingData,
@@ -347,5 +348,14 @@ describe("nextUpcomingMilestone", () => {
     expect(nextUpcomingMilestone([milestone("2026-10-10T00:00:00Z", "Today")], NOW)?.title).toBe("Today");
     expect(nextUpcomingMilestone([milestone("2026-10-09T00:00:00Z", "Late")], NOW)).toBeNull();
     expect(nextUpcomingMilestone([], NOW)).toBeNull();
+  });
+});
+
+describe("briefingHeadline", () => {
+  const rose = [{ icon: "", tone: "rose", text: "" }];
+  it.each([
+    [0, "morning"], [11, "morning"], [12, "afternoon"], [17, "afternoon"], [18, "evening"], [23, "evening"],
+  ])("at %i:30 says overdue items need attention this %s", (hour, part) => {
+    expect(briefingHeadline(rose, new Date(2026, 9, 10, hour, 30))).toBe(`A couple of things need attention this ${part}.`);
   });
 });

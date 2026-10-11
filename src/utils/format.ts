@@ -8,6 +8,34 @@ export function pctBand(pct: number): PctBand {
   return 'emerald';
 }
 
+/* A plural label's likely singular, the guess a new custom page's singular
+   prompt is pre-filled with: Categories → Category, Classes → Class,
+   Products → Product. A word ending in ss, us or is is already singular
+   (Status, Class, Bus, Analysis). An all-caps label drops one trailing S
+   (KPIS → KPI) unless it ends in SS. */
+export function guessSingular(plural: string): string {
+  if (plural.length <= 1) return plural;
+  if (plural === plural.toUpperCase()) return /[^S]S$/.test(plural) ? plural.slice(0, -1) : plural;
+  if (/[^aeiou]ies$/i.test(plural)) return plural.slice(0, -3) + 'y';
+  if (/(ss|x|z|ch|sh)es$/i.test(plural)) return plural.slice(0, -2);
+  if (/(ss|us|is)$/i.test(plural)) return plural;
+  if (/s$/i.test(plural)) return plural.slice(0, -1);
+  return plural;
+}
+
+/* A singular label's plural: Company → Companies, Status → Statuses,
+   Role → Roles. */
+export function pluralize(singular: string): string {
+  if (/[^aeiou]y$/i.test(singular)) return singular.slice(0, -1) + 'ies';
+  if (/(s|x|z|ch|sh)$/i.test(singular)) return singular + 'es';
+  return singular + 's';
+}
+
+/* `1 deal`, `0 deals`, `3 activities`: the singular for exactly one. */
+export function countLabel(count: number, singular: string, plural: string = pluralize(singular)): string {
+  return `${count} ${count === 1 ? singular : plural}`;
+}
+
 /* Module-level — kept in sync by the plugin so the standalone fmtValue helper
    can format currency without each caller threading settings through. */
 let CURRENT_CURRENCY = 'USD';

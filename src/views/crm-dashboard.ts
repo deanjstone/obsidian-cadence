@@ -5,7 +5,7 @@ import type { WidgetConfig } from '../types/modals';
 import { newestFirst } from '../utils/dates';
 import { NO_STAGE, crmSummary, dealValue, dealsByStage, sumValues, type CrmSummary } from '../utils/deals';
 import { entityValue, getDealStages, listEntities, listEntityFiles } from '../utils/entities';
-import { fmtValue } from '../utils/format';
+import { countLabel, fmtValue } from '../utils/format';
 import type { DashCardRow, StatCard } from './components/cards';
 import { WIDGET_STYLE_OPTIONS, chartData, dashboardWidgets, removeWidget, widgetTitle } from './components/charts';
 import type { AppViewHost } from './host';
@@ -31,7 +31,7 @@ export function crmStatCards(summary: CrmSummary): StatCard[] {
     { label: 'WON', value: won.length, sub: fmtValue(summary.wonValue, 'currency'), accent: 'emerald' },
     { label: 'LOST', value: lost.length, sub: fmtValue(summary.lostValue, 'currency'), accent: 'rose' },
     { label: 'WIN RATE', value: `${winRate}%`, sub: `${won.length}/${won.length + lost.length} closed`, accent: 'mint' },
-    { label: 'AVG DEAL', value: fmtValue(avgDeal, 'currency'), sub: `${won.length} won deals`, accent: 'warn' },
+    { label: 'AVG DEAL', value: fmtValue(avgDeal, 'currency'), sub: countLabel(won.length, 'won deal'), accent: 'warn' },
   ];
 }
 

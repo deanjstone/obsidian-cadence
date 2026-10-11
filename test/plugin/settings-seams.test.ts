@@ -76,8 +76,12 @@ describe("customEntityNames", () => {
     expect(customEntityNames("k", page("s"))).toEqual({ label: "s", plural: "s" });
   });
 
-  it("QUIRK: any trailing s is a plural", () => {
-    expect(customEntityNames("k", { id: "p", label: "Bus", sectionId: "crm", entityKey: "k" }).label).toBe("Bu");
+  it("keeps a singular that ends in s whole (Bus stays Bus)", () => {
+    expect(customEntityNames("k", { id: "p", label: "Bus", sectionId: "crm", entityKey: "k" }).label).toBe("Bus");
+  });
+
+  it("takes the singular saved on the page over the guess", () => {
+    expect(customEntityNames("k", { id: "p", label: "People", sectionId: "crm", entityKey: "k", singular: "person" })).toEqual({ label: "Person", plural: "People" });
   });
 
   it("derives from the key without a page: capitalised, or kept when all caps", () => {

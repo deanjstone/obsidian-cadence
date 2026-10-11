@@ -2,7 +2,7 @@ import { DEFAULT_SETTINGS } from '../constants/settings';
 import { ENTITIES } from '../constants/entities';
 import type { EntityDef, EntityField } from '../types/entities';
 import type { CustomPage, PluginSettings } from '../types/settings';
-import { setCurrentCurrency } from '../utils/format';
+import { guessSingular, setCurrentCurrency } from '../utils/format';
 import type { AppWithMetadataTypes, PluginHost } from './host';
 
 /* Settings load and save, and the property types registered with Obsidian.
@@ -55,21 +55,17 @@ export function fillSettingDefaults(settings: PluginSettings, defaults: PluginSe
   }
 }
 
-/* A rebuilt entity's label and plural: from its custom page's label, or
-   else from its key. QUIRK (#22): any trailing s or S counts as a plural
-   (Bus → Bu). Only a core key missing from ENTITIES reaches the key branch,
-   so its all-caps case is unreachable. */
+/* A rebuilt entity's label and plural: from its custom page, or else from
+   its key. The label is the singular saved on the page (capitalised), or for
+   a page saved before singulars were asked for, a guess from its label
+   (guessSingular). Only a core key missing from ENTITIES reaches the key
+   branch, so its all-caps case is unreachable. */
 export function customEntityNames(entityKey: string, customPage: CustomPage | undefined): { label: string; plural: string } {
   let label, plural;
   if (customPage) {
     plural = customPage.label;
-    if (plural.endsWith('s') && plural.length > 1) {
-      label = plural.substring(0, plural.length - 1);
-    } else if (plural.endsWith('S') && plural.length > 1) {
-      label = plural.substring(0, plural.length - 1);
-    } else {
-      label = plural;
-    }
+    const singular = (customPage.singular || '').trim();
+    label = singular ? singular.charAt(0).toUpperCase() + singular.slice(1) : guessSingular(plural);
   } else {
     label = (entityKey === entityKey.toUpperCase()) ? entityKey : (entityKey.charAt(0).toUpperCase() + entityKey.slice(1));
     plural = label + 's';

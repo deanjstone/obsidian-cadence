@@ -367,17 +367,17 @@ describe("_renderCrossSections", () => {
     expect((list as unknown[]).length).toBe(2);
   });
 
-  it("QUIRK: shows its delete prompt and empty state in French", async () => {
+  it("shows its delete prompt and empty state in English", async () => {
     const { view, parent, plugin, rendered } = setup(files, { crossSections: [config("table"), config("tile", { id: "keep" })] });
     const confirm = vi.fn(() => false);
     vi.stubGlobal("confirm", confirm);
     view._renderCrossSections(parent, "company", "Nobody");
-    expect(parent.querySelectorAll(".cad-empty").map((e) => e.text)).toEqual(["Aucun élément lié trouvé.", "Aucun élément lié trouvé."]);
+    expect(parent.querySelectorAll(".cad-empty").map((e) => e.text)).toEqual(["No linked items found.", "No linked items found."]);
     const del = parent.findAll("button")[0];
-    expect([del.text, del.title]).toEqual(["×", "Supprimer cette section croisée"]);
+    expect([del.text, del.title]).toEqual(["×", "Delete this cross section"]);
     del.trigger("click");
     await flush();
-    expect(confirm.mock.calls).toEqual([["Supprimer cette section croisée ?"]]);
+    expect(confirm.mock.calls).toEqual([["Delete this cross section?"]]);
     expect(plugin.saves).toBe(0);
     confirm.mockReturnValue(true);
     del.trigger("click");
@@ -413,12 +413,12 @@ describe("_renderCrossSections", () => {
     expect(table.mock.calls.map((c) => [c[0], c[1], (c[2] as unknown[]).length, c[3]])).toEqual([[parent.children[1], "contact", 1, ENTITIES.contact.columns]]);
   });
 
-  it("boards the linked targets into enum columns, with a French empty column", () => {
+  it("boards the linked targets into enum columns, with an English empty column", () => {
     const { view, parent, opened, file } = setup(files, { crossSections: [config("kanban")] });
     view._renderCrossSections(parent, "company", "Acme Corp");
     const cols = byClass(parent, "cad-stat-card");
     expect(cols.map((c) => c.children[0].text)).toEqual(["LEAD", "QUALIFIED", "PROPOSAL", "NEGOTIATION", "WON", "LOST"]);
-    expect(cols[0].children[1].text).toBe("Aucun élément");
+    expect(cols[0].children[1].text).toBe("No items");
     const rows = byClass(cols[2], "cad-dash-row");
     expect(rows.map((r) => r.text)).toEqual(["Acme renewal"]);
     rows[0].trigger("click");
