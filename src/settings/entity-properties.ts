@@ -61,22 +61,13 @@ export function isPermanentlyLocked(entityKey: string, field: EntityField): bool
   return false;
 }
 
-/* Whether a field is locked. A field with no `locked` flag gets one, in
-   place: true for `type` and for every core entity's field, false for a
-   custom entity's. Flagged quirk: drawing the table writes these flags into
-   the registry, and the next save persists them. */
+/* Whether a field is locked: its `locked` flag, else true for `type` and
+   for every core entity's field, false for a custom entity's. Reading the
+   default writes nothing into the registry. */
 export function isFieldLocked(entityKey: string, field: EntityField): boolean {
   if (isPermanentlyLocked(entityKey, field)) return true;
-
-  // Default type field to locked (but toggleable) for BOTH core and custom entities
-  if (field.locked === undefined) {
-    if (field.key === 'type') {
-      field.locked = true;
-    } else {
-      field.locked = CORE_ENTITY_KEYS.includes(entityKey);
-    }
-  }
-  return !!field.locked;
+  if (field.locked !== undefined) return !!field.locked;
+  return field.key === 'type' || CORE_ENTITY_KEYS.includes(entityKey);
 }
 
 /* Copy every entity's fields into settings.customEntities (deep copies). */

@@ -161,12 +161,13 @@ describe("Custom Entity Properties: table and locks", () => {
     expect(lockState(editor())).toEqual(["🔒", "🔒", "🔐", "🔐", "🔐", "🔐", "🔐"]);
   });
 
-  it("QUIRK: drawing the table writes locked: true into every core field it shows (and type: locked on a custom entity)", () => {
+  it("drawing the table writes no locked flags into the registry, on core or custom entities", () => {
     addVendor([{ key: "region", label: "Region" }]);
-    shown();
-    expect(ENTITIES.project.fields.map((f: Any) => f.locked)).toEqual([undefined, undefined, undefined, true, true, true, true]);
+    const { editor } = shown();
+    expect(lockState(editor())).toEqual(["🔒", "🔒", "🔒", "🔐", "🔐", "🔐", "🔐"]);
+    expect(ENTITIES.project.fields.map((f: Any) => f.locked)).toEqual([undefined, undefined, undefined, undefined, undefined, undefined, undefined]);
     shown({ entity: "crm_vendor" });
-    expect(ENTITIES.crm_vendor.fields.map((f: Any) => f.locked)).toEqual([undefined, true, false]);
+    expect(ENTITIES.crm_vendor.fields.map((f: Any) => f.locked)).toEqual([undefined, undefined, undefined]);
   });
 
   it("leaves a custom entity's fields unlocked except type, with drag handles and lock buttons", () => {
@@ -326,7 +327,7 @@ describe("Custom Entity Properties: technical key", () => {
     r.key.value = "Remarks-2!";
     r.key.trigger("change");
     await vi.waitFor(() => expect(made.calls).toEqual(["save", "register", "refresh"]));
-    expect(ENTITIES.crm_vendor.fields[2]).toEqual({ key: "remarks2", label: "Notes", type: "text", locked: false });
+    expect(ENTITIES.crm_vendor.fields[2]).toEqual({ key: "remarks2", label: "Notes", type: "text" });
     const fm = (path: string) => made.app.metadataCache.getFileCache(made.app.vault.getAbstractFileByPath(path) as Any)?.frontmatter;
     expect(fm("Cadence/Vendors/Acme.md")).toEqual({ remarks2: "hi" });
     expect(fm("Cadence/Vendors/Beta.md")).toEqual({ other: 1 });
@@ -342,7 +343,7 @@ describe("Custom Entity Properties: technical key", () => {
     r.key.value = "tier";
     r.key.trigger("change");
     await vi.waitFor(() => expect(calls).toHaveLength(3));
-    expect(ENTITIES.crm_vendor.fields[2]).toEqual({ key: "tier", label: "Grade", type: "text", options: ["x"], suggestionSource: "none", locked: false });
+    expect(ENTITIES.crm_vendor.fields[2]).toEqual({ key: "tier", label: "Grade", type: "text", options: ["x"], suggestionSource: "none" });
     expect(ENTITIES.partner.fields[1]).toEqual(partnerTier);
     expect(Notice.messages).toEqual([]);
   });
@@ -372,7 +373,7 @@ describe("Custom Entity Properties: technical key", () => {
     r.key.value = "REGION";
     r.key.trigger("change");
     await vi.waitFor(() => expect(calls).toHaveLength(3));
-    expect(ENTITIES.crm_vendor.fields[2]).toEqual({ key: "region", label: "Territory", type: "multitext", locked: false });
+    expect(ENTITIES.crm_vendor.fields[2]).toEqual({ key: "region", label: "Territory", type: "multitext" });
     expect(Notice.messages).toEqual([]);
   });
 });
@@ -616,10 +617,10 @@ describe("Custom Entity Properties: delete, add and reorder", () => {
     expect(plugin.saved[0].customEntities.crm_vendor[4]).toEqual({ key: "new_property_2", label: "New Property", type: "text" });
     buttonByText(editor(), "+ Add property").trigger("click");
     await vi.waitFor(() => expect(calls).toHaveLength(6));
-    // The redraw after each add marks the new field unlocked.
+    // The redraw after each add leaves the new field's lock unset.
     expect(ENTITIES.crm_vendor.fields.slice(4)).toEqual([
-      { key: "new_property_2", label: "New Property", type: "text", locked: false },
-      { key: "new_property_4", label: "New Property", type: "text", locked: false },
+      { key: "new_property_2", label: "New Property", type: "text" },
+      { key: "new_property_4", label: "New Property", type: "text" },
     ]);
     expect(propRows(editor())).toHaveLength(6);
   });

@@ -84,13 +84,14 @@ describe("locks", () => {
     expect(isPermanentlyLocked("vendor", { key: "status", label: "" })).toBe(false);
   });
 
-  it("defaults the locked flag in place: type and core fields locked, custom fields not; an explicit flag wins", () => {
-    const fields: EntityField[] = [{ key: "type", label: "" }, { key: "x", label: "" }, { key: "y", label: "", locked: true }];
-    expect(fields.map((f) => isFieldLocked("vendor", f))).toEqual([true, false, true]);
-    expect(fields.map((f) => f.locked)).toEqual([true, false, true]);
+  it("defaults the lock without writing a flag: type and core fields locked, custom fields not; an explicit flag wins", () => {
+    const fields: EntityField[] = [{ key: "type", label: "" }, { key: "x", label: "" }, { key: "y", label: "", locked: true }, { key: "type", label: "", locked: false }];
+    expect(fields.map((f) => isFieldLocked("vendor", f))).toEqual([true, false, true, false]);
+    expect(fields.map((f) => f.locked)).toEqual([undefined, undefined, true, false]);
     const core: EntityField = { key: "email", label: "" };
     expect(isFieldLocked("contact", core)).toBe(true);
-    expect(core.locked).toBe(true);
+    expect(isFieldLocked("contact", { key: "email", label: "", locked: false })).toBe(false);
+    expect(core.locked).toBeUndefined();
     const primary: EntityField = { key: "name", label: "", primary: true };
     expect(isFieldLocked("vendor", primary)).toBe(true);
     expect(primary.locked).toBeUndefined();
