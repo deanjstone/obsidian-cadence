@@ -260,7 +260,7 @@ describe("entity detail seams", () => {
 
   it("picks the control by type, then chips, then text; a text or email list is chips", () => {
     expect(contact.fields.map((f) => [f.key, detailControl(f)])).toEqual([
-      ["name", "text"], ["email", "chips"], ["phone", "chips"], ["company", "chips"], ["role", "chips"],
+      ["name", "text"], ["email", "chips"], ["phone", "chips"], ["company", "chips"], ["role", "chips"], ["project", "chips"],
       ["lastContact", "date"], ["tags", "chips"],
     ]);
     expect(deal.fields.map(detailControl)).toEqual(["text", "enum", "number", "chips", "chips", "chips", "date"]);

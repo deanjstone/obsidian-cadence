@@ -80,7 +80,7 @@ describe("entityTemplate", () => {
   });
   it("writes [] for list and tag fields", () => {
     expect(entityTemplate("contact", "Jane")).toBe(
-      "---\ntype: contact\nname: Jane\nemail: []\nphone: []\ncompany: []\nrole: []\nlastContact:\ntags: []\n---\n\n# Jane\n\n",
+      "---\ntype: contact\nname: Jane\nemail: []\nphone: []\ncompany: []\nrole: []\nproject:\nlastContact:\ntags: []\n---\n\n# Jane\n\n",
     );
   });
   it("writes 0 for number fields", () => {

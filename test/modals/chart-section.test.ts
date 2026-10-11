@@ -46,7 +46,7 @@ describe("CadenceChartSectionModal", () => {
     expect(content.findAll("h3").map((h) => h.text)).toEqual(["Add Analytics Chart Block"]);
     expect(optionValues(target)).toEqual(Object.keys(ENTITIES).filter((k) => k !== "company"));
     expect(optionTexts(target)[1]).toBe("Partners");
-    expect(optionValues(link)).toEqual(["email", "phone", "company", "role", "lastContact", "tags"]);
+    expect(optionValues(link)).toEqual(["email", "phone", "company", "role", "project", "lastContact", "tags"]);
     expect(optionValues(group)).toEqual(optionValues(link));
     expect(optionTexts(group)[0]).toBe("Email (email)");
     expect(optionValues(style)).toEqual(["donut", "bar", "kpi", "list"]);

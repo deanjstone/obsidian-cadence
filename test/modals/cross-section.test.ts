@@ -42,7 +42,7 @@ describe("CadenceCrossSectionModal", () => {
     expect(content.findAll("h3").map((h) => h.text)).toEqual(["Add Cross-Linked Section"]);
     expect(optionValues(target)).toEqual(Object.keys(ENTITIES).filter((k) => k !== "company"));
     expect(optionTexts(target).slice(0, 2)).toEqual(["Contacts", "Partners"]);
-    expect(optionValues(field)).toEqual(["email", "phone", "company", "role", "lastContact", "tags"]);
+    expect(optionValues(field)).toEqual(["email", "phone", "company", "role", "project", "lastContact", "tags"]);
     expect(optionTexts(field)[2]).toBe("Company (company)");
     expect(optionValues(view)).toEqual(["table", "tile", "kanban"]);
     expect(optionTexts(view)).toEqual(["Table 📋", "Tiles / Cards 🎴", "Kanban Board 🗂️"]);

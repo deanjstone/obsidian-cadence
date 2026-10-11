@@ -232,7 +232,7 @@ describe("renderEntityList: search and filters", () => {
     await view.renderEntityList(root, "contact");
     type(search(root), "zzz");
     const tds = table(root).querySelectorAll("td");
-    expect(tds.map((td) => [td.text, (td as Any).colSpan, td.style.textAlign])).toEqual([["No matching entries found.", 7, "center"]]);
+    expect(tds.map((td) => [td.text, (td as Any).colSpan, td.style.textAlign])).toEqual([["No matching entries found.", 8, "center"]]);
   });
 
   it("options fold case like matching does, so 'Active' and 'active' list once and both match", async () => {
@@ -271,7 +271,7 @@ describe("renderEntityList: table", () => {
   it("shows def.columns first, then every other field", async () => {
     const { view, root } = setup(CONTACTS);
     await view.renderEntityList(root, "contact");
-    expect(heads(root).map((h) => h[0])).toEqual(["Name ", "Company ", "Email ", "Phone ", "Role ", "Last contact ", "Tags "]);
+    expect(heads(root).map((h) => h[0])).toEqual(["Name ", "Company ", "Email ", "Phone ", "Role ", "Last contact ", "Project ", "Tags "]);
   });
 
   it("opts.columns selects the columns as well as ordering them; no other field is appended", async () => {
@@ -294,7 +294,7 @@ describe("renderEntityList: table", () => {
     expect(names(root)).toEqual(["Bob Smith", "carol", "Jane Doe"]);
     const ths = table(root).querySelectorAll("th");
     expect(ths.map((th) => [th.children[1].text, th.children[1].style.opacity])).toEqual([
-      ["▲", "1"], ["↕", "0.4"], ["↕", "0.4"], ["↕", "0.4"], ["↕", "0.4"], ["↕", "0.4"], ["↕", "0.4"],
+      ["▲", "1"], ["↕", "0.4"], ["↕", "0.4"], ["↕", "0.4"], ["↕", "0.4"], ["↕", "0.4"], ["↕", "0.4"], ["↕", "0.4"],
     ]);
     expect([ths[0].style.cursor, ths[0].style.userSelect]).toEqual(["pointer", "none"]);
   });
@@ -317,7 +317,7 @@ describe("renderEntityList: table", () => {
     table(root).querySelectorAll("th")[5].trigger("click");
     // carol has no lastContact → time 0, first.
     expect(names(root)).toEqual(["carol", "Bob Smith", "Jane Doe"]);
-    expect(table(root).querySelectorAll("th").map((th) => th.children[1].text)).toEqual(["↕", "↕", "↕", "↕", "↕", "▲", "↕"]);
+    expect(table(root).querySelectorAll("th").map((th) => th.children[1].text)).toEqual(["↕", "↕", "↕", "↕", "↕", "▲", "↕", "↕"]);
   });
 
   it("sorts strings with [[ ]] stripped, numerically and case-insensitively", async () => {
@@ -342,8 +342,9 @@ describe("renderEntityList: table", () => {
     const event = name.trigger("click");
     expect(event.defaultPrevented).toBe(true);
     expect(opened.mock.calls).toEqual([["contact", file(JANE.path)]]);
-    expect(links.mock.calls).toEqual([[cells[1], ["[[Acme Corp]]"], "company"]]);
-    expect(cells.slice(2).map((c) => c.text)).toEqual(["jane@acme.test", "", "CTO", fmtValue("2026-09-30", "date"), "#vip"]);
+    // Project is a project relation (#68), so it renders as links too, even when empty.
+    expect(links.mock.calls).toEqual([[cells[1], ["[[Acme Corp]]"], "company"], [cells[6], "", "project"]]);
+    expect(cells.slice(2).map((c) => c.text)).toEqual(["jane@acme.test", "", "CTO", fmtValue("2026-09-30", "date"), "", "#vip"]);
   });
 
   it("falls back to the basename when the primary value formats empty", async () => {

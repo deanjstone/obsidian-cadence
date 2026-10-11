@@ -16,6 +16,8 @@ export const ENTITIES: Record<EntityKey, EntityDef> = {
       { key: 'phone', label: 'Phone', isList: true },
       { key: 'company', label: 'Company', isList: true },
       { key: 'role', label: 'Role', isList: true },
+      // A project relation, edited as chips like company; a form edit auto-creates a missing project (#68).
+      { key: 'project', label: 'Project', type: 'multitext', suggestionSource: 'project' },
       { key: 'lastContact', label: 'Last contact', type: 'date' },
       { key: 'tags', label: 'Tags', type: 'tags' },
     ],
