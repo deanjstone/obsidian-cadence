@@ -6470,7 +6470,8 @@ async function renderEntityList(view, root, entityKey, opts = {}) {
   });
   searchInput.style.width = "100%";
   searchInput.style.margin = "0";
-  if (layout === "kanban") {
+  const kanbanParams = layout === "kanban" ? view.getEntityKanbanParams(entityKey) : null;
+  if (kanbanParams) {
     const kanbanFields = kanbanGroupByFields(def);
     if (kanbanFields.length > 0) {
       const groupSelectWrap = controls.createDiv({ attr: { style: "display: inline-flex; align-items: center; gap: 6px; margin-left: auto;" } });
@@ -6485,8 +6486,7 @@ async function renderEntityList(view, root, entityKey, opts = {}) {
       groupSelect.style.borderRadius = "6px";
       kanbanFields.forEach((f) => {
         const optEl = groupSelect.createEl("option", { value: f.key, text: f.label });
-        const currentParams = view.getEntityKanbanParams(entityKey);
-        if (currentParams.groupBy === f.key) optEl.selected = true;
+        if (kanbanParams.groupBy === f.key) optEl.selected = true;
       });
       groupSelect.addEventListener("change", async () => {
         if (!view.plugin.settings.pageKanbanGroupBy) view.plugin.settings.pageKanbanGroupBy = {};
@@ -6589,9 +6589,8 @@ async function renderEntityList(view, root, entityKey, opts = {}) {
           });
         });
       }
-    } else if (layout === "kanban") {
+    } else if (kanbanParams) {
       kanbanWrap.style.display = "block";
-      const kanbanParams = view.getEntityKanbanParams(entityKey);
       const { groupBy, groups } = kanbanParams;
       const board = kanbanWrap.createDiv({ cls: "cad-kanban-board" });
       const valueField = kanbanValueField(def);

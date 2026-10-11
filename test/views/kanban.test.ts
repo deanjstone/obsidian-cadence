@@ -134,12 +134,14 @@ describe("renderEntityList: kanban layout", () => {
     expect(root.children[1].querySelectorAll("select.cad-prop-input")).toEqual([]);
   });
 
-  it("QUIRK: the selector recomputes the params once per option", async () => {
+  it("computes the params once per render, for the selector and the board, however many options or redraws", async () => {
     const { view, root } = setup([{ path: "Cadence/Partners/P.md", frontmatter: { name: "P" } }], "prm.partners");
     const params = vi.spyOn(view, "getEntityKanbanParams");
     await view.renderEntityList(root, "partner");
-    // two options in the selector, then one more for the board.
-    expect(params.mock.calls).toEqual([["partner"], ["partner"], ["partner"]]);
+    const input = root.children[1].children[0].children[0];
+    input.value = "p";
+    input.trigger("input");
+    expect(params.mock.calls).toEqual([["partner"]]);
   });
 
   it("renders a column per group, matching case-insensitively through arrays and links", async () => {

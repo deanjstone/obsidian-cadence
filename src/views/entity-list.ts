@@ -345,8 +345,11 @@ export async function renderEntityList(
   searchInput.style.width = '100%';
   searchInput.style.margin = '0';
 
+  // Read once per render: each call can read the vault
+  const kanbanParams = layout === 'kanban' ? view.getEntityKanbanParams(entityKey) : null;
+
   // Render Kanban GroupBy Selector in the Controls bar
-  if (layout === 'kanban') {
+  if (kanbanParams) {
     const kanbanFields = kanbanGroupByFields(def);
     if (kanbanFields.length > 0) {
       const groupSelectWrap = controls.createDiv({ attr: { style: 'display: inline-flex; align-items: center; gap: 6px; margin-left: auto;' } });
@@ -362,8 +365,7 @@ export async function renderEntityList(
 
       kanbanFields.forEach(f => {
         const optEl = groupSelect.createEl('option', { value: f.key, text: f.label });
-        const currentParams = view.getEntityKanbanParams(entityKey);
-        if (currentParams.groupBy === f.key) optEl.selected = true;
+        if (kanbanParams.groupBy === f.key) optEl.selected = true;
       });
 
       groupSelect.addEventListener('change', async () => {
@@ -487,9 +489,8 @@ export async function renderEntityList(
           });
         });
       }
-    } else if (layout === 'kanban') {
+    } else if (kanbanParams) {
       kanbanWrap.style.display = 'block';
-      const kanbanParams = view.getEntityKanbanParams(entityKey);
       const { groupBy, groups } = kanbanParams;
       const board = kanbanWrap.createDiv({ cls: 'cad-kanban-board' });
 
