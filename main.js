@@ -168,11 +168,14 @@ function dailyNotePath(settings, date = /* @__PURE__ */ new Date()) {
   const name = ymd(date);
   return folder ? `${folder}/${name}.md` : `${name}.md`;
 }
+function partOfDay(now = /* @__PURE__ */ new Date()) {
+  const h = now.getHours();
+  if (h < 12) return "morning";
+  if (h < 18) return "afternoon";
+  return "evening";
+}
 function greeting() {
-  const h = (/* @__PURE__ */ new Date()).getHours();
-  if (h < 12) return "Good morning";
-  if (h < 18) return "Good afternoon";
-  return "Good evening";
+  return `Good ${partOfDay()}`;
 }
 function dateInfo(d = /* @__PURE__ */ new Date()) {
   return {
@@ -1652,7 +1655,7 @@ async function syncContactProjectRelationships(plugin, changedFile) {
             const value = appendProjectLink(cfm.project, changedFile.basename);
             if (value !== null) cfm.project = value;
           });
-          new import_obsidian4.Notice(`Lien automatique : Projet "${changedFile.basename}" associ\xE9 au contact "${contactFile.basename}".`);
+          new import_obsidian4.Notice(`Auto-link: project "${changedFile.basename}" added to contact "${contactFile.basename}".`);
         }
       }
     } else {
@@ -1686,7 +1689,7 @@ async function syncContactProjectRelationships(plugin, changedFile) {
               if (value !== null) cfm.project = value;
             }
           });
-          new import_obsidian4.Notice(`Lien automatique : Projet "${plan.added.join(", ")}" associ\xE9 \xE0 "${contactFile.basename}".`);
+          new import_obsidian4.Notice(`Auto-link: project "${plan.added.join(", ")}" added to "${contactFile.basename}".`);
         }
       }
     }
@@ -1720,7 +1723,7 @@ async function handleProjectDeletion(plugin, file) {
         await plugin.app.fileManager.processFrontMatter(contactFile, (cfm) => {
           writeProjectLinks(cfm, remainingProjects);
         });
-        new import_obsidian4.Notice(`Lien automatique : Projet "${projectName}" supprim\xE9 du contact "${contactFile.basename}".`);
+        new import_obsidian4.Notice(`Auto-link: project "${projectName}" removed from contact "${contactFile.basename}".`);
       }
     }
   } catch (e) {
@@ -2051,6 +2054,23 @@ function pctBand(pct) {
   if (pct < 75) return "mint";
   return "emerald";
 }
+function guessSingular(plural) {
+  if (plural.length <= 1) return plural;
+  if (plural === plural.toUpperCase()) return /[^S]S$/.test(plural) ? plural.slice(0, -1) : plural;
+  if (/[^aeiou]ies$/i.test(plural)) return plural.slice(0, -3) + "y";
+  if (/(ss|x|z|ch|sh)es$/i.test(plural)) return plural.slice(0, -2);
+  if (/(ss|us|is)$/i.test(plural)) return plural;
+  if (/s$/i.test(plural)) return plural.slice(0, -1);
+  return plural;
+}
+function pluralize(singular) {
+  if (/[^aeiou]y$/i.test(singular)) return singular.slice(0, -1) + "ies";
+  if (/(s|x|z|ch|sh)$/i.test(singular)) return singular + "es";
+  return singular + "s";
+}
+function countLabel(count, singular, plural = pluralize(singular)) {
+  return `${count} ${count === 1 ? singular : plural}`;
+}
 var CURRENT_CURRENCY = "USD";
 function setCurrentCurrency(code) {
   CURRENT_CURRENCY = code;
@@ -2117,13 +2137,8 @@ function customEntityNames(entityKey, customPage) {
   let label, plural;
   if (customPage) {
     plural = customPage.label;
-    if (plural.endsWith("s") && plural.length > 1) {
-      label = plural.substring(0, plural.length - 1);
-    } else if (plural.endsWith("S") && plural.length > 1) {
-      label = plural.substring(0, plural.length - 1);
-    } else {
-      label = plural;
-    }
+    const singular = (customPage.singular || "").trim();
+    label = singular ? singular.charAt(0).toUpperCase() + singular.slice(1) : guessSingular(plural);
   } else {
     label = entityKey === entityKey.toUpperCase() ? entityKey : entityKey.charAt(0).toUpperCase() + entityKey.slice(1);
     plural = label + "s";
@@ -2220,10 +2235,76 @@ function registerCustomPropertyTypes(plugin) {
 }
 
 // src/settings/setting-tab.ts
-var import_obsidian8 = require("obsidian");
+var import_obsidian9 = require("obsidian");
 
 // src/settings/custom-pages.ts
+var import_obsidian7 = require("obsidian");
+
+// src/modals/prompt.ts
 var import_obsidian6 = require("obsidian");
+var CadencePromptModal = class extends import_obsidian6.Modal {
+  constructor(app, opts = {}) {
+    super(app);
+    this.title = opts.title || "Enter a name";
+    this.placeholder = opts.placeholder || "";
+    this.defaultValue = opts.defaultValue || "";
+    this.cta = opts.cta || "Create";
+    this.onSubmit = opts.onSubmit;
+    this._submitted = false;
+  }
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.addClass("cad-prompt-modal");
+    contentEl.createEl("h3", { text: this.title });
+    const input = contentEl.createEl("input", { type: "text" });
+    input.placeholder = this.placeholder;
+    input.value = this.defaultValue;
+    input.style.width = "100%";
+    input.style.padding = "8px 10px";
+    input.style.fontSize = "14px";
+    input.style.marginTop = "4px";
+    const submit = () => {
+      const v = input.value.trim();
+      if (!v) {
+        input.focus();
+        return;
+      }
+      this._submitted = true;
+      this.close();
+      this.onSubmit?.(v);
+    };
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        submit();
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        this.close();
+      }
+    });
+    const row = contentEl.createDiv();
+    row.style.display = "flex";
+    row.style.justifyContent = "flex-end";
+    row.style.gap = "8px";
+    row.style.marginTop = "14px";
+    const cancel = row.createEl("button", { text: "Cancel" });
+    cancel.addEventListener("click", () => this.close());
+    const ok = row.createEl("button", { text: this.cta, cls: "mod-cta" });
+    ok.addEventListener("click", submit);
+    setTimeout(() => {
+      input.focus();
+      input.select();
+    }, 0);
+  }
+  onClose() {
+    if (!this._submitted && this.onSubmit) this.onSubmit(null);
+    this.contentEl.empty();
+  }
+};
+
+// src/settings/custom-pages.ts
 var SECTION_OPTIONS = [
   { value: "planner", label: "Planner" },
   { value: "projects", label: "Projects" },
@@ -2277,14 +2358,9 @@ function customPageRows(customPages, entities) {
     layout: customPageLayoutLabel(p.defaultLayout)
   }));
 }
-function customPageEntityKey(label, sectionId2) {
-  let singular = label;
-  if (singular.endsWith("s") && singular.length > 1) {
-    singular = singular.substring(0, singular.length - 1);
-  } else if (singular.endsWith("S") && singular.length > 1) {
-    singular = singular.substring(0, singular.length - 1);
-  }
-  return { singular, entityKey: sectionId2 + "_" + singular.toLowerCase().replace(/\s+/g, "_") };
+function customPageEntityKey(label, sectionId2, singular) {
+  const chosen = (singular || "").trim() || guessSingular(label);
+  return { singular: chosen, entityKey: sectionId2 + "_" + chosen.toLowerCase().replace(/\s+/g, "_") };
 }
 function customEntityLabel(singular) {
   return singular === singular.toUpperCase() ? singular : singular.charAt(0).toUpperCase() + singular.slice(1);
@@ -2292,7 +2368,7 @@ function customEntityLabel(singular) {
 function addCustomPage(settings, entities, form, now) {
   const val = (form.label || "").trim();
   if (!val) return { notice: "Please enter a page label." };
-  const { singular, entityKey } = customPageEntityKey(val, form.sectionId);
+  const { singular, entityKey } = customPageEntityKey(val, form.sectionId, form.singular);
   const existing = (settings.customPages || []).find((page) => page.entityKey === entityKey);
   if (existing) return { notice: `A page for this entity already exists: "${existing.label}".` };
   if (!settings.customEntities) {
@@ -2321,7 +2397,8 @@ function addCustomPage(settings, entities, form, now) {
     icon: form.icon || "file-text",
     entityKey,
     defaultLayout: form.layout,
-    sectionId: form.sectionId
+    sectionId: form.sectionId,
+    singular
   };
   const pages = settings.customPages || [];
   pages.push(newPage);
@@ -2427,28 +2504,45 @@ function renderCustomPagesSettings(tab, containerEl) {
     const addBtn = btnWrap.createEl("button", { cls: "cad-btn primary", text: "Add Page" });
     addBtn.style.padding = "6px 12px";
     addBtn.style.height = "auto";
-    addBtn.addEventListener("click", async () => {
-      const result = addCustomPage(tab.plugin.settings, ENTITIES, {
-        label: labelInput.value,
-        sectionId: sectionSelect.value,
-        layout: layoutSelect.value,
-        icon: iconSelect.value
-      }, Date.now());
+    const addPage = async (form) => {
+      const result = addCustomPage(tab.plugin.settings, ENTITIES, form, Date.now());
       if (!result.page) {
-        new import_obsidian6.Notice(result.notice);
+        new import_obsidian7.Notice(result.notice);
         return;
       }
       await tab.plugin.saveSettings();
       tab.plugin.refreshOpenViews();
-      new import_obsidian6.Notice(result.notice);
+      new import_obsidian7.Notice(result.notice);
       tab.display();
+    };
+    addBtn.addEventListener("click", () => {
+      const form = {
+        label: labelInput.value,
+        sectionId: sectionSelect.value,
+        layout: layoutSelect.value,
+        icon: iconSelect.value
+      };
+      const label = (form.label || "").trim();
+      if (!label) {
+        void addPage(form);
+        return;
+      }
+      new CadencePromptModal(tab.app, {
+        title: `Singular name for "${label}"`,
+        placeholder: "e.g. Product",
+        defaultValue: guessSingular(label),
+        cta: "Add Page",
+        onSubmit: (singular) => {
+          if (singular) void addPage({ ...form, singular });
+        }
+      }).open();
     });
   };
   renderCustomPagesList();
 }
 
 // src/settings/entity-properties.ts
-var import_obsidian7 = require("obsidian");
+var import_obsidian8 = require("obsidian");
 var CORE_ENTITY_KEYS2 = ["contact", "company", "partner", "registration", "commission", "lead", "certification", "activity", "sequence", "project", "deal"];
 var CORE_ENTITY_SECTIONS = {
   project: "Projects",
@@ -2572,7 +2666,7 @@ function folderSource(path) {
   return path ? `folder:${path}` : "none";
 }
 function folderBadge(path) {
-  return { text: path || "Aucun dossier", color: path ? "var(--text-normal)" : "var(--text-faint)" };
+  return { text: path || "No folder", color: path ? "var(--text-normal)" : "var(--text-faint)" };
 }
 function vaultFolderPaths(allFolders, markdownFiles) {
   const folderSet = /* @__PURE__ */ new Set();
@@ -2671,21 +2765,21 @@ function applyPropertyEdit(entities, entityKey, edit) {
     case "move": {
       const candidateFields = moveField(def.fields, edit.from, edit.to, (f) => isFieldLocked(entityKey, f));
       if (!candidateFields) {
-        return { ok: false, notice: "Impossible de r\xE9ordonner : les propri\xE9t\xE9s verrouill\xE9es (\u{1F512}) doivent conserver leur position initiale." };
+        return { ok: false, notice: "Cannot reorder: locked properties (\u{1F512}) must keep their original position." };
       }
       def.fields = candidateFields;
       return { ok: true, migrations, rerender: true };
     }
   }
 }
-var FolderSuggestModal = class extends import_obsidian7.SuggestModal {
+var FolderSuggestModal = class extends import_obsidian8.SuggestModal {
   folders;
   onChoose;
   constructor(app, folders, onChoose) {
     super(app);
     this.folders = folders;
     this.onChoose = onChoose;
-    this.setPlaceholder("Rechercher un dossier du vault\u2026");
+    this.setPlaceholder("Search vault folders\u2026");
   }
   getSuggestions(q) {
     return filterFolders(this.folders, q);
@@ -2705,7 +2799,7 @@ function renderEntityPropertiesSettings(tab, containerEl) {
     cls: "setting-item-description"
   });
   let selectedEntityKey = "project";
-  new import_obsidian7.Setting(containerEl).setName("Select entity").setDesc("Choose which entity to customize.").addDropdown((d) => {
+  new import_obsidian8.Setting(containerEl).setName("Select entity").setDesc("Choose which entity to customize.").addDropdown((d) => {
     entityPickerOptions(ENTITIES, tab.plugin.settings.customPages || []).forEach(({ value, label }) => {
       d.addOption(value, label);
     });
@@ -2742,7 +2836,7 @@ function renderEntityPropertiesSettings(tab, containerEl) {
         if (m.kind === "key") await migrateFrontmatterKey(tab.app, m.entityKey, m.oldKey, m.newKey);
         else await migrateFrontmatterType(tab.app, m.entityKey, m.fieldKey, m.oldType, m.newType);
       }
-      if (result.notice) new import_obsidian7.Notice(result.notice);
+      if (result.notice) new import_obsidian8.Notice(result.notice);
       await saveAndSync();
       if (result.rerender) renderPropEditor();
     };
@@ -2818,7 +2912,7 @@ function renderEntityPropertiesSettings(tab, containerEl) {
         e.preventDefault();
         const result = applyPropertyEdit(ENTITIES, selectedEntityKey, { kind: "move", from: draggedIndex, to: index });
         if (!result.ok) {
-          new import_obsidian7.Notice(result.notice);
+          new import_obsidian8.Notice(result.notice);
           return;
         }
         await commit(result);
@@ -2856,7 +2950,7 @@ function renderEntityPropertiesSettings(tab, containerEl) {
         inputKey.addEventListener("change", async () => {
           const result = applyPropertyEdit(ENTITIES, selectedEntityKey, { kind: "key", field, index, value: inputKey.value });
           if (!result.ok) {
-            new import_obsidian7.Notice(result.notice);
+            new import_obsidian8.Notice(result.notice);
             inputKey.value = field.key;
             return;
           }
@@ -2921,7 +3015,7 @@ function renderEntityPropertiesSettings(tab, containerEl) {
         let _folderPath = currentFolderPath;
         const pickFolderBtn = folderPickerWrap.createEl("button", {
           cls: "cad-btn cad-btn-sm cad-folder-pick-btn",
-          text: "\u{1F4C2} Choisir"
+          text: "\u{1F4C2} Choose"
         });
         pickFolderBtn.type = "button";
         pickFolderBtn.style.flexShrink = "0";
@@ -2989,7 +3083,7 @@ function renderEntityPropertiesSettings(tab, containerEl) {
 }
 
 // src/settings/setting-tab.ts
-var CadenceSettingTab = class extends import_obsidian8.PluginSettingTab {
+var CadenceSettingTab = class extends import_obsidian9.PluginSettingTab {
   constructor(app, plugin) {
     super(app, plugin);
     this.plugin = plugin;
@@ -3028,7 +3122,7 @@ function renderModulesSettings(tab, containerEl) {
     cls: "setting-item-description"
   });
   MODULE_TOGGLES.forEach((m) => {
-    new import_obsidian8.Setting(containerEl).setName(m.label).setDesc(m.desc).addToggle((t) => t.setValue(ensureModules(tab.plugin.settings)[m.key] !== false).onChange(async (v) => {
+    new import_obsidian9.Setting(containerEl).setName(m.label).setDesc(m.desc).addToggle((t) => t.setValue(ensureModules(tab.plugin.settings)[m.key] !== false).onChange(async (v) => {
       ensureModules(tab.plugin.settings)[m.key] = v;
       await tab.plugin.saveSettings();
       tab.plugin.refreshOpenViews();
@@ -3050,7 +3144,7 @@ function openReminders(reminders) {
 var notificationApi = () => typeof Notification === "undefined" ? void 0 : Notification;
 function renderReminderSettings(tab, containerEl) {
   containerEl.createEl("h3", { text: "Reminders" });
-  new import_obsidian8.Setting(containerEl).setName("Desktop notifications").setDesc("In addition to the in-app banner, fire a system notification when a reminder is due. Requires browser permission.").addToggle((t) => t.setValue(!!tab.plugin.settings.desktopNotifications).onChange(async (v) => {
+  new import_obsidian9.Setting(containerEl).setName("Desktop notifications").setDesc("In addition to the in-app banner, fire a system notification when a reminder is due. Requires browser permission.").addToggle((t) => t.setValue(!!tab.plugin.settings.desktopNotifications).onChange(async (v) => {
     tab.plugin.settings.desktopNotifications = v;
     await tab.plugin.saveSettings();
     if (shouldRequestPermission(v, notificationApi())) {
@@ -3060,7 +3154,7 @@ function renderReminderSettings(tab, containerEl) {
       }
     }
   }));
-  new import_obsidian8.Setting(containerEl).setName("Notification permission").setDesc(notificationPermissionDesc(notificationApi())).addButton((b) => b.setButtonText("Request permission").onClick(async () => {
+  new import_obsidian9.Setting(containerEl).setName("Notification permission").setDesc(notificationPermissionDesc(notificationApi())).addButton((b) => b.setButtonText("Request permission").onClick(async () => {
     if (typeof Notification === "undefined") return;
     try {
       await Notification.requestPermission();
@@ -3068,7 +3162,7 @@ function renderReminderSettings(tab, containerEl) {
     } catch (_) {
     }
   }));
-  new import_obsidian8.Setting(containerEl).setName("Clear completed reminders").setDesc(`${completedReminderCount(tab.plugin.settings.reminders)} completed reminders stored.`).addButton((b) => b.setButtonText("Clear").onClick(async () => {
+  new import_obsidian9.Setting(containerEl).setName("Clear completed reminders").setDesc(`${completedReminderCount(tab.plugin.settings.reminders)} completed reminders stored.`).addButton((b) => b.setButtonText("Clear").onClick(async () => {
     tab.plugin.settings.reminders = openReminders(tab.plugin.settings.reminders);
     await tab.plugin.saveSettings();
     tab.plugin.refreshOpenViews();
@@ -3107,7 +3201,7 @@ function defaultTabValue(settings) {
 }
 function renderAppSettings(tab, containerEl) {
   containerEl.createEl("h3", { text: "App" });
-  new import_obsidian8.Setting(containerEl).setName("Task management system").setDesc("Choose between the native Cadence manager (using daily notes) or the external TaskNotes plugin.").addDropdown((d) => {
+  new import_obsidian9.Setting(containerEl).setName("Task management system").setDesc("Choose between the native Cadence manager (using daily notes) or the external TaskNotes plugin.").addDropdown((d) => {
     TASK_SYSTEM_OPTIONS.forEach((o) => d.addOption(o.value, o.label));
     d.setValue(tab.plugin.settings.taskManagementSystem || "native").onChange(async (v) => {
       tab.plugin.settings.taskManagementSystem = v;
@@ -3119,31 +3213,31 @@ function renderAppSettings(tab, containerEl) {
   if (tab.plugin.settings.taskManagementSystem === "tasknotes") {
     const isTaskNotesActive = tab.app.plugins.enabledPlugins.has("tasknotes");
     const status = taskNotesStatus(isTaskNotesActive);
-    const statusSetting = new import_obsidian8.Setting(containerEl).setName(status.name).setDesc(status.desc);
+    const statusSetting = new import_obsidian9.Setting(containerEl).setName(status.name).setDesc(status.desc);
     const statusSpan = statusSetting.controlEl.createSpan({
       text: status.text
     });
     statusSpan.style.color = status.color;
     statusSpan.style.fontWeight = "bold";
     if (!isTaskNotesActive) {
-      new import_obsidian8.Setting(containerEl).setName("Download TaskNotes").setDesc("Click the button below to open the TaskNotes plugin GitHub page to install it on your Obsidian.").addButton((btn) => btn.setButtonText("Download TaskNotes").onClick(() => {
+      new import_obsidian9.Setting(containerEl).setName("Download TaskNotes").setDesc("Click the button below to open the TaskNotes plugin GitHub page to install it on your Obsidian.").addButton((btn) => btn.setButtonText("Download TaskNotes").onClick(() => {
         window.open(TASKNOTES_URL, "_blank");
       }));
     }
   }
-  new import_obsidian8.Setting(containerEl).setName("Daily note folder").setDesc('Folder under which daily notes live, e.g. "daily" or "Journal/Daily".').addText((t) => t.setPlaceholder("daily").setValue(tab.plugin.settings.dailyNoteFolder).onChange(async (v) => {
+  new import_obsidian9.Setting(containerEl).setName("Daily note folder").setDesc('Folder under which daily notes live, e.g. "daily" or "Journal/Daily".').addText((t) => t.setPlaceholder("daily").setValue(tab.plugin.settings.dailyNoteFolder).onChange(async (v) => {
     tab.plugin.settings.dailyNoteFolder = v;
     await tab.plugin.saveSettings();
   }));
-  new import_obsidian8.Setting(containerEl).setName("Tasks heading").setDesc('The H2 inside each daily note where tasks live. Default "## Today".').addText((t) => t.setValue(tab.plugin.settings.tasksHeading).onChange(async (v) => {
+  new import_obsidian9.Setting(containerEl).setName("Tasks heading").setDesc('The H2 inside each daily note where tasks live. Default "## Today".').addText((t) => t.setValue(tab.plugin.settings.tasksHeading).onChange(async (v) => {
     tab.plugin.settings.tasksHeading = v;
     await tab.plugin.saveSettings();
   }));
-  new import_obsidian8.Setting(containerEl).setName("Journal heading").setDesc(`The H2 where today's journal entry lives. Default "## Journal".`).addText((t) => t.setValue(tab.plugin.settings.journalHeading).onChange(async (v) => {
+  new import_obsidian9.Setting(containerEl).setName("Journal heading").setDesc(`The H2 where today's journal entry lives. Default "## Journal".`).addText((t) => t.setValue(tab.plugin.settings.journalHeading).onChange(async (v) => {
     tab.plugin.settings.journalHeading = v;
     await tab.plugin.saveSettings();
   }));
-  new import_obsidian8.Setting(containerEl).setName("Currency").setDesc("Used to format money values across Pipeline, Reports and Commissions.").addDropdown((d) => {
+  new import_obsidian9.Setting(containerEl).setName("Currency").setDesc("Used to format money values across Pipeline, Reports and Commissions.").addDropdown((d) => {
     CURRENCY_OPTIONS.forEach((c) => d.addOption(c.code, c.label));
     d.setValue(tab.plugin.settings.currency || "USD");
     d.onChange(async (v) => {
@@ -3154,15 +3248,15 @@ function renderAppSettings(tab, containerEl) {
       });
     });
   });
-  new import_obsidian8.Setting(containerEl).setName("Week starts on").setDesc("First day of the week shown in the Planner tab.").addDropdown((d) => d.addOption("1", "Monday").addOption("0", "Sunday").setValue(String(tab.plugin.settings.weekStartsOn)).onChange(async (v) => {
+  new import_obsidian9.Setting(containerEl).setName("Week starts on").setDesc("First day of the week shown in the Planner tab.").addDropdown((d) => d.addOption("1", "Monday").addOption("0", "Sunday").setValue(String(tab.plugin.settings.weekStartsOn)).onChange(async (v) => {
     tab.plugin.settings.weekStartsOn = weekStartsOnFromOption(v);
     await tab.plugin.saveSettings();
   }));
-  new import_obsidian8.Setting(containerEl).setName("Open Cadence on Obsidian startup").setDesc("Auto-open the Cadence Home command centre when Obsidian launches.").addToggle((t) => t.setValue(!!tab.plugin.settings.openOnStartup).onChange(async (v) => {
+  new import_obsidian9.Setting(containerEl).setName("Open Cadence on Obsidian startup").setDesc("Auto-open the Cadence Home command centre when Obsidian launches.").addToggle((t) => t.setValue(!!tab.plugin.settings.openOnStartup).onChange(async (v) => {
     tab.plugin.settings.openOnStartup = v;
     await tab.plugin.saveSettings();
   }));
-  new import_obsidian8.Setting(containerEl).setName("Default tab").setDesc("Which surface opens first when you launch the Cadence app.").addDropdown((d) => {
+  new import_obsidian9.Setting(containerEl).setName("Default tab").setDesc("Which surface opens first when you launch the Cadence app.").addDropdown((d) => {
     defaultTabOptions(NAV_GROUPS).forEach((o) => d.addOption(o.value, o.label));
     d.setValue(defaultTabValue(tab.plugin.settings));
     d.onChange(async (v) => {
@@ -3177,14 +3271,14 @@ function renderCloudSyncSettings(tab, containerEl) {
   cloudDesc.appendText("Future option to two-way sync your vault with a live Cadence instance, so contacts, deals and partners stay aligned across desktop and mobile. ");
   cloudDesc.createEl("strong", { text: "Not active yet." });
   cloudDesc.appendText(" These fields are persisted but unused until the sync feature ships in a later release.");
-  new import_obsidian8.Setting(containerEl).setName("Cadence base URL").setDesc("Coming soon").addText((t) => {
+  new import_obsidian9.Setting(containerEl).setName("Cadence base URL").setDesc("Coming soon").addText((t) => {
     t.setPlaceholder("https://your-cadence-instance").setValue(tab.plugin.settings.cadenceApiUrl).onChange(async (v) => {
       tab.plugin.settings.cadenceApiUrl = v;
       await tab.plugin.saveSettings();
     });
     t.inputEl.disabled = true;
   });
-  new import_obsidian8.Setting(containerEl).setName("API token").setDesc("Coming soon").addText((t) => {
+  new import_obsidian9.Setting(containerEl).setName("API token").setDesc("Coming soon").addText((t) => {
     t.setPlaceholder("paste JWT here when sync ships").setValue(tab.plugin.settings.cadenceApiToken).onChange(async (v) => {
       tab.plugin.settings.cadenceApiToken = v;
       await tab.plugin.saveSettings();
@@ -3194,10 +3288,10 @@ function renderCloudSyncSettings(tab, containerEl) {
 }
 
 // src/utils/daily-notes.ts
-var import_obsidian9 = require("obsidian");
+var import_obsidian10 = require("obsidian");
 function findDailyNote(app, settings, date = /* @__PURE__ */ new Date()) {
   const file = app.vault.getAbstractFileByPath(dailyNotePath(settings, date));
-  return file instanceof import_obsidian9.TFile ? file : null;
+  return file instanceof import_obsidian10.TFile ? file : null;
 }
 async function ensureDailyNote(app, settings, date = /* @__PURE__ */ new Date()) {
   const path = dailyNotePath(settings, date);
@@ -3213,7 +3307,7 @@ async function ensureDailyNote(app, settings, date = /* @__PURE__ */ new Date())
   let template = "";
   const dailyTemplatePath = "Cadence/Templates/daily.md";
   const dailyTemplateFile = app.vault.getAbstractFileByPath(dailyTemplatePath);
-  if (dailyTemplateFile && dailyTemplateFile instanceof import_obsidian9.TFile) {
+  if (dailyTemplateFile && dailyTemplateFile instanceof import_obsidian10.TFile) {
     const rawTemplate = await app.vault.read(dailyTemplateFile);
     const now = /* @__PURE__ */ new Date();
     const timeStr = now.toLocaleTimeString(void 0, { hour: "2-digit", minute: "2-digit" });
@@ -3238,7 +3332,7 @@ async function ensureDailyNote(app, settings, date = /* @__PURE__ */ new Date())
 var import_obsidian31 = require("obsidian");
 
 // src/modals/entity-create.ts
-var import_obsidian10 = require("obsidian");
+var import_obsidian11 = require("obsidian");
 
 // src/utils/field-edit.ts
 function numberValue(raw) {
@@ -3537,7 +3631,7 @@ function entityCreateSuggestions(app, f, suggestionSource, fullVal) {
   }
   return filtered;
 }
-var CadenceEntityCreateModal = class extends import_obsidian10.Modal {
+var CadenceEntityCreateModal = class extends import_obsidian11.Modal {
   constructor(app, entityKey, opts = {}) {
     super(app);
     this.entityKey = entityKey;
@@ -3689,70 +3783,6 @@ var CadenceEntityCreateModal = class extends import_obsidian10.Modal {
   }
   _placeholderFor(field, isPrimary) {
     return placeholderFor(this.entityKey, isPrimary);
-  }
-  onClose() {
-    if (!this._submitted && this.onSubmit) this.onSubmit(null);
-    this.contentEl.empty();
-  }
-};
-
-// src/modals/prompt.ts
-var import_obsidian11 = require("obsidian");
-var CadencePromptModal = class extends import_obsidian11.Modal {
-  constructor(app, opts = {}) {
-    super(app);
-    this.title = opts.title || "Enter a name";
-    this.placeholder = opts.placeholder || "";
-    this.defaultValue = opts.defaultValue || "";
-    this.cta = opts.cta || "Create";
-    this.onSubmit = opts.onSubmit;
-    this._submitted = false;
-  }
-  onOpen() {
-    const { contentEl } = this;
-    contentEl.empty();
-    contentEl.addClass("cad-prompt-modal");
-    contentEl.createEl("h3", { text: this.title });
-    const input = contentEl.createEl("input", { type: "text" });
-    input.placeholder = this.placeholder;
-    input.value = this.defaultValue;
-    input.style.width = "100%";
-    input.style.padding = "8px 10px";
-    input.style.fontSize = "14px";
-    input.style.marginTop = "4px";
-    const submit = () => {
-      const v = input.value.trim();
-      if (!v) {
-        input.focus();
-        return;
-      }
-      this._submitted = true;
-      this.close();
-      this.onSubmit?.(v);
-    };
-    input.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        submit();
-      }
-      if (e.key === "Escape") {
-        e.preventDefault();
-        this.close();
-      }
-    });
-    const row = contentEl.createDiv();
-    row.style.display = "flex";
-    row.style.justifyContent = "flex-end";
-    row.style.gap = "8px";
-    row.style.marginTop = "14px";
-    const cancel = row.createEl("button", { text: "Cancel" });
-    cancel.addEventListener("click", () => this.close());
-    const ok = row.createEl("button", { text: this.cta, cls: "mod-cta" });
-    ok.addEventListener("click", submit);
-    setTimeout(() => {
-      input.focus();
-      input.select();
-    }, 0);
   }
   onClose() {
     if (!this._submitted && this.onSubmit) this.onSubmit(null);
@@ -5166,15 +5196,15 @@ function renderCrossSections(view, parent, parentEntity, parentName) {
       attr: { style: "margin: 0; font-size: 1.1em; font-weight: 700; letter-spacing: 0.05em;" }
     });
     const delBtn = head.createEl("button", { text: "\xD7", attr: { style: "color: var(--text-error); border: 1px solid var(--text-error); padding: 2px 8px; font-weight: bold; border-radius: 4px; background: transparent; cursor: pointer;" } });
-    delBtn.title = "Supprimer cette section crois\xE9e";
+    delBtn.title = "Delete this cross section";
     delBtn.addEventListener("click", async () => {
-      if (!confirm("Supprimer cette section crois\xE9e ?")) return;
+      if (!confirm("Delete this cross section?")) return;
       view.plugin.settings.crossSections = (view.plugin.settings.crossSections || []).filter((c) => c.id !== config.id);
       await view.plugin.saveSettings();
       view.render();
     });
     if (filteredList.length === 0) {
-      secWrap.createDiv({ cls: "cad-empty", text: "Aucun \xE9l\xE9ment li\xE9 trouv\xE9." });
+      secWrap.createDiv({ cls: "cad-empty", text: "No linked items found." });
       return;
     }
     const viewType = crossViewType(config.viewType);
@@ -5208,7 +5238,7 @@ function renderCrossSections(view, parent, parentEntity, parentName) {
           return String(cleanVal || "").toLowerCase() === colName.toLowerCase();
         });
         if (colItems.length === 0) {
-          col.createDiv({ text: "Aucun \xE9l\xE9ment", attr: { style: "color: var(--text-faint); text-align: center; margin-top: 24px; font-size: 0.85em;" } });
+          col.createDiv({ text: "No items", attr: { style: "color: var(--text-faint); text-align: center; margin-top: 24px; font-size: 0.85em;" } });
         } else {
           const itemsList = col.createDiv({ attr: { style: "display: flex; flex-direction: column; gap: 8px;" } });
           colItems.forEach((e) => {
@@ -5544,7 +5574,7 @@ function crmStatCards(summary) {
     { label: "WON", value: won.length, sub: fmtValue(summary.wonValue, "currency"), accent: "emerald" },
     { label: "LOST", value: lost.length, sub: fmtValue(summary.lostValue, "currency"), accent: "rose" },
     { label: "WIN RATE", value: `${winRate}%`, sub: `${won.length}/${won.length + lost.length} closed`, accent: "mint" },
-    { label: "AVG DEAL", value: fmtValue(avgDeal, "currency"), sub: `${won.length} won deals`, accent: "warn" }
+    { label: "AVG DEAL", value: fmtValue(avgDeal, "currency"), sub: countLabel(won.length, "won deal"), accent: "warn" }
   ];
 }
 function pipelineByStage(deals, def, stages) {
@@ -6586,7 +6616,7 @@ async function renderEntityList(view, root, entityKey, opts = {}) {
     sel.style.minHeight = "30px";
     sel.style.border = "1px solid var(--border-color)";
     sel.style.borderRadius = "4px";
-    sel.createEl("option", { value: "", text: `All ${fdef.label}s` });
+    sel.createEl("option", { value: "", text: `All ${pluralize(fdef.label)}` });
     values.forEach((v) => {
       sel.createEl("option", { value: v, text: v });
     });
@@ -7164,9 +7194,9 @@ function visibleBriefing(items, isMobile) {
   const hiddenCount = isMobile && items.length > 3 ? items.length - 3 : 0;
   return { shown: isMobile && items.length > 3 ? items.slice(0, 3) : items, hiddenCount };
 }
-function briefingHeadline(items) {
+function briefingHeadline(items, now = /* @__PURE__ */ new Date()) {
   const hasOverdue = items.some((i) => i.tone === "rose");
-  if (hasOverdue) return "A couple of things need attention this morning.";
+  if (hasOverdue) return `A couple of things need attention this ${partOfDay(now)}.`;
   if (items.length >= 4) return "Here's what's worth your attention today.";
   if (items.length === 0) return "Inbox zero. Clear runway.";
   return "Here's what's on your radar.";
@@ -8376,9 +8406,9 @@ function newTaskReminder(text, projectPath) {
 }
 var TASKNOTES_FOLDER = "TaskNotes/Tasks";
 var TASKNOTES_PROMPT = {
-  title: "Ajouter une t\xE2che (TaskNotes)",
-  placeholder: "Que faut-il faire ?",
-  cta: "Ajouter"
+  title: "Add a task (TaskNotes)",
+  placeholder: "What needs doing?",
+  cta: "Add"
 };
 function taskNotePath(folderPath, text, exists) {
   const cleanTitle = text.replace(/[\\/:*?"<>|]/g, "").trim();
@@ -9943,15 +9973,15 @@ function salesReport(deals, def, now) {
     lost,
     captureRate,
     stats: [
-      { label: "REVENUE", value: fmtValue(wonValue, "currency"), sub: `${won.length} deals`, accent: "emerald" },
-      { label: "LOST", value: fmtValue(lostValue, "currency"), sub: `${lost.length} deals`, accent: "rose" },
+      { label: "REVENUE", value: fmtValue(wonValue, "currency"), sub: countLabel(won.length, "deal"), accent: "emerald" },
+      { label: "LOST", value: fmtValue(lostValue, "currency"), sub: countLabel(lost.length, "deal"), accent: "rose" },
       { label: "CAPTURE", value: `${captureRate}%`, sub: "of closed value", accent: "mint" },
       { label: "AVG DEAL", value: fmtValue(avgDeal, "currency"), sub: "won deals", accent: "sky" }
     ],
     months,
     bars: months.map((m) => ({
       label: m.label,
-      title: `${m.label} \u2014 ${fmtValue(m.revenue, "currency")} \xB7 ${m.count} deals`,
+      title: `${m.label} \u2014 ${fmtValue(m.revenue, "currency")} \xB7 ${countLabel(m.count, "deal")}`,
       ...reportBar(m.revenue, maxRev)
     })),
     topWins: [...won].sort((a, b) => dealValue(b, def) - dealValue(a, def)).slice(0, 6).map((e) => ({
@@ -10061,7 +10091,7 @@ function activityReport(activities, def, now, weekStartsOn) {
   return {
     stats,
     weeks,
-    bars: weeks.map((w) => ({ label: w.label, title: `Week of ${w.label} \u2014 ${w.count} activities`, ...reportBar(w.count, maxWeek) })),
+    bars: weeks.map((w) => ({ label: w.label, title: `Week of ${w.label} \u2014 ${countLabel(w.count, "activity")}`, ...reportBar(w.count, maxWeek) })),
     topContacts: [...contactCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([who, count]) => ({ title: who, titleEntityKey: "contact", meta: `${count} activit${count === 1 ? "y" : "ies"}` })),
     recent: newestFirst(activities, (e) => entityValue(e, "when", def)).slice(0, 10).map((e) => ({
       title: entityTitle(e, "subject", def),
