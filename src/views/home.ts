@@ -1,7 +1,7 @@
 import { Platform, TFile } from 'obsidian';
 import { ENTITIES } from '../constants/entities';
 import { CadenceReminderEditModal } from '../modals/reminder-edit';
-import { addDays, dailyNotePath, greeting, newestFirst, partOfDay, startOfDay, startOfWeek, ymd } from '../utils/dates';
+import { addDays, dailyNotePath, greeting, newestFirst, parseYmd, partOfDay, startOfDay, startOfWeek, ymd } from '../utils/dates';
 import { findDailyNote } from '../utils/daily-notes';
 import { dealClosedAt, dealOutcome, linkedNames } from '../utils/deals';
 import {
@@ -226,7 +226,7 @@ export function computeBriefing(data: BriefingData, now: Date): BriefingEntry[] 
     if (dealOutcome(e, dealDef) !== 'open') return false;
     const closeBy = entityValue(e, 'closeBy', dealDef);
     if (!closeBy) return false;
-    const d = new Date(closeBy as string);
+    const d = parseYmd(closeBy) ?? new Date(closeBy as string);
     return !isNaN(d.getTime()) && d.getTime() >= todayMs && d.getTime() <= weekEnd;
   });
   if (closingThisWeek.length) {
@@ -259,7 +259,7 @@ export function computeBriefing(data: BriefingData, now: Date): BriefingEntry[] 
     const linked = dealFor(c, name);
     if (!linked) return;
     const lc = entityValue(c, 'lastContact', contactDef);
-    const lcMs = lc ? new Date(lc as string).getTime() : NaN;
+    const lcMs = lc ? (parseYmd(lc) ?? new Date(lc as string)).getTime() : NaN;
     if (!isNaN(lcMs) && lcMs >= staleCutoffMs) return;
     staleCount++;
     if (!staleSample) staleSample = { contact: c, name, deal: linked.deal, lc, lcMs };
@@ -638,7 +638,7 @@ export function selectUpcomingItems(data: UpcomingData, now: Date): UpcomingItem
   data.projects.forEach((e) => {
     const due = entityValue(e, 'due', ENTITIES.project);
     if (!due) return;
-    const d = new Date(due as string);
+    const d = parseYmd(due) ?? new Date(due as string);
     if (isNaN(d.getTime())) return;
     if (d >= today && d <= horizon) {
       items.push({ date: d, title: (entityValue(e, 'name', ENTITIES.project) as string) || e.basename, type: 'Project due', file: e.file });
@@ -654,7 +654,7 @@ export function selectUpcomingItems(data: UpcomingData, now: Date): UpcomingItem
   data.registrations.forEach((e) => {
     const exp = entityValue(e, 'expires', ENTITIES.registration);
     if (!exp) return;
-    const d = new Date(exp as string);
+    const d = parseYmd(exp) ?? new Date(exp as string);
     if (isNaN(d.getTime())) return;
     if (d >= today && d <= horizon) {
       items.push({ date: d, title: (entityValue(e, 'title', ENTITIES.registration) as string) || e.basename, type: 'Registration expires', file: e.file });
@@ -664,7 +664,7 @@ export function selectUpcomingItems(data: UpcomingData, now: Date): UpcomingItem
   data.certifications.forEach((e) => {
     const exp = entityValue(e, 'expires', ENTITIES.certification);
     if (!exp) return;
-    const d = new Date(exp as string);
+    const d = parseYmd(exp) ?? new Date(exp as string);
     if (isNaN(d.getTime())) return;
     if (d >= today && d <= horizon) {
       items.push({ date: d, title: (entityValue(e, 'name', ENTITIES.certification) as string) || e.basename, type: 'Cert expires', file: e.file });

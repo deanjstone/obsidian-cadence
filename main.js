@@ -2080,7 +2080,7 @@ function fmtValue(val, type) {
   if (val == null || val === "") return "";
   if (type === "tags" && Array.isArray(val)) return val.map((t) => `#${t}`).join(" ");
   if (type === "date") {
-    const d = new Date(val);
+    const d = parseYmd(String(val)) ?? new Date(val);
     if (!isNaN(d.getTime())) return d.toLocaleDateString(void 0, { year: "numeric", month: "short", day: "numeric" });
     return String(val);
   }
@@ -6939,7 +6939,7 @@ function computeBriefing(data, now) {
     if (dealOutcome(e, dealDef) !== "open") return false;
     const closeBy = entityValue(e, "closeBy", dealDef);
     if (!closeBy) return false;
-    const d = new Date(closeBy);
+    const d = parseYmd(closeBy) ?? new Date(closeBy);
     return !isNaN(d.getTime()) && d.getTime() >= todayMs && d.getTime() <= weekEnd;
   });
   if (closingThisWeek.length) {
@@ -6967,7 +6967,7 @@ function computeBriefing(data, now) {
     const linked = dealFor(c, name);
     if (!linked) return;
     const lc = entityValue(c, "lastContact", contactDef);
-    const lcMs = lc ? new Date(lc).getTime() : NaN;
+    const lcMs = lc ? (parseYmd(lc) ?? new Date(lc)).getTime() : NaN;
     if (!isNaN(lcMs) && lcMs >= staleCutoffMs) return;
     staleCount++;
     if (!staleSample) staleSample = { contact: c, name, deal: linked.deal, lc, lcMs };
@@ -7278,7 +7278,7 @@ function selectUpcomingItems(data, now) {
   data.projects.forEach((e) => {
     const due = entityValue(e, "due", ENTITIES.project);
     if (!due) return;
-    const d = new Date(due);
+    const d = parseYmd(due) ?? new Date(due);
     if (isNaN(d.getTime())) return;
     if (d >= today && d <= horizon) {
       items.push({ date: d, title: entityValue(e, "name", ENTITIES.project) || e.basename, type: "Project due", file: e.file });
@@ -7292,7 +7292,7 @@ function selectUpcomingItems(data, now) {
   data.registrations.forEach((e) => {
     const exp = entityValue(e, "expires", ENTITIES.registration);
     if (!exp) return;
-    const d = new Date(exp);
+    const d = parseYmd(exp) ?? new Date(exp);
     if (isNaN(d.getTime())) return;
     if (d >= today && d <= horizon) {
       items.push({ date: d, title: entityValue(e, "title", ENTITIES.registration) || e.basename, type: "Registration expires", file: e.file });
@@ -7301,7 +7301,7 @@ function selectUpcomingItems(data, now) {
   data.certifications.forEach((e) => {
     const exp = entityValue(e, "expires", ENTITIES.certification);
     if (!exp) return;
-    const d = new Date(exp);
+    const d = parseYmd(exp) ?? new Date(exp);
     if (isNaN(d.getTime())) return;
     if (d >= today && d <= horizon) {
       items.push({ date: d, title: entityValue(e, "name", ENTITIES.certification) || e.basename, type: "Cert expires", file: e.file });
@@ -9518,7 +9518,7 @@ function activityReport(activities, def, now, weekStartsOn) {
   activities.forEach((e) => {
     const when = entityValue(e, "when", def);
     if (!when) return;
-    const t = new Date(when).getTime();
+    const t = (parseYmd(when) ?? new Date(when)).getTime();
     if (isNaN(t)) return;
     const idx = weeks.findIndex((w) => t >= w.start.getTime() && t < w.end.getTime());
     if (idx >= 0) weeks[idx].count++;
