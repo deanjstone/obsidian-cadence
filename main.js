@@ -2183,16 +2183,6 @@ function reconstructEntities(settings, entities) {
         type: "text"
       });
     }
-    if (settings.customEntities[entityKey]) {
-      const hasSetType = settings.customEntities[entityKey].some((f) => f.key === "type");
-      if (!hasSetType) {
-        settings.customEntities[entityKey].push({
-          key: "type",
-          label: "Type",
-          type: "text"
-        });
-      }
-    }
   }
 }
 function propertyTypeFor(f) {
