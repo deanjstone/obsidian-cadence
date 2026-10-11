@@ -4,10 +4,10 @@ import { parseCSV } from '../utils/csv';
 import { createEntity } from '../utils/entities';
 import type { EntityDef, EntityKey } from '../types/entities';
 import type { ImportResult } from '../types/modals';
-import { autoDetectCsvMapping, csvRowExtras, type CsvMapping } from './csv-import-mapping';
+import { autoDetectCsvMapping, csvRowExtras, uniqueCsvHeaders, type CsvMapping } from './csv-import-mapping';
 
 export interface ImportModalOptions {
-  /** Pre-selected entity; defaults to 'contact'. */
+  /** Pre-selected entity; defaults to 'contact', as does an unknown key. */
   entityKey?: EntityKey;
   /** Called after an import runs. Not called on cancel. */
   onSubmit?: (result: ImportResult) => void;
@@ -18,10 +18,13 @@ export function csvColumnSamples(rows: string[][], index: number): string[] {
   return rows.slice(0, 2).map((r) => String(r[index] || '').trim()).filter(Boolean);
 }
 
-/** The preview's summary line, and whether Import is enabled. Import needs a
-    column mapped to the primary field, but not any rows: a header-only CSV
-    offers to create 0 notes (flagged, not fixed). */
+/** The preview's summary line, and whether Import is enabled. Import needs
+    at least one data row (a header-only CSV can't be imported, #60) and a
+    column mapped to the primary field. */
 export function csvImportSummary(def: EntityDef, mapping: CsvMapping, rowCount: number): { ready: boolean; text: string } {
+  if (rowCount === 0) {
+    return { ready: false, text: 'The CSV has a header row but no data rows, so there is nothing to import.' };
+  }
   const primaryMapped = Object.values(mapping).includes(def.fields[0].key);
   if (!primaryMapped) {
     return { ready: false, text: `No CSV column maps to "${def.fields[0].label}" — required to name the file. Pick a column above.` };
@@ -68,8 +71,14 @@ export class CadenceImportModal extends Modal {
 
   constructor(app: App, opts?: ImportModalOptions) {
     super(app);
-    this.entityKey = (opts && opts.entityKey) || 'contact';
+    const entityKey = opts && opts.entityKey;
+    this.entityKey = entityKey && Object.prototype.hasOwnProperty.call(ENTITIES, entityKey) ? entityKey : 'contact';
     this.onSubmit = (opts && opts.onSubmit) || (() => { });
+    this._reset();
+  }
+
+  /* Forget any parsed CSV, so a reopened modal matches its empty textarea. */
+  _reset() {
     this.csvText = '';
     this.headers = [];
     this.rows = [];
@@ -79,6 +88,7 @@ export class CadenceImportModal extends Modal {
   onOpen() {
     const { contentEl } = this;
     contentEl.empty();
+    this._reset();
     contentEl.addClass('cad-import-modal');
     contentEl.createEl('h3', { cls: 'cad-create-title', text: 'Import from CSV' });
 
@@ -168,7 +178,7 @@ export class CadenceImportModal extends Modal {
     if (!this.csvText.trim()) { this.headers = []; this.rows = []; return; }
     const all = parseCSV(this.csvText);
     if (!all.length) { this.headers = []; this.rows = []; return; }
-    this.headers = all[0].map((h) => String(h).trim());
+    this.headers = uniqueCsvHeaders(all[0].map((h) => String(h).trim()));
     this.rows = all.slice(1);
     this._autoDetectMapping();
   }
@@ -232,7 +242,7 @@ export class CadenceImportModal extends Modal {
     const def = ENTITIES[this.entityKey];
     const primaryKey = def.fields[0].key;
     const primaryHeader = Object.entries(this.mapping).find(([_, v]) => v === primaryKey);
-    if (!primaryHeader) return;
+    if (!primaryHeader || !this.rows.length) return;
     const primaryColIdx = this.headers.indexOf(primaryHeader[0]);
 
     this.importBtn!.disabled = true;

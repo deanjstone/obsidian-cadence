@@ -95,8 +95,10 @@ describe("CadenceImportModal state", () => {
     expect(modal.mapping).toEqual({ Title: "title", Stage: "stage" });
   });
 
-  it("produces an empty mapping for an unknown entity", () => {
-    expect(modalWith("nope", "Name\n").mapping).toEqual({});
+  it("maps against contacts for an unknown entity, the key it falls back to", () => {
+    const modal = modalWith("nope", "Name\n");
+    expect(modal.entityKey).toBe("contact");
+    expect(modal.mapping).toEqual({ Name: "name" });
   });
 });
 
