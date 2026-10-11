@@ -4790,6 +4790,7 @@ function frontmatterReader(view) {
     return cache && cache.frontmatter || {};
   };
 }
+var CROSS_VIEW_TYPES = ["table", "kanban", "tile"];
 function dynamicH2Kind(rawKey) {
   const { cleanLabel, tag } = parseHeaderKey(rawKey);
   const cleanLower = cleanLabel.toLowerCase();
@@ -4797,9 +4798,9 @@ function dynamicH2Kind(rawKey) {
   if (tag === "#milestones" || cleanLower === "milestones") return { kind: "milestones", cleanLabel };
   if (tag.startsWith("#cross-")) {
     const crossParts = tag.slice("#cross-".length).split("-");
-    if (crossParts.length !== 3) return { kind: "malformed", cleanLabel };
-    const [targetEntity, linkField, viewType] = crossParts;
-    return { kind: "cross", cleanLabel, targetEntity, linkField, viewType };
+    const viewType = crossParts[crossParts.length - 1];
+    if (crossParts.length < 3 || crossParts.length > 3 && !CROSS_VIEW_TYPES.includes(viewType)) return { kind: "malformed", cleanLabel };
+    return { kind: "cross", cleanLabel, targetEntity: crossParts[0], linkField: crossParts.slice(1, -1).join("-"), viewType };
   }
   if (tag.startsWith("#chart-")) {
     const chartParts = tag.slice("#chart-".length).split("-");
@@ -5160,6 +5161,10 @@ function renderCrossSections(view, parent, parentEntity, parentName) {
 function renderDynamicH2Section(view, parent, file, sections, rawKey, flashSaved) {
   const h2 = dynamicH2Kind(rawKey);
   const { cleanLabel } = h2;
+  if (h2.kind === "malformed" || (h2.kind === "cross" || h2.kind === "chart") && !ENTITIES[h2.targetEntity]) {
+    view._renderGenericTextSection(parent, file, sections, rawKey, flashSaved);
+    return;
+  }
   if (h2.kind === "tasks") {
     const taskList = parseTasksList(sections[rawKey] || "");
     view._renderTaskSection(parent, file, taskList, flashSaved, rawKey);
@@ -5169,83 +5174,79 @@ function renderDynamicH2Section(view, parent, file, sections, rawKey, flashSaved
   } else if (h2.kind === "cross") {
     const { targetEntity, linkField, viewType } = h2;
     const def = ENTITIES[targetEntity];
-    if (def) {
-      const parentName = file.basename;
-      const filteredList = crossSectionRows(listEntities(view.app, targetEntity), linkField, parentName, frontmatterReader(view));
-      const card = parent.createDiv({ cls: "cad-pd-card" });
-      card.style.gridColumn = "1 / -1";
-      const head = card.createDiv({ cls: "cad-pd-card-head" });
-      head.createDiv({ cls: "cad-pd-card-title", text: `${cleanLabel.toUpperCase()} \xB7 ${filteredList.length}` });
-      const addBtn = head.createEl("button", { cls: "cad-btn cad-btn-sm", text: `+ Add ${def.label}` });
-      addBtn.addEventListener("click", () => {
-        view._createEntityFromPrompt(targetEntity, { [linkField]: `[[${parentName}]]` });
-      });
-      const viewSwitch = head.createDiv({ attr: { style: "display: flex; gap: 3px; margin-left: 8px;" } });
-      const viewOptions = [
-        { v: "table", icon: "layout-list", title: "Table View" },
-        { v: "kanban", icon: "kanban", title: "Kanban Board" },
-        { v: "tile", icon: "layout-grid", title: "Tile Grid" }
-      ];
-      viewOptions.forEach(({ v, icon, title }) => {
-        const vBtn = viewSwitch.createEl("button", { attr: { style: `padding: 4px 6px; display: inline-flex; align-items: center; justify-content: center; border-radius: 4px; cursor: pointer; border: 1px solid var(--border-color); background: ${v === viewType ? "var(--interactive-accent)" : "transparent"}; color: ${v === viewType ? "var(--text-on-accent)" : "var(--text-muted)"};` } });
-        vBtn.title = title;
-        try {
-          (0, import_obsidian15.setIcon)(vBtn, icon);
-        } catch (_) {
-        }
-        if (v !== viewType) {
-          vBtn.addEventListener("click", async () => {
-            const newTag = `#cross-${targetEntity}-${linkField}-${v}`;
-            const curContent = await view.app.vault.read(file);
-            const escaped = rawKey.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-            const newContent = curContent.replace(
-              new RegExp(`^(## ${escaped})$`, "m"),
-              `## ${cleanLabel} ${newTag}`
-            );
-            await view.app.vault.modify(file, newContent);
-            view.render();
-          });
-        }
-      });
-      const body = card.createDiv({ attr: { style: "padding: 12px;" } });
-      view._renderSingleCrossSection(body, targetEntity, linkField, viewType, parentName, filteredList);
-    }
+    const parentName = file.basename;
+    const filteredList = crossSectionRows(listEntities(view.app, targetEntity), linkField, parentName, frontmatterReader(view));
+    const card = parent.createDiv({ cls: "cad-pd-card" });
+    card.style.gridColumn = "1 / -1";
+    const head = card.createDiv({ cls: "cad-pd-card-head" });
+    head.createDiv({ cls: "cad-pd-card-title", text: `${cleanLabel.toUpperCase()} \xB7 ${filteredList.length}` });
+    const addBtn = head.createEl("button", { cls: "cad-btn cad-btn-sm", text: `+ Add ${def.label}` });
+    addBtn.addEventListener("click", () => {
+      view._createEntityFromPrompt(targetEntity, { [linkField]: `[[${parentName}]]` });
+    });
+    const viewSwitch = head.createDiv({ attr: { style: "display: flex; gap: 3px; margin-left: 8px;" } });
+    const viewOptions = [
+      { v: "table", icon: "layout-list", title: "Table View" },
+      { v: "kanban", icon: "kanban", title: "Kanban Board" },
+      { v: "tile", icon: "layout-grid", title: "Tile Grid" }
+    ];
+    viewOptions.forEach(({ v, icon, title }) => {
+      const vBtn = viewSwitch.createEl("button", { attr: { style: `padding: 4px 6px; display: inline-flex; align-items: center; justify-content: center; border-radius: 4px; cursor: pointer; border: 1px solid var(--border-color); background: ${v === viewType ? "var(--interactive-accent)" : "transparent"}; color: ${v === viewType ? "var(--text-on-accent)" : "var(--text-muted)"};` } });
+      vBtn.title = title;
+      try {
+        (0, import_obsidian15.setIcon)(vBtn, icon);
+      } catch (_) {
+      }
+      if (v !== viewType) {
+        vBtn.addEventListener("click", async () => {
+          const newTag = `#cross-${targetEntity}-${linkField}-${v}`;
+          const curContent = await view.app.vault.read(file);
+          const escaped = rawKey.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+          const newContent = curContent.replace(
+            new RegExp(`^(## ${escaped})$`, "m"),
+            `## ${cleanLabel} ${newTag}`
+          );
+          await view.app.vault.modify(file, newContent);
+          view.render();
+        });
+      }
+    });
+    const body = card.createDiv({ attr: { style: "padding: 12px;" } });
+    view._renderSingleCrossSection(body, targetEntity, linkField, viewType, parentName, filteredList);
   } else if (h2.kind === "chart") {
     const { targetEntity, linkField, groupField, chartStyle } = h2;
     const def = ENTITIES[targetEntity];
-    if (def) {
-      const parentName = file.basename;
-      const filteredList = crossSectionRows(listEntities(view.app, targetEntity), linkField, parentName, frontmatterReader(view));
-      const chartData2 = sectionChartData(filteredList, groupField, frontmatterReader(view));
-      const card = parent.createDiv({ cls: "cad-pd-card" });
-      card.style.gridColumn = "1 / -1";
-      const head = card.createDiv({ cls: "cad-pd-card-head" });
-      head.createDiv({ cls: "cad-pd-card-title", text: `${cleanLabel.toUpperCase()} \xB7 ${filteredList.length} ${def.plural}` });
-      const styleSwitch = head.createDiv({ attr: { style: "display: flex; gap: 3px; margin-left: 8px;" } });
-      [{ v: "donut", icon: "\u{1F369}" }, { v: "bar", icon: "\u{1F4CA}" }, { v: "kpi", icon: "\u{1F5C3}\uFE0F" }, { v: "list", icon: "\u{1F4CB}" }].forEach(({ v, icon }) => {
-        const sBtn = styleSwitch.createEl("button", {
-          text: icon,
-          attr: { style: `padding: 1px 5px; font-size: 0.85em; border-radius: 3px; cursor: pointer; border: 1px solid var(--border-color); background: ${v === chartStyle ? "var(--interactive-accent)" : "transparent"}; opacity: ${v === chartStyle ? "1" : "0.55"};` }
-        });
-        sBtn.title = v;
-        if (v !== chartStyle) {
-          sBtn.addEventListener("click", async () => {
-            const newTag = `#chart-${targetEntity}-${linkField}-${groupField}-${v}`;
-            const curContent = await view.app.vault.read(file);
-            const escaped = rawKey.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-            const newContent = curContent.replace(
-              new RegExp(`^(## ${escaped})$`, "m"),
-              `## ${cleanLabel} ${newTag}`
-            );
-            await view.app.vault.modify(file, newContent);
-            view.render();
-          });
-        }
+    const parentName = file.basename;
+    const filteredList = crossSectionRows(listEntities(view.app, targetEntity), linkField, parentName, frontmatterReader(view));
+    const chartData2 = sectionChartData(filteredList, groupField, frontmatterReader(view));
+    const card = parent.createDiv({ cls: "cad-pd-card" });
+    card.style.gridColumn = "1 / -1";
+    const head = card.createDiv({ cls: "cad-pd-card-head" });
+    head.createDiv({ cls: "cad-pd-card-title", text: `${cleanLabel.toUpperCase()} \xB7 ${filteredList.length} ${def.plural}` });
+    const styleSwitch = head.createDiv({ attr: { style: "display: flex; gap: 3px; margin-left: 8px;" } });
+    [{ v: "donut", icon: "\u{1F369}" }, { v: "bar", icon: "\u{1F4CA}" }, { v: "kpi", icon: "\u{1F5C3}\uFE0F" }, { v: "list", icon: "\u{1F4CB}" }].forEach(({ v, icon }) => {
+      const sBtn = styleSwitch.createEl("button", {
+        text: icon,
+        attr: { style: `padding: 1px 5px; font-size: 0.85em; border-radius: 3px; cursor: pointer; border: 1px solid var(--border-color); background: ${v === chartStyle ? "var(--interactive-accent)" : "transparent"}; opacity: ${v === chartStyle ? "1" : "0.55"};` }
       });
-      const body = card.createDiv({ cls: "cad-dash-card-body", attr: { style: "flex: 1; min-height: 180px; display: flex; flex-direction: column; justify-content: center; padding: 14px;" } });
-      view._drawChart(body.createDiv(), chartStyle, chartData2);
-    }
-  } else if (h2.kind === "text") {
+      sBtn.title = v;
+      if (v !== chartStyle) {
+        sBtn.addEventListener("click", async () => {
+          const newTag = `#chart-${targetEntity}-${linkField}-${groupField}-${v}`;
+          const curContent = await view.app.vault.read(file);
+          const escaped = rawKey.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+          const newContent = curContent.replace(
+            new RegExp(`^(## ${escaped})$`, "m"),
+            `## ${cleanLabel} ${newTag}`
+          );
+          await view.app.vault.modify(file, newContent);
+          view.render();
+        });
+      }
+    });
+    const body = card.createDiv({ cls: "cad-dash-card-body", attr: { style: "flex: 1; min-height: 180px; display: flex; flex-direction: column; justify-content: center; padding: 14px;" } });
+    view._drawChart(body.createDiv(), chartStyle, chartData2);
+  } else {
     view._renderGenericTextSection(parent, file, sections, rawKey, flashSaved);
   }
 }

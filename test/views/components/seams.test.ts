@@ -141,7 +141,8 @@ describe("dynamicH2Kind", () => {
     ["Deals #cross-deal-company-kanban", { kind: "cross", cleanLabel: "Deals", targetEntity: "deal", linkField: "company", viewType: "kanban" }],
     ["X #cross-nope-a-b", { kind: "cross", cleanLabel: "X", targetEntity: "nope", linkField: "a", viewType: "b" }],
     ["Deals #cross-deal-company", { kind: "malformed", cleanLabel: "Deals" }],
-    ["Deals #cross-deal-close-by-table", { kind: "malformed", cleanLabel: "Deals" }],
+    ["Deals #cross-deal-close-by-table", { kind: "cross", cleanLabel: "Deals", targetEntity: "deal", linkField: "close-by", viewType: "table" }],
+    ["Deals #cross-deal-company-table-x", { kind: "malformed", cleanLabel: "Deals" }],
     ["By stage #chart-deal-company-stage-donut", {
       kind: "chart", cleanLabel: "By stage", targetEntity: "deal", linkField: "company", groupField: "stage", chartStyle: "donut",
     }],

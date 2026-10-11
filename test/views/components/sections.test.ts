@@ -414,15 +414,27 @@ describe("_renderDynamicH2Section", () => {
   });
 
   it.each([["Deals #cross-deal-company"], ["Deals #cross-deal-company-table-x"], ["Deals #cross-nope-company-table"], ["C #chart-deal-company-stage"], ["C #chart-nope-company-stage-donut"]])(
-    "QUIRK: a malformed or unknown-entity %s renders nothing at all",
+    "a malformed or unknown-entity %s falls back to a text card (owner decision)",
     (rawKey) => {
       const { view, parent, file } = setup(files);
       const generic = vi.spyOn(view, "_renderGenericTextSection");
-      view._renderDynamicH2Section(parent, file(companyAcme.path), {}, rawKey);
-      expect(parent.children).toEqual([]);
-      expect(generic).not.toHaveBeenCalled();
+      const card = vi.spyOn(view, "_renderMarkdownTextCard");
+      const sections = { [rawKey]: "\nkept text\n" };
+      view._renderDynamicH2Section(parent, file(companyAcme.path), sections, rawKey);
+      expect(generic.mock.calls).toEqual([[parent, file(companyAcme.path), sections, rawKey, undefined]]);
+      expect(card.mock.calls[0].slice(2, 5)).toEqual([rawKey, rawKey.split(" #")[0].toUpperCase(), "kept text"]);
+      expect(byClass(parent, "cad-pd-card")).toHaveLength(1);
     },
   );
+
+  it("reads a dashed link field in a #cross- heading, when its last part is a view", () => {
+    const deal: MockFileSpec = { path: "Cadence/Pipeline/Close.md", frontmatter: { type: "deal", "close-by": "[[Acme Corp]]" } };
+    const { view, parent, file } = setup([companyAcme, deal]);
+    const single = vi.spyOn(view, "_renderSingleCrossSection").mockImplementation(() => {});
+    view._renderDynamicH2Section(parent, file(companyAcme.path), {}, "Closers #cross-deal-close-by-table");
+    expect(byClass(parent, "cad-pd-card-title")[0].text).toBe("CLOSERS · 1");
+    expect(single.mock.calls[0].slice(1, 5)).toEqual(["deal", "close-by", "table", "Acme Corp"]);
+  });
 
   it("renders a #cross- section as a full-width card counting the linked targets", () => {
     const { view, parent, file } = setup(files);
