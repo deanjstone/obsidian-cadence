@@ -262,7 +262,7 @@ export async function syncContactProjectRelationships(plugin: PluginHost, change
             const value = appendProjectLink(cfm.project, changedFile.basename);
             if (value !== null) cfm.project = value;
           });
-          new Notice(`Lien automatique : Projet "${changedFile.basename}" associé au contact "${contactFile.basename}".`);
+          new Notice(`Auto-link: project "${changedFile.basename}" added to contact "${contactFile.basename}".`);
         }
       }
     }
@@ -303,7 +303,7 @@ export async function syncContactProjectRelationships(plugin: PluginHost, change
               if (value !== null) cfm.project = value;
             }
           });
-          new Notice(`Lien automatique : Projet "${plan.added.join(', ')}" associé à "${contactFile.basename}".`);
+          new Notice(`Auto-link: project "${plan.added.join(', ')}" added to "${contactFile.basename}".`);
         }
       }
 
@@ -355,7 +355,7 @@ export async function handleProjectDeletion(plugin: PluginHost, file: TFile | nu
           writeProjectLinks(cfm, remainingProjects);
         });
 
-        new Notice(`Lien automatique : Projet "${projectName}" supprimé du contact "${contactFile.basename}".`);
+        new Notice(`Auto-link: project "${projectName}" removed from contact "${contactFile.basename}".`);
       }
     }
   } catch (e) {

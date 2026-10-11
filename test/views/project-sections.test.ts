@@ -525,14 +525,14 @@ describe("_renderTaskSection (TaskNotes)", () => {
     expect(prompt).not.toHaveBeenCalled();
   });
 
-  it("otherwise + Add prompts (in French) and creates a task note linked to the project", async () => {
+  it("otherwise + Add prompts (in English) and creates a task note linked to the project", async () => {
     const { parent, tasks, app, view, rendered } = tn();
     (app as Any).commands = { commands: {}, executeCommandById: vi.fn() };
     const prompt = vi.spyOn(view, "_prompt").mockResolvedValue('Fix: "a/b"?');
     tasks();
     addButton(parent).trigger("click");
     await flush();
-    expect(prompt.mock.calls).toEqual([[{ title: "Ajouter une tâche (TaskNotes)", placeholder: "Que faut-il faire ?", cta: "Ajouter" }]]);
+    expect(prompt.mock.calls).toEqual([[{ title: "Add a task (TaskNotes)", placeholder: "What needs doing?", cta: "Add" }]]);
     expect(app.vault.created).toEqual(["TaskNotes/Tasks/Fix ab.md"]);
     expect(await app.vault.read(app.vault.getAbstractFileByPath("TaskNotes/Tasks/Fix ab.md") as Any)).toBe(
       '---\ntitle: "Fix: \\"a/b\\"?"\nstatus: open\nscheduled: 2026-10-10\nprojects: "[[Apollo]]"\npriority: normal\n---\n',

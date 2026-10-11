@@ -528,9 +528,9 @@ describe("Custom Entity Properties: options and source", () => {
     expect(wrap.style).toMatchObject({ display: "flex", marginTop: "4px", alignItems: "center", gap: "6px" });
     const [badge, button] = wrap.children;
     expect([badge.classes, badge.text, badge.style.color, badge.style.fontFamily]).toEqual([["cad-folder-badge"], "Cadence/Contacts", "var(--text-normal)", "var(--font-monospace)"]);
-    expect([button.text, button.classes, button.type]).toEqual(["📂 Choisir", ["cad-btn", "cad-btn-sm", "cad-folder-pick-btn"], "button"]);
+    expect([button.text, button.classes, button.type]).toEqual(["📂 Choose", ["cad-btn", "cad-btn-sm", "cad-folder-pick-btn"], "button"]);
     const empty = cell(editor(), "x").findAll("span")[0];
-    expect([empty.text, empty.style.color]).toEqual(["Aucun dossier", "var(--text-faint)"]);
+    expect([empty.text, empty.style.color]).toEqual(["No folder", "var(--text-faint)"]);
   });
 
   it("shows the picker, with no folder, for a bare `folder` source", () => {
@@ -539,7 +539,7 @@ describe("Custom Entity Properties: options and source", () => {
     const c = cell(editor(), "refs");
     expect(c.findAll("select")[0].value).toBe("folder");
     const wrap = c.findAll("div")[1];
-    expect([wrap.style.display, wrap.children[0].text]).toEqual(["flex", "Aucun dossier"]);
+    expect([wrap.style.display, wrap.children[0].text]).toEqual(["flex", "No folder"]);
   });
 
   it("switching to a fixed source hides the picker and saves it; switching to Folder… only shows it", async () => {
@@ -552,7 +552,7 @@ describe("Custom Entity Properties: options and source", () => {
     select.trigger("change");
     await vi.waitFor(() => expect(calls).toEqual(["save", "register", "refresh"]));
     expect(wrap.style.display).toBe("none");
-    expect(wrap.children[0].text).toBe("Aucun dossier");
+    expect(wrap.children[0].text).toBe("No folder");
     expect(ENTITIES.crm_vendor.fields[2].suggestionSource).toBe("tags");
     select.value = "folder";
     select.trigger("change");
@@ -571,7 +571,7 @@ describe("Custom Entity Properties: options and source", () => {
     select.value = "none";
     select.trigger("change");
     await vi.waitFor(() => expect(calls).toHaveLength(3));
-    expect([badge.text, badge.style.color]).toEqual(["Aucun dossier", "var(--text-faint)"]);
+    expect([badge.text, badge.style.color]).toEqual(["No folder", "var(--text-faint)"]);
   });
 
   it("opens a folder picker over the notes' folders and saves the chosen folder", async () => {
@@ -579,9 +579,9 @@ describe("Custom Entity Properties: options and source", () => {
     const files = [{ path: "Cadence/Contacts/A.md" }, { path: "Areas/Home/B.md" }, { path: "root.md" }, { path: "Cadence/x.pdf" }];
     const { editor, calls } = shown({ files, entity: "crm_vendor" });
     const c = cell(editor(), "refs");
-    buttonByText(c, "📂 Choisir").trigger("click");
+    buttonByText(c, "📂 Choose").trigger("click");
     expect(opened).toHaveLength(1);
-    expect(placeholders).toEqual(["Rechercher un dossier du vault…"]);
+    expect(placeholders).toEqual(["Search vault folders…"]);
     const picker = opened[0];
     expect(picker.getSuggestions("")).toEqual(["Areas", "Areas/Home", "Cadence", "Cadence/Contacts"]);
     expect(picker.getSuggestions("CON")).toEqual(["Cadence/Contacts"]);
@@ -601,7 +601,7 @@ describe("Custom Entity Properties: options and source", () => {
     (made.app.vault as Any).getAllFolders = () => ["Zed", { path: "Alpha" }, { path: "" }, { name: "nopath" }];
     made.tab.display();
     void component<DropdownComponent>(settingByName(made.container, "Select entity")).change("crm_vendor");
-    buttonByText(editorOf(made.container), "📂 Choisir").trigger("click");
+    buttonByText(editorOf(made.container), "📂 Choose").trigger("click");
     expect(opened[0].getSuggestions("")).toEqual(["Alpha", "Zed"]);
   });
 
@@ -688,7 +688,7 @@ describe("Custom Entity Properties: delete, add and reorder", () => {
     row(editor(), "b").tr.trigger("dragstart", dt());
     row(editor(), "type").tr.trigger("drop");
     await Promise.resolve();
-    expect(Notice.messages).toEqual(["Impossible de réordonner : les propriétés verrouillées (🔒) doivent conserver leur position initiale."]);
+    expect(Notice.messages).toEqual(["Cannot reorder: locked properties (🔒) must keep their original position."]);
     expect(calls).toEqual([]);
     expect(ENTITIES.crm_vendor.fields.map((f: Any) => f.key)).toEqual(["name", "type", "a", "b"]);
   });

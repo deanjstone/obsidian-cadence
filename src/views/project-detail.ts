@@ -223,11 +223,11 @@ export function newTaskReminder(text: string, projectPath: string): Partial<Remi
 /** Where a TaskNotes task note is created when TaskNotes' command is missing. */
 export const TASKNOTES_FOLDER = 'TaskNotes/Tasks';
 
-/** The prompt for a new TaskNotes task. Flagged: it is in French, unlike the rest of the UI. */
+/** The prompt for a new TaskNotes task. */
 export const TASKNOTES_PROMPT = {
-  title: 'Ajouter une tâche (TaskNotes)',
-  placeholder: 'Que faut-il faire ?',
-  cta: 'Ajouter',
+  title: 'Add a task (TaskNotes)',
+  placeholder: 'What needs doing?',
+  cta: 'Add',
 };
 
 /** The path for a new task note: the title without \ / : * ? " < > |, numbered

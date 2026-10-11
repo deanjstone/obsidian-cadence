@@ -143,7 +143,7 @@ describe("a project note changes", () => {
     const { app } = await loadedVault([sam, { path: apollo.path, frontmatter: { type: "project", owner: "[[Sam Lee]]" } }]);
     await changed(app, apollo.path);
     expect(fm(app, sam.path)?.project).toBe("[[Apollo]]");
-    expect(Notice.messages).toEqual(['Lien automatique : Projet "Apollo" associé au contact "Sam Lee".']);
+    expect(Notice.messages).toEqual(['Auto-link: project "Apollo" added to contact "Sam Lee".']);
   });
 
   it("appends a link to the contact's projects and leaves its plain names as typed", async () => {
@@ -250,8 +250,8 @@ describe("any other note changes", () => {
     expect(fm(app, jane.path)?.project).toEqual(["[[Website relaunch]]", "[[Apollo]]"]);
     expect(fm(app, sam.path)?.project).toBe("[[Apollo]]");
     expect(Notice.messages).toEqual([
-      'Lien automatique : Projet "Apollo" associé à "Jane Doe".',
-      'Lien automatique : Projet "Apollo" associé à "Sam Lee".',
+      'Auto-link: project "Apollo" added to "Jane Doe".',
+      'Auto-link: project "Apollo" added to "Sam Lee".',
     ]);
   });
 
@@ -350,9 +350,9 @@ describe("a project note is deleted", () => {
     expect(fm(app, "Cadence/Contacts/Lu.md")?.project).toBe("[[Apollo]]");
     expect(app.fileManager.processed).toEqual([jane.path, ola.path, "Cadence/Contacts/Lu.md"]);
     expect(Notice.messages).toEqual([
-      'Lien automatique : Projet "Website relaunch" supprimé du contact "Jane Doe".',
-      'Lien automatique : Projet "Website relaunch" supprimé du contact "Ola".',
-      'Lien automatique : Projet "Website relaunch" supprimé du contact "Lu".',
+      'Auto-link: project "Website relaunch" removed from contact "Jane Doe".',
+      'Auto-link: project "Website relaunch" removed from contact "Ola".',
+      'Auto-link: project "Website relaunch" removed from contact "Lu".',
     ]);
   });
 
