@@ -63,6 +63,15 @@ export const WIDGET_STYLE_OPTIONS: ReadonlyArray<{ value: ChartStyle; label: str
   { value: 'list', label: '📋 List' },
 ];
 
+/* The style a #chart- heading draws: a known style as it is, a dashed
+   multi-part one (`big-donut`) as its last known part, and anything else
+   as given (drawChart draws an unknown style as a list) (#59). */
+export function chartStyleOf(style: string): string {
+  const known = WIDGET_STYLE_OPTIONS.map((option): string => option.value);
+  if (known.includes(style)) return style;
+  return style.split('-').reverse().find((part) => known.includes(part)) ?? style;
+}
+
 /* A dashboard's widgets: the user's list from settings. There are no
    default widgets, so a missing list is empty. */
 export function dashboardWidgets(settings: Pick<AppViewSettings, DashboardWidgetsKey>, key: DashboardWidgetsKey): WidgetConfig[] {

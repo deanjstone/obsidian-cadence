@@ -527,11 +527,12 @@ describe("_renderDynamicH2Section", () => {
     expect(chart.mock.calls[0][0]).toBe(parent.children[0].children[1].children[0]);
   });
 
-  it("QUIRK: keeps the dashes of a multi-part chart style", () => {
+  it("draws a dashed multi-part chart style as its style, and marks it in the switcher", () => {
     const { view, parent, file } = setup(files);
     const chart = vi.spyOn(view, "_drawChart").mockImplementation(() => {});
     view._renderDynamicH2Section(parent, file(companyAcme.path), {}, "S #chart-deal-company-stage-big-donut");
-    expect(chart.mock.calls[0][1]).toBe("big-donut");
+    expect(chart.mock.calls[0][1]).toBe("donut");
+    expect(parent.findAll("button").map((b) => String(b.attrs.style).includes("opacity: 1;"))).toEqual([true, false, false, false]);
   });
 
   it("switches the chart style by rewriting the heading's tag, then re-renders", async () => {

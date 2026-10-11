@@ -4495,6 +4495,11 @@ var WIDGET_STYLE_OPTIONS = [
   { value: "kpi", label: "\u{1F5C3}\uFE0F KPI Cards" },
   { value: "list", label: "\u{1F4CB} List" }
 ];
+function chartStyleOf(style) {
+  const known = WIDGET_STYLE_OPTIONS.map((option) => option.value);
+  if (known.includes(style)) return style;
+  return style.split("-").reverse().find((part) => known.includes(part)) ?? style;
+}
 function dashboardWidgets(settings, key) {
   return settings[key] || [];
 }
@@ -5217,7 +5222,8 @@ function renderDynamicH2Section(view, parent, file, sections, rawKey, flashSaved
     const body = card.createDiv({ attr: { style: "padding: 12px;" } });
     view._renderSingleCrossSection(body, targetEntity, linkField, viewType, parentName, filteredList);
   } else if (h2.kind === "chart") {
-    const { targetEntity, linkField, groupField, chartStyle } = h2;
+    const { targetEntity, linkField, groupField } = h2;
+    const chartStyle = chartStyleOf(h2.chartStyle);
     const def = ENTITIES[targetEntity];
     const parentName = file.basename;
     const filteredList = crossSectionRows(listEntities(view.app, targetEntity), linkField, parentName, frontmatterReader(view));

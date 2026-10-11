@@ -6,7 +6,7 @@ import { fmtValue, pctBand } from '../../utils/format';
 import { parseHeaderKey, parseLinkValues, parseMilestones, parseTasksList } from '../../utils/parsing';
 import { isTasksSectionKey } from '../../utils/task-lines';
 import type { AppViewHost } from '../host';
-import { sectionChartData } from './charts';
+import { chartStyleOf, sectionChartData } from './charts';
 
 /* The detail-form sections shared by the entity, company and project
    detail forms, the templates and Today: markdown text cards, cross
@@ -556,7 +556,8 @@ export function renderDynamicH2Section(view: AppViewHost, parent: HTMLElement, f
     const body = card.createDiv({ attr: { style: 'padding: 12px;' } });
     view._renderSingleCrossSection(body, targetEntity, linkField, viewType, parentName, filteredList);
   } else if (h2.kind === 'chart') {
-    const { targetEntity, linkField, groupField, chartStyle } = h2;
+    const { targetEntity, linkField, groupField } = h2;
+    const chartStyle = chartStyleOf(h2.chartStyle);
     const def = ENTITIES[targetEntity];
     const parentName = file.basename;
     const filteredList = crossSectionRows(listEntities(view.app, targetEntity), linkField, parentName, frontmatterReader(view));

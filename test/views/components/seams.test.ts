@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ENTITIES } from "../../../src/constants/entities";
 import type { Entity, Frontmatter } from "../../../src/types/entities";
-import { CHART_COLORS, barRows, chartData, donutGeometry, kpiCards, sectionChartData } from "../../../src/views/components/charts";
+import { CHART_COLORS, barRows, chartData, chartStyleOf, donutGeometry, kpiCards, sectionChartData } from "../../../src/views/components/charts";
 import { crossSectionRows, dynamicH2Kind, linksTo } from "../../../src/views/components/sections";
 
 /* Direct tests for the pure parts of the shared view components. The
@@ -55,6 +55,12 @@ describe("sectionChartData (#chart- headings)", () => {
 
   it("reads through entityValue, so a stage list counts its first item", () => {
     expect(sectionChartData([entity("p", { stage: ["Won", "Lost"] })], "stage", ENTITIES.deal)).toEqual([{ label: "Won", count: 1 }]);
+  });
+});
+
+describe("chartStyleOf", () => {
+  it.each([["donut", "donut"], ["kpi", "kpi"], ["big-donut", "donut"], ["bar-big", "bar"], ["pie", "pie"]])("draws %j as %j", (style, expected) => {
+    expect(chartStyleOf(style)).toBe(expected);
   });
 });
 
