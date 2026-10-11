@@ -273,9 +273,9 @@ describe("_computeBriefing: upcoming milestones", () => {
     expect(await setup([project("P", ["- [ ] 2026-10-25 — M"])], quietTasks).view._computeBriefing()).toEqual([]);
   });
 
-  it("QUIRK: an overdue open milestone hides the project's upcoming one", async () => {
+  it("an overdue open milestone doesn't hide the project's upcoming one", async () => {
     const { view } = setup([project("P", ["- [ ] 2026-10-01 — Late", "- [ ] 2026-10-12 — Next"])], quietTasks);
-    expect(await view._computeBriefing()).toEqual([]);
+    expect(shape(await view._computeBriefing())).toEqual([["📅", "mint", 'P · "Next" — due in 2 days']]);
   });
 
   it("skips a project whose note can't be read", async () => {

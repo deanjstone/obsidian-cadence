@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { TFile } from "../mocks/obsidian";
 import {
-  computeBriefing, countTaskLines, countWeekTaskNotes, inboxRowMeta, isHomeActiveProject, selectInboxCard,
+  computeBriefing, countTaskLines, countWeekTaskNotes, inboxRowMeta, isHomeActiveProject, nextUpcomingMilestone, selectInboxCard,
   selectPartnerRows, selectPipelineCard, selectRecentActivities, selectTodayCard, selectUpcomingItems, taskNotesToday,
   toggleTaskLine, visibleBriefing, weekProgress, type BriefingData,
 } from "../../src/views/home";
@@ -331,5 +331,20 @@ describe("selectRecentActivities", () => {
     const a = (n: string, when?: string) => entity(`Cadence/Activities/${n}.md`, when === undefined ? {} : { when });
     const out = selectRecentActivities([a("u"), a("g", "soon"), a("old", "1960-01-01"), a("new", "2026-01-01")]);
     expect(out.map((e) => e.basename)).toEqual(["new", "old", "u", "g"]);
+  });
+});
+
+describe("nextUpcomingMilestone", () => {
+  it("picks the soonest open milestone dated today or later, past any overdue or done one", () => {
+    expect(nextUpcomingMilestone([
+      milestone("2026-10-01T00:00:00Z", "Late"),
+      milestone("2026-10-20T00:00:00Z", "Later"),
+      milestone("2026-10-12T00:00:00Z", "Done", true),
+      milestone(null, "Undated"),
+      milestone("2026-10-14T00:00:00Z", "Next"),
+    ], NOW)?.title).toBe("Next");
+    expect(nextUpcomingMilestone([milestone("2026-10-10T00:00:00Z", "Today")], NOW)?.title).toBe("Today");
+    expect(nextUpcomingMilestone([milestone("2026-10-09T00:00:00Z", "Late")], NOW)).toBeNull();
+    expect(nextUpcomingMilestone([], NOW)).toBeNull();
   });
 });

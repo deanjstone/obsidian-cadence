@@ -484,6 +484,12 @@ describe("_homeUpcomingCard", () => {
     path: `Cadence/Projects/${name}.md`, frontmatter: { type: "project", ...fm }, body: milestones ? `\n## Milestones\n${milestones}\n` : "",
   });
 
+  it("shows a project's next upcoming milestone even behind an overdue open one", async () => {
+    const { view, parent } = setup([proj("Site", { name: "Site" }, "- [ ] 2026-10-01 — Late\n- [ ] 2026-10-13 — Beta")]);
+    await view._homeUpcomingCard(parent);
+    expect(rowTexts(card(parent).body)).toEqual([["Oct 13, 2026", "Site — Beta", "Milestone"]]);
+  });
+
   it("merges project deadlines, next milestones and expiries in the next 7 days, sorted, warn-toned with no link", async () => {
     const { view, parent, openFromFile, file } = setup([
       proj("Site", { name: "Site", due: "2026-10-17" }, "- [ ] 2026-10-12 — Beta"),

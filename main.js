@@ -7169,6 +7169,10 @@ function computeBriefing(data, now) {
   }
   return items;
 }
+function nextUpcomingMilestone(milestones, now) {
+  const todayMs = startOfDay(now).getTime();
+  return milestones.filter((m) => !m.done && m.date && m.date.getTime() >= todayMs).sort((a, b) => a.date.getTime() - b.date.getTime())[0] || null;
+}
 async function loadBriefing(view) {
   const settings = view.plugin.settings;
   let openTasks = null;
@@ -7194,7 +7198,7 @@ async function loadBriefing(view) {
   for (const f of listEntityFiles(view.app, "project")) {
     try {
       const meta = await readProjectMeta(view.app, f);
-      projects.push({ file: f, name: projectNameFromPath(view.app, f.path), next: meta.next });
+      projects.push({ file: f, name: projectNameFromPath(view.app, f.path), next: nextUpcomingMilestone(meta.milestones, /* @__PURE__ */ new Date()) });
     } catch (_) {
     }
   }
@@ -7463,7 +7467,7 @@ async function homeUpcomingCard(view, parent) {
   for (const e of projects) {
     try {
       const meta = await readProjectMeta(view.app, e.file);
-      projectNext.push({ entity: e, next: meta.next });
+      projectNext.push({ entity: e, next: nextUpcomingMilestone(meta.milestones, /* @__PURE__ */ new Date()) });
     } catch (_) {
     }
   }

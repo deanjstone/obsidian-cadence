@@ -147,7 +147,7 @@ export interface BriefingEntry {
   target: BriefingTarget;
 }
 
-/** A project's next open milestone, as readProjectMeta reports it. */
+/** A project's next upcoming open milestone (nextUpcomingMilestone). */
 export interface ProjectNextMilestone {
   file: TFile;
   name: string | null;
@@ -322,6 +322,15 @@ export function computeBriefing(data: BriefingData, now: Date): BriefingEntry[] 
   return items;
 }
 
+/** A project's soonest open milestone dated today or later. An overdue open
+    milestone doesn't hide it (#55); null when there is none. */
+export function nextUpcomingMilestone(milestones: Milestone[], now: Date): Milestone | null {
+  const todayMs = startOfDay(now).getTime();
+  return milestones
+    .filter((m) => !m.done && m.date && m.date.getTime() >= todayMs)
+    .sort((a, b) => a.date!.getTime() - b.date!.getTime())[0] || null;
+}
+
 /* Gathers what the briefing reads (in the original order: tasks, deals,
    contacts, then each project note), runs computeBriefing and turns each
    entry's target into a click action. */
@@ -354,7 +363,7 @@ export async function loadBriefing(view: AppViewHost): Promise<BriefingItem[]> {
   for (const f of listEntityFiles(view.app, 'project')) {
     try {
       const meta = await readProjectMeta(view.app, f);
-      projects.push({ file: f, name: projectNameFromPath(view.app, f.path), next: meta.next });
+      projects.push({ file: f, name: projectNameFromPath(view.app, f.path), next: nextUpcomingMilestone(meta.milestones, new Date()) });
     } catch (_) { }
   }
 
@@ -616,7 +625,7 @@ export interface UpcomingItem {
 }
 
 /** What the upcoming card reads. `projectNext` holds each project whose
-    note could be read, with its next milestone. */
+    note could be read, with its next upcoming milestone. */
 export interface UpcomingData {
   projects: Entity[];
   projectNext: Array<{ entity: Entity; next: Milestone | null }>;
@@ -678,7 +687,7 @@ export async function homeUpcomingCard(view: AppViewHost, parent: HTMLElement): 
   for (const e of projects) {
     try {
       const meta = await readProjectMeta(view.app, e.file);
-      projectNext.push({ entity: e, next: meta.next });
+      projectNext.push({ entity: e, next: nextUpcomingMilestone(meta.milestones, new Date()) });
     } catch (_) { }
   }
   const items = selectUpcomingItems({
