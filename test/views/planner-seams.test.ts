@@ -246,6 +246,20 @@ describe("propagationTargets", () => {
     expect(propagationTargets("Ship", true, other, [], "daily", NOW)!.dailyPaths).toEqual(["daily/2026-10-08.md"]);
   });
 
+  it("adds the project a considered daily note links the task to, after the reminders' projects, once each", () => {
+    const rs = [reminder("r1", null, { text: "Ship", project: "P/A.md" })];
+    const links = {
+      "daily/2026-10-08.md::Ship": "P/B.md",
+      "daily/2026-10-10.md::Ship": "P/A.md",
+      "daily/2026-10-09.md::Ship": "P/C.md",
+      "daily/2026-10-08.md::Other": "P/D.md",
+    };
+    const source = { kind: "daily", file: file("daily/2026-10-08.md"), date: new Date("2026-10-08T12:00:00Z") };
+    expect(propagationTargets("Ship", true, source, rs, "daily", NOW, links)!.projectPaths).toEqual(["P/A.md", "P/B.md"]);
+    const fromProject = { kind: "project", file: file("P/A.md") };
+    expect(propagationTargets("Ship", true, fromProject, [], "daily", NOW, links)!.projectPaths).toEqual([]);
+  });
+
   it("uses the passed clock for today's note", () => {
     expect(propagationTargets("Ship", true, undefined, [], "d", new Date("2027-01-02T10:00:00Z"))!.dailyPaths).toEqual(["d/2027-01-02.md"]);
   });

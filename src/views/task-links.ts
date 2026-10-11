@@ -85,6 +85,7 @@ export function openTaskProjectPicker(view: AppViewHost, dailyPath: string, text
 /* ── Task completion propagation ──
    When a task is ticked or unticked anywhere, mirror the state to:
      - matching reminders by text (and via reminder.project to the linked project)
+     - the project a daily-note task with that text is linked to (taskProjectLinks)
      - matching task lines in today's daily note + the linked reminder's date note
    Match is by exact (trimmed) task text. Renaming a task breaks the link. */
 
@@ -94,7 +95,9 @@ export interface PropagationTargets {
   text: string;
   /** Reminders whose done state changes (the source reminder excluded). */
   reminderIds: string[];
-  /** Linked project paths, once each, the source project excluded. */
+  /** Linked project paths, once each, the source project excluded: each
+      matching reminder's project, then the project each considered daily
+      note (the source note included) links this task to. */
   projectPaths: string[];
   /** Daily-note paths: today, each match's `when` and `createdAt` dates, and a
       daily source's date, once each, the source note excluded. */
@@ -108,6 +111,7 @@ export interface PropagationTargets {
 export function propagationTargets(
   text: string | null | undefined, done: boolean, source: TaskCompleteSource | undefined,
   reminders: Reminder[], dailyNoteFolder: string | undefined, now: Date,
+  taskProjectLinks: Record<string, string> = {},
 ): PropagationTargets | null {
   const t = String(text || '').trim();
   if (!t) return null;
@@ -122,12 +126,13 @@ export function propagationTargets(
   }
 
   const projectPaths: string[] = [];
-  for (const r of matches) {
-    if (!r.project) continue;
-    if (source.kind === 'project' && source.file && source.file.path === r.project) continue;
-    if (projectPaths.includes(r.project)) continue;
-    projectPaths.push(r.project);
-  }
+  const sourceProject = source.kind === 'project' && source.file ? source.file.path : null;
+  const addProject = (path: string | null | undefined) => {
+    if (!path || path === sourceProject) return;
+    if (projectPaths.includes(path)) return;
+    projectPaths.push(path);
+  };
+  for (const r of matches) addProject(r.project);
 
   const datesToCheck = new Set([ymd(now)]);
   matches.forEach((r) => {
@@ -142,19 +147,24 @@ export function propagationTargets(
   });
   if (source.kind === 'daily' && source.date) datesToCheck.add(ymd(source.date));
   const dailyPaths: string[] = [];
+  const linkedFrom: string[] = source.kind === 'daily' && source.file ? [source.file.path] : [];
   for (const dateStr of datesToCheck) {
     const path = dailyNoteFolder
       ? `${dailyNoteFolder.replace(/\/$/, '')}/${dateStr}.md`
       : `${dateStr}.md`;
+    if (!linkedFrom.includes(path)) linkedFrom.push(path);
     if (source.kind === 'daily' && source.file && source.file.path === path) continue;
     dailyPaths.push(path);
   }
+  for (const path of linkedFrom) addProject(taskProjectLinks[taskLinkKey(path, t)]);
   return { text: t, reminderIds, projectPaths, dailyPaths };
 }
 
 export async function propagateTaskComplete(view: AppViewHost, text: string, done: boolean, source?: TaskCompleteSource): Promise<void> {
   const settings = view.plugin.settings;
-  const targets = propagationTargets(text, done, source, (settings.reminders || []).slice(), settings.dailyNoteFolder, new Date());
+  const targets = propagationTargets(
+    text, done, source, (settings.reminders || []).slice(), settings.dailyNoteFolder, new Date(), settings.taskProjectLinks || {},
+  );
   if (!targets) return;
 
   /* 1. Sync matching reminders (skip the source reminder) */
@@ -162,7 +172,7 @@ export async function propagateTaskComplete(view: AppViewHost, text: string, don
     await view.plugin.updateReminder(id, { done: !!done });
   }
 
-  /* 2. For any matching reminder linked to a project, tick that project's task line */
+  /* 2. Tick the task line in each linked project: a matching reminder's, or a daily-note task's */
   for (const path of targets.projectPaths) {
     const file = view.app.vault.getAbstractFileByPath(path);
     if (!file || !(file instanceof TFile)) continue;

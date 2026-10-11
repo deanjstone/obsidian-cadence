@@ -458,13 +458,27 @@ describe("_propagateTaskComplete", () => {
     expect(order).toEqual(["reminder", "project", "daily"]);
   });
 
-  it("QUIRK: a Today task's project link (taskProjectLinks) is never consulted", async () => {
+  it("ticks the project a Today task is linked to (taskProjectLinks)", async () => {
     const { view } = setup([TODAY, { path: "Cadence/Projects/A.md", body: "## Tasks\n- [ ] Ship\n" }], {
       taskProjectLinks: { "daily/2026-10-10.md::Ship": "Cadence/Projects/A.md" },
     });
     const ticks = spyTicks(view);
     await view._propagateTaskComplete("Ship", true);
-    expect(ticks.project).not.toHaveBeenCalled();
+    expect(ticks.projectCalls()).toEqual([["Cadence/Projects/A.md", "Ship", true]]);
+  });
+
+  it("a linked Today task ticked in its own note ticks the project's task end to end, in a tagged section too", async () => {
+    const { view, read, file } = setup(
+      [
+        { path: "daily/2026-10-08.md", body: "## Today\n- [x] Ship\n" },
+        { path: "Cadence/Projects/A.md", body: "## Brief\nB\n## Tasks #todo\nNote\n  - [ ] Ship\n## Notes\n- [ ] Ship\n" },
+      ],
+      { taskProjectLinks: { "daily/2026-10-08.md::Ship": "Cadence/Projects/A.md" } },
+    );
+    await view._propagateTaskComplete("Ship", true, {
+      kind: "daily", file: file("daily/2026-10-08.md"), date: new Date("2026-10-08T12:00:00Z"),
+    });
+    expect(await read("Cadence/Projects/A.md")).toBe("## Brief\nB\n## Tasks #todo\nNote\n  - [x] Ship\n## Notes\n- [ ] Ship\n");
   });
 
   it("writes through to the real notes end to end", async () => {
