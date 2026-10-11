@@ -19,6 +19,7 @@ import {
   parseEnumOptions,
   sanitizeFieldKey,
   snapshotCustomEntities,
+  sourceOptions,
   sourceState,
   vaultFolderPaths,
 } from "../../src/settings/entity-properties";
@@ -149,7 +150,16 @@ describe("key suggestions and cell helpers", () => {
     expect(sourceState({ key: "x", label: "", type: "multitext", suggestionSource: "folder:A/B" })).toEqual({ selected: "folder", isCustomFolder: true, folderPath: "A/B" });
     expect(sourceState({ key: "x", label: "", type: "tags" })).toEqual({ selected: "tags", isCustomFolder: false, folderPath: "" });
     expect(sourceState({ key: "x", label: "", type: "multitext", suggestionSource: "folder" })).toEqual({ selected: "folder", isCustomFolder: false, folderPath: "" });
-    expect(sourceState({ key: "owner", label: "", type: "multitext" })).toEqual({ selected: null, isCustomFolder: false, folderPath: "" });
+    expect(sourceState({ key: "owner", label: "", type: "multitext" })).toEqual({ selected: "contact", isCustomFolder: false, folderPath: "" });
+    expect(sourceState({ key: "x", label: "", type: "multitext", suggestionSource: "entity:deal" })).toEqual({ selected: "entity:deal", isCustomFolder: false, folderPath: "" });
+  });
+
+  it("offers the fixed sources, led by the field's own source when it is not one of them", () => {
+    const values = (f: EntityField) => sourceOptions(f).map((o) => o.value);
+    expect(values({ key: "x", label: "", type: "tags" })).toEqual(["history", "tags", "none", "folder"]);
+    expect(values({ key: "x", label: "", type: "multitext", suggestionSource: "folder:A" })).toEqual(["history", "tags", "none", "folder"]);
+    expect(sourceOptions({ key: "owner", label: "", type: "multitext" })[0]).toEqual({ value: "contact", label: "Contact notes" });
+    expect(sourceOptions({ key: "x", label: "", suggestionSource: "entity:deal" })[0]).toEqual({ value: "entity:deal", label: "Deal notes" });
   });
 
   it("formats folder sources and badges", () => {

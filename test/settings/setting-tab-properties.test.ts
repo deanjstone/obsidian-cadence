@@ -494,10 +494,15 @@ describe("Custom Entity Properties: options and source", () => {
     expect([wrap.classes, wrap.style.display]).toEqual([["cad-folder-picker-wrap"], "none"]);
   });
 
-  it("QUIRK: a derived source that is not an option (owner → contact) leaves the select on its first option", () => {
-    addVendor([{ key: "owner", label: "Owner", type: "multitext" }]);
+  it("a derived source that is not a fixed option (owner → contact) is offered first and selected", () => {
+    addVendor([{ key: "owner", label: "Owner", type: "multitext" }, { key: "deals", label: "Deals", type: "multitext", suggestionSource: "entity:deal" }]);
     const { editor } = shown({ entity: "crm_vendor" });
-    expect(cell(editor(), "owner").findAll("select")[0].value).toBe("history");
+    const select = cell(editor(), "owner").findAll("select")[0];
+    expect(select.value).toBe("contact");
+    expect(optionValues(select)).toEqual(["contact", "history", "tags", "none", "folder"]);
+    expect(optionTexts(select)[0]).toBe("Contact notes");
+    const deals = cell(editor(), "deals").findAll("select")[0];
+    expect([deals.value, optionTexts(deals)[0]]).toEqual(["entity:deal", "Deal notes"]);
   });
 
   it("shows the folder picker with the folder path for a folder: source", () => {

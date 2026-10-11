@@ -154,14 +154,32 @@ export const SOURCE_OPTIONS: Option[] = [
   { value: 'folder', label: 'Folder…' },
 ];
 
+/* The field's source, else the derived one, when it is not a folder and
+   not one of SOURCE_OPTIONS (owner → contact, entity:deal); else null. */
+function otherSource(field: EntityField): string | null {
+  const activeSource = field.suggestionSource || getFieldSuggestionSource(field);
+  if (!activeSource || activeSource.startsWith('folder:')) return null;
+  return SOURCE_OPTIONS.some(s => s.value === activeSource) ? null : activeSource;
+}
+
+/* The source picker's options: SOURCE_OPTIONS, led by the field's own
+   source when it is not one of them, labelled by its entity ("Contact
+   notes"), so the select can show it. */
+export function sourceOptions(field: EntityField): Option[] {
+  const other = otherSource(field);
+  if (!other) return SOURCE_OPTIONS;
+  const name = other.startsWith('entity:') ? other.slice('entity:'.length) : other;
+  return [{ value: other, label: `${name.charAt(0).toUpperCase()}${name.slice(1)} notes` }, ...SOURCE_OPTIONS];
+}
+
 /* The source picker's state: the field's source (else the derived one),
    whether it is a `folder:<path>`, that path, and which option is
-   selected. Flagged quirk: a derived source that is not an option
-   (owner → contact) selects nothing, so the select shows its first. */
+   selected: a source that is not in SOURCE_OPTIONS selects its own
+   option (sourceOptions). */
 export function sourceState(field: EntityField): { selected: string | null; isCustomFolder: boolean; folderPath: string } {
   const activeSource = field.suggestionSource || getFieldSuggestionSource(field);
   const isCustomFolder = !!(activeSource && activeSource.startsWith('folder:'));
-  let selected: string | null = null;
+  let selected: string | null = otherSource(field);
   SOURCE_OPTIONS.forEach(s => {
     if (!isCustomFolder && s.value === activeSource) selected = s.value;
     else if (isCustomFolder && s.value === 'folder') selected = s.value;
@@ -590,7 +608,7 @@ export function renderEntityPropertiesSettings(tab: SettingTabHost, containerEl:
         const selectSource = sourceWrap.createEl('select', { cls: 'cad-prop-input' });
         const { selected, isCustomFolder, folderPath: currentFolderPath } = sourceState(field);
 
-        SOURCE_OPTIONS.forEach(s => {
+        sourceOptions(field).forEach(s => {
           const opt = selectSource.createEl('option', { value: s.value, text: s.label });
           if (s.value === selected) opt.selected = true;
         });
