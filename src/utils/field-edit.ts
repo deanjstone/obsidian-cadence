@@ -64,9 +64,12 @@ export function enumCurrent(current: unknown): string {
   return Array.isArray(current) ? String(current[0] || '') : String(current || '');
 }
 
-/** True when a field edits as chips: tags, multitext, or any suggestion source. */
+/** True when a field edits as chips: tags, multitext, any suggestion source,
+    or a text or email list (contact phone and email), which a plain input
+    would write back as a scalar (#50). */
 export function isChipField(f: EntityField): boolean {
   const fieldType = f.type || 'text';
+  if (f.isList === true && (fieldType === 'text' || fieldType === 'email')) return true;
   return fieldType === 'tags' || fieldType === 'multitext' || getFieldSuggestionSource(f) !== 'none';
 }
 

@@ -198,7 +198,7 @@ describe("renderCompanyDetail: meta row", () => {
     await render();
     await enter(chipInput(root, "OWNER"), "Ann");
     await enter(chipInput(root, "DOMAIN"), "acme.dev");
-    // QUIRK: industry was a scalar; a list field writes it back as a list.
+    // Industry is a list field, so a scalar is written back as the list it is everywhere else.
     await enter(chipInput(root, "INDUSTRY"), "Retail");
     expect(fm(ACME.path)?.owner).toEqual(["[[Sam Lee]]", "[[Ann]]"]);
     expect(fm(ACME.path)?.domain).toEqual(["acme.test", "[[acme.io]]", "acme.dev"]);
