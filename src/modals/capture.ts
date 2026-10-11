@@ -1,4 +1,4 @@
-import { Modal, type App } from 'obsidian';
+import { Modal, Notice, type App } from 'obsidian';
 import { fromLocalDatetimeValue, toLocalDatetimeValue } from '../utils/dates';
 import type { CaptureResult } from '../types/modals';
 
@@ -18,31 +18,40 @@ export interface CaptureForm {
   scheduled: boolean;
   /** The datetime-local input's value (local time, no zone). */
   datetimeValue: string;
+  /** The input's `validity.badInput`: a half-typed time reads as ''. */
+  badInput?: boolean;
   repeat: string;
 }
 
-/** The onSubmit payload, or null when the trimmed text is blank. The time
-    and repeat are dropped unless scheduled with a parseable time. */
-export function buildCaptureResult(form: CaptureForm): CaptureResult | null {
+/** Why a scheduled capture can't be submitted: no time, or one that can't
+    be read. */
+export type CaptureTimeError = 'no-time' | 'bad-time';
+
+export const CAPTURE_TIME_MESSAGES: Record<CaptureTimeError, string> = {
+  'no-time': 'Pick a time, or untick Remind me.',
+  'bad-time': "Couldn't read that time. Fix it, or untick Remind me.",
+};
+
+/** The onSubmit payload, or null when the trimmed text is blank. Unscheduled,
+    the time and repeat are dropped. Scheduled, a blank or unparseable time
+    is refused with a CaptureTimeError rather than dropped (#52). */
+export function buildCaptureResult(form: CaptureForm): CaptureResult | CaptureTimeError | null {
   const text = form.text.trim();
   if (!text) return null;
-  const result: CaptureResult = { text, when: null, repeat: 'none' };
-  if (form.scheduled && form.datetimeValue) {
-    const d = fromLocalDatetimeValue(form.datetimeValue);
-    if (d && !isNaN(d.getTime())) {
-      result.when = d.toISOString();
-      result.repeat = form.repeat || 'none';
-    }
-  }
-  return result;
+  if (!form.scheduled) return { text, when: null, repeat: 'none' };
+  if (form.badInput) return 'bad-time';
+  if (!form.datetimeValue) return 'no-time';
+  const d = fromLocalDatetimeValue(form.datetimeValue);
+  if (!d || isNaN(d.getTime())) return 'bad-time';
+  return { text, when: d.toISOString(), repeat: form.repeat || 'none' };
 }
 
-/** The time input's default: now + 1 hour, rounded to the next quarter hour.
-    Seconds are dropped after rounding, so 10:00:45 + 1h gives 11:00
-    (flagged, not fixed). */
+/** The time input's default: now + 1 hour, rounded up to the next quarter
+    hour. Seconds count, so 10:00:45 + 1h gives 11:15. */
 export function defaultCaptureWhen(now: Date): Date {
   const dft = new Date(now.getTime() + 60 * 60 * 1000);
-  dft.setMinutes(Math.ceil(dft.getMinutes() / 15) * 15, 0, 0);
+  const minutes = dft.getMinutes() + (dft.getSeconds() * 1000 + dft.getMilliseconds()) / 60000;
+  dft.setMinutes(Math.ceil(minutes / 15) * 15, 0, 0);
   return dft;
 }
 
@@ -121,6 +130,7 @@ export class CadenceCaptureModal extends Modal {
     if (this.defaultWhen) {
       const d = new Date(this.defaultWhen);
       if (!isNaN(d.getTime())) dateInput.value = toLocalDatetimeValue(d);
+      else new Notice(`Couldn't read the reminder time "${this.defaultWhen}". Pick a time, or untick Remind me.`);
     } else {
       dateInput.value = toLocalDatetimeValue(defaultCaptureWhen(new Date()));
     }
@@ -139,12 +149,7 @@ export class CadenceCaptureModal extends Modal {
       b.type = 'button';
       return b;
     };
-    for (const kind of ['+15m', '+1h', '+3h'] as const) mkQ(kind).addEventListener('click', () => pick(kind));
-    const tomorrow = mkQ('Tomorrow 9am');
-    // Flagged, not fixed: the original button first ran setQuick(() => {}),
-    // writing NaN-NaN-… (Date.now() + a function), before its real listener.
-    tomorrow.addEventListener('click', () => { dateInput.value = toLocalDatetimeValue(new Date(NaN)); });
-    tomorrow.addEventListener('click', () => pick('Tomorrow 9am'));
+    for (const kind of ['+15m', '+1h', '+3h', 'Tomorrow 9am'] as const) mkQ(kind).addEventListener('click', () => pick(kind));
 
     const repeatRow = schedFields.createDiv({ cls: 'cad-form-row' });
     repeatRow.style.marginTop = '10px';
@@ -173,13 +178,20 @@ export class CadenceCaptureModal extends Modal {
     ok.type = 'button';
 
     const submit = () => {
+      if (this._submitted) return;
       const result = buildCaptureResult({
         text: textInput.value,
         scheduled: schedCb.checked,
         datetimeValue: dateInput.value,
+        badInput: dateInput.validity?.badInput,
         repeat: repeatSelect.value,
       });
       if (!result) { textInput.focus(); return; }
+      if (typeof result === 'string') {
+        new Notice(CAPTURE_TIME_MESSAGES[result]);
+        dateInput.focus();
+        return;
+      }
       this._submitted = true;
       this.close();
       // Throws when constructed without onSubmit (flagged, not fixed).
@@ -188,7 +200,7 @@ export class CadenceCaptureModal extends Modal {
     ok.addEventListener('click', submit);
     textInput.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') { e.preventDefault(); submit(); }
-      if (e.key === 'Escape') this.close();
+      if (e.key === 'Escape') { e.preventDefault(); this.close(); }
     });
 
     setTimeout(() => textInput.focus(), 0);

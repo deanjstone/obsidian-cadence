@@ -29,11 +29,15 @@ describe("buildCaptureResult", () => {
     expect(buildCaptureResult(form({ repeat: "" }))?.repeat).toBe("none");
   });
 
-  it("drops the time and repeat when unscheduled, blank or unparseable", () => {
-    const inbox = { text: "Call Jane", when: null, repeat: "none" };
-    expect(buildCaptureResult(form({ scheduled: false }))).toEqual(inbox);
-    expect(buildCaptureResult(form({ datetimeValue: "" }))).toEqual(inbox);
-    expect(buildCaptureResult(form({ datetimeValue: "garbage" }))).toEqual(inbox);
+  it("drops the time and repeat only when unscheduled", () => {
+    expect(buildCaptureResult(form({ scheduled: false }))).toEqual({ text: "Call Jane", when: null, repeat: "none" });
+    expect(buildCaptureResult(form({ scheduled: false, datetimeValue: "garbage" }))).toEqual({ text: "Call Jane", when: null, repeat: "none" });
+  });
+
+  it("refuses a scheduled capture with a blank ('no-time') or unparseable ('bad-time') time", () => {
+    expect(buildCaptureResult(form({ datetimeValue: "" }))).toBe("no-time");
+    expect(buildCaptureResult(form({ datetimeValue: "garbage" }))).toBe("bad-time");
+    expect(buildCaptureResult(form({ datetimeValue: "", badInput: true }))).toBe("bad-time");
   });
 });
 
@@ -44,8 +48,10 @@ describe("defaultCaptureWhen", () => {
     expect(defaultCaptureWhen(new Date("2026-10-08T23:46:00Z")).toISOString()).toBe("2026-10-09T01:00:00.000Z");
   });
 
-  it("drops seconds without rounding up on an exact quarter hour (flagged)", () => {
-    expect(defaultCaptureWhen(new Date("2026-10-08T10:00:45Z")).toISOString()).toBe("2026-10-08T11:00:00.000Z");
+  it("rounds up past an exact quarter hour when seconds are present", () => {
+    expect(defaultCaptureWhen(new Date("2026-10-08T10:00:45Z")).toISOString()).toBe("2026-10-08T11:15:00.000Z");
+    expect(defaultCaptureWhen(new Date("2026-10-08T10:00:00.001Z")).toISOString()).toBe("2026-10-08T11:15:00.000Z");
+    expect(defaultCaptureWhen(new Date("2026-10-08T10:00:00Z")).toISOString()).toBe("2026-10-08T11:00:00.000Z");
   });
 });
 

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createMockApp, type App, type FakeElement } from "../mocks/obsidian";
+import { createMockApp, Notice, type App, type FakeElement } from "../mocks/obsidian";
 import { buttonByText, contentOf, optionValues } from "../helpers/dom";
 import { CadenceCaptureModal } from "../../src/modals/capture";
 
@@ -17,6 +17,7 @@ const NOW = new Date("2026-10-08T10:07:30Z");
 let app: App;
 beforeEach(() => {
   app = createMockApp();
+  Notice.messages.length = 0;
   vi.useFakeTimers({ now: NOW });
 });
 afterEach(() => {
@@ -81,9 +82,9 @@ describe("CadenceCaptureModal", () => {
     expect(openCapture().dateInput.value).toBe("2026-10-08T12:00");
   });
 
-  it("rounds down, not up, when now + 1h is on a quarter hour with seconds (flagged)", () => {
+  it("rounds up, not down, when now + 1h is on a quarter hour with seconds", () => {
     vi.setSystemTime(new Date("2026-10-08T10:00:45Z"));
-    expect(openCapture().dateInput.value).toBe("2026-10-08T11:00");
+    expect(openCapture().dateInput.value).toBe("2026-10-08T11:15");
   });
 
   it("prefills from defaultWhen and repeat, and opens the schedule fields", () => {
@@ -97,12 +98,18 @@ describe("CadenceCaptureModal", () => {
     expect(repeatSelect.value).toBe("weekly");
   });
 
-  it("leaves the time blank for an unparseable defaultWhen but still opens the fields (flagged)", () => {
-    const { checkbox, dateInput, onSubmit, content } = openCapture({ defaultWhen: "soon", defaultText: "x" });
+  it("says so for an unparseable defaultWhen, and won't capture until a time is picked", () => {
+    const { checkbox, dateInput, onSubmit, content, modal } = openCapture({ defaultWhen: "soon", defaultText: "x", defaultRepeat: "daily" });
     expect(checkbox.checked).toBe(true);
     expect(dateInput.value).toBe("");
+    expect(Notice.messages).toEqual(['Couldn\'t read the reminder time "soon". Pick a time, or untick Remind me.']);
     buttonByText(content, "Capture").trigger("click");
-    expect(onSubmit.mock.calls).toEqual([[{ text: "x", when: null, repeat: "none" }]]);
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(modal._submitted).toBe(false);
+    expect(content.children.length).toBeGreaterThan(0);
+    buttonByText(content, "+1h").trigger("click");
+    buttonByText(content, "Capture").trigger("click");
+    expect(onSubmit.mock.calls).toEqual([[{ text: "x", when: "2026-10-08T11:07:00.000Z", repeat: "daily" }]]);
   });
 
   it("falls back to the first repeat option for an unknown defaultRepeat", () => {
@@ -132,11 +139,11 @@ describe("CadenceCaptureModal", () => {
     expect(dateInput.value).toBe("2026-10-08T13:07");
   });
 
-  it("quick-picks Tomorrow 9am after first writing NaN-NaN-… (flagged)", () => {
+  it("quick-picks Tomorrow 9am in one write, with no NaN-NaN-… first", () => {
     const { content, dateInput } = openCapture();
     const before = dateInput.valueWrites.length;
     buttonByText(content, "Tomorrow 9am").trigger("click");
-    expect(dateInput.valueWrites.slice(before)).toEqual(["NaN-NaN-NaNTNaN:NaN", "2026-10-09T09:00"]);
+    expect(dateInput.valueWrites.slice(before)).toEqual(["2026-10-09T09:00"]);
     expect(dateInput.value).toBe("2026-10-09T09:00");
   });
 
@@ -166,15 +173,27 @@ describe("CadenceCaptureModal", () => {
     expect(onSubmit.mock.calls).toEqual([[{ text: "Standup", when: "2026-10-09T09:30:00.000Z", repeat: "daily" }]]);
   });
 
-  it("drops the time and repeat when scheduled with a blank or unparseable time (flagged)", () => {
-    for (const value of ["", "garbage"]) {
-      const { content, textInput, checkbox, dateInput, repeatSelect, onSubmit } = openCapture();
+  it("won't capture when scheduled with a blank or unparseable time: it notices, focuses the time and stays open", () => {
+    const cases: [string, boolean, string][] = [
+      ["", false, "Pick a time, or untick Remind me."],
+      ["garbage", false, "Couldn't read that time. Fix it, or untick Remind me."],
+      ["", true, "Couldn't read that time. Fix it, or untick Remind me."],
+    ];
+    for (const [value, badInput, message] of cases) {
+      Notice.messages.length = 0;
+      const { content, textInput, checkbox, dateInput, repeatSelect, onSubmit, modal } = openCapture();
       textInput.value = "Later";
       checkbox.checked = true;
       dateInput.value = value;
+      if (badInput) (dateInput as Any).validity = { badInput: true };
       repeatSelect.value = "weekly";
       buttonByText(content, "Capture").trigger("click");
-      expect(onSubmit.mock.calls).toEqual([[{ text: "Later", when: null, repeat: "none" }]]);
+      expect(onSubmit).not.toHaveBeenCalled();
+      expect(Notice.messages).toEqual([message]);
+      expect(dateInput.focusCount).toBe(1);
+      expect(modal._submitted).toBe(false);
+      expect(content.children.length).toBeGreaterThan(0);
+      expect(repeatSelect.value).toBe("weekly");
     }
   });
 
@@ -189,6 +208,15 @@ describe("CadenceCaptureModal", () => {
     expect(modal._submitted).toBe(true);
   });
 
+  it("submits once: a second Enter or Capture after submitting does nothing", () => {
+    const { content, textInput, onSubmit } = openCapture({ defaultText: "Ping" });
+    const capture = buttonByText(content, "Capture");
+    textInput.trigger("keydown", { key: "Enter" });
+    textInput.trigger("keydown", { key: "Enter" });
+    capture.trigger("click");
+    expect(onSubmit.mock.calls).toEqual([[{ text: "Ping", when: null, repeat: "none" }]]);
+  });
+
   it("calls onSubmit(null) once when cancelled, escaped or closed", () => {
     const cancelled = openCapture();
     buttonByText(cancelled.content, "Cancel").trigger("click");
@@ -196,7 +224,7 @@ describe("CadenceCaptureModal", () => {
 
     const escaped = openCapture();
     const event = escaped.textInput.trigger("keydown", { key: "Escape" });
-    expect(event.defaultPrevented).toBe(false);
+    expect(event.defaultPrevented).toBe(true);
     expect(escaped.onSubmit.mock.calls).toEqual([[null]]);
 
     const closed = openCapture();
