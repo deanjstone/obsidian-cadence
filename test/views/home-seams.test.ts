@@ -193,14 +193,14 @@ describe("Today card seams", () => {
     ]);
   });
 
-  it("toggleTaskLine ticks and unticks only the indexed line, returning its trimmed text", () => {
-    expect(toggleTaskLine(["- [ ] a", "  - [ ]  b ", "- [ ] c"], 1, true)).toEqual({ tasks: ["- [ ] a", "- [x]  b ", "- [ ] c"], taskText: "b" });
+  it("toggleTaskLine ticks and unticks only the indexed line, in place, returning its trimmed text", () => {
+    expect(toggleTaskLine(["- [ ] a", "  - [ ]  b ", "- [ ] c"], 1, true)).toEqual({ tasks: ["- [ ] a", "  - [x]  b ", "- [ ] c"], taskText: "b" });
     expect(toggleTaskLine(["- [X] a"], 0, false)).toEqual({ tasks: ["- [ ] a"], taskText: "a" });
   });
 
-  it("QUIRK: toggleTaskLine leaves a line already in the target state, and an out-of-range index changes nothing", () => {
+  it("toggleTaskLine leaves a line already in the target state, and returns null for an out-of-range index", () => {
     expect(toggleTaskLine(["- [x] a"], 0, true)).toEqual({ tasks: ["- [x] a"], taskText: "a" });
-    expect(toggleTaskLine(["- [ ] a"], 3, true)).toEqual({ tasks: ["- [ ] a"], taskText: "" });
+    expect(toggleTaskLine(["- [ ] a"], 3, true)).toBeNull();
   });
 });
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  appendDailyTask, countTaskLines, replaceJournal, TASK_PREFIX, taskLineRows, tickDailyTasks, tickProjectTasks, toggleDailyTask,
+  appendDailyTask, countTaskLines, findTaskLine, replaceJournal, TASK_PREFIX, taskLineRef, taskLineRows, tickDailyTasks, tickProjectTasks,
+  toggleDailyTask, toggleDailyTaskByRef,
 } from "../../src/utils/task-lines";
 import { toggleTaskLine as homeToggleTaskLine } from "../../src/views/home";
 import { toggleTaskLine } from "../../src/utils/task-lines";
@@ -21,13 +22,13 @@ describe("TASK_PREFIX and taskLineRows", () => {
     ]);
   });
 
-  it("QUIRK: a tab after the box is a task line but neither checked nor counted", () => {
-    expect(taskLineRows(["- [x]\tdone"])).toEqual([{ checked: false, text: "done" }]);
-    expect(countTaskLines(["- [x]\tdone", "- [ ]\topen"])).toEqual({ open: 0, done: 0 });
+  it("a tab after the box is a task line, checked and counted by its box", () => {
+    expect(taskLineRows(["- [x]\tdone"])).toEqual([{ checked: true, text: "done" }]);
+    expect(countTaskLines(["- [x]\tdone", "- [ ]\topen"])).toEqual({ open: 1, done: 1 });
   });
 
-  it("countTaskLines counts a line with both boxes as done", () => {
-    expect(countTaskLines(["- [ ] see [x] here", "- [ ] a", "- [X] b"])).toEqual({ open: 1, done: 2 });
+  it("countTaskLines counts a line with both boxes by its leading box", () => {
+    expect(countTaskLines(["- [ ] see [x] here", "- [ ] a", "- [X] b"])).toEqual({ open: 2, done: 1 });
   });
 
   it("Home re-exports the one toggleTaskLine", () => {
@@ -43,17 +44,36 @@ describe("toggleDailyTask", () => {
     });
   });
 
-  it("unticks, and counts only checklist lines under the heading", () => {
-    const note = "## Today\nIntro\n- [ ] a\n- [X] b\n## Other\n- [ ] c\n";
-    expect(toggleDailyTask(note, H, 1, false)).toEqual({ content: "## Today\n- [ ] a\n- [ ] b\n\n## Other\n- [ ] c\n", taskText: "b" });
+  it("unticks, counts only checklist lines under the heading, and edits only that line", () => {
+    const note = "## Today\nIntro\n- [ ] a\n  - [X] b\n## Other\n- [ ] c\n";
+    expect(toggleDailyTask(note, H, 1, false)).toEqual({ content: "## Today\nIntro\n- [ ] a\n  - [ ] b\n## Other\n- [ ] c\n", taskText: "b" });
   });
 
-  it("past the end rewrites the section unchanged and returns empty text", () => {
-    expect(toggleDailyTask("## Today\n- [ ] a\n## B\n", H, 5, true)).toEqual({ content: "## Today\n- [ ] a\n\n## B\n", taskText: "" });
+  it("returns null past the end", () => {
+    expect(toggleDailyTask("## Today\n- [ ] a\n## B\n", H, 5, true)).toBeNull();
   });
 
-  it("adds the heading when missing", () => {
-    expect(toggleDailyTask("# x\n", H, 0, true)).toEqual({ content: "# x\n\n## Today\n\n", taskText: "" });
+  it("returns null when the heading is missing, rather than adding it", () => {
+    expect(toggleDailyTask("# x\n", H, 0, true)).toBeNull();
+  });
+});
+
+describe("taskLineRef, findTaskLine and toggleDailyTaskByRef", () => {
+  it("names a row by its text and which occurrence of that text it is", () => {
+    const lines = ["- [ ] a", "  - [x] b", "- [ ] a", "- [ ] a "];
+    expect([0, 1, 2, 3, 4].map((i) => taskLineRef(lines, i))).toEqual([
+      { text: "a", occurrence: 0 }, { text: "b", occurrence: 0 }, { text: "a", occurrence: 1 }, { text: "a ", occurrence: 0 }, null,
+    ]);
+    expect(findTaskLine(["- [x] new", "- [ ] a", "- [x] a"], { text: "a", occurrence: 1 })).toBe(2);
+    expect(findTaskLine(["- [ ] a"], { text: "a", occurrence: 1 })).toBe(-1);
+  });
+
+  it("ticks the same task after a line is added above it, and returns null once it is gone", () => {
+    const ref = taskLineRef(["- [ ] a", "- [ ] b"], 1)!;
+    expect(toggleDailyTaskByRef("## Today\n- [ ] new\n- [ ] a\n- [ ] b\n", H, ref, true)).toEqual({
+      content: "## Today\n- [ ] new\n- [ ] a\n- [x] b\n", taskText: "b",
+    });
+    expect(toggleDailyTaskByRef("## Today\n- [ ] a\n## Other\n- [ ] b\n", H, ref, true)).toBeNull();
   });
 });
 
@@ -99,8 +119,9 @@ describe("tickProjectTasks", () => {
     expect(tickProjectTasks("## Brief\n- [ ] Ship\n", "Ship", true)).toBeNull();
   });
 
-  it("does not match a tagged Tasks heading", () => {
-    expect(tickProjectTasks("## Tasks #todo\n- [ ] Ship\n", "Ship", true)).toBeNull();
+  it("matches every tasks section: a tagged Tasks heading, or any label with a #tasks tag", () => {
+    expect(tickProjectTasks("## Tasks #todo\n- [ ] Ship\n", "Ship", true)).toBe("## Tasks #todo\n- [x] Ship\n");
+    expect(tickProjectTasks("## Todo #tasks\n- [ ] Ship\n## Notes\n- [ ] Ship\n", "Ship", true)).toBe("## Todo #tasks\n- [x] Ship\n## Notes\n- [ ] Ship\n");
   });
 });
 

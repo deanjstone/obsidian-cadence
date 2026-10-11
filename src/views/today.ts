@@ -3,7 +3,7 @@ import { dateInfo, greeting, ymd } from '../utils/dates';
 import { ensureDailyNote } from '../utils/daily-notes';
 import { projectNameFromPath } from '../utils/entities';
 import { parseH2Sections, parseHeaderKey, parseLinkValues, parseSections } from '../utils/parsing';
-import { appendDailyTask, replaceJournal, taskLineRows, taskNotesToday, toggleDailyTask } from '../utils/task-lines';
+import { appendDailyTask, countTaskLines, replaceJournal, taskLineRef, taskLineRows, taskNotesToday } from '../utils/task-lines';
 import { appendTaskNotesTask, listTaskNotesTasks, toggleTaskNotesTask } from '../utils/tasknotes';
 import type { AppViewHost } from './host';
 
@@ -35,17 +35,18 @@ export async function quickAddTodayTask(view: AppViewHost): Promise<void> {
   const content = await view.app.vault.read(file);
   await view.app.vault.modify(file, appendDailyTask(content, view.plugin.settings, text));
   new Notice('Added to today');
+  view.render();
 }
 
-/** The greeting line and the TODAY label's count. Open is a ` [ ] ` box;
-    done is every other line, so a line matching neither counts as done. */
+/** The greeting line and the TODAY label's count, each line counted by
+    its own leading box (`countTaskLines`). */
 export function todaySummary(tasksList: string[], greet: string): { greeting: string; count: string } {
-  const open = tasksList.filter((l) => / \[ \] /.test(l)).length;
+  const { open, done } = countTaskLines(tasksList);
   return {
     greeting: open === 0
       ? `${greet}. Nothing on the books — your day is clear.`
       : `${greet}. You have ${open} ${open === 1 ? 'thing' : 'things'} to handle.`,
-    count: `${open} open · ${tasksList.length - open} done`,
+    count: `${open} open · ${done} done`,
   };
 }
 
@@ -229,14 +230,11 @@ export async function toggleTodayTask(view: AppViewHost, idx: number, checked: b
     if (view.todayTaskNotes && view.todayTaskNotes[idx]) {
       const taskObj = view.todayTaskNotes[idx];
       await toggleTaskNotesTask(view.app, taskObj.file, checked);
+      await view._propagateTaskComplete(taskObj.title, checked, { kind: 'tasknotes', file: taskObj.file });
     }
   } else {
-    const content = await view.app.vault.read(view.todayFile!);
-    const { content: newContent, taskText } = toggleDailyTask(content, view.plugin.settings, idx, checked);
-    await view.app.vault.modify(view.todayFile!, newContent);
-    if (taskText) {
-      await view._propagateTaskComplete(taskText, checked, { kind: 'daily', file: view.todayFile!, date: new Date() });
-    }
+    const ref = view.todayParsed ? taskLineRef(view.todayParsed.tasks, idx) : null;
+    if (ref) await view._tickDailyNoteTask(view.todayFile!, ref, checked, new Date());
   }
   view.render();
 }

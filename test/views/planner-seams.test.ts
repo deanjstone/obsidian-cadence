@@ -136,8 +136,8 @@ describe("Today seams", () => {
     expect(todaySummary(["- [ ] a", "- [ ] b"], "Yo").greeting).toBe("Yo. You have 2 things to handle.");
   });
 
-  it("QUIRK: todaySummary counts every non-open line as done", () => {
-    expect(todaySummary(["- [ ]\ttabbed", "- [x] b"], "Hi").count).toBe("0 open · 2 done");
+  it("todaySummary counts each line by its own box, a tab after the box included", () => {
+    expect(todaySummary(["- [ ]\ttabbed", "- [x] b"], "Hi").count).toBe("1 open · 1 done");
   });
 
   it("taskNotesProjectPath resolves the first projects link by basename", () => {
@@ -186,10 +186,10 @@ describe("Calendar seams", () => {
     ]);
   });
 
-  it("QUIRK: a line with both boxes is done in the totals but both open and done in its column", () => {
+  it("a line with both boxes counts once, by its leading box, in the totals and in its column", () => {
     const week = plannerWeek([day("2026-10-09T00:00:00Z", true, ["- [ ] see [x] here"])], NOW);
-    expect(week.stats).toEqual({ open: 0, done: 1, total: 1 });
-    expect(week.columns[0].meta).toBe("1 open · 1 done");
+    expect(week.stats).toEqual({ open: 1, done: 0, total: 1 });
+    expect(week.columns[0].meta).toBe("1 open · 0 done");
   });
 
   it("shows tasks even for a day without a note (TaskNotes mode)", () => {
@@ -244,6 +244,20 @@ describe("propagationTargets", () => {
     expect(propagationTargets("Ship", true, source, [], "daily", NOW)!.dailyPaths).toEqual(["daily/2026-10-10.md"]);
     const other = { kind: "daily", file: file("daily/2026-10-10.md"), date: new Date("2026-10-08T12:00:00Z") };
     expect(propagationTargets("Ship", true, other, [], "daily", NOW)!.dailyPaths).toEqual(["daily/2026-10-08.md"]);
+  });
+
+  it("adds the project a considered daily note links the task to, after the reminders' projects, once each", () => {
+    const rs = [reminder("r1", null, { text: "Ship", project: "P/A.md" })];
+    const links = {
+      "daily/2026-10-08.md::Ship": "P/B.md",
+      "daily/2026-10-10.md::Ship": "P/A.md",
+      "daily/2026-10-09.md::Ship": "P/C.md",
+      "daily/2026-10-08.md::Other": "P/D.md",
+    };
+    const source = { kind: "daily", file: file("daily/2026-10-08.md"), date: new Date("2026-10-08T12:00:00Z") };
+    expect(propagationTargets("Ship", true, source, rs, "daily", NOW, links)!.projectPaths).toEqual(["P/A.md", "P/B.md"]);
+    const fromProject = { kind: "project", file: file("P/A.md") };
+    expect(propagationTargets("Ship", true, fromProject, [], "daily", NOW, links)!.projectPaths).toEqual([]);
   });
 
   it("uses the passed clock for today's note", () => {

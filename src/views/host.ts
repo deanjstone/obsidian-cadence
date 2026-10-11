@@ -6,6 +6,7 @@ import type { ChartStyle } from '../types/modals';
 import type { Reminder, ReminderBucket } from '../types/reminders';
 import type { AppViewSettings } from '../types/settings';
 import type { DailySections, Milestone, MilestoneInput, TaskItem } from '../utils/parsing';
+import type { TaskRef } from '../utils/task-lines';
 import type { DashCardRow } from './components/cards';
 import type { PlannerDay } from './calendar';
 import type { ChartDatum } from './components/charts';
@@ -151,6 +152,8 @@ export interface AppViewHost {
   _propagateTaskComplete(text: string, done: boolean, source?: TaskCompleteSource): Promise<void>;
   _tickProjectTaskByText(file: TFile, text: string, done: boolean): Promise<void>;
   _tickDailyNoteTaskByText(file: TFile, text: string, done: boolean): Promise<void>;
+  /** A row's tick in a daily note: ticks the task `ref` names, then propagates it. */
+  _tickDailyNoteTask(file: TFile, ref: TaskRef, checked: boolean, date: Date): Promise<void>;
 
   /* ── Entity list and kanban (src/views/entity-list.ts, src/views/kanban.ts) ── */
   renderEntityList(root: HTMLElement, entityKey: string, opts?: EntityListOptions): Promise<void>;
@@ -217,9 +220,10 @@ export interface AppViewHost {
 }
 
 /* Where a ticked task came from, for _propagateTaskComplete. A daily note
-   passes its file and date, a project its file, a reminder its id. */
+   passes its file and date, a project its file, a reminder its id, and a
+   TaskNotes task its own note. */
 export interface TaskCompleteSource {
-  kind: 'daily' | 'project' | 'reminder' | (string & {});
+  kind: 'daily' | 'project' | 'reminder' | 'tasknotes' | (string & {});
   file?: TFile;
   date?: Date;
   /** kind 'reminder': the reminder's id, skipped when syncing reminders. */

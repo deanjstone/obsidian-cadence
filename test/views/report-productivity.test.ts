@@ -63,11 +63,11 @@ describe("renderProductivity: layout and stats", () => {
     ]);
   });
 
-  it("QUIRK: totals the last 30 days of notes; a task separated by a tab counts as neither open nor done", async () => {
+  it("totals the last 30 days of notes; a task separated by a tab counts by its box", async () => {
     const { view, root } = setup(NOTES);
     await view.renderProductivity(root);
     expect(stats(root)).toEqual([
-      ["emerald", "COMPLETION", "71%", "5/7 tasks"],
+      ["emerald", "COMPLETION", "63%", "5/8 tasks"],
       ["mint", "STREAK", "2d", "consecutive active days"],
       ["sky", "ACTIVE", "6/30", "days with a note"],
       ["warn", "JOURNAL", "10", "characters written"],
@@ -118,7 +118,7 @@ describe("renderProductivity: last 14 days", () => {
     await view.renderProductivity(root);
     const rows = bars(root.children[3]);
     expect(rows.map((r) => r[0])).toEqual(["28", "29", "30", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11"]);
-    expect(rows[3]).toEqual(["1", "50%", "mid", `${localDate(2026, 9, 1)} — 1 done, 0 open`]);
+    expect(rows[3]).toEqual(["1", "50%", "mid", `${localDate(2026, 9, 1)} — 1 done, 1 open`]);
     expect(rows[11]).toEqual(["9", "0%", "empty", `${localDate(2026, 9, 9)} — 0 done, 1 open`]);
     expect(rows[12]).toEqual(["10", "100%", "high", `${localDate(2026, 9, 10)} — 2 done, 0 open`]);
     expect(rows[13]).toEqual(["11", "50%", "mid", `${localDate(2026, 9, 11)} — 1 done, 1 open`]);
@@ -147,7 +147,7 @@ describe("renderProductivity: 12-week trend", () => {
       ["Sep 7", `${(2 / 3) * 100}%`, "mid", "Week of Sep 7 — 2 done, 0 open"],
       ["Sep 14", "0%", "empty", "Week of Sep 14 — 0 done, 0 open"],
       ["Sep 21", "0%", "empty", "Week of Sep 21 — 0 done, 0 open"],
-      ["Sep 28", `${(1 / 3) * 100}%`, "low", "Week of Sep 28 — 1 done, 0 open"],
+      ["Sep 28", `${(1 / 3) * 100}%`, "low", "Week of Sep 28 — 1 done, 1 open"],
       ["Oct 5", "100%", "high", "Week of Oct 5 — 3 done, 2 open"],
     ]);
   });
@@ -177,7 +177,7 @@ describe("renderProductivity: by weekday", () => {
       ["emerald", "—", "MON", "no data"],
       ["mint", "—", "TUE", "no data"],
       ["sky", "—", "WED", "no data"],
-      ["warn", "100%", "THU", "1/1"],
+      ["warn", "50%", "THU", "1/2"],
       ["rose", "0%", "FRI", "0/1"],
       ["mint", "100%", "SAT", "3/3"],
       ["sky", "50%", "SUN", "1/2"],
@@ -187,7 +187,7 @@ describe("renderProductivity: by weekday", () => {
   it("starts from Sunday when the week does", async () => {
     const { view, root } = setup(NOTES, { weekStartsOn: 0 });
     await view.renderProductivity(root);
-    expect(weekdays(root).map((w) => [w[2], w[1]])).toEqual([["SUN", "50%"], ["MON", "—"], ["TUE", "—"], ["WED", "—"], ["THU", "100%"], ["FRI", "0%"], ["SAT", "100%"]]);
+    expect(weekdays(root).map((w) => [w[2], w[1]])).toEqual([["SUN", "50%"], ["MON", "—"], ["TUE", "—"], ["WED", "—"], ["THU", "50%"], ["FRI", "0%"], ["SAT", "100%"]]);
   });
 
   it("QUIRK: any other week start keeps the Sunday labels, so Saturday-start shows Sunday's tasks under MON", async () => {
@@ -208,10 +208,10 @@ describe("renderProductivity: by weekday", () => {
     expect(stats(root).map((s) => s[2])).toEqual(["0%", "0d", "0/30", "0"]);
   });
 
-  it("QUIRK: a line matching both patterns is open and done over 30 days, but done only in the trend", async () => {
+  it("a line with both boxes counts once, by its leading box, over 30 days and in the trend", async () => {
     const { view, root } = setup([note("2026-10-11", "## Today\n- [x] see [ ] here")]);
     await view.renderProductivity(root);
-    expect(stats(root)[0]).toEqual(["emerald", "COMPLETION", "50%", "1/2 tasks"]);
+    expect(stats(root)[0]).toEqual(["emerald", "COMPLETION", "100%", "1/1 tasks"]);
     expect(bars(root.children[5]).at(-1)![3]).toBe("Week of Oct 5 — 1 done, 0 open");
   });
 });

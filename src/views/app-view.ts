@@ -11,6 +11,7 @@ import { dailyNotePath, startOfDay, weekDates } from '../utils/dates';
 import { createEntity, entityKeyFromFile, getFieldSuggestionSource } from '../utils/entities';
 import { autoCreatesNote } from '../utils/field-edit';
 import type { DailySections, Milestone, MilestoneInput, TaskItem } from '../utils/parsing';
+import type { TaskRef } from '../utils/task-lines';
 import { renderPlannerPane, togglePlannerTask, type PlannerDay } from './calendar';
 import { renderCompanyDetail } from './company-detail';
 import { dashCardSection, type DashCardRow } from './components/cards';
@@ -47,7 +48,7 @@ import {
 } from './reports';
 import {
   getTaskProjectLink, openTaskProjectPicker, propagateTaskComplete, setTaskProjectLink, taskLinkKey,
-  tickDailyNoteTaskByText, tickProjectTaskByText,
+  tickDailyNoteTask, tickDailyNoteTaskByText, tickProjectTaskByText,
 } from './task-links';
 import {
   getFilesUsingTemplateSection, propagateTemplateSectionAdd, propagateTemplateSectionDelete, renderTemplateDetail,
@@ -713,6 +714,8 @@ export class CadenceAppView extends ItemView implements AppViewHost {
   _tickProjectTaskByText(file: TFile, text: string, done: boolean) { return tickProjectTaskByText(this, file, text, done); }
 
   _tickDailyNoteTaskByText(file: TFile, text: string, done: boolean) { return tickDailyNoteTaskByText(this, file, text, done); }
+
+  _tickDailyNoteTask(file: TFile, ref: TaskRef, checked: boolean, date: Date) { return tickDailyNoteTask(this, file, ref, checked, date); }
 
   /* ── Cadence-styled prompt modal ─ */
   _prompt(opts: PromptOptions) { return openPrompt(this, opts); }

@@ -298,26 +298,38 @@ describe("toggleTodayTask", () => {
     expect(await read(TODAY_PATH)).toContain("## Today\n- [ ] Ship\n- [ ] Plan\n");
   });
 
-  it("QUIRK: rewrites by index in the re-read note, so an edit since the render ticks a different task", async () => {
+  it("ticks the task the row showed, even after the note changed since the render", async () => {
     const { view, parent, read, app, file, propagate } = setup([NOTE]);
     await view.renderTodayPane(parent);
     await app.vault.modify(file(TODAY_PATH), "## Today\n- [ ] Inserted\n- [ ] Ship\n");
     await view.toggleTodayTask(0, true);
-    expect(await read(TODAY_PATH)).toBe("## Today\n- [x] Inserted\n- [ ] Ship\n");
-    expect(propagate.mock.calls[0][0]).toBe("Inserted");
+    expect(await read(TODAY_PATH)).toBe("## Today\n- [ ] Inserted\n- [x] Ship\n");
+    expect(propagate.mock.calls[0][0]).toBe("Ship");
   });
 
-  it("writes but skips propagation for an index past the end or a blank task", async () => {
+  it("writes nothing, says so and re-renders when the task is gone from the note", async () => {
+    const { view, parent, app, file, propagate, rendered } = setup([NOTE]);
+    await view.renderTodayPane(parent);
+    await app.vault.modify(file(TODAY_PATH), "## Today\n- [ ] Other\n");
+    app.vault.modified.length = 0;
+    await view.toggleTodayTask(0, true);
+    expect(app.vault.modified).toEqual([]);
+    expect(propagate).not.toHaveBeenCalled();
+    expect(Notice.messages).toEqual(["That task changed in the note, so nothing was ticked."]);
+    expect(rendered).toHaveBeenCalledTimes(1);
+  });
+
+  it("writes but skips propagation for a blank task, and writes nothing for an index past the end", async () => {
     const { view, parent, propagate, rendered, app } = setup([daily("## Today\n- [ ] \n")]);
     await view.renderTodayPane(parent);
     await view.toggleTodayTask(0, true);
     await view.toggleTodayTask(5, true);
-    expect(app.vault.modified).toEqual([TODAY_PATH, TODAY_PATH]);
+    expect(app.vault.modified).toEqual([TODAY_PATH]);
     expect(propagate).not.toHaveBeenCalled();
     expect(rendered).toHaveBeenCalledTimes(2);
   });
 
-  it("in TaskNotes mode, sets the task note's status and re-renders without propagating", async () => {
+  it("in TaskNotes mode, sets the task note's status, propagates its title and re-renders", async () => {
     const { view, parent, app, propagate, rendered } = setup(
       [NOTE, taskNote("A", { title: "A", status: "open", scheduled: "2026-10-10" })],
       TASKNOTES,
@@ -327,7 +339,8 @@ describe("toggleTodayTask", () => {
     const fm = app.metadataCache.getFileCache(app.vault.getAbstractFileByPath("TaskNotes/Tasks/A.md") as TFile)!.frontmatter;
     expect(fm!.status).toBe("done");
     await view.toggleTodayTask(7, true);
-    expect(propagate).not.toHaveBeenCalled();
+    const taskFile = app.vault.getAbstractFileByPath("TaskNotes/Tasks/A.md");
+    expect(propagate.mock.calls).toEqual([["A", true, { kind: "tasknotes", file: taskFile }]]);
     expect(rendered).toHaveBeenCalledTimes(2);
     expect(app.vault.modified).toEqual([]);
   });
@@ -412,12 +425,12 @@ describe("_quickAddTodayTask", () => {
     expect(Notice.messages).toEqual([]);
   });
 
-  it("does not re-render", async () => {
+  it("re-renders once the task is added", async () => {
     const { view, rendered } = setup([NOTE]);
     vi.spyOn(view, "_prompt").mockResolvedValue("x");
     await view._quickAddTodayTask();
     await flush();
-    expect(rendered).not.toHaveBeenCalled();
+    expect(rendered).toHaveBeenCalledTimes(1);
   });
 
   it("in TaskNotes mode, runs TaskNotes' create command when it exists", async () => {

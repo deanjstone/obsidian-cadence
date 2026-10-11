@@ -3685,37 +3685,112 @@ var import_obsidian12 = require("obsidian");
 
 // src/utils/task-lines.ts
 var TASK_PREFIX = /^\s*-\s\[(x|X| )\]\s/;
+function taskLineState(line) {
+  const match = TASK_PREFIX.exec(line);
+  if (!match) return null;
+  return match[1] === " " ? "open" : "done";
+}
+function setTaskLineState(line, done) {
+  return line.replace(/^(\s*-\s\[)(x|X| )(\]\s)/, (whole, open, box, close) => {
+    if (box !== " " === done) return whole;
+    return `${open}${done ? "x" : " "}${close}`;
+  });
+}
+function isTasksSectionKey(rawKey) {
+  const { cleanLabel, tag } = parseHeaderKey(rawKey);
+  return tag === "#tasks" || cleanLabel.toLowerCase() === "tasks";
+}
+function sectionTaskLineIndexes(lines, inSection) {
+  const indexes = [];
+  let active = false;
+  lines.forEach((line, i) => {
+    if (/^##\s/.test(line)) {
+      active = inSection(line.trim());
+      return;
+    }
+    if (active && TASK_PREFIX.test(line)) indexes.push(i);
+  });
+  return indexes;
+}
+function tickLinesByText(lines, indexes, text, done) {
+  let changed = false;
+  for (const i of indexes) {
+    if (lines[i].replace(TASK_PREFIX, "").trim() !== text) continue;
+    const next = setTaskLineState(lines[i], done);
+    if (next === lines[i]) continue;
+    lines[i] = next;
+    changed = true;
+  }
+  return changed ? lines.join("\n") : null;
+}
 function taskNotesToday(allTaskNotes, todayYmd) {
   const tasks = allTaskNotes.filter((t) => t.scheduled === todayYmd);
   return { tasks, lines: tasks.map((t) => `- [${t.done ? "x" : " "}] ${t.title}`) };
 }
 function toggleTaskLine(tasks, idx, checked) {
-  const taskLine = tasks[idx] || "";
-  const taskText = taskLine.replace(TASK_PREFIX, "").trim();
-  const newTasks = tasks.map((line, i) => {
-    if (i !== idx) return line;
-    return checked ? line.replace(/^\s*-\s\[\s\]\s/, "- [x] ") : line.replace(/^\s*-\s\[(x|X)\]\s/, "- [ ] ");
-  });
-  return { tasks: newTasks, taskText };
+  const taskLine = tasks[idx];
+  if (taskLine === void 0) return null;
+  return {
+    tasks: tasks.map((line, i) => i === idx ? setTaskLineState(line, checked) : line),
+    taskText: taskLine.replace(TASK_PREFIX, "").trim()
+  };
+}
+function taskRefAt(texts, idx) {
+  const text = texts[idx];
+  if (text === void 0) return null;
+  return { text, occurrence: texts.slice(0, idx).filter((t) => t === text).length };
+}
+function taskLineRef(lines, idx) {
+  return taskRefAt(lines.map((line) => line.replace(TASK_PREFIX, "")), idx);
+}
+function findTaskLine(lines, ref) {
+  let seen = 0;
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].replace(TASK_PREFIX, "") !== ref.text) continue;
+    if (seen === ref.occurrence) return i;
+    seen++;
+  }
+  return -1;
 }
 function countTaskLines(lines) {
   let open = 0, done = 0;
   lines.forEach((l) => {
-    if (/ \[(x|X)\] /.test(l)) done++;
-    else if (/ \[ \] /.test(l)) open++;
+    const state = taskLineState(l);
+    if (state === "done") done++;
+    else if (state === "open") open++;
   });
   return { open, done };
 }
 function taskLineRows(lines) {
   return lines.map((rawLine) => ({
-    checked: / \[(x|X)\] /.test(rawLine),
+    checked: taskLineState(rawLine) === "done",
     text: rawLine.replace(TASK_PREFIX, "")
   }));
 }
 function toggleDailyTask(content, settings, idx, checked) {
-  const parsed = parseSections(content, settings);
-  const { tasks, taskText } = toggleTaskLine(parsed.tasks, idx, checked);
-  return { content: replaceSection(content, settings.tasksHeading, tasks.join("\n")), taskText };
+  const lines = content.split("\n");
+  const lineIdx = sectionTaskLineIndexes(lines, (heading) => heading === settings.tasksHeading)[idx];
+  if (lineIdx === void 0) return null;
+  const toggled = toggleTaskLine(lines, lineIdx, checked);
+  return { content: toggled.tasks.join("\n"), taskText: toggled.taskText };
+}
+function toggleDailyTaskByRef(content, settings, ref, checked) {
+  const idx = findTaskLine(parseSections(content, settings).tasks, ref);
+  return idx === -1 ? null : toggleDailyTask(content, settings, idx, checked);
+}
+function toggleProjectTaskByRef(content, rawKey, ref, checked) {
+  const lines = content.split("\n");
+  const isHeading = (line) => /^##\s/.test(line);
+  const start = lines.map((line) => isHeading(line) && line.replace(/^##\s+/, "").trim() === rawKey).lastIndexOf(true);
+  if (start === -1) return null;
+  const indexes = [];
+  for (let i = start + 1; i < lines.length && !isHeading(lines[i]); i++) {
+    if (TASK_PREFIX.test(lines[i])) indexes.push(i);
+  }
+  const at = findTaskLine(indexes.map((i) => lines[i]), ref);
+  if (at === -1) return null;
+  const toggled = toggleTaskLine(lines, indexes[at], checked);
+  return { content: toggled.tasks.join("\n"), taskText: toggled.taskText };
 }
 function appendDailyTask(content, settings, text) {
   const parsed = parseSections(content, settings);
@@ -3726,32 +3801,14 @@ function replaceJournal(content, settings, body) {
   return replaceSection(content, settings.journalHeading, body || "");
 }
 function tickProjectTasks(content, text, done) {
-  const sections = parseH2Sections(content);
-  const tasks = parseTasksList(sections["Tasks"] || "");
-  let changed = false;
-  const updated = tasks.map((tk) => {
-    if (tk.title.trim() === text && !!tk.done !== !!done) {
-      changed = true;
-      return Object.assign({}, tk, { done: !!done });
-    }
-    return tk;
-  });
-  if (!changed) return null;
-  return replaceSection(content, "## Tasks", stringifyTasks(updated));
+  const lines = content.split("\n");
+  const indexes = sectionTaskLineIndexes(lines, (heading) => isTasksSectionKey(heading.replace(/^##\s+/, "")));
+  return tickLinesByText(lines, indexes, text, !!done);
 }
 function tickDailyTasks(content, settings, text, done) {
-  const parsed = parseSections(content, settings);
-  let changed = false;
-  const updatedTasks = parsed.tasks.map((line) => {
-    const lineText = line.replace(TASK_PREFIX, "").trim();
-    if (lineText !== text) return line;
-    const isDone = / \[(x|X)\] /.test(line);
-    if (isDone === !!done) return line;
-    changed = true;
-    return done ? line.replace(/^\s*-\s\[\s\]\s/, "- [x] ") : line.replace(/^\s*-\s\[(x|X)\]\s/, "- [ ] ");
-  });
-  if (!changed) return null;
-  return replaceSection(content, settings.tasksHeading, updatedTasks.join("\n"));
+  const lines = content.split("\n");
+  const indexes = sectionTaskLineIndexes(lines, (heading) => heading === settings.tasksHeading);
+  return tickLinesByText(lines, indexes, text, !!done);
 }
 
 // src/utils/tasknotes.ts
@@ -3828,8 +3885,7 @@ function plannerWeekTitle(days) {
 function plannerWeek(dayData, today) {
   const totals = countTaskLines(dayData.flatMap((d) => d.tasks));
   const columns = dayData.map((d) => {
-    const open = d.tasks.filter((l) => / \[ \] /.test(l)).length;
-    const done = d.tasks.filter((l) => / \[(x|X)\] /.test(l)).length;
+    const { open, done } = countTaskLines(d.tasks);
     return {
       isToday: sameDay(d.date, today),
       weekday: d.date.toLocaleDateString(void 0, { weekday: "short" }).toUpperCase(),
@@ -3948,15 +4004,11 @@ async function togglePlannerTask(view, day, idx, checked) {
     if (day.rawTasks && day.rawTasks[idx]) {
       const taskObj = day.rawTasks[idx];
       await toggleTaskNotesTask(view.app, taskObj.file, checked);
+      await view._propagateTaskComplete(taskObj.title, checked, { kind: "tasknotes", file: taskObj.file });
     }
   } else {
-    if (!day.file) return;
-    const content = await view.app.vault.read(day.file);
-    const { content: newContent, taskText } = toggleDailyTask(content, view.plugin.settings, idx, checked);
-    await view.app.vault.modify(day.file, newContent);
-    if (taskText) {
-      await view._propagateTaskComplete(taskText, checked, { kind: "daily", file: day.file, date: day.date });
-    }
+    const ref = taskLineRef(day.tasks, idx);
+    if (day.file && ref) await view._tickDailyNoteTask(day.file, ref, checked, day.date);
   }
   view.render();
 }
@@ -4673,7 +4725,7 @@ function frontmatterReader(view) {
 function dynamicH2Kind(rawKey) {
   const { cleanLabel, tag } = parseHeaderKey(rawKey);
   const cleanLower = cleanLabel.toLowerCase();
-  if (tag === "#tasks" || cleanLower === "tasks") return { kind: "tasks", cleanLabel };
+  if (isTasksSectionKey(rawKey)) return { kind: "tasks", cleanLabel };
   if (tag === "#milestones" || cleanLower === "milestones") return { kind: "milestones", cleanLabel };
   if (tag.startsWith("#cross-")) {
     const crossParts = tag.slice("#cross-".length).split("-");
@@ -6960,7 +7012,7 @@ async function loadBriefing(view) {
       const file = await ensureDailyNote(view.app, settings);
       const content = await view.app.vault.read(file);
       const parsed = parseSections(content, settings);
-      openTasks = parsed.tasks.filter((l) => / \[ \] /.test(l)).length;
+      openTasks = countTaskLines(parsed.tasks).open;
     }
   } catch (_) {
   }
@@ -7045,13 +7097,9 @@ async function homeInboxCard(view, parent) {
   });
 }
 function selectTodayCard(tasksList) {
-  const open = tasksList.filter((l) => / \[ \] /.test(l));
-  const done = tasksList.filter((l) => / \[(x|X)\] /.test(l));
-  const rows = tasksList.map((rawLine) => ({
-    checked: / \[(x|X)\] /.test(rawLine),
-    text: rawLine.replace(TASK_PREFIX, "")
-  }));
-  return { open: open.length, done: done.length, title: `TODAY \u2014 ${open.length} open \xB7 ${done.length} done`, rows };
+  const { open, done } = countTaskLines(tasksList);
+  const rows = taskLineRows(tasksList);
+  return { open, done, title: `TODAY \u2014 ${open} open \xB7 ${done} done`, rows };
 }
 async function homeTodayCard(view, parent) {
   const settings = view.plugin.settings;
@@ -7089,13 +7137,9 @@ async function homeTodayCard(view, parent) {
       if (settings.taskManagementSystem === "tasknotes") {
         const taskObj = todayTaskNotes[idx];
         await toggleTaskNotesTask(view.app, taskObj.file, cb.checked);
+        await view._propagateTaskComplete(taskObj.title, cb.checked, { kind: "tasknotes", file: taskObj.file });
       } else {
-        const cur = await view.app.vault.read(file);
-        const { content: next, taskText } = toggleDailyTask(cur, settings, idx, cb.checked);
-        await view.app.vault.modify(file, next);
-        if (taskText) {
-          await view._propagateTaskComplete(taskText, cb.checked, { kind: "daily", file, date: /* @__PURE__ */ new Date() });
-        }
+        await view._tickDailyNoteTask(file, taskLineRef(tasksList, idx), cb.checked, /* @__PURE__ */ new Date());
       }
       view.render();
     });
@@ -8501,11 +8545,9 @@ function renderTaskSection(view, parent, file, tasks, flashSaved, rawKey = "Task
         if (view.plugin.settings.taskManagementSystem === "tasknotes") {
           const taskObj = fileTaskNotes[idx];
           await toggleTaskNotesTask(view.app, taskObj.file, cb.checked);
+          await view._propagateTaskComplete(taskObj.title, cb.checked, { kind: "tasknotes", file: taskObj.file });
         } else {
-          replaceItems(items, updateItem(items, idx, { done: cb.checked }));
-          await view._commitTasks(file, items, flashSaved, false, rawKey);
-          const txt = (items[idx].title || "").trim();
-          if (txt) await view._propagateTaskComplete(txt, cb.checked, { kind: "project", file });
+          await tickProjectTaskRow(view, file, items, idx, cb.checked, flashSaved, rawKey);
         }
         view.render();
       });
@@ -8581,6 +8623,19 @@ function renderTaskSection(view, parent, file, tasks, flashSaved, rawKey = "Task
     replaceItems(tasks, addTask(tasks));
     await view._commitTasks(file, tasks, flashSaved, false, rawKey);
   });
+}
+async function tickProjectTaskRow(view, file, items, idx, checked, flashSaved, rawKey) {
+  const ref = taskRefAt(items.map((item) => item.title || ""), idx);
+  const content = await view.app.vault.read(file);
+  const toggled = ref ? toggleProjectTaskByRef(content, rawKey, ref, checked) : null;
+  if (!toggled) {
+    new import_obsidian23.Notice("That task changed in the note, so nothing was ticked.");
+    return;
+  }
+  await view.app.vault.modify(file, toggled.content);
+  replaceItems(items, updateItem(items, idx, { done: checked }));
+  if (typeof flashSaved === "function") flashSaved();
+  if (toggled.taskText) await view._propagateTaskComplete(toggled.taskText, checked, { kind: "project", file });
 }
 async function saveTasks(view, file, items, flashSaved, skipRender = false, rawKey = "Tasks") {
   const snapshot = [...items];
@@ -9582,8 +9637,6 @@ function activityReport(activities, def, now, weekStartsOn) {
   };
 }
 var WEEKDAY_ACCENTS = ["emerald", "mint", "sky", "warn", "rose", "mint", "sky"];
-var OPEN_TASK = / \[ \] /;
-var DONE_TASK = / \[(x|X)\] /;
 function productivityDates(now, weekStartsOn) {
   const today = startOfDay(now);
   const first = addDays(startOfWeek(today, weekStartsOn), -11 * 7);
@@ -9604,8 +9657,7 @@ function productivityReport(notes, now, settings) {
     if (c !== void 0) {
       hasNote = true;
       const p = parseSections(c, settings);
-      open = p.tasks.filter((l) => OPEN_TASK.test(l)).length;
-      done = p.tasks.filter((l) => DONE_TASK.test(l)).length;
+      ({ open, done } = countTaskLines(p.tasks));
       jChars = (p.journal || "").length;
     }
     perDay.push({ date: d, open, done, jChars, hasNote });
@@ -9631,10 +9683,9 @@ function productivityReport(notes, now, settings) {
       if (d.getTime() > today.getTime()) break;
       const c = notes.get(ymd(d));
       if (c !== void 0) {
-        parseSections(c, settings).tasks.forEach((l) => {
-          if (DONE_TASK.test(l)) wd++;
-          else if (OPEN_TASK.test(l)) wo++;
-        });
+        const counts = countTaskLines(parseSections(c, settings).tasks);
+        wd += counts.done;
+        wo += counts.open;
       }
     }
     weeks.push({ done: wd, open: wo, label: ws.toLocaleDateString(void 0, { month: "short", day: "numeric" }) });
@@ -9877,7 +9928,7 @@ function openTaskProjectPicker(view, dailyPath, text, currentLink) {
   }(view.app, projects, !!currentLink);
   picker.open();
 }
-function propagationTargets(text, done, source, reminders, dailyNoteFolder, now) {
+function propagationTargets(text, done, source, reminders, dailyNoteFolder, now, taskProjectLinks = {}) {
   const t = String(text || "").trim();
   if (!t) return null;
   source = source || {};
@@ -9889,12 +9940,13 @@ function propagationTargets(text, done, source, reminders, dailyNoteFolder, now)
     reminderIds.push(r.id);
   }
   const projectPaths = [];
-  for (const r of matches) {
-    if (!r.project) continue;
-    if (source.kind === "project" && source.file && source.file.path === r.project) continue;
-    if (projectPaths.includes(r.project)) continue;
-    projectPaths.push(r.project);
-  }
+  const sourceProject = source.kind === "project" && source.file ? source.file.path : null;
+  const addProject = (path) => {
+    if (!path || path === sourceProject) return;
+    if (projectPaths.includes(path)) return;
+    projectPaths.push(path);
+  };
+  for (const r of matches) addProject(r.project);
   const datesToCheck = /* @__PURE__ */ new Set([ymd(now)]);
   matches.forEach((r) => {
     if (r.when) {
@@ -9908,16 +9960,27 @@ function propagationTargets(text, done, source, reminders, dailyNoteFolder, now)
   });
   if (source.kind === "daily" && source.date) datesToCheck.add(ymd(source.date));
   const dailyPaths = [];
+  const linkedFrom = source.kind === "daily" && source.file ? [source.file.path] : [];
   for (const dateStr of datesToCheck) {
     const path = dailyNoteFolder ? `${dailyNoteFolder.replace(/\/$/, "")}/${dateStr}.md` : `${dateStr}.md`;
+    if (!linkedFrom.includes(path)) linkedFrom.push(path);
     if (source.kind === "daily" && source.file && source.file.path === path) continue;
     dailyPaths.push(path);
   }
+  for (const path of linkedFrom) addProject(taskProjectLinks[taskLinkKey(path, t)]);
   return { text: t, reminderIds, projectPaths, dailyPaths };
 }
 async function propagateTaskComplete(view, text, done, source) {
   const settings = view.plugin.settings;
-  const targets = propagationTargets(text, done, source, (settings.reminders || []).slice(), settings.dailyNoteFolder, /* @__PURE__ */ new Date());
+  const targets = propagationTargets(
+    text,
+    done,
+    source,
+    (settings.reminders || []).slice(),
+    settings.dailyNoteFolder,
+    /* @__PURE__ */ new Date(),
+    settings.taskProjectLinks || {}
+  );
   if (!targets) return;
   for (const id of targets.reminderIds) {
     await view.plugin.updateReminder(id, { done: !!done });
@@ -9933,27 +9996,39 @@ async function propagateTaskComplete(view, text, done, source) {
     await view._tickDailyNoteTaskByText(file, targets.text, !!done);
   }
 }
-async function tickProjectTaskByText(view, file, text, done) {
-  let content;
+async function readTickTarget(view, file) {
   try {
-    content = await view.app.vault.read(file);
-  } catch (_) {
-    return;
+    return await view.app.vault.read(file);
+  } catch (error) {
+    new import_obsidian26.Notice(`Couldn't update ${file.path}: ${error.message}`);
+    return null;
   }
+}
+async function tickProjectTaskByText(view, file, text, done) {
+  const content = await readTickTarget(view, file);
+  if (content === null) return;
   const next = tickProjectTasks(content, text, done);
   if (next === null) return;
   await view.app.vault.modify(file, next);
 }
 async function tickDailyNoteTaskByText(view, file, text, done) {
-  let content;
-  try {
-    content = await view.app.vault.read(file);
-  } catch (_) {
-    return;
-  }
+  const content = await readTickTarget(view, file);
+  if (content === null) return;
   const next = tickDailyTasks(content, view.plugin.settings, text, done);
   if (next === null) return;
   await view.app.vault.modify(file, next);
+}
+async function tickDailyNoteTask(view, file, ref, checked, date) {
+  const content = await view.app.vault.read(file);
+  const toggled = toggleDailyTaskByRef(content, view.plugin.settings, ref, checked);
+  if (!toggled) {
+    new import_obsidian26.Notice("That task changed in the note, so nothing was ticked.");
+    return;
+  }
+  await view.app.vault.modify(file, toggled.content);
+  if (toggled.taskText) {
+    await view._propagateTaskComplete(toggled.taskText, checked, { kind: "daily", file, date });
+  }
 }
 
 // src/views/templates.ts
@@ -10688,12 +10763,13 @@ async function quickAddTodayTask(view) {
   const content = await view.app.vault.read(file);
   await view.app.vault.modify(file, appendDailyTask(content, view.plugin.settings, text));
   new import_obsidian30.Notice("Added to today");
+  view.render();
 }
 function todaySummary(tasksList, greet) {
-  const open = tasksList.filter((l) => / \[ \] /.test(l)).length;
+  const { open, done } = countTaskLines(tasksList);
   return {
     greeting: open === 0 ? `${greet}. Nothing on the books \u2014 your day is clear.` : `${greet}. You have ${open} ${open === 1 ? "thing" : "things"} to handle.`,
-    count: `${open} open \xB7 ${tasksList.length - open} done`
+    count: `${open} open \xB7 ${done} done`
   };
 }
 function taskNotesProjectPath(projects, files) {
@@ -10847,14 +10923,11 @@ async function toggleTodayTask(view, idx, checked) {
     if (view.todayTaskNotes && view.todayTaskNotes[idx]) {
       const taskObj = view.todayTaskNotes[idx];
       await toggleTaskNotesTask(view.app, taskObj.file, checked);
+      await view._propagateTaskComplete(taskObj.title, checked, { kind: "tasknotes", file: taskObj.file });
     }
   } else {
-    const content = await view.app.vault.read(view.todayFile);
-    const { content: newContent, taskText } = toggleDailyTask(content, view.plugin.settings, idx, checked);
-    await view.app.vault.modify(view.todayFile, newContent);
-    if (taskText) {
-      await view._propagateTaskComplete(taskText, checked, { kind: "daily", file: view.todayFile, date: /* @__PURE__ */ new Date() });
-    }
+    const ref = view.todayParsed ? taskLineRef(view.todayParsed.tasks, idx) : null;
+    if (ref) await view._tickDailyNoteTask(view.todayFile, ref, checked, /* @__PURE__ */ new Date());
   }
   view.render();
 }
@@ -11522,6 +11595,9 @@ var CadenceAppView = class extends import_obsidian31.ItemView {
   }
   _tickDailyNoteTaskByText(file, text, done) {
     return tickDailyNoteTaskByText(this, file, text, done);
+  }
+  _tickDailyNoteTask(file, ref, checked, date) {
+    return tickDailyNoteTask(this, file, ref, checked, date);
   }
   /* ── Cadence-styled prompt modal ─ */
   _prompt(opts) {

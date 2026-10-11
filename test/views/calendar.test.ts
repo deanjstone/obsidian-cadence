@@ -223,7 +223,7 @@ describe("togglePlannerTask", () => {
     const { view, parent, read, propagate, rendered, file } = setup(WEEK);
     const mon = await dayData(view, parent, 0);
     await view.togglePlannerTask(mon, 0, true);
-    expect(await read("daily/2026-10-05.md")).toBe("## Today\n- [x] Mon one\n- [x] Mon two\n\n## Journal\n");
+    expect(await read("daily/2026-10-05.md")).toBe("## Today\n- [x] Mon one\n- [x] Mon two\n## Journal\n");
     expect(propagate.mock.calls).toEqual([[
       "Mon one", true, { kind: "daily", file: file("daily/2026-10-05.md"), date: new Date("2026-10-05T00:00:00Z") },
     ]]);
@@ -234,13 +234,13 @@ describe("togglePlannerTask", () => {
     const { view, parent, read } = setup(WEEK);
     const mon = await dayData(view, parent, 0);
     await view.togglePlannerTask(mon, 1, false);
-    expect(await read("daily/2026-10-05.md")).toBe("## Today\n- [ ] Mon one\n- [ ] Mon two\n\n## Journal\n");
+    expect(await read("daily/2026-10-05.md")).toBe("## Today\n- [ ] Mon one\n- [ ] Mon two\n## Journal\n");
   });
 
-  it("QUIRK: a day without a note returns early, with no re-render", async () => {
+  it("a day without a note writes nothing but still re-renders", async () => {
     const { view, rendered, propagate, app } = setup();
     await view.togglePlannerTask({ date: new Date(), path: "daily/x.md", exists: false, tasks: [] }, 0, true);
-    expect(rendered).not.toHaveBeenCalled();
+    expect(rendered).toHaveBeenCalledTimes(1);
     expect(propagate).not.toHaveBeenCalled();
     expect(app.vault.modified).toEqual([]);
   });
@@ -253,7 +253,7 @@ describe("togglePlannerTask", () => {
     expect(propagate).not.toHaveBeenCalled();
   });
 
-  it("in TaskNotes mode, sets the task note's status and re-renders without propagating", async () => {
+  it("in TaskNotes mode, sets the task note's status, propagates its title and re-renders", async () => {
     const { view, parent, app, rendered, propagate } = setup(
       [taskNote("A", { title: "A", status: "done", scheduled: "2026-10-05" })],
       TASKNOTES,
@@ -265,6 +265,7 @@ describe("togglePlannerTask", () => {
     await view.togglePlannerTask(mon, 3, true);
     await view.togglePlannerTask({ ...mon, rawTasks: undefined }, 0, true);
     expect(rendered).toHaveBeenCalledTimes(3);
-    expect(propagate).not.toHaveBeenCalled();
+    const taskFile = app.vault.getAbstractFileByPath("TaskNotes/Tasks/A.md");
+    expect(propagate.mock.calls).toEqual([["A", false, { kind: "tasknotes", file: taskFile }]]);
   });
 });
