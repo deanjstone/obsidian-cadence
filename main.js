@@ -7535,7 +7535,8 @@ function isHomeActiveProject(e) {
 async function homeProjectsCard(view, parent) {
   const def = ENTITIES.project;
   const files = listEntityFiles(view.app, "project");
-  const body = view._homeCard(parent, `ACTIVE PROJECTS \u2014 ${files.length}`, (head) => {
+  const activeEntities = files.map((f) => readEntity(view.app, f)).filter(isHomeActiveProject);
+  const body = view._homeCard(parent, `ACTIVE PROJECTS \u2014 ${activeEntities.length}`, (head) => {
     const link = head.createEl("a", { cls: "cad-home-card-link", text: "Open Projects \u2192" });
     link.addEventListener("click", (e) => {
       e.preventDefault();
@@ -7546,13 +7547,9 @@ async function homeProjectsCard(view, parent) {
     body.createDiv({ cls: "cad-empty", text: "No projects yet \u2014 hit + Project above." });
     return;
   }
-  const projects = await Promise.all(files.map(async (f) => {
-    const e = readEntity(view.app, f);
-    if (!isHomeActiveProject(e)) return null;
-    const meta = await readProjectMeta(view.app, f);
-    return { entity: e, meta };
-  }));
-  const active = projects.filter(Boolean).slice(0, 3);
+  const active = await Promise.all(
+    activeEntities.slice(0, 3).map(async (entity) => ({ entity, meta: await readProjectMeta(view.app, entity.file) }))
+  );
   if (!active.length) {
     body.createDiv({ cls: "cad-empty", text: "No active projects right now." });
     return;

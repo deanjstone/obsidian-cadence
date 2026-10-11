@@ -759,7 +759,9 @@ export function isHomeActiveProject(e: Entity): boolean {
 export async function homeProjectsCard(view: AppViewHost, parent: HTMLElement): Promise<void> {
   const def = ENTITIES.project;
   const files = listEntityFiles(view.app, 'project');
-  const body = view._homeCard(parent, `ACTIVE PROJECTS — ${files.length}`, (head) => {
+  /* The header counts active projects only (#55); the card lists the first three. */
+  const activeEntities = files.map((f) => readEntity(view.app, f)).filter(isHomeActiveProject);
+  const body = view._homeCard(parent, `ACTIVE PROJECTS — ${activeEntities.length}`, (head) => {
     const link = head.createEl('a', { cls: 'cad-home-card-link', text: 'Open Projects →' });
     link.addEventListener('click', (e) => { e.preventDefault(); view.setMode('projects.projects'); });
   }, 'emerald');
@@ -767,13 +769,9 @@ export async function homeProjectsCard(view: AppViewHost, parent: HTMLElement): 
     body.createDiv({ cls: 'cad-empty', text: 'No projects yet — hit + Project above.' });
     return;
   }
-  const projects = await Promise.all(files.map(async (f) => {
-    const e = readEntity(view.app, f);
-    if (!isHomeActiveProject(e)) return null;
-    const meta = await readProjectMeta(view.app, f);
-    return { entity: e, meta };
-  }));
-  const active = projects.filter(Boolean).slice(0, 3) as Array<{ entity: Entity; meta: ProjectMeta }>;
+  const active: Array<{ entity: Entity; meta: ProjectMeta }> = await Promise.all(
+    activeEntities.slice(0, 3).map(async (entity) => ({ entity, meta: await readProjectMeta(view.app, entity.file) })),
+  );
   if (!active.length) {
     body.createDiv({ cls: 'cad-empty', text: 'No active projects right now.' });
     return;

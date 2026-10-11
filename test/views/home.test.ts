@@ -578,7 +578,7 @@ describe("_homeProjectsCard", () => {
     ]);
     await view._homeProjectsCard(parent);
     const c = card(parent);
-    expect([c.title, c.el.dataset.tone]).toEqual(["ACTIVE PROJECTS — 6", "emerald"]);
+    expect([c.title, c.el.dataset.tone]).toEqual(["ACTIVE PROJECTS — 5", "emerald"]);
     expect(c.links.map((l) => l.text)).toEqual(["Open Projects →"]);
     expect(c.links[0].trigger("click").defaultPrevented).toBe(true);
     expect(setMode.mock.calls).toEqual([["projects.projects"]]);
@@ -597,11 +597,11 @@ describe("_homeProjectsCard", () => {
     expect(openDetail.mock.calls).toEqual([["project", file("Cadence/Projects/Paused.md")]]);
   });
 
-  it("QUIRK: the header counts every project file, active or not", async () => {
+  it("the header counts only active projects", async () => {
     const { view, parent } = setup([proj("A", "done"), proj("B", "cancelled")]);
     await view._homeProjectsCard(parent);
     const c = card(parent);
-    expect(c.title).toBe("ACTIVE PROJECTS — 2");
+    expect(c.title).toBe("ACTIVE PROJECTS — 0");
     expect(c.body.children.map((e) => [e.classes[0], e.text])).toEqual([["cad-empty", "No active projects right now."]]);
   });
 
