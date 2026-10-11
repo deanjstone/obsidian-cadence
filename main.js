@@ -259,7 +259,7 @@ function quickPickTime(kind, now) {
   return d;
 }
 var CadenceCaptureModal = class extends import_obsidian.Modal {
-  constructor(app, opts) {
+  constructor(app, opts = {}) {
     super(app);
     this.onSubmit = opts.onSubmit;
     this.defaultText = opts.defaultText || "";
@@ -364,7 +364,7 @@ var CadenceCaptureModal = class extends import_obsidian.Modal {
       }
       this._submitted = true;
       this.close();
-      this.onSubmit(result);
+      this.onSubmit?.(result);
     };
     ok.addEventListener("click", submit);
     textInput.addEventListener("keydown", (e) => {
@@ -1159,6 +1159,21 @@ function projectNameFromPath(app, path) {
 }
 
 // src/modals/csv-import-mapping.ts
+function uniqueCsvHeaders(headers) {
+  const taken = new Set(headers);
+  const seen = /* @__PURE__ */ new Set();
+  return headers.map((h) => {
+    if (!seen.has(h)) {
+      seen.add(h);
+      return h;
+    }
+    let n = 2;
+    const named = (i) => h ? `${h} (${i})` : `(${i})`;
+    while (taken.has(named(n)) || seen.has(named(n))) n++;
+    seen.add(named(n));
+    return named(n);
+  });
+}
 function autoDetectCsvMapping(def, headers) {
   const mapping = {};
   if (!def || !headers.length) return mapping;
@@ -1239,6 +1254,9 @@ function csvColumnSamples(rows, index) {
   return rows.slice(0, 2).map((r) => String(r[index] || "").trim()).filter(Boolean);
 }
 function csvImportSummary(def, mapping, rowCount) {
+  if (rowCount === 0) {
+    return { ready: false, text: "The CSV has a header row but no data rows, so there is nothing to import." };
+  }
   const primaryMapped = Object.values(mapping).includes(def.fields[0].key);
   if (!primaryMapped) {
     return { ready: false, text: `No CSV column maps to "${def.fields[0].label}" \u2014 required to name the file. Pick a column above.` };
@@ -1272,9 +1290,14 @@ var CsvFileSuggestModal = class extends import_obsidian3.SuggestModal {
 var CadenceImportModal = class extends import_obsidian3.Modal {
   constructor(app, opts) {
     super(app);
-    this.entityKey = opts && opts.entityKey || "contact";
+    const entityKey = opts && opts.entityKey;
+    this.entityKey = entityKey && Object.prototype.hasOwnProperty.call(ENTITIES, entityKey) ? entityKey : "contact";
     this.onSubmit = opts && opts.onSubmit || (() => {
     });
+    this._reset();
+  }
+  /* Forget any parsed CSV, so a reopened modal matches its empty textarea. */
+  _reset() {
     this.csvText = "";
     this.headers = [];
     this.rows = [];
@@ -1283,6 +1306,7 @@ var CadenceImportModal = class extends import_obsidian3.Modal {
   onOpen() {
     const { contentEl } = this;
     contentEl.empty();
+    this._reset();
     contentEl.addClass("cad-import-modal");
     contentEl.createEl("h3", { cls: "cad-create-title", text: "Import from CSV" });
     const entityRow = contentEl.createDiv({ cls: "cad-create-row" });
@@ -1365,7 +1389,7 @@ var CadenceImportModal = class extends import_obsidian3.Modal {
       this.rows = [];
       return;
     }
-    this.headers = all[0].map((h) => String(h).trim());
+    this.headers = uniqueCsvHeaders(all[0].map((h) => String(h).trim()));
     this.rows = all.slice(1);
     this._autoDetectMapping();
   }
@@ -1419,7 +1443,7 @@ var CadenceImportModal = class extends import_obsidian3.Modal {
     const def = ENTITIES[this.entityKey];
     const primaryKey = def.fields[0].key;
     const primaryHeader = Object.entries(this.mapping).find(([_, v]) => v === primaryKey);
-    if (!primaryHeader) return;
+    if (!primaryHeader || !this.rows.length) return;
     const primaryColIdx = this.headers.indexOf(primaryHeader[0]);
     this.importBtn.disabled = true;
     this.importBtn.setText("Importing\u2026");
@@ -2238,8 +2262,8 @@ var ICON_OPTIONS = [
   { value: "check-square", label: "\u2611\uFE0F Checkbox / Tasks" }
 ];
 var SECTION_LABELS = Object.fromEntries(SECTION_OPTIONS.map((o) => [o.value, o.label]));
-function sectionLabel(sectionId) {
-  return SECTION_LABELS[sectionId] || sectionId;
+function sectionLabel(sectionId2) {
+  return SECTION_LABELS[sectionId2] || sectionId2;
 }
 function customPageLayoutLabel(layout) {
   return LAYOUT_LABELS[layout || "table"] || layout;
@@ -2253,14 +2277,14 @@ function customPageRows(customPages, entities) {
     layout: customPageLayoutLabel(p.defaultLayout)
   }));
 }
-function customPageEntityKey(label, sectionId) {
+function customPageEntityKey(label, sectionId2) {
   let singular = label;
   if (singular.endsWith("s") && singular.length > 1) {
     singular = singular.substring(0, singular.length - 1);
   } else if (singular.endsWith("S") && singular.length > 1) {
     singular = singular.substring(0, singular.length - 1);
   }
-  return { singular, entityKey: sectionId + "_" + singular.toLowerCase().replace(/\s+/g, "_") };
+  return { singular, entityKey: sectionId2 + "_" + singular.toLowerCase().replace(/\s+/g, "_") };
 }
 function customEntityLabel(singular) {
   return singular === singular.toUpperCase() ? singular : singular.charAt(0).toUpperCase() + singular.slice(1);
@@ -3427,7 +3451,10 @@ function buildEntityCreateValues(def, inputs) {
   inputs.forEach((input, idx) => {
     const { key, type } = input;
     let raw = input.value;
-    if (idx === 0) primaryValue = (raw || "").trim();
+    if (idx === 0) {
+      primaryValue = (raw || "").trim();
+      raw = primaryValue;
+    }
     if (raw === "" || raw == null) return;
     const f = def.fields.find((fd) => fd.key === key);
     const suggestionSource = getFieldSuggestionSource(f);
@@ -3511,7 +3538,7 @@ function entityCreateSuggestions(app, f, suggestionSource, fullVal) {
   return filtered;
 }
 var CadenceEntityCreateModal = class extends import_obsidian10.Modal {
-  constructor(app, entityKey, opts) {
+  constructor(app, entityKey, opts = {}) {
     super(app);
     this.entityKey = entityKey;
     this.def = ENTITIES[entityKey];
@@ -3527,9 +3554,9 @@ var CadenceEntityCreateModal = class extends import_obsidian10.Modal {
     contentEl.createEl("h3", { cls: "cad-create-title", text: `New ${this.def.label}` });
     const form = contentEl.createDiv({ cls: "cad-create-form" });
     const inputs = [];
-    this.def.fields.forEach((f, idx) => {
+    this.def.fields.forEach((f) => {
       if (f.key === "type" && f.type !== "enum") return;
-      const isPrimary = idx === 0;
+      const isPrimary = inputs.length === 0;
       const row = form.createDiv({ cls: "cad-create-row" });
       const label = row.createDiv({ cls: "cad-create-label" });
       label.setText(f.label.toUpperCase() + (isPrimary ? " *" : ""));
@@ -3616,7 +3643,11 @@ var CadenceEntityCreateModal = class extends import_obsidian10.Modal {
       input.dataset.fieldType = fieldType;
       if (isPrimary) input.required = true;
       if (this.defaults && this.defaults[f.key] != null) {
-        input.value = String(this.defaults[f.key]);
+        const value = String(this.defaults[f.key]);
+        if (fieldType === "enum" && !(f.options || []).includes(value) && value !== "") {
+          input.createEl("option", { value, text: value });
+        }
+        input.value = value;
       }
       inputs.push(input);
     });
@@ -3638,7 +3669,7 @@ var CadenceEntityCreateModal = class extends import_obsidian10.Modal {
       }
       this._submitted = true;
       this.close();
-      this.onSubmit(result);
+      this.onSubmit?.(result);
     };
     submitBtn.addEventListener("click", submit);
     inputs.forEach((el) => {
@@ -3668,7 +3699,7 @@ var CadenceEntityCreateModal = class extends import_obsidian10.Modal {
 // src/modals/prompt.ts
 var import_obsidian11 = require("obsidian");
 var CadencePromptModal = class extends import_obsidian11.Modal {
-  constructor(app, opts) {
+  constructor(app, opts = {}) {
     super(app);
     this.title = opts.title || "Enter a name";
     this.placeholder = opts.placeholder || "";
@@ -3697,7 +3728,7 @@ var CadencePromptModal = class extends import_obsidian11.Modal {
       }
       this._submitted = true;
       this.close();
-      this.onSubmit(v);
+      this.onSubmit?.(v);
     };
     input.addEventListener("keydown", (e) => {
       if (e.key === "Enter") {
@@ -4085,20 +4116,43 @@ var import_obsidian14 = require("obsidian");
 
 // src/modals/confirm.ts
 var import_obsidian13 = require("obsidian");
+var CONFIRM_BUTTON_CLS = {
+  danger: "cad-btn primary danger",
+  primary: "cad-btn primary"
+};
 var CadenceConfirmModal = class extends import_obsidian13.Modal {
-  constructor(app, opts) {
+  constructor(app, opts = {}) {
     super(app);
     this.title = opts.title || "Confirm Action";
     this.message = opts.message || "Are you sure?";
     this.confirmLabel = opts.confirmLabel || "Confirm";
     this.cancelLabel = opts.cancelLabel || "Cancel";
+    this.confirmStyle = opts.confirmStyle && Object.prototype.hasOwnProperty.call(CONFIRM_BUTTON_CLS, opts.confirmStyle) ? opts.confirmStyle : "danger";
     this.onConfirm = opts.onConfirm;
     this.onCancel = opts.onCancel;
     this._responded = false;
+    this.contentEl.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        this._respond(e.target === this._cancelBtn ? this.onCancel : this.onConfirm);
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        this._respond(this.onCancel);
+      }
+    });
+  }
+  /* Answer once: close, then call the callback. */
+  _respond(callback) {
+    if (this._responded) return;
+    this._responded = true;
+    this.close();
+    callback?.();
   }
   onOpen() {
     const { contentEl } = this;
     contentEl.empty();
+    this._responded = false;
     contentEl.addClass("cad-prompt-modal");
     contentEl.addClass("cad-confirm-modal");
     contentEl.createEl("h3", { text: this.title });
@@ -4112,23 +4166,18 @@ var CadenceConfirmModal = class extends import_obsidian13.Modal {
     row.style.justifyContent = "flex-end";
     row.style.gap = "8px";
     const cancelBtn = row.createEl("button", { text: this.cancelLabel, cls: "cad-btn" });
-    cancelBtn.addEventListener("click", () => {
-      this._responded = true;
-      this.close();
-      if (this.onCancel) this.onCancel();
-    });
-    const confirmBtn = row.createEl("button", { text: this.confirmLabel, cls: "cad-btn primary danger" });
-    confirmBtn.addEventListener("click", () => {
-      this._responded = true;
-      this.close();
-      if (this.onConfirm) this.onConfirm();
-    });
+    cancelBtn.addEventListener("click", () => this._respond(this.onCancel));
+    this._cancelBtn = cancelBtn;
+    const confirmBtn = row.createEl("button", { text: this.confirmLabel, cls: CONFIRM_BUTTON_CLS[this.confirmStyle] });
+    confirmBtn.addEventListener("click", () => this._respond(this.onConfirm));
     setTimeout(() => confirmBtn.focus(), 50);
   }
   onClose() {
     if (!this._responded && this.onCancel) {
+      this._responded = true;
       this.onCancel();
     }
+    this.contentEl.empty();
   }
 };
 
@@ -5279,7 +5328,7 @@ function buildWidgetConfig(form) {
   };
 }
 var CadenceWidgetCreateModal = class extends import_obsidian16.Modal {
-  constructor(app, entityKey, onSubmit) {
+  constructor(app, entityKey, onSubmit, onCancel) {
     super(app);
     if (typeof entityKey === "function") {
       this.onSubmit = entityKey;
@@ -5288,10 +5337,13 @@ var CadenceWidgetCreateModal = class extends import_obsidian16.Modal {
       this.entityKey = entityKey || "project";
       this.onSubmit = onSubmit;
     }
+    this.onCancel = onCancel;
+    this._submitted = false;
   }
   onOpen() {
     const { contentEl } = this;
     contentEl.empty();
+    this._submitted = false;
     contentEl.addClass("cad-prompt-modal");
     contentEl.createEl("h3", { text: "Add Custom Chart Widget" });
     contentEl.createEl("label", { text: "Chart Title:", attr: { style: "display: block; font-weight: 500; font-size: 0.85em; margin-bottom: 4px; margin-top: 12px;" } });
@@ -5335,7 +5387,12 @@ var CadenceWidgetCreateModal = class extends import_obsidian16.Modal {
         inputTitle.focus();
         return;
       }
-      this.onSubmit(config);
+      if (!config.groupBy) {
+        new import_obsidian16.Notice(`There is no property to group ${entityLabel} by.`);
+        return;
+      }
+      this._submitted = true;
+      this.onSubmit?.(config);
       this.close();
     };
     const row = contentEl.createDiv();
@@ -5346,8 +5403,16 @@ var CadenceWidgetCreateModal = class extends import_obsidian16.Modal {
     const cancel = row.createEl("button", { text: "Cancel" });
     cancel.addEventListener("click", () => this.close());
     const ok = row.createEl("button", { text: "Create Widget", cls: "mod-cta" });
+    ok.disabled = !selectProp.options.length;
     ok.addEventListener("click", submit);
     setTimeout(() => inputTitle.focus(), 0);
+  }
+  onClose() {
+    if (!this._submitted && this.onCancel) {
+      this._submitted = true;
+      this.onCancel();
+    }
+    this.contentEl.empty();
   }
 };
 
@@ -6816,7 +6881,7 @@ function buildReminderPatch(form, reminder) {
 }
 function filterReminderProjects(projects, query) {
   const q = (query || "").toLowerCase();
-  return projects.filter((p) => p.name.toLowerCase().includes(q));
+  return projects.filter((p) => p.name.toLowerCase().includes(q) || p.file.path.toLowerCase().includes(q));
 }
 var ReminderProjectSuggestModal = class extends import_obsidian20.SuggestModal {
   constructor(app, projs, onChoose) {
@@ -10410,107 +10475,27 @@ async function tickDailyNoteTask(view, file, ref, checked, date) {
 var import_obsidian29 = require("obsidian");
 
 // src/modals/chart-section.ts
-var import_obsidian27 = require("obsidian");
-function buildChartSectionConfig(form) {
-  return {
-    targetEntity: form.targetEntity,
-    linkField: form.linkField,
-    groupField: form.groupField,
-    style: form.style
-  };
-}
-function chartSectionDefaults(fieldKeys, parentEntity) {
-  const parentDef = ENTITIES[parentEntity];
-  const linkField = parentDef ? fieldKeys.find((k) => k === parentEntity || k === parentDef.label.toLowerCase()) : void 0;
-  const groupField = fieldKeys.find((k) => ["stage", "status", "type", "priority"].includes(k));
-  return { linkField, groupField };
-}
-var CadenceChartSectionModal = class extends import_obsidian27.Modal {
-  constructor(app, parentEntity, onSubmit) {
-    super(app);
-    this.parentEntity = parentEntity;
-    this.onSubmit = onSubmit;
-  }
-  onOpen() {
-    const { contentEl } = this;
-    contentEl.empty();
-    contentEl.addClass("cad-prompt-modal");
-    contentEl.createEl("h3", { text: "Add Analytics Chart Block" });
-    const style = "display: block; font-weight: 500; font-size: 0.85em; margin-bottom: 4px; margin-top: 12px;";
-    const selStyle = (el) => {
-      el.style.width = "100%";
-      el.style.padding = "6px 8px";
-      el.style.background = "var(--background-primary)";
-      el.style.color = "var(--text-normal)";
-      el.style.border = "1px solid var(--border-color)";
-      el.style.borderRadius = "4px";
-    };
-    contentEl.createEl("label", { text: "Entity to chart:", style });
-    const selTarget = contentEl.createEl("select");
-    selStyle(selTarget);
-    Object.entries(ENTITIES).forEach(([key, def]) => {
-      selTarget.createEl("option", { value: key, text: def.plural });
-    });
-    contentEl.createEl("label", { text: "Link field (field on target that references this entity):", style });
-    const selLink = contentEl.createEl("select");
-    selStyle(selLink);
-    contentEl.createEl("label", { text: "Group by field (property to chart):", style });
-    const selGroup = contentEl.createEl("select");
-    selStyle(selGroup);
-    const refreshFields = () => {
-      const targetKey = selTarget.value;
-      const def = ENTITIES[targetKey];
-      if (!def) return;
-      selLink.empty();
-      selGroup.empty();
-      def.fields.forEach((f) => {
-        if (!f.primary) {
-          selLink.createEl("option", { value: f.key, text: `${f.label} (${f.key})` });
-          selGroup.createEl("option", { value: f.key, text: `${f.label} (${f.key})` });
-        }
-      });
-      const { linkField, groupField } = chartSectionDefaults(Array.from(selLink.options).map((o) => o.value), this.parentEntity);
-      if (linkField !== void 0) selLink.value = linkField;
-      if (groupField !== void 0) selGroup.value = groupField;
-    };
-    refreshFields();
-    selTarget.addEventListener("change", refreshFields);
-    contentEl.createEl("label", { text: "Chart Style:", style });
-    const selStyle2 = contentEl.createEl("select");
-    selStyle(selStyle2);
-    [
-      { value: "donut", text: "Donut Chart \u{1F369}" },
-      { value: "bar", text: "Horizontal Bar Chart \u{1F4CA}" },
-      { value: "kpi", text: "KPI Cards Grid \u{1F5C3}\uFE0F" },
-      { value: "list", text: "Simple List \u{1F4CB}" }
-    ].forEach((opt) => selStyle2.createEl("option", { value: opt.value, text: opt.text }));
-    const row = contentEl.createDiv({ attr: { style: "display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px;" } });
-    row.createEl("button", { text: "Cancel" }).addEventListener("click", () => this.close());
-    const ok = row.createEl("button", { text: "Add Chart", cls: "mod-cta" });
-    ok.addEventListener("click", () => {
-      this.onSubmit(buildChartSectionConfig({
-        targetEntity: selTarget.value,
-        linkField: selLink.value,
-        groupField: selGroup.value,
-        style: selStyle2.value
-      }));
-      this.close();
-    });
-  }
-};
+var import_obsidian28 = require("obsidian");
 
 // src/modals/cross-section.ts
-var import_obsidian28 = require("obsidian");
+var import_obsidian27 = require("obsidian");
+function sectionId(prefix) {
+  return prefix + Math.random().toString(36).slice(2, 10).padEnd(8, "0");
+}
+function noLinkFieldMessage(targetEntity, linkField) {
+  if (linkField) return null;
+  return `${ENTITIES[targetEntity]?.plural || targetEntity} have no field to link by.`;
+}
 function buildCrossSectionConfig(form) {
   return {
-    id: "xs_" + Math.random().toString(36).slice(2, 10),
+    id: sectionId("xs_"),
     parentEntity: form.parentEntity,
     targetEntity: form.targetEntity,
     linkField: form.linkField,
     viewType: form.viewType
   };
 }
-var CadenceCrossSectionModal = class extends import_obsidian28.Modal {
+var CadenceCrossSectionModal = class extends import_obsidian27.Modal {
   constructor(app, parentEntity, onSubmit) {
     super(app);
     this.parentEntity = parentEntity;
@@ -10570,6 +10555,11 @@ var CadenceCrossSectionModal = class extends import_obsidian28.Modal {
       selectView.createEl("option", { value: opt.value, text: opt.text });
     });
     const submit = () => {
+      const blank = noLinkFieldMessage(selectTarget.value, selectField.value);
+      if (blank) {
+        new import_obsidian27.Notice(blank);
+        return;
+      }
       this.onSubmit(buildCrossSectionConfig({
         parentEntity: this.parentEntity,
         targetEntity: selectTarget.value,
@@ -10587,6 +10577,104 @@ var CadenceCrossSectionModal = class extends import_obsidian28.Modal {
     cancel.addEventListener("click", () => this.close());
     const ok = row.createEl("button", { text: "Add Section", cls: "mod-cta" });
     ok.addEventListener("click", submit);
+  }
+};
+
+// src/modals/chart-section.ts
+function buildChartSectionConfig(form) {
+  return {
+    id: sectionId("ch_"),
+    parentEntity: form.parentEntity,
+    targetEntity: form.targetEntity,
+    linkField: form.linkField,
+    groupField: form.groupField,
+    style: form.style
+  };
+}
+function chartSectionDefaults(fieldKeys, parentEntity) {
+  const parentDef = ENTITIES[parentEntity];
+  const linkField = parentDef ? fieldKeys.find((k) => k === parentEntity || k === parentDef.label.toLowerCase()) : void 0;
+  const groupField = fieldKeys.find((k) => ["stage", "status", "type", "priority"].includes(k));
+  return { linkField, groupField };
+}
+var CadenceChartSectionModal = class extends import_obsidian28.Modal {
+  constructor(app, parentEntity, onSubmit) {
+    super(app);
+    this.parentEntity = parentEntity;
+    this.onSubmit = onSubmit;
+  }
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.addClass("cad-prompt-modal");
+    contentEl.createEl("h3", { text: "Add Analytics Chart Block" });
+    const style = "display: block; font-weight: 500; font-size: 0.85em; margin-bottom: 4px; margin-top: 12px;";
+    const selStyle = (el) => {
+      el.style.width = "100%";
+      el.style.padding = "6px 8px";
+      el.style.background = "var(--background-primary)";
+      el.style.color = "var(--text-normal)";
+      el.style.border = "1px solid var(--border-color)";
+      el.style.borderRadius = "4px";
+    };
+    contentEl.createEl("label", { text: "Entity to chart:", attr: { style } });
+    const selTarget = contentEl.createEl("select");
+    selStyle(selTarget);
+    Object.entries(ENTITIES).forEach(([key, def]) => {
+      if (key === this.parentEntity) return;
+      selTarget.createEl("option", { value: key, text: def.plural });
+    });
+    contentEl.createEl("label", { text: "Link field (field on target that references this entity):", attr: { style } });
+    const selLink = contentEl.createEl("select");
+    selStyle(selLink);
+    contentEl.createEl("label", { text: "Group by field (property to chart):", attr: { style } });
+    const selGroup = contentEl.createEl("select");
+    selStyle(selGroup);
+    const refreshFields = () => {
+      const targetKey = selTarget.value;
+      const def = ENTITIES[targetKey];
+      if (!def) return;
+      selLink.empty();
+      selGroup.empty();
+      def.fields.forEach((f) => {
+        if (!f.primary) {
+          selLink.createEl("option", { value: f.key, text: `${f.label} (${f.key})` });
+          selGroup.createEl("option", { value: f.key, text: `${f.label} (${f.key})` });
+        }
+      });
+      const { linkField, groupField } = chartSectionDefaults(Array.from(selLink.options).map((o) => o.value), this.parentEntity);
+      if (linkField !== void 0) selLink.value = linkField;
+      if (groupField !== void 0) selGroup.value = groupField;
+    };
+    refreshFields();
+    selTarget.addEventListener("change", refreshFields);
+    contentEl.createEl("label", { text: "Chart Style:", attr: { style } });
+    const selStyle2 = contentEl.createEl("select");
+    selStyle(selStyle2);
+    [
+      { value: "donut", text: "Donut Chart \u{1F369}" },
+      { value: "bar", text: "Horizontal Bar Chart \u{1F4CA}" },
+      { value: "kpi", text: "KPI Cards Grid \u{1F5C3}\uFE0F" },
+      { value: "list", text: "Simple List \u{1F4CB}" }
+    ].forEach((opt) => selStyle2.createEl("option", { value: opt.value, text: opt.text }));
+    const row = contentEl.createDiv({ attr: { style: "display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px;" } });
+    row.createEl("button", { text: "Cancel" }).addEventListener("click", () => this.close());
+    const ok = row.createEl("button", { text: "Add Chart", cls: "mod-cta" });
+    ok.addEventListener("click", () => {
+      const blank = noLinkFieldMessage(selTarget.value, selLink.value);
+      if (blank) {
+        new import_obsidian28.Notice(blank);
+        return;
+      }
+      this.onSubmit(buildChartSectionConfig({
+        parentEntity: this.parentEntity,
+        targetEntity: selTarget.value,
+        linkField: selLink.value,
+        groupField: selGroup.value,
+        style: selStyle2.value
+      }));
+      this.close();
+    });
   }
 };
 
