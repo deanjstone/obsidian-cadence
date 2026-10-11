@@ -4778,10 +4778,8 @@ function getEntityFiles(view, entityKey) {
 // src/views/components/sections.ts
 var import_obsidian15 = require("obsidian");
 function linksTo(val, name) {
-  if (val == null) return false;
   const cleanName = name.trim().toLowerCase();
-  const arr = Array.isArray(val) ? val : [val];
-  return arr.some((v) => String(v).replace(/^\[\[|\]\]$/g, "").trim().toLowerCase() === cleanName);
+  return parseLinkValues(val).some((link) => link.target.toLowerCase() === cleanName);
 }
 function crossSectionRows(entities, linkField, parentName, frontmatterOf) {
   return entities.filter((e) => linksTo(frontmatterOf(e)[linkField], parentName));

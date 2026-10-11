@@ -25,14 +25,13 @@ export interface ProjectTextSectionDef {
   placeholder?: string;
 }
 
-/* True when a frontmatter link value names `name`: a single value or a
-   list, compared without wiki-link brackets, surrounding spaces or case.
-   A comma-separated string is one value, so it matches only as a whole. */
+/* True when a frontmatter link value names `name`: each link it holds,
+   parsed as every other link field is (parseLinkValues: a list, the
+   links in a string, else a string split on commas; brackets and any
+   `|alias` removed), compared without surrounding spaces or case. */
 export function linksTo(val: unknown, name: string): boolean {
-  if (val == null) return false;
   const cleanName = name.trim().toLowerCase();
-  const arr = Array.isArray(val) ? val : [val];
-  return arr.some(v => String(v).replace(/^\[\[|\]\]$/g, '').trim().toLowerCase() === cleanName);
+  return parseLinkValues(val).some(link => link.target.toLowerCase() === cleanName);
 }
 
 /* A cross section's targets: the entities whose linkField names the

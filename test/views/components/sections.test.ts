@@ -146,11 +146,13 @@ describe("_renderSingleCrossSection", () => {
     expect(table.mock.calls).toEqual([[parent.children[1], "deal", pre, ENTITIES.deal.columns]]);
   });
 
-  it("QUIRK: a comma-separated link string does not match; only a single link or a list does", () => {
+  it("a comma-separated link string matches each of its links, as other link fields parse it", () => {
     const deal: MockFileSpec = { path: "Cadence/Pipeline/Two.md", frontmatter: { type: "deal", company: "[[Initech]], [[Acme Corp]]" } };
-    const { view, parent } = setup([deal]);
+    const plain: MockFileSpec = { path: "Cadence/Pipeline/Three.md", frontmatter: { type: "deal", company: "Initech, acme corp" } };
+    const { view, parent } = setup([deal, plain]);
+    const table = vi.spyOn(view, "_renderEntityTable").mockImplementation(() => {});
     view._renderSingleCrossSection(parent, "deal", "company", "table", "Acme Corp");
-    expect(parent.children[0].children.map((c) => c.text)).toEqual(["No linked items found."]);
+    expect((table.mock.calls[0][2] as Array<{ basename: string }>).map((e) => e.basename).sort()).toEqual(["Three", "Two"]);
   });
 
   it("QUIRK: an unknown view type renders only the empty wrapper", () => {
