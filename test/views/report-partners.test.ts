@@ -142,10 +142,10 @@ describe("renderReportPartners: deals by partner", () => {
     expect(links.mock.calls).toEqual([[titles[0], "Acme", "partner"], [titles[2], "Beta", "partner"]]);
   });
 
-  it("QUIRK: with only direct deals, the card lists (direct) rather than its empty message", async () => {
+  it("with only direct deals, the card shows its empty message rather than a lone (direct)", async () => {
     const { view, root } = setup([deal("D", { value: 5 })]);
     await view.renderReportPartners(root);
-    expect(dealRows(root)).toEqual([["(direct)", `1 deal · ${cur(5)}`]]);
+    expect(dealsCard(root).children[1].children.map((c) => [c.classes, c.text])).toEqual([[["cad-empty"], "No deals attributed to partners yet."]]);
   });
 
   it("keeps the top 10 sources", async () => {

@@ -5503,7 +5503,10 @@ async function renderCrmDashboard(view, root) {
     const fill = barWrap.createDiv({ cls: "cad-stage-bar-fill" });
     fill.style.width = width;
     row.createDiv({ cls: "cad-stage-bar-value", text: fmtValue(value, "currency") });
-    row.addEventListener("click", () => view.setMode("crm.pipeline"));
+    row.addEventListener("click", () => {
+      view.listFilter = stage === NO_STAGE ? null : { entityKey: "deal", key: "stage", value: stage };
+      view.setMode("crm.pipeline");
+    });
   });
   const cols = root.createDiv({ cls: "cad-dash-cols" });
   const left = cols.createDiv({ cls: "cad-dash-col" });
@@ -6372,6 +6375,8 @@ async function renderEntityList(view, root, entityKey, opts = {}) {
     const btn = right.createEl("button", { cls: "cad-btn primary", text: `+ New ${def.label}` });
     btn.addEventListener("click", () => view._createEntityFromPrompt(entityKey));
   });
+  const pending = view.listFilter && view.listFilter.entityKey === entityKey ? view.listFilter : null;
+  if (pending) view.listFilter = null;
   if (!filtered.length) {
     const empty = root.createDiv({ cls: "cad-empty-state" });
     empty.createDiv({ cls: "cad-empty-state-title", text: `No ${def.plural.toLowerCase()} yet` });
@@ -6441,6 +6446,11 @@ async function renderEntityList(view, root, entityKey, opts = {}) {
     values.forEach((v) => {
       sel.createEl("option", { value: v, text: v });
     });
+    const start = pending && pending.key === k ? values.find((v) => v.toLowerCase() === pending.value.toLowerCase()) : void 0;
+    if (start) {
+      sel.value = start;
+      query.filters[k] = start;
+    }
     sel.addEventListener("change", () => {
       query.filters[k] = sel.value;
       renderContent();
@@ -10014,7 +10024,7 @@ async function renderReportPartners(view, root) {
   const dealsByPartnerCard = left.createDiv({ cls: "cad-dash-card" });
   dealsByPartnerCard.createDiv({ cls: "cad-dash-card-head" }).createDiv({ cls: "cad-dash-card-title", text: "DEALS BY PARTNER" });
   const dbpBody = dealsByPartnerCard.createDiv({ cls: "cad-dash-card-body" });
-  if (!report.sources.length) {
+  if (!report.partnerSourced.length) {
     dbpBody.createDiv({ cls: "cad-empty", text: "No deals attributed to partners yet." });
   } else {
     report.sources.forEach(({ partner: p, meta }) => {

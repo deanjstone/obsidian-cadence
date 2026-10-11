@@ -2,7 +2,7 @@ import { ENTITIES } from '../constants/entities';
 import { CadenceWidgetCreateModal } from '../modals/widget-create';
 import type { Entity, EntityDef } from '../types/entities';
 import type { WidgetConfig } from '../types/modals';
-import { crmSummary, dealValue, dealsByStage, sumValues, type CrmSummary } from '../utils/deals';
+import { NO_STAGE, crmSummary, dealValue, dealsByStage, sumValues, type CrmSummary } from '../utils/deals';
 import { entityValue, getDealStages, listEntities, listEntityFiles } from '../utils/entities';
 import { fmtValue } from '../utils/format';
 import type { DashCardRow, StatCard } from './components/cards';
@@ -168,7 +168,10 @@ export async function renderCrmDashboard(view: AppViewHost, root: HTMLElement): 
     const fill = barWrap.createDiv({ cls: 'cad-stage-bar-fill' });
     fill.style.width = width;
     row.createDiv({ cls: 'cad-stage-bar-value', text: fmtValue(value, 'currency') });
-    row.addEventListener('click', () => view.setMode('crm.pipeline'));
+    row.addEventListener('click', () => {
+      view.listFilter = stage === NO_STAGE ? null : { entityKey: 'deal', key: 'stage', value: stage };
+      view.setMode('crm.pipeline');
+    });
   });
 
   // ─── Two-column body ───────────────────────────────

@@ -309,6 +309,10 @@ export async function renderEntityList(
     btn.addEventListener('click', () => view._createEntityFromPrompt(entityKey));
   });
 
+  // A filter handed over by another surface (a CRM stage bar), used once
+  const pending = view.listFilter && view.listFilter.entityKey === entityKey ? view.listFilter : null;
+  if (pending) view.listFilter = null;
+
   if (!filtered.length) {
     const empty = root.createDiv({ cls: 'cad-empty-state' });
     empty.createDiv({ cls: 'cad-empty-state-title', text: `No ${def.plural.toLowerCase()} yet` });
@@ -392,6 +396,11 @@ export async function renderEntityList(
     values.forEach(v => {
       sel.createEl('option', { value: v, text: v });
     });
+    const start = pending && pending.key === k ? values.find((v) => v.toLowerCase() === pending.value.toLowerCase()) : undefined;
+    if (start) {
+      sel.value = start;
+      query.filters[k] = start;
+    }
 
     sel.addEventListener('change', () => {
       query.filters[k] = sel.value;

@@ -628,7 +628,7 @@ export async function renderReportPartners(view: AppViewHost, root: HTMLElement)
   const dealsByPartnerCard = left.createDiv({ cls: 'cad-dash-card' });
   dealsByPartnerCard.createDiv({ cls: 'cad-dash-card-head' }).createDiv({ cls: 'cad-dash-card-title', text: 'DEALS BY PARTNER' });
   const dbpBody = dealsByPartnerCard.createDiv({ cls: 'cad-dash-card-body' });
-  if (!report.sources.length) {
+  if (!report.partnerSourced.length) {
     dbpBody.createDiv({ cls: 'cad-empty', text: 'No deals attributed to partners yet.' });
   } else {
     report.sources.forEach(({ partner: p, meta }) => {

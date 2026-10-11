@@ -176,11 +176,15 @@ describe("renderDashboard: pipeline by stage", () => {
     }
   });
 
-  it("QUIRK: clicking any stage bar opens the Pipeline, not that stage", async () => {
+  it("clicking a stage bar opens the Pipeline filtered to that stage; (no stage) opens it unfiltered", async () => {
     const { view, root, modes } = setup(ALL);
     await view.renderDashboard(root);
     stageRows(root)[4].trigger("click");
     expect(modes.mock.calls).toEqual([["crm.pipeline"]]);
+    expect(view.listFilter).toEqual({ entityKey: "deal", key: "stage", value: "Won" });
+    stageRows(root)[6].trigger("click");
+    expect(modes.mock.calls).toEqual([["crm.pipeline"], ["crm.pipeline"]]);
+    expect(view.listFilter).toBeNull();
   });
 });
 
