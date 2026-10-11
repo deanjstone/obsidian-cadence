@@ -3,7 +3,7 @@ import { ENTITIES } from '../constants/entities';
 import { CadenceConfirmModal } from '../modals/confirm';
 import { createEntity, listEntities } from '../utils/entities';
 import {
-  DETAIL_LIST_KEYS, applyFieldEdit, chipAdd, chipConfig, chipCreation, chipLinkTarget, chipValues, chipWriteValue,
+  DETAIL_LIST_KEYS, applyFieldEdit, autoCreatesNote, chipAdd, chipConfig, chipCreation, chipLinkTarget, chipValues, chipWriteValue,
   coerceFieldEdit, dateInputValue, enumCurrent, filterSuggestions, findNoteByName, folderNoteNames, historyValues,
   isChipField,
 } from '../utils/field-edit';
@@ -352,7 +352,7 @@ export async function renderEntityDetail(view: AppViewHost, root: HTMLElement, e
           renderChips();
           await save();
 
-          if (!isPlainChip) {
+          if (!isPlainChip && autoCreatesNote(targetEntityKey)) {
             const targetFile = findNoteByName(view.app.vault.getMarkdownFiles(), name);
             if (!targetFile) {
               try {

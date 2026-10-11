@@ -28,7 +28,7 @@ describe("planEntityLinks", () => {
     ]);
   });
 
-  it("labels a folder: source by the entity whose folder matches, else Note; skips falsy values", () => {
+  it("links every folder: source, but auto-creates only a contact, company or project folder; skips falsy values", () => {
     const def: EntityDef = {
       ...ENTITIES.deal,
       fields: [
@@ -40,10 +40,7 @@ describe("planEntityLinks", () => {
     };
     const { extras, links } = planEntityLinks(def, {}, { vendor: "Initech", venue: "Hall", sponsor: 0 });
     expect(extras).toEqual({ vendor: ["[[Initech]]"], venue: ["[[Hall]]"], sponsor: 0 });
-    expect(links).toEqual([
-      { name: "Initech", creationSource: "folder:cadence/companies//", label: "Company" },
-      { name: "Hall", creationSource: "folder:Venues", label: "Note" },
-    ]);
+    expect(links).toEqual([{ name: "Initech", creationSource: "folder:cadence/companies//", label: "Company" }]);
   });
 
   it("QUIRK: strips brackets before trimming, so ' [[Bob]]' stays '[[Bob'", () => {

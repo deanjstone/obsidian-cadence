@@ -212,6 +212,16 @@ export function chipLinkTarget(targetEntityKey: string | null, targetFile: TFile
   return { kind: 'link', linktext: name };
 }
 
+/** The entities a form edit may auto-create a note for: the targets of the
+    relation fields (#45, owner decision 2026-10-11). Any other link chip
+    links to the name without creating a note. */
+export const AUTO_CREATE_ENTITIES = ['contact', 'company', 'project'];
+
+/** True when adding a link to a missing note should create it. */
+export function autoCreatesNote(targetEntityKey: string | null): boolean {
+  return targetEntityKey != null && AUTO_CREATE_ENTITIES.includes(targetEntityKey);
+}
+
 /** Where a new note for a link chip is created, and the label its notice uses.
     Flagged: the `history` branch is unreachable, because history chips are
     plain and never create notes. */
