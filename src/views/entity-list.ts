@@ -1,6 +1,7 @@
 import { Notice, Platform, TFile, setIcon } from 'obsidian';
 import { ENTITIES } from '../constants/entities';
 import { CadenceImportModal } from '../modals/import-modal';
+import { closedPatch } from '../utils/deals';
 import { entityValue, getFieldSuggestionSource, listEntities, readProjectMeta } from '../utils/entities';
 import { fmtValue, pctBand } from '../utils/format';
 import { parseLinkValues } from '../utils/parsing';
@@ -308,6 +309,10 @@ export async function renderEntityList(
     btn.addEventListener('click', () => view._createEntityFromPrompt(entityKey));
   });
 
+  // A filter handed over by another surface (a CRM stage bar), used once
+  const pending = view.listFilter && view.listFilter.entityKey === entityKey ? view.listFilter : null;
+  if (pending) view.listFilter = null;
+
   if (!filtered.length) {
     const empty = root.createDiv({ cls: 'cad-empty-state' });
     empty.createDiv({ cls: 'cad-empty-state-title', text: `No ${def.plural.toLowerCase()} yet` });
@@ -391,6 +396,11 @@ export async function renderEntityList(
     values.forEach(v => {
       sel.createEl('option', { value: v, text: v });
     });
+    const start = pending && pending.key === k ? values.find((v) => v.toLowerCase() === pending.value.toLowerCase()) : undefined;
+    if (start) {
+      sel.value = start;
+      query.filters[k] = start;
+    }
 
     sel.addEventListener('change', () => {
       query.filters[k] = sel.value;
@@ -512,7 +522,9 @@ export async function renderEntityList(
           if (!file || !(file instanceof TFile)) return;
           try {
             await view.app.fileManager.processFrontMatter(file, (fm) => {
+              const before = fm[groupBy];
               fm[groupBy] = kanbanDropValue(def.fields.find(fd => fd.key === groupBy), stage);
+              if (entityKey === 'deal' && groupBy === 'stage') Object.assign(fm, closedPatch(before, fm[groupBy], new Date()));
             });
             new Notice(`Moved to ${stage}`);
           } catch (e) {

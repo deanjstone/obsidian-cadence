@@ -241,6 +241,20 @@ describe("renderEntityList: search and filters", () => {
     expect(names(root)).toEqual(["A", "B"]);
   });
 
+  it("starts from the view's pending list filter for this entity, matching its option in any case, then clears it", async () => {
+    const deal = (name: string, stage: string): MockFileSpec => ({ path: `Cadence/Pipeline/${name}.md`, frontmatter: { title: name, stage } });
+    const { view, root } = setup([deal("A", "Won"), deal("B", "won"), deal("C", "Lead")], "crm.pipeline", { pageLayouts: { "crm.pipeline": "table" } });
+    view.listFilter = { entityKey: "deal", key: "stage", value: "WON" };
+    await view.renderEntityList(root, "deal");
+    expect(filters(root)[0].value).toBe("Won");
+    expect(names(root)).toEqual(["A", "B"]);
+    expect(view.listFilter).toBeNull();
+    const other = setup(CONTACTS);
+    other.view.listFilter = { entityKey: "deal", key: "stage", value: "Won" };
+    await other.view.renderEntityList(other.root, "contact");
+    expect([names(other.root).length, other.view.listFilter]).toEqual([3, { entityKey: "deal", key: "stage", value: "Won" }]);
+  });
+
   it("combines search and filters", async () => {
     const { view, root } = setup(CONTACTS);
     await view.renderEntityList(root, "contact");

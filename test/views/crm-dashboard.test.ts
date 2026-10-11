@@ -90,15 +90,15 @@ describe("renderDashboard: header and stats", () => {
     ]);
   });
 
-  it("QUIRK: Won and Lost match case-sensitively, so 'won' and a blank stage count as open pipeline", async () => {
+  it("Won and Lost match in any case, so 'won' is won; a blank stage is open pipeline", async () => {
     const { view, root } = setup(ALL);
     await view.renderDashboard(root);
     expect(stats(root)).toEqual([
-      ["sky", "OPEN PIPELINE", "4", cur(19300)],
-      ["emerald", "WON", "1", cur(4500)],
+      ["sky", "OPEN PIPELINE", "3", cur(19000)],
+      ["emerald", "WON", "2", cur(4800)],
       ["rose", "LOST", "1", cur(1000)],
-      ["mint", "WIN RATE", "50%", "1/2 closed"],
-      ["warn", "AVG DEAL", cur(4500), "1 won deals"],
+      ["mint", "WIN RATE", "67%", "2/3 closed"],
+      ["warn", "AVG DEAL", cur(2400), "2 won deals"],
     ]);
   });
 
@@ -138,16 +138,23 @@ describe("renderDashboard: pipeline by stage", () => {
       ["Qualified", "Qualified", "0", "0%", cur(0)],
       ["Proposal", "Proposal", "1", "100%", cur(12000)],
       ["Negotiation", "Negotiation", "1", `${(7000 / 12000) * 100}%`, cur(7000)],
-      ["Won", "Won", "1", `${(4500 / 12000) * 100}%`, cur(4500)],
+      ["Won", "Won", "2", `${(4800 / 12000) * 100}%`, cur(4800)],
       ["Lost", "Lost", "1", `${(1000 / 12000) * 100}%`, cur(1000)],
+      ["(no stage)", "(no stage)", "1", "0%", cur(0)],
     ]);
   });
 
-  it("QUIRK: a deal whose stage is off the list ('won', blank) is in no bar", async () => {
+  it("puts every deal in one bar: 'won' in Won, a blank stage in (no stage)", async () => {
     const { view, root } = setup(ALL);
     await view.renderDashboard(root);
     const counted = stageRows(root).reduce((n, r) => n + Number(r.children[1].text), 0);
-    expect(counted).toBe(4);
+    expect(counted).toBe(6);
+  });
+
+  it("adds a bar per stage off the list, after the configured ones, so custom stages still show", async () => {
+    const { view, root } = setup([deal("X", { stage: "Discovery", value: 5 }), deal("Y", { stage: "discovery", value: 1 })]);
+    await view.renderDashboard(root);
+    expect(stageRows(root).map((r) => [r.dataset.stage, r.children[1].text]).slice(6)).toEqual([["Discovery", "2"]]);
   });
 
   it("scales against at least 1, so all-zero values draw empty bars", async () => {
@@ -169,11 +176,15 @@ describe("renderDashboard: pipeline by stage", () => {
     }
   });
 
-  it("QUIRK: clicking any stage bar opens the Pipeline, not that stage", async () => {
+  it("clicking a stage bar opens the Pipeline filtered to that stage; (no stage) opens it unfiltered", async () => {
     const { view, root, modes } = setup(ALL);
     await view.renderDashboard(root);
     stageRows(root)[4].trigger("click");
     expect(modes.mock.calls).toEqual([["crm.pipeline"]]);
+    expect(view.listFilter).toEqual({ entityKey: "deal", key: "stage", value: "Won" });
+    stageRows(root)[6].trigger("click");
+    expect(modes.mock.calls).toEqual([["crm.pipeline"], ["crm.pipeline"]]);
+    expect(view.listFilter).toBeNull();
   });
 });
 
@@ -188,7 +199,6 @@ describe("renderDashboard: deal and activity cards", () => {
     expect(rows).toEqual([
       { title: "Acme", meta: `Proposal · ${cur(12000)}`, file: file("Cadence/Pipeline/A.md") },
       { title: "Fff", meta: `Negotiation · ${cur(7000)}`, file: file("Cadence/Pipeline/F.md") },
-      { title: "Dee", meta: `won · ${cur(300)}`, file: file("Cadence/Pipeline/D.md") },
       { title: "Eee", meta: `— · ${cur(0)}`, file: file("Cadence/Pipeline/E.md") },
     ]);
   });

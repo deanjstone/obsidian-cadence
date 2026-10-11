@@ -15,6 +15,13 @@ import type { EntityListOptions } from './entity-list';
 import type { BriefingItem } from './home';
 import type { KanbanParams } from './kanban';
 
+/* A filter the next list of `entityKey` opens with (set by a CRM stage bar). */
+export interface ListFilter {
+  entityKey: string;
+  key: string;
+  value: string;
+}
+
 /* The plugin as the app view sees it. */
 export interface AppViewPlugin extends ReminderStore {
   settings: AppViewSettings;
@@ -56,6 +63,8 @@ export interface AppViewHost {
   /** An entity key, or `template:<entityKey>` for a template's detail form. */
   detailEntityKey: string | null;
   mobileNavOpen: boolean;
+  /** Read and cleared by the next renderEntityList of its entity. */
+  listFilter?: ListFilter | null;
   _isRendering?: boolean;
   _needsRenderAgain?: boolean;
 

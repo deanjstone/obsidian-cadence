@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { FakeElement, type MockFileSpec } from "../mocks/obsidian";
 import { makeAppView } from "../helpers/app-view";
+import { withTimezone, ZONES } from "../helpers/timezone";
 import { fmtValue } from "../../src/utils/format";
 
 /* Characterization tests for the Sales report, renderReportSales: the four
@@ -61,14 +62,14 @@ describe("renderReportSales: layout and stats", () => {
     ]);
   });
 
-  it("QUIRK: totals only exact 'Won' and 'Lost'; a lower-case 'won' and open deals are in no card", async () => {
+  it("totals Won and Lost in any case, so a lower-case 'won' is revenue; open deals are in no card", async () => {
     const { view, root } = setup(DEALS);
     await view.renderReportSales(root);
     expect(stats(root)).toEqual([
-      ["emerald", "REVENUE", cur(11000), "4 deals"],
+      ["emerald", "REVENUE", cur(20000), "5 deals"],
       ["rose", "LOST", cur(4000), "1 deals"],
-      ["mint", "CAPTURE", "73%", "of closed value"],
-      ["sky", "AVG DEAL", cur(2750), "won deals"],
+      ["mint", "CAPTURE", "83%", "of closed value"],
+      ["sky", "AVG DEAL", cur(4000), "won deals"],
     ]);
   });
 
@@ -92,9 +93,9 @@ describe("renderReportSales: revenue by month", () => {
       ["May", "0%", "empty", `May — ${cur(0)} · 0 deals`],
       ["Jun", "0%", "empty", `Jun — ${cur(0)} · 0 deals`],
       ["Jul", "0%", "empty", `Jul — ${cur(0)} · 0 deals`],
-      ["Aug", "60%", "mid", `Aug — ${cur(3000)} · 1 deals`],
+      ["Aug", `${(3000 / 14000) * 100}%`, "low", `Aug — ${cur(3000)} · 1 deals`],
       ["Sep", "0%", "empty", `Sep — ${cur(0)} · 0 deals`],
-      ["Oct", "100%", "high", `Oct — ${cur(5000)} · 1 deals`],
+      ["Oct", "100%", "high", `Oct — ${cur(14000)} · 2 deals`],
     ]);
     expect(root.children[3].children[0].children.map((c) => c.classes)).toEqual([["cad-bar"], ["cad-bar-label"]]);
   });
@@ -132,10 +133,31 @@ describe("renderReportSales: revenue by month", () => {
     ]);
   });
 
-  it("QUIRK: a won deal with no file stat, or an mtime of 0, is in no month", async () => {
-    const { view, root } = setup([W4, deal("Zero", { stage: "Won", value: 5 }, 0)], Date.UTC(1970, 2, 1));
+  it("dates a win by its `closed` date, else its file mtime; one with neither (no stat, or an mtime of 0) is in no month", async () => {
+    const closed = deal("Closed", { stage: "Won", value: 7, closed: "1970-01-15" });
+    const { view, root } = setup([W4, deal("Zero", { stage: "Won", value: 5 }, 0), closed], Date.UTC(1970, 2, 1));
     await view.renderReportSales(root);
-    expect(bars(root).map((b) => b[3]).at(-3)).toEqual(`Jan — ${cur(0)} · 0 deals`);
+    expect(bars(root).map((b) => b[3]).at(-3)).toEqual(`Jan — ${cur(7)} · 1 deals`);
+  });
+
+  it("an edit doesn't move a win with a `closed` date, in any zone", async () => {
+    for (const tz of ZONES) {
+      await withTimezone(tz, async () => {
+        const { view, root } = setup([deal("Edited", { stage: ["Won"], value: 10, closed: "2026-08-01" }, Date.UTC(2026, 9, 5))]);
+        await view.renderReportSales(root);
+        expect(bars(root).map((b) => [b[0], b[3]]).slice(3)).toEqual([
+          ["Aug", `Aug — ${cur(10)} · 1 deals`], ["Sep", `Sep — ${cur(0)} · 0 deals`], ["Oct", `Oct — ${cur(0)} · 0 deals`],
+        ]);
+        vi.useRealTimers();
+        vi.restoreAllMocks();
+      });
+    }
+  });
+
+  it("falls back to the file mtime for an unreadable `closed` value", async () => {
+    const { view, root } = setup([deal("Odd", { stage: "Won", value: 3, closed: "someday" }, Date.UTC(2026, 9, 2))]);
+    await view.renderReportSales(root);
+    expect(bars(root).at(-1)![3]).toBe(`Oct — ${cur(3)} · 1 deals`);
   });
 });
 
@@ -148,6 +170,7 @@ describe("renderReportSales: top wins and owners", () => {
     expect(title).toBe("TOP WINS · top 6");
     const file = (n: string) => app.vault.getAbstractFileByPath(`Cadence/Pipeline/${n}.md`);
     expect(rows).toEqual([
+      { title: "Lower", metaParts: [{ text: "—", entityKey: "company" }, { text: ` · ${cur(9000)}` }], file: file("W5") },
       { title: "Big win", metaParts: [{ text: "[[Acme]]", entityKey: "company" }, { text: ` · ${cur(5000)}` }], file: file("W1") },
       { title: "Mid win", metaParts: [{ text: "—", entityKey: "company" }, { text: ` · ${cur(3000)}` }], file: file("W2") },
       { title: "Old win", metaParts: [{ text: "—", entityKey: "company" }, { text: ` · ${cur(2000)}` }], file: file("W3") },
@@ -170,11 +193,23 @@ describe("renderReportSales: top wins and owners", () => {
     expect(parent).toBe(root.children[4].children[1]);
     expect(title).toBe("OWNER LEADERBOARD · top 6 by revenue");
     expect(rows).toEqual([
+      { title: "(unassigned)", titleEntityKey: null, meta: `2 won · ${cur(11000)}` },
       { title: "Jane", titleEntityKey: "contact", meta: `2 won · ${cur(6000)}` },
       { title: "Bob", titleEntityKey: "contact", meta: `1 won · ${cur(3000)}` },
-      { title: "(unassigned)", titleEntityKey: null, meta: `1 won · ${cur(2000)}` },
     ]);
     expect(empty).toBe("No revenue attributed to owners yet.");
+  });
+
+  it("ranks an owner once whatever the case or link form, and credits each owner of a shared win", async () => {
+    const files = [
+      deal("A", { stage: "Won", value: 10, owner: ["[[Jane]]"] }), deal("B", { stage: "Won", value: 20, owner: "jane" }),
+      deal("C", { stage: "Won", value: 5, owner: ["Jane", "[[Bob|Robert]]"] }),
+    ];
+    const { view, root, sections } = setup(files);
+    await view.renderReportSales(root);
+    expect(section(sections, "OWNER LEADERBOARD")[2].map((r: Any) => [r.title, r.meta])).toEqual([
+      ["Jane", `3 won · ${cur(35)}`], ["Bob", `1 won · ${cur(5)}`],
+    ]);
   });
 
   it("caps the leaderboard at 6 owners", async () => {

@@ -64,15 +64,15 @@ describe("renderReportPipeline: layout and stats", () => {
     expect(root.children[4].children.map((c) => c.classes)).toEqual([["cad-dash-col"], ["cad-dash-col"]]);
   });
 
-  it("QUIRK: Won and Lost match case-sensitively, so 'won' and custom stages are open; only the four built-in open stages weigh in the forecast", async () => {
+  it("Won and Lost match in any case, so 'won' is won; an off-list stage is open", async () => {
     const { view, root } = setup(DEALS);
     await view.renderReportPipeline(root);
     expect(stats(root)).toEqual([
-      ["sky", "OPEN", "6", cur(15700)],
+      ["sky", "OPEN", "5", cur(15000)],
       ["mint", "WEIGHTED", cur(8600), "forecast on open"],
-      ["emerald", "WON", "1", cur(5000)],
+      ["emerald", "WON", "2", cur(5700)],
       ["rose", "LOST", "1", cur(3000)],
-      ["warn", "WIN RATE", "50%", "1/2 closed"],
+      ["warn", "WIN RATE", "67%", "2/3 closed"],
     ]);
   });
 
@@ -108,15 +108,36 @@ describe("renderReportPipeline: by stage", () => {
       ["Qualified", "1", cur(2000)],
       ["Proposal", "1", cur(4000)],
       ["Negotiation", "1", cur(8000)],
-      ["Won", "1", cur(5000)],
+      ["Won", "2", cur(5700)],
       ["Lost", "1", cur(3000)],
+      ["Custom", "1", cur(0)],
     ]);
   });
 
-  it("QUIRK: a deal off the stage list ('won', 'Custom') is in no table row", async () => {
+  it("puts every deal in one row: 'won' in Won, a stage off the list ('Custom') in its own row", async () => {
     const { view, root } = setup([G, H]);
     await view.renderReportPipeline(root);
-    expect(tableRows(root).map((r) => r[1])).toEqual(["0", "0", "0", "0", "0", "0"]);
+    expect(tableRows(root).map((r) => r[0] + ":" + r[1])).toEqual(["Lead:0", "Qualified:0", "Proposal:0", "Negotiation:0", "Won:1", "Lost:0", "Custom:1"]);
+  });
+
+  it("weighs a custom configured stage between its built-in neighbours, and a built-in stage in any case", async () => {
+    const field = ENTITIES.deal.fields.find((f) => f.key === "stage")!;
+    const original = field.options;
+    field.options = ["Discovery", "Lead", "Demo", "Negotiation", "Won", "Lost"];
+    try {
+      const files = [
+        deal("X", { stage: "Discovery", value: 1000 }),
+        deal("Y", { stage: "Demo", value: 1000 }),
+        deal("Z", { stage: "negotiation", value: 1000 }),
+        deal("Q", { stage: "Elsewhere", value: 1000 }),
+      ];
+      const { view, root } = setup(files);
+      await view.renderReportPipeline(root);
+      // Discovery sits halfway from 0 to Lead (0.10), Demo halfway from Lead to Negotiation (0.75); off the list weighs 0.
+      expect(stats(root)[1]).toEqual(["mint", "WEIGHTED", cur(1000 * 0.05 + 1000 * 0.425 + 1000 * 0.75), "forecast on open"]);
+    } finally {
+      field.options = original;
+    }
   });
 
   it("follows the configured deal stages", async () => {
@@ -134,25 +155,27 @@ describe("renderReportPipeline: by stage", () => {
 });
 
 describe("renderReportPipeline: by owner", () => {
-  it("groups open deals by owner string, sorts by value and links owners to contacts", async () => {
+  it("groups open deals by owner, a wikilink and the plain name as one owner, sorts by value and links owners to contacts", async () => {
     const { view, root, sections } = setup(DEALS);
     await view.renderReportPipeline(root);
     const [parent, title, rows, empty] = section(sections, "OPEN PIPELINE BY OWNER");
     expect(parent).toBe(root.children[4].children[0]);
-    expect(title).toBe("OPEN PIPELINE BY OWNER · top 4");
+    expect(title).toBe("OPEN PIPELINE BY OWNER · top 3");
     expect(rows).toEqual([
       { title: "Bob", titleEntityKey: "contact", meta: `1 deal · ${cur(8000)}` },
-      { title: "(unassigned)", titleEntityKey: null, meta: `3 deals · ${cur(4700)}` },
-      { title: "Jane", titleEntityKey: "contact", meta: `1 deal · ${cur(2000)}` },
-      { title: "[[Jane]]", titleEntityKey: "contact", meta: `1 deal · ${cur(1000)}` },
+      { title: "(unassigned)", titleEntityKey: null, meta: `2 deals · ${cur(4000)}` },
+      { title: "Jane", titleEntityKey: "contact", meta: `2 deals · ${cur(3000)}` },
     ]);
     expect(empty).toBe("No open deals to attribute.");
   });
 
-  it("QUIRK: an owner list is joined into one owner string", async () => {
-    const { view, root, sections } = setup([deal("X", { stage: "Lead", value: 1, owner: ["Ann", "Bo"] })]);
+  it("counts a deal with an owner list for each owner, in any case and link form", async () => {
+    const files = [deal("X", { stage: "Lead", value: 1, owner: ["[[Ann]]", "Bo"] }), deal("Y", { stage: "Lead", value: 2, owner: "ann" })];
+    const { view, root, sections } = setup(files);
     await view.renderReportPipeline(root);
-    expect(section(sections, "OPEN PIPELINE BY OWNER")[2].map((r: Any) => r.title)).toEqual(["Ann,Bo"]);
+    expect(section(sections, "OPEN PIPELINE BY OWNER")[2].map((r: Any) => [r.title, r.meta])).toEqual([
+      ["Ann", `2 deals · ${cur(3)}`], ["Bo", `1 deal · ${cur(1)}`],
+    ]);
   });
 
   it("keeps the top 8 owners and says so in the title", async () => {
@@ -180,7 +203,7 @@ describe("renderReportPipeline: aging and stale", () => {
     expect(card.children[0].children[0].text).toBe("AGING · OPEN DEALS BY LAST EDIT");
     expect(card.children[1].classes).toEqual(["cad-dash-card-body", "cad-mini-stat-row"]);
     expect(aging(root)).toEqual([
-      ["emerald", "3", "0–7 DAYS", cur(1700), "4px"],
+      ["emerald", "2", "0–7 DAYS", cur(1000), "4px"],
       ["mint", "1", "8–30 DAYS", cur(2000), "4px"],
       ["warn", "1", "31–90 DAYS", cur(4000), "4px"],
       ["rose", "1", "90+ DAYS", cur(8000), "4px"],
@@ -227,6 +250,6 @@ describe("renderReportPipeline: aging and stale", () => {
   it("calls the owner card, then the stale card", async () => {
     const { view, root, sections } = setup(DEALS);
     await view.renderReportPipeline(root);
-    expect(sections.mock.calls.map((c: Any[]) => c[1])).toEqual(["OPEN PIPELINE BY OWNER · top 4", "STALE · 30+ DAYS NO EDITS"]);
+    expect(sections.mock.calls.map((c: Any[]) => c[1])).toEqual(["OPEN PIPELINE BY OWNER · top 3", "STALE · 30+ DAYS NO EDITS"]);
   });
 });

@@ -2,8 +2,8 @@ import { TFile } from 'obsidian';
 import { ENTITIES } from '../constants/entities';
 import type { Entity, EntityDef } from '../types/entities';
 import type { DailyNoteSettings } from '../types/settings';
-import { addDays, dailyNotePath, parseYmd, startOfDay, startOfWeek, ymd } from '../utils/dates';
-import { crmSummary, dealValue, sumValues } from '../utils/deals';
+import { addDays, dailyNotePath, newestFirst, parseYmd, startOfDay, startOfWeek, ymd } from '../utils/dates';
+import { crmSummary, dealClosedAt, dealOutcome, dealValue, dealsByStage, linkedNames, partnerResolver, stageConfidence, sumValues } from '../utils/deals';
 import { entityValue, getDealStages, listEntities } from '../utils/entities';
 import { fmtValue } from '../utils/format';
 import { parseSections } from '../utils/parsing';
@@ -51,36 +51,59 @@ function entityTitle(entity: Entity, key: string, def: EntityDef): string {
   return (entityValue(entity, key, def) as string) || entity.basename;
 }
 
-function stageOf(entity: Entity, def: EntityDef): string {
-  return String(entityValue(entity, 'stage', def));
+interface OwnerTotal {
+  owner: string;
+  count: number;
+  value: number;
 }
 
-/* Owner rows: `(unassigned)` is plain text, any other owner links to contacts. */
-function ownerRows<T>(byOwner: Map<string, T>, size: (data: T) => number, limit: number, meta: (data: T) => string): DashCardRow[] {
-  return [...byOwner.entries()]
-    .sort((a, b) => size(b[1]) - size(a[1]))
+const UNASSIGNED = '(unassigned)';
+
+/* Deal count and value per owner, in first-seen order. An owner is each
+   name the `owner` field links (linkedNames), so a wikilink, a list item and
+   another case are one owner, titled as first written, and a deal with two
+   owners counts for each. A deal with none is `(unassigned)`. */
+function ownerTotals(deals: Entity[], def: EntityDef): OwnerTotal[] {
+  const byOwner = new Map<string, OwnerTotal>();
+  deals.forEach((e) => {
+    const owners = linkedNames(entityValue(e, 'owner', def));
+    (owners.length ? owners : [UNASSIGNED]).forEach((owner) => {
+      const key = owner === UNASSIGNED ? '' : owner.toLowerCase();
+      const total = byOwner.get(key) || { owner, count: 0, value: 0 };
+      total.count++; total.value += dealValue(e, def);
+      byOwner.set(key, total);
+    });
+  });
+  return [...byOwner.values()];
+}
+
+/* Owner rows, largest value first: `(unassigned)` is plain text, any other owner links to contacts. */
+function ownerRows(totals: OwnerTotal[], limit: number, meta: (total: OwnerTotal) => string): DashCardRow[] {
+  return [...totals]
+    .sort((a, b) => b.value - a.value)
     .slice(0, limit)
-    .map(([owner, data]) => ({
-      title: owner,
-      titleEntityKey: owner === '(unassigned)' ? null : 'contact',
-      meta: meta(data),
+    .map((total) => ({
+      title: total.owner,
+      titleEntityKey: total.owner === UNASSIGNED ? null : 'contact',
+      meta: meta(total),
     }));
 }
 
-const STAGE_CONFIDENCE: Record<string, number> = { 'Lead': 0.10, 'Qualified': 0.25, 'Proposal': 0.50, 'Negotiation': 0.75 };
-
 export interface PipelineReport {
-  /** Every deal not exactly 'Won' or 'Lost', as on the CRM dashboard. */
+  /** Every deal not Won or Lost (in any case), as on the CRM dashboard. */
   open: Entity[];
   won: Entity[];
   lost: Entity[];
-  /** Open value times each built-in open stage's confidence; any other stage weighs 0. */
+  /** Open value times each stage's confidence (stageConfidence): the
+      built-in open stages in any case, custom configured stages by place,
+      off-list stages 0. */
   weighted: number;
   winRate: number;
   stats: StatCard[];
-  /** One row per configured stage; a deal off the list is in none. */
+  /** One row per configured stage, then one per stage off the list and
+      `(no stage)` (dealsByStage), so every deal is in one row. */
   byStage: Array<{ stage: string; count: number; value: number }>;
-  /** The top 8 owners of open deals by value. */
+  /** The top 8 owners of open deals by value (ownerTotals). */
   owners: DashCardRow[];
   /** Open deals by days since the file's last edit (0 when it has no stat):
       up to 7, 30, 90, then older. `value` shows the count and `total` is their value. */
@@ -91,15 +114,8 @@ export interface PipelineReport {
 
 export function pipelineReport(deals: Entity[], def: EntityDef, stages: string[], now: number): PipelineReport {
   const { open, won, lost, openValue, wonValue, lostValue, winRate } = crmSummary(deals, def);
-  const weighted = open.reduce((s, e) => s + dealValue(e, def) * (STAGE_CONFIDENCE[stageOf(e, def)] || 0), 0);
-
-  const byOwner = new Map<string, { count: number; value: number }>();
-  open.forEach((e) => {
-    const owner = String(entityValue(e, 'owner', def) || '(unassigned)');
-    if (!byOwner.has(owner)) byOwner.set(owner, { count: 0, value: 0 });
-    const o = byOwner.get(owner)!;
-    o.count++; o.value += dealValue(e, def);
-  });
+  const confidence = stageConfidence(stages);
+  const weighted = open.reduce((s, e) => s + dealValue(e, def) * confidence(entityValue(e, 'stage', def)), 0);
 
   const cohorts = [
     { label: '0–7 DAYS', cutoff: 7, count: 0, value: 0, accent: 'emerald' },
@@ -135,11 +151,8 @@ export function pipelineReport(deals: Entity[], def: EntityDef, stages: string[]
       { label: 'LOST', value: lost.length, sub: fmtValue(lostValue, 'currency'), accent: 'rose' },
       { label: 'WIN RATE', value: `${winRate}%`, sub: `${won.length}/${won.length + lost.length} closed`, accent: 'warn' },
     ],
-    byStage: stages.map((stage) => {
-      const items = deals.filter((e) => stageOf(e, def) === stage);
-      return { stage, count: items.length, value: sumValues(items, def) };
-    }),
-    owners: ownerRows(byOwner, (o) => o.value, 8,
+    byStage: dealsByStage(deals, def, stages).map(({ stage, items }) => ({ stage, count: items.length, value: sumValues(items, def) })),
+    owners: ownerRows(ownerTotals(open, def), 8,
       (o) => `${o.count} deal${o.count === 1 ? '' : 's'} · ${fmtValue(o.value, 'currency')}`),
     cohorts: cohorts.map(({ label, count, value, accent }) => ({
       label, value: String(count), accent, sub: fmtValue(value, 'currency'), count, total: value,
@@ -155,12 +168,13 @@ export interface SalesReport {
   captureRate: number;
   stats: StatCard[];
   /** Revenue per calendar month for the 6 months up to `now`, oldest first,
-      dated by each won deal's file mtime. A deal with no stat (or mtime 0) is in none. */
+      dated by each won deal's close date (dealClosedAt: `closed`, else the
+      file mtime). A deal with neither is in none. */
   months: Array<{ date: Date; label: string; revenue: number; count: number }>;
   bars: ReportBar[];
   /** The 6 largest wins. */
   topWins: DashCardRow[];
-  /** The top 6 owners by won revenue. */
+  /** The top 6 owners by won revenue (ownerTotals). */
   owners: DashCardRow[];
 }
 
@@ -175,21 +189,12 @@ export function salesReport(deals: Entity[], def: EntityDef, now: Date): SalesRe
     months.push({ date: d, label: d.toLocaleDateString(undefined, { month: 'short' }), revenue: 0, count: 0 });
   }
   won.forEach((e) => {
-    const t = e.file && e.file.stat ? e.file.stat.mtime : null;
-    if (!t) return;
-    const d = new Date(t);
+    const d = dealClosedAt(e, def);
+    if (!d) return;
     const idx = months.findIndex((m) => m.date.getFullYear() === d.getFullYear() && m.date.getMonth() === d.getMonth());
     if (idx >= 0) { months[idx].revenue += dealValue(e, def); months[idx].count++; }
   });
   const maxRev = Math.max(1, ...months.map((m) => m.revenue));
-
-  const byOwner = new Map<string, { count: number; revenue: number }>();
-  won.forEach((e) => {
-    const owner = String(entityValue(e, 'owner', def) || '(unassigned)');
-    if (!byOwner.has(owner)) byOwner.set(owner, { count: 0, revenue: 0 });
-    const o = byOwner.get(owner)!;
-    o.count++; o.revenue += dealValue(e, def);
-  });
 
   return {
     won, lost, captureRate,
@@ -216,22 +221,24 @@ export function salesReport(deals: Entity[], def: EntityDef, now: Date): SalesRe
         ],
         file: e.file,
       })),
-    owners: ownerRows(byOwner, (o) => o.revenue, 6, (o) => `${o.count} won · ${fmtValue(o.revenue, 'currency')}`),
+    owners: ownerRows(ownerTotals(won, def), 6, (o) => `${o.count} won · ${fmtValue(o.value, 'currency')}`),
   };
 }
 
 const TIER_ACCENT: Record<string, string> = { 'Gold': 'warn', 'Silver': 'sky', 'Bronze': 'rose', 'Standard': 'mint' };
 
 export interface PartnersReport {
-  /** Deals with any `partner` value. */
+  /** Deals naming a partner. */
   partnerSourced: Entity[];
   partnerWon: Entity[];
   stats: StatCard[];
   /** Partners per tier ('Untiered' for none), most first. */
   tiers: MiniStat[];
-  /** The top 10 sources by deal count. `partner` is the raw value, or
-      '(direct)' for none, so a one-item list is its own source. */
-  sources: Array<{ partner: unknown; count: number; meta: string }>;
+  /** The top 10 sources by deal count, one per partner a deal names
+      (partnerResolver), or '(direct)' for none. `partner` is the link to
+      draw: the partner's file name (`[[file|name]]` when its name differs),
+      else the name as written. */
+  sources: Array<{ partner: string; count: number; meta: string }>;
   /** Up to 8 certifications expiring from `now` to 90 days out, soonest first. */
   certs: DashCardRow[];
 }
@@ -241,15 +248,22 @@ export function partnersReport(
   defs: { deal: EntityDef; partner: EntityDef; certification: EntityDef } = { deal: ENTITIES.deal, partner: ENTITIES.partner, certification: ENTITIES.certification },
 ): PartnersReport {
   const { deal: dealDef, partner: partnerDef, certification: certDef } = defs;
-  // TODO: confirm shape — `partner` is read raw, so a list is its own key.
-  const byPartner = new Map<unknown, Entity[]>();
+  const partnersOf = partnerResolver(partners, partnerDef);
+  const byPartner = new Map<string, { partner: string; items: Entity[] }>();
+  const addSource = (key: string, partner: string, e: Entity) => {
+    if (!byPartner.has(key)) byPartner.set(key, { partner, items: [] });
+    byPartner.get(key)!.items.push(e);
+  };
   deals.forEach((e) => {
-    const p = entityValue(e, 'partner', dealDef) || '(direct)';
-    if (!byPartner.has(p)) byPartner.set(p, []);
-    byPartner.get(p)!.push(e);
+    const refs = partnersOf(e, dealDef);
+    if (!refs.length) addSource('(direct)', '(direct)', e);
+    refs.forEach(({ key, name, partner }) => {
+      const link = partner ? (partner.basename === name ? name : `[[${partner.basename}|${name}]]`) : name;
+      addSource(key, link, e);
+    });
   });
-  const partnerSourced = deals.filter((e) => entityValue(e, 'partner', dealDef));
-  const partnerWon = partnerSourced.filter((e) => stageOf(e, dealDef) === 'Won');
+  const partnerSourced = deals.filter((e) => partnersOf(e, dealDef).length > 0);
+  const partnerWon = partnerSourced.filter((e) => dealOutcome(e, dealDef) === 'won');
 
   const tierMap = new Map<string, number>();
   partners.forEach((p) => {
@@ -282,10 +296,10 @@ export function partnersReport(
     ],
     tiers: [...tierMap.entries()].sort((a, b) => b[1] - a[1])
       .map(([tier, count]) => ({ label: tier.toUpperCase(), value: String(count), accent: TIER_ACCENT[tier] || 'sky' })),
-    sources: [...byPartner.entries()]
-      .sort((a, b) => b[1].length - a[1].length)
+    sources: [...byPartner.values()]
+      .sort((a, b) => b.items.length - a.items.length)
       .slice(0, 10)
-      .map(([partner, items]) => ({
+      .map(({ partner, items }) => ({
         partner,
         count: items.length,
         meta: `${items.length} deal${items.length === 1 ? '' : 's'} · ${fmtValue(sumValues(items, dealDef), 'currency')}`,
@@ -311,7 +325,7 @@ export interface ActivityReport {
   bars: ReportBar[];
   /** The top 8 `with` values by activity count; blank ones are skipped. */
   topContacts: DashCardRow[];
-  /** The 10 latest by `when`, newest first; undated sorts as 1970. */
+  /** The 10 latest by `when`, newest first (newestFirst); undated and unreadable last. */
   recent: DashCardRow[];
 }
 
@@ -356,12 +370,7 @@ export function activityReport(activities: Entity[], def: EntityDef, now: Date, 
       .sort((a, b) => b[1] - a[1])
       .slice(0, 8)
       .map(([who, count]) => ({ title: who, titleEntityKey: 'contact', meta: `${count} activit${count === 1 ? 'y' : 'ies'}` })),
-    recent: [...activities]
-      .sort((a, b) => {
-        const da = new Date((entityValue(a, 'when', def) as string) || 0).getTime();
-        const db = new Date((entityValue(b, 'when', def) as string) || 0).getTime();
-        return db - da;
-      })
+    recent: newestFirst(activities, (e) => entityValue(e, 'when', def))
       .slice(0, 10)
       .map((e) => ({
         title: entityTitle(e, 'subject', def),
@@ -580,7 +589,7 @@ export async function renderReportSales(view: AppViewHost, root: HTMLElement): P
   view._renderPageHeader(root, 'Sales report', 'Closed-won and lost · performance over time');
   drawStats(root, report.stats);
 
-  /* Revenue by month (last 6 months, by file mtime as close proxy) */
+  /* Revenue by month (last 6 months, by close date) */
   root.createDiv({ cls: 'cad-section-label-lg', text: 'REVENUE — LAST 6 MONTHS' });
   drawBars(root.createDiv({ cls: 'cad-bar-chart cad-bar-chart-tall' }), report.bars);
 
@@ -614,7 +623,7 @@ export async function renderReportPartners(view: AppViewHost, root: HTMLElement)
   const dealsByPartnerCard = left.createDiv({ cls: 'cad-dash-card' });
   dealsByPartnerCard.createDiv({ cls: 'cad-dash-card-head' }).createDiv({ cls: 'cad-dash-card-title', text: 'DEALS BY PARTNER' });
   const dbpBody = dealsByPartnerCard.createDiv({ cls: 'cad-dash-card-body' });
-  if (!report.sources.length) {
+  if (!report.partnerSourced.length) {
     dbpBody.createDiv({ cls: 'cad-empty', text: 'No deals attributed to partners yet.' });
   } else {
     report.sources.forEach(({ partner: p, meta }) => {
@@ -623,7 +632,7 @@ export async function renderReportPartners(view: AppViewHost, root: HTMLElement)
       if (p && p !== '(direct)') {
         view._renderEntityLinks(titleDiv, p, 'partner');
       } else {
-        titleDiv.setText((p as string) || '');
+        titleDiv.setText(p || '');
       }
       row.createDiv({ cls: 'cad-dash-row-meta', text: meta });
     });

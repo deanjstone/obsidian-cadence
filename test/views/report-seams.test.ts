@@ -4,7 +4,7 @@ import { ENTITIES } from "../../src/constants/entities";
 import {
   activityReport, partnersReport, pipelineReport, productivityDates, productivityReport, reportBar, salesReport,
 } from "../../src/views/reports";
-import { crmSummary, dealValue, sumValues } from "../../src/utils/deals";
+import { closedPatch, crmSummary, dealClosedAt, dealValue, sumValues } from "../../src/utils/deals";
 import * as crm from "../../src/views/crm-dashboard";
 import { DEAL_STAGES } from "../../src/constants/entities";
 import { ymd } from "../../src/utils/dates";
@@ -54,6 +54,21 @@ describe("src/utils/deals", () => {
   it("sums deal values, blank and non-numeric as 0", () => {
     expect(sumValues([entity("a", { value: 5 }), entity("b", { value: "7" }), entity("c", { value: "x" }), entity("d", {})], deal)).toBe(12);
   });
+
+  it("closedPatch writes today's date only when a stage write closes the deal or flips its outcome", () => {
+    const now = new Date(2026, 9, 11, 23, 30);
+    expect([
+      closedPatch(["Proposal"], ["Won"], now), closedPatch(undefined, "closed-lost", now), closedPatch(["Won"], ["Lost"], now),
+      closedPatch("won", ["Won"], now), closedPatch(["Won"], ["Lead"], now), closedPatch("Lead", null, now),
+    ]).toEqual([{ closed: "2026-10-11" }, { closed: "2026-10-11" }, { closed: "2026-10-11" }, {}, {}, {}]);
+  });
+
+  it("dealClosedAt reads `closed` as a local date, else the file mtime, else null", () => {
+    expect(ymd(dealClosedAt(entity("a", { closed: "2026-08-01" }, NOW), deal)!)).toBe("2026-08-01");
+    expect(dealClosedAt(entity("b", { closed: "2026-08-01T10:00:00Z" }), deal)!.getTime()).toBe(Date.UTC(2026, 7, 1, 10));
+    expect(dealClosedAt(entity("c", { closed: "soon" }, NOW), deal)!.getTime()).toBe(NOW);
+    expect([dealClosedAt(entity("d", {}), deal), dealClosedAt(entity("e", {}, 0), deal)]).toEqual([null, null]);
+  });
 });
 
 describe("pipelineReport", () => {
@@ -84,11 +99,14 @@ describe("pipelineReport", () => {
     ]);
   });
 
-  it("counts every configured stage, closed ones included", () => {
+  it("counts every configured stage, closed ones included, then each stage off the list", () => {
     expect(report.byStage.map((s) => [s.stage, s.count, s.value])).toEqual([
       ["Lead", 1, 1000], ["Qualified", 1, 2000], ["Proposal", 1, 4000], ["Negotiation", 1, 8000], ["Won", 1, 5000], ["Lost", 1, 3000],
+      ["Custom", 1, 100],
     ]);
-    expect(pipelineReport(deals, deal, ["Custom"], NOW).byStage).toEqual([{ stage: "Custom", count: 1, value: 100 }]);
+    expect(pipelineReport(deals, deal, ["Custom"], NOW).byStage.map((s) => [s.stage, s.count])).toEqual([
+      ["Custom", 1], ["Lead", 1], ["Qualified", 1], ["Proposal", 1], ["Negotiation", 1], ["Won", 1], ["Lost", 1],
+    ]);
   });
 
   it("ranks open owners by value", () => {
@@ -188,10 +206,18 @@ describe("partnersReport", () => {
 
   it("groups deals by source", () => {
     expect(report.sources).toEqual([
-      { partner: "[[A]]", count: 2, meta: `2 deals · ${cur(30)}` },
+      { partner: "A", count: 2, meta: `2 deals · ${cur(30)}` },
       { partner: "(direct)", count: 1, meta: `1 deal · ${cur(40)}` },
     ]);
     expect(partnersReport([], [], [], NOW).sources).toEqual([]);
+  });
+
+  it("resolves a source to its partner note by name or file name, in any case, linking the note under its name", () => {
+    const beta = entity("Beta", { name: "Beta Ltd" });
+    const sources = partnersReport(
+      [entity("X", { partner: "beta ltd" }), entity("Y", { partner: ["[[Beta]]"] }), entity("Z", { partner: "[[Gamma]]" })], [beta], [], NOW,
+    ).sources;
+    expect(sources.map((x) => [x.partner, x.count])).toEqual([["[[Beta|Beta Ltd]]", 2], ["Gamma", 1]]);
   });
 
   it("lists certs inside the 90-day horizon, soonest first", () => {
@@ -234,6 +260,11 @@ describe("activityReport", () => {
     const report = activityReport(acts, activity, now, 1);
     expect(report.topContacts.map((r) => [r.title, r.meta])).toEqual([["Jane", "2 activities"], ["Bob", "1 activity"]]);
     expect(report.recent.map((r) => r.title)).toEqual(["A", "B", "C"]);
+  });
+
+  it("lists an undated or unreadable activity after every dated one, even one before 1970, in input order", () => {
+    const odd = [entity("U", {}), entity("G", { when: "soon" }), entity("Old", { when: "1960-01-01" }), entity("New", { when: "2026-01-01" })];
+    expect(activityReport(odd, activity, now, 1).recent.map((r) => r.title)).toEqual(["New", "Old", "U", "G"]);
   });
 });
 

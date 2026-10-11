@@ -1,8 +1,9 @@
 import { Platform, TFile } from 'obsidian';
 import { ENTITIES } from '../constants/entities';
 import { CadenceReminderEditModal } from '../modals/reminder-edit';
-import { addDays, dailyNotePath, greeting, startOfDay, startOfWeek, ymd } from '../utils/dates';
+import { addDays, dailyNotePath, greeting, newestFirst, startOfDay, startOfWeek, ymd } from '../utils/dates';
 import { ensureDailyNote } from '../utils/daily-notes';
+import { dealClosedAt, dealOutcome } from '../utils/deals';
 import {
   entityValue, listEntities, listEntityFiles, projectNameFromPath, readEntity, readProjectMeta,
 } from '../utils/entities';
@@ -222,8 +223,7 @@ export function computeBriefing(data: BriefingData, now: Date): BriefingEntry[] 
   const deals = data.deals;
   const weekEnd = todayMs + 7 * 86400000;
   const closingThisWeek = deals.filter((e) => {
-    const stage = String(entityValue(e, 'stage', dealDef));
-    if (['Won', 'Lost'].includes(stage)) return false;
+    if (dealOutcome(e, dealDef) !== 'open') return false;
     const closeBy = entityValue(e, 'closeBy', dealDef);
     if (!closeBy) return false;
     const d = new Date(closeBy as string);
@@ -241,7 +241,7 @@ export function computeBriefing(data: BriefingData, now: Date): BriefingEntry[] 
 
   /* 5. Stale contacts on open deals (>30 days since lastContact) */
   const contacts = data.contacts;
-  const openDeals = deals.filter((e) => !['Won', 'Lost'].includes(String(entityValue(e, 'stage', dealDef))));
+  const openDeals = deals.filter((e) => dealOutcome(e, dealDef) === 'open');
   const dealContactNames = new Set(
     openDeals.map((d) => String(entityValue(d, 'contact', dealDef) || '').trim()).filter(Boolean)
   );
@@ -295,11 +295,12 @@ export function computeBriefing(data: BriefingData, now: Date): BriefingEntry[] 
     });
   }
 
-  /* 7. Recent wins (deals moved to Won in last 7 days) */
+  /* 7. Recent wins (deals closed as Won in the last 7 days, by dealClosedAt) */
   const winCutoff = nowMs - 7 * 86400000;
   const recentWins = deals.filter((e) => {
-    if (String(entityValue(e, 'stage', dealDef)) !== 'Won') return false;
-    return e.file && e.file.stat && e.file.stat.mtime >= winCutoff;
+    if (dealOutcome(e, dealDef) !== 'won') return false;
+    const closedAt = dealClosedAt(e, dealDef);
+    return !!closedAt && closedAt.getTime() >= winCutoff;
   });
   if (recentWins.length) {
     const value = recentWins.reduce((s, e) => s + (Number(entityValue(e, 'value', dealDef)) || 0), 0);
@@ -777,10 +778,10 @@ export async function homeProjectsCard(view: AppViewHost, parent: HTMLElement): 
 
 /* ── Pipeline card ── */
 
-/** Open deals (not Won or Lost), their total value, and the top four by value. */
+/** Open deals (not Won or Lost, in any case), their total value, and the top four by value. */
 export function selectPipelineCard(deals: Entity[]): { open: Entity[]; value: number; top: Entity[] } {
   const def = ENTITIES.deal;
-  const open = deals.filter((e) => !['Won', 'Lost'].includes(String(entityValue(e, 'stage', def))));
+  const open = deals.filter((e) => dealOutcome(e, def) === 'open');
   const value = open.reduce((s, e) => s + (Number(entityValue(e, 'value', def)) || 0), 0);
   const top = [...open].sort((a, b) => (Number(entityValue(b, 'value', def)) || 0) - (Number(entityValue(a, 'value', def)) || 0)).slice(0, 4);
   return { open, value, top };
@@ -810,14 +811,10 @@ export async function homePipelineCard(view: AppViewHost, parent: HTMLElement): 
 
 /* ── Activities card ── */
 
-/** The five most recent activities by `when`; undated ones sort as 1970. */
+/** The five most recent activities by `when` (newestFirst); undated and unreadable ones last. */
 export function selectRecentActivities(acts: Entity[]): Entity[] {
   const def = ENTITIES.activity;
-  return [...acts].sort((a, b) => {
-    const da = new Date((entityValue(a, 'when', def) as string) || 0).getTime();
-    const db = new Date((entityValue(b, 'when', def) as string) || 0).getTime();
-    return db - da;
-  }).slice(0, 5);
+  return newestFirst(acts, (e) => entityValue(e, 'when', def)).slice(0, 5);
 }
 
 export async function homeActivitiesCard(view: AppViewHost, parent: HTMLElement): Promise<void> {

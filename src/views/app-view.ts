@@ -30,7 +30,7 @@ import {
   briefingHeadline, homeActivitiesCard, homeCard, homeInboxCard, homePartnersCard, homePipelineCard, homeProjectsCard,
   homeTodayCard, homeUpcomingCard, homeWeekCard, loadBriefing, renderBriefing, renderHome, type BriefingItem,
 } from './home';
-import type { AppViewHost, AppViewPlugin, PromptOptions, TaskCompleteSource } from './host';
+import type { AppViewHost, AppViewPlugin, ListFilter, PromptOptions, TaskCompleteSource } from './host';
 import { inboxOverdueCount, renderInbox, renderInboxRow, renderProjectTasksSection } from './inbox';
 import { getEntityKanbanParams, renderEntityKanban } from './kanban';
 import {
@@ -502,6 +502,7 @@ export class CadenceAppView extends ItemView implements AppViewHost {
   declare detailFile: TFile | null;
   declare detailEntityKey: string | null;
   declare mobileNavOpen: boolean;
+  declare listFilter?: ListFilter | null;
   declare _isRendering?: boolean;
   declare _needsRenderAgain?: boolean;
 

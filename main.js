@@ -212,6 +212,14 @@ function fromLocalDatetimeValue(s) {
   if (!s) return null;
   return new Date(s);
 }
+function newestFirst(items, when) {
+  const time = (value) => {
+    if (value == null || value === "") return null;
+    const t = (parseYmd(value) ?? new Date(value)).getTime();
+    return isNaN(t) ? null : t;
+  };
+  return items.map((item) => ({ item, t: time(when(item)) })).sort((a, b) => a.t === null ? b.t === null ? 0 : 1 : b.t === null ? -1 : b.t - a.t).map(({ item }) => item);
+}
 
 // src/modals/capture.ts
 var CAPTURE_TIME_MESSAGES = {
@@ -5283,6 +5291,33 @@ var CadenceWidgetCreateModal = class extends import_obsidian16.Modal {
 };
 
 // src/utils/deals.ts
+function foldStage(stage) {
+  return String(stage ?? "").trim().toLowerCase().replace(/[\s_-]+/g, " ");
+}
+function stageOutcome(stage) {
+  const folded = foldStage(stage).replace(/^closed /, "");
+  return folded === "won" ? "won" : folded === "lost" ? "lost" : "open";
+}
+function dealStage(entity, def) {
+  return String(entityValue(entity, "stage", def));
+}
+function dealOutcome(entity, def) {
+  return stageOutcome(dealStage(entity, def));
+}
+function closedPatch(before, after, now) {
+  const first = (v) => Array.isArray(v) ? v[0] : v;
+  const outcome = stageOutcome(first(after));
+  return outcome !== "open" && outcome !== stageOutcome(first(before)) ? { closed: ymd(now) } : {};
+}
+function dealClosedAt(entity, def) {
+  const closed = entityValue(entity, "closed", def);
+  if (closed) {
+    const d = parseYmd(closed) ?? new Date(closed);
+    if (!isNaN(d.getTime())) return d;
+  }
+  const mtime = entity.file && entity.file.stat ? entity.file.stat.mtime : 0;
+  return mtime ? new Date(mtime) : null;
+}
 function dealValue(entity, def) {
   return Number(entityValue(entity, "value", def)) || 0;
 }
@@ -5290,9 +5325,9 @@ function sumValues(deals, def) {
   return deals.reduce((s, e) => s + dealValue(e, def), 0);
 }
 function crmSummary(deals, def) {
-  const open = deals.filter((e) => !["Won", "Lost"].includes(String(entityValue(e, "stage", def))));
-  const won = deals.filter((e) => String(entityValue(e, "stage", def)) === "Won");
-  const lost = deals.filter((e) => String(entityValue(e, "stage", def)) === "Lost");
+  const open = deals.filter((e) => dealOutcome(e, def) === "open");
+  const won = deals.filter((e) => dealOutcome(e, def) === "won");
+  const lost = deals.filter((e) => dealOutcome(e, def) === "lost");
   const wonValue = sumValues(won, def);
   return {
     open,
@@ -5304,6 +5339,74 @@ function crmSummary(deals, def) {
     winRate: won.length + lost.length === 0 ? 0 : Math.round(won.length / (won.length + lost.length) * 100),
     avgDeal: won.length === 0 ? 0 : wonValue / won.length
   };
+}
+var NO_STAGE = "(no stage)";
+function dealsByStage(deals, def, stages) {
+  const groups = stages.map((stage) => ({ stage, items: [] }));
+  const byFold = /* @__PURE__ */ new Map();
+  groups.forEach((g) => {
+    if (!byFold.has(foldStage(g.stage))) byFold.set(foldStage(g.stage), g);
+  });
+  const byOutcome = /* @__PURE__ */ new Map();
+  groups.forEach((g) => {
+    const outcome = stageOutcome(g.stage);
+    if (outcome !== "open" && !byOutcome.has(outcome)) byOutcome.set(outcome, g);
+  });
+  const offList = [];
+  const noStage = { stage: NO_STAGE, items: [] };
+  deals.forEach((e) => {
+    const stage = dealStage(e, def).trim();
+    const folded = foldStage(stage);
+    let group = folded ? byFold.get(folded) || byOutcome.get(stageOutcome(stage)) : noStage;
+    if (!group) {
+      group = { stage, items: [] };
+      byFold.set(folded, group);
+      offList.push(group);
+    }
+    group.items.push(e);
+  });
+  return [...groups, ...offList, ...noStage.items.length ? [noStage] : []];
+}
+var BUILT_IN_CONFIDENCE = { "lead": 0.1, "qualified": 0.25, "proposal": 0.5, "negotiation": 0.75 };
+function stageConfidence(stages) {
+  const open = stages.map(foldStage).filter((s) => s && stageOutcome(s) === "open");
+  const anchors = [[-1, 0]];
+  open.forEach((s, i) => {
+    if (s in BUILT_IN_CONFIDENCE) anchors.push([i, BUILT_IN_CONFIDENCE[s]]);
+  });
+  anchors.push([open.length, 1]);
+  const weights = new Map(Object.entries(BUILT_IN_CONFIDENCE));
+  open.forEach((s, i) => {
+    if (weights.has(s)) return;
+    const before = anchors.filter(([at]) => at < i).pop();
+    const after = anchors.find(([at]) => at > i);
+    weights.set(s, before[1] + (after[1] - before[1]) * (i - before[0]) / (after[0] - before[0]));
+  });
+  return (stage) => weights.get(foldStage(stage)) ?? 0;
+}
+function linkedNames(value) {
+  const seen = /* @__PURE__ */ new Set();
+  return parseLinkValues(value).map((v) => v.target).filter((name) => {
+    const key = name.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+function partnerResolver(partners, partnerDef) {
+  const byName = /* @__PURE__ */ new Map();
+  partners.forEach((p) => {
+    const name = String(entityValue(p, "name", partnerDef) || "").trim().toLowerCase();
+    if (name && !byName.has(name)) byName.set(name, p);
+  });
+  partners.forEach((p) => {
+    const base = p.basename.toLowerCase();
+    if (!byName.has(base)) byName.set(base, p);
+  });
+  return (deal, dealDef) => linkedNames(entityValue(deal, "partner", dealDef)).map((name) => {
+    const partner = byName.get(name.toLowerCase()) || null;
+    return partner ? { key: `partner:${partner.file.path}`, name: String(entityValue(partner, "name", partnerDef) || partner.basename), partner } : { key: `name:${name.toLowerCase()}`, name, partner: null };
+  });
 }
 
 // src/views/crm-dashboard.ts
@@ -5319,10 +5422,7 @@ function crmStatCards(summary) {
   ];
 }
 function pipelineByStage(deals, def, stages) {
-  const stageData = stages.map((stage) => {
-    const items = deals.filter((e) => String(entityValue(e, "stage", def)) === stage);
-    return { stage, count: items.length, value: sumValues(items, def) };
-  });
+  const stageData = dealsByStage(deals, def, stages).map(({ stage, items }) => ({ stage, count: items.length, value: sumValues(items, def) }));
   const maxStageVal = Math.max(1, ...stageData.map((s) => s.value));
   return stageData.map((s) => ({ ...s, width: `${s.value / maxStageVal * 100}%` }));
 }
@@ -5348,11 +5448,7 @@ function staleDeals(open, def, now) {
   });
 }
 function recentActivities(activities, def) {
-  return [...activities].sort((a, b) => {
-    const da = new Date(entityValue(a, "when", def) || 0).getTime();
-    const db = new Date(entityValue(b, "when", def) || 0).getTime();
-    return db - da;
-  }).slice(0, 6).map((e) => {
+  return newestFirst(activities, (e) => entityValue(e, "when", def)).slice(0, 6).map((e) => {
     const typeVal = entityValue(e, "type", def) || "\u2014";
     const withVal = entityValue(e, "with", def) || "\u2014";
     const dateVal = fmtValue(entityValue(e, "when", def), "date");
@@ -5411,7 +5507,10 @@ async function renderCrmDashboard(view, root) {
     const fill = barWrap.createDiv({ cls: "cad-stage-bar-fill" });
     fill.style.width = width;
     row.createDiv({ cls: "cad-stage-bar-value", text: fmtValue(value, "currency") });
-    row.addEventListener("click", () => view.setMode("crm.pipeline"));
+    row.addEventListener("click", () => {
+      view.listFilter = stage === NO_STAGE ? null : { entityKey: "deal", key: "stage", value: stage };
+      view.setMode("crm.pipeline");
+    });
   });
   const cols = root.createDiv({ cls: "cad-dash-cols" });
   const left = cols.createDiv({ cls: "cad-dash-col" });
@@ -5575,7 +5674,11 @@ async function renderEntityDetail(view, root, entityKey, file) {
   const writeField = async (key, raw) => {
     try {
       const value = coerceFieldEdit(def, key, raw);
-      await view.app.fileManager.processFrontMatter(file, (frontmatter) => applyFieldEdit(frontmatter, key, value));
+      await view.app.fileManager.processFrontMatter(file, (frontmatter) => {
+        const before = frontmatter[key];
+        applyFieldEdit(frontmatter, key, value);
+        if (entityKey === "deal" && key === "stage") Object.assign(frontmatter, closedPatch(before, frontmatter[key], /* @__PURE__ */ new Date()));
+      });
       flashSaved();
     } catch (e) {
       new import_obsidian17.Notice(`Save failed: ${e.message}`);
@@ -6276,6 +6379,8 @@ async function renderEntityList(view, root, entityKey, opts = {}) {
     const btn = right.createEl("button", { cls: "cad-btn primary", text: `+ New ${def.label}` });
     btn.addEventListener("click", () => view._createEntityFromPrompt(entityKey));
   });
+  const pending = view.listFilter && view.listFilter.entityKey === entityKey ? view.listFilter : null;
+  if (pending) view.listFilter = null;
   if (!filtered.length) {
     const empty = root.createDiv({ cls: "cad-empty-state" });
     empty.createDiv({ cls: "cad-empty-state-title", text: `No ${def.plural.toLowerCase()} yet` });
@@ -6345,6 +6450,11 @@ async function renderEntityList(view, root, entityKey, opts = {}) {
     values.forEach((v) => {
       sel.createEl("option", { value: v, text: v });
     });
+    const start = pending && pending.key === k ? values.find((v) => v.toLowerCase() === pending.value.toLowerCase()) : void 0;
+    if (start) {
+      sel.value = start;
+      query.filters[k] = start;
+    }
     sel.addEventListener("change", () => {
       query.filters[k] = sel.value;
       renderContent();
@@ -6449,7 +6559,9 @@ async function renderEntityList(view, root, entityKey, opts = {}) {
           if (!file || !(file instanceof import_obsidian19.TFile)) return;
           try {
             await view.app.fileManager.processFrontMatter(file, (fm) => {
+              const before = fm[groupBy];
               fm[groupBy] = kanbanDropValue(def.fields.find((fd) => fd.key === groupBy), stage);
+              if (entityKey === "deal" && groupBy === "stage") Object.assign(fm, closedPatch(before, fm[groupBy], /* @__PURE__ */ new Date()));
             });
             new import_obsidian19.Notice(`Moved to ${stage}`);
           } catch (e) {
@@ -6962,8 +7074,7 @@ function computeBriefing(data, now) {
   const deals = data.deals;
   const weekEnd = todayMs + 7 * 864e5;
   const closingThisWeek = deals.filter((e) => {
-    const stage = String(entityValue(e, "stage", dealDef));
-    if (["Won", "Lost"].includes(stage)) return false;
+    if (dealOutcome(e, dealDef) !== "open") return false;
     const closeBy = entityValue(e, "closeBy", dealDef);
     if (!closeBy) return false;
     const d = new Date(closeBy);
@@ -6979,7 +7090,7 @@ function computeBriefing(data, now) {
     });
   }
   const contacts = data.contacts;
-  const openDeals = deals.filter((e) => !["Won", "Lost"].includes(String(entityValue(e, "stage", dealDef))));
+  const openDeals = deals.filter((e) => dealOutcome(e, dealDef) === "open");
   const dealContactNames = new Set(
     openDeals.map((d) => String(entityValue(d, "contact", dealDef) || "").trim()).filter(Boolean)
   );
@@ -7032,8 +7143,9 @@ function computeBriefing(data, now) {
   }
   const winCutoff = nowMs - 7 * 864e5;
   const recentWins = deals.filter((e) => {
-    if (String(entityValue(e, "stage", dealDef)) !== "Won") return false;
-    return e.file && e.file.stat && e.file.stat.mtime >= winCutoff;
+    if (dealOutcome(e, dealDef) !== "won") return false;
+    const closedAt = dealClosedAt(e, dealDef);
+    return !!closedAt && closedAt.getTime() >= winCutoff;
   });
   if (recentWins.length) {
     const value = recentWins.reduce((s, e) => s + (Number(entityValue(e, "value", dealDef)) || 0), 0);
@@ -7441,7 +7553,7 @@ async function homeProjectsCard(view, parent) {
 }
 function selectPipelineCard(deals) {
   const def = ENTITIES.deal;
-  const open = deals.filter((e) => !["Won", "Lost"].includes(String(entityValue(e, "stage", def))));
+  const open = deals.filter((e) => dealOutcome(e, def) === "open");
   const value = open.reduce((s, e) => s + (Number(entityValue(e, "value", def)) || 0), 0);
   const top = [...open].sort((a, b) => (Number(entityValue(b, "value", def)) || 0) - (Number(entityValue(a, "value", def)) || 0)).slice(0, 4);
   return { open, value, top };
@@ -7471,11 +7583,7 @@ async function homePipelineCard(view, parent) {
 }
 function selectRecentActivities(acts) {
   const def = ENTITIES.activity;
-  return [...acts].sort((a, b) => {
-    const da = new Date(entityValue(a, "when", def) || 0).getTime();
-    const db = new Date(entityValue(b, "when", def) || 0).getTime();
-    return db - da;
-  }).slice(0, 5);
+  return newestFirst(acts, (e) => entityValue(e, "when", def)).slice(0, 5);
 }
 async function homeActivitiesCard(view, parent) {
   const def = ENTITIES.activity;
@@ -7844,7 +7952,8 @@ async function toggleGroup(view, groupId) {
 var TIER_ACCENT = { "Gold": "warn", "Silver": "sky", "Bronze": "rose", "Standard": "mint", "Untiered": "mint" };
 function prmAnalytics(partners, deals, defs = { partner: ENTITIES.partner, deal: ENTITIES.deal }) {
   const { partner: partnerDef, deal: dealDef } = defs;
-  const partnerSourced = deals.filter((e) => entityValue(e, "partner", dealDef));
+  const partnersOf = partnerResolver(partners, partnerDef);
+  const partnerSourced = deals.filter((e) => partnersOf(e, dealDef).length > 0);
   const { open: sourcedOpen, won: partnerWon, lost: sourcedLost, openValue, wonValue, lostValue } = crmSummary(partnerSourced, dealDef);
   const sourcedValue = sumValues(partnerSourced, dealDef);
   const totalDealValue = sumValues(deals, dealDef);
@@ -7856,44 +7965,39 @@ function prmAnalytics(partners, deals, defs = { partner: ENTITIES.partner, deal:
     tierMap.set(t, (tierMap.get(t) || 0) + 1);
     tierValueMap.set(t, tierValueMap.get(t) || 0);
   });
-  const partnerByName = /* @__PURE__ */ new Map();
-  partners.forEach((p) => partnerByName.set(String(entityValue(p, "name", partnerDef) || p.basename), p));
-  partnerWon.forEach((d) => {
-    const pname = String(entityValue(d, "partner", dealDef) || "");
-    const partner = partnerByName.get(pname);
-    if (!partner) return;
-    const tier = String(entityValue(partner, "tier", partnerDef) || "Untiered");
-    tierValueMap.set(tier, (tierValueMap.get(tier) || 0) + dealValue(d, dealDef));
-  });
   const partnerRevenue = /* @__PURE__ */ new Map();
   partnerWon.forEach((d) => {
-    const p = String(entityValue(d, "partner", dealDef) || "(direct)");
-    partnerRevenue.set(p, (partnerRevenue.get(p) || 0) + dealValue(d, dealDef));
+    partnersOf(d, dealDef).forEach(({ key, name, partner }) => {
+      const row = partnerRevenue.get(key) || { name, partner, value: 0 };
+      row.value += dealValue(d, dealDef);
+      partnerRevenue.set(key, row);
+      if (!partner) return;
+      const tier = String(entityValue(partner, "tier", partnerDef) || "Untiered");
+      tierValueMap.set(tier, (tierValueMap.get(tier) || 0) + dealValue(d, dealDef));
+    });
   });
-  const conv = partnerSourced.length === 0 ? 0 : Math.round(partnerWon.length / partnerSourced.length * 100);
+  const closed = partnerWon.length + sourcedLost.length;
+  const conv = closed === 0 ? 0 : Math.round(partnerWon.length / closed * 100);
   const currency = (value) => fmtValue(value, "currency");
   return {
     stats: [
       { label: "PARTNERS", value: partners.length, sub: "on the books", accent: "sky" },
       { label: "SOURCED DEALS", value: partnerSourced.length, sub: currency(sourcedValue), accent: "mint" },
       { label: "PARTNER REVENUE", value: currency(wonValue), sub: `${partnerWon.length} won`, accent: "emerald" },
-      { label: "PARTNER SHARE", value: `${sharePct}%`, sub: "of total pipeline value", accent: "warn" }
+      { label: "PARTNER SHARE", value: `${sharePct}%`, sub: "of total deal value", accent: "warn" }
     ],
     tiers: [...tierMap.entries()].sort((a, b) => b[1] - a[1]).map(([tier, count]) => {
       const value = tierValueMap.get(tier) || 0;
       return { label: tier.toUpperCase(), value: String(count), accent: TIER_ACCENT[tier] || "sky", sub: value > 0 ? currency(value) : "\u2014" };
     }),
-    topPartners: [...partnerRevenue.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([p, v]) => {
-      const partner = partnerByName.get(p);
-      return { title: p, meta: currency(v), file: partner ? partner.file : null };
-    }),
+    topPartners: [...partnerRevenue.values()].sort((a, b) => b.value - a.value).slice(0, 8).map(({ name, partner, value }) => ({ title: name, meta: currency(value), file: partner ? partner.file : null })),
     funnel: [
       { label: "SOURCED", value: String(partnerSourced.length), sub: currency(sourcedValue), accent: "sky" },
       { label: "OPEN", value: String(sourcedOpen.length), sub: currency(openValue), accent: "mint" },
       { label: "WON", value: String(partnerWon.length), sub: currency(wonValue), accent: "emerald" },
       { label: "LOST", value: String(sourcedLost.length), sub: currency(lostValue), accent: "rose" }
     ],
-    conversion: { won: partnerWon.length, sourced: partnerSourced.length, pct: conv, band: pctBand(conv) }
+    conversion: { won: partnerWon.length, closed, pct: conv, band: pctBand(conv) }
   };
 }
 function isTeamMember(entity, def = ENTITIES.contact) {
@@ -7945,15 +8049,15 @@ async function renderPRMAnalytics(view, root) {
   const funnelCard = right.createDiv({ cls: "cad-dash-card" });
   funnelCard.createDiv({ cls: "cad-dash-card-head" }).createDiv({ cls: "cad-dash-card-title", text: "PARTNER FUNNEL" });
   drawMiniStats(funnelCard.createDiv({ cls: "cad-dash-card-body cad-mini-stat-row" }), report.funnel);
-  const { won, sourced, pct: conv, band } = report.conversion;
+  const { won, closed, pct: conv, band } = report.conversion;
   const convCard = right.createDiv({ cls: "cad-dash-card" });
-  convCard.createDiv({ cls: "cad-dash-card-head" }).createDiv({ cls: "cad-dash-card-title", text: `CONVERSION \xB7 sourced \u2192 won` });
+  convCard.createDiv({ cls: "cad-dash-card-head" }).createDiv({ cls: "cad-dash-card-title", text: `CONVERSION \xB7 closed \u2192 won` });
   const convBody = convCard.createDiv({ cls: "cad-dash-card-body" });
   convBody.style.padding = "20px 16px";
   const convWrap = convBody.createDiv({ cls: "cad-proj-progress-wrap" });
   convWrap.dataset.pctBand = band;
   const convLabel = convWrap.createDiv({ cls: "cad-proj-progress-label" });
-  convLabel.createSpan({ text: `${won}/${sourced} sourced deals won` });
+  convLabel.createSpan({ text: `${won}/${closed} closed partner deals won` });
   convLabel.createSpan({ cls: "cad-proj-progress-pct", text: `${conv}%` });
   const convBar = convWrap.createDiv({ cls: "cad-proj-progress-bar" });
   const convFill = convBar.createDiv({ cls: "cad-proj-progress-fill" });
@@ -9501,28 +9605,32 @@ function reportBar(value, max) {
 function entityTitle(entity, key, def) {
   return entityValue(entity, key, def) || entity.basename;
 }
-function stageOf(entity, def) {
-  return String(entityValue(entity, "stage", def));
+var UNASSIGNED = "(unassigned)";
+function ownerTotals(deals, def) {
+  const byOwner = /* @__PURE__ */ new Map();
+  deals.forEach((e) => {
+    const owners = linkedNames(entityValue(e, "owner", def));
+    (owners.length ? owners : [UNASSIGNED]).forEach((owner) => {
+      const key = owner === UNASSIGNED ? "" : owner.toLowerCase();
+      const total = byOwner.get(key) || { owner, count: 0, value: 0 };
+      total.count++;
+      total.value += dealValue(e, def);
+      byOwner.set(key, total);
+    });
+  });
+  return [...byOwner.values()];
 }
-function ownerRows(byOwner, size, limit, meta) {
-  return [...byOwner.entries()].sort((a, b) => size(b[1]) - size(a[1])).slice(0, limit).map(([owner, data]) => ({
-    title: owner,
-    titleEntityKey: owner === "(unassigned)" ? null : "contact",
-    meta: meta(data)
+function ownerRows(totals, limit, meta) {
+  return [...totals].sort((a, b) => b.value - a.value).slice(0, limit).map((total) => ({
+    title: total.owner,
+    titleEntityKey: total.owner === UNASSIGNED ? null : "contact",
+    meta: meta(total)
   }));
 }
-var STAGE_CONFIDENCE = { "Lead": 0.1, "Qualified": 0.25, "Proposal": 0.5, "Negotiation": 0.75 };
 function pipelineReport(deals, def, stages, now) {
   const { open, won, lost, openValue, wonValue, lostValue, winRate } = crmSummary(deals, def);
-  const weighted = open.reduce((s, e) => s + dealValue(e, def) * (STAGE_CONFIDENCE[stageOf(e, def)] || 0), 0);
-  const byOwner = /* @__PURE__ */ new Map();
-  open.forEach((e) => {
-    const owner = String(entityValue(e, "owner", def) || "(unassigned)");
-    if (!byOwner.has(owner)) byOwner.set(owner, { count: 0, value: 0 });
-    const o = byOwner.get(owner);
-    o.count++;
-    o.value += dealValue(e, def);
-  });
+  const confidence = stageConfidence(stages);
+  const weighted = open.reduce((s, e) => s + dealValue(e, def) * confidence(entityValue(e, "stage", def)), 0);
   const cohorts = [
     { label: "0\u20137 DAYS", cutoff: 7, count: 0, value: 0, accent: "emerald" },
     { label: "8\u201330 DAYS", cutoff: 30, count: 0, value: 0, accent: "mint" },
@@ -9559,13 +9667,9 @@ function pipelineReport(deals, def, stages, now) {
       { label: "LOST", value: lost.length, sub: fmtValue(lostValue, "currency"), accent: "rose" },
       { label: "WIN RATE", value: `${winRate}%`, sub: `${won.length}/${won.length + lost.length} closed`, accent: "warn" }
     ],
-    byStage: stages.map((stage) => {
-      const items = deals.filter((e) => stageOf(e, def) === stage);
-      return { stage, count: items.length, value: sumValues(items, def) };
-    }),
+    byStage: dealsByStage(deals, def, stages).map(({ stage, items }) => ({ stage, count: items.length, value: sumValues(items, def) })),
     owners: ownerRows(
-      byOwner,
-      (o) => o.value,
+      ownerTotals(open, def),
       8,
       (o) => `${o.count} deal${o.count === 1 ? "" : "s"} \xB7 ${fmtValue(o.value, "currency")}`
     ),
@@ -9590,9 +9694,8 @@ function salesReport(deals, def, now) {
     months.push({ date: d, label: d.toLocaleDateString(void 0, { month: "short" }), revenue: 0, count: 0 });
   }
   won.forEach((e) => {
-    const t = e.file && e.file.stat ? e.file.stat.mtime : null;
-    if (!t) return;
-    const d = new Date(t);
+    const d = dealClosedAt(e, def);
+    if (!d) return;
     const idx = months.findIndex((m) => m.date.getFullYear() === d.getFullYear() && m.date.getMonth() === d.getMonth());
     if (idx >= 0) {
       months[idx].revenue += dealValue(e, def);
@@ -9600,14 +9703,6 @@ function salesReport(deals, def, now) {
     }
   });
   const maxRev = Math.max(1, ...months.map((m) => m.revenue));
-  const byOwner = /* @__PURE__ */ new Map();
-  won.forEach((e) => {
-    const owner = String(entityValue(e, "owner", def) || "(unassigned)");
-    if (!byOwner.has(owner)) byOwner.set(owner, { count: 0, revenue: 0 });
-    const o = byOwner.get(owner);
-    o.count++;
-    o.revenue += dealValue(e, def);
-  });
   return {
     won,
     lost,
@@ -9632,20 +9727,28 @@ function salesReport(deals, def, now) {
       ],
       file: e.file
     })),
-    owners: ownerRows(byOwner, (o) => o.revenue, 6, (o) => `${o.count} won \xB7 ${fmtValue(o.revenue, "currency")}`)
+    owners: ownerRows(ownerTotals(won, def), 6, (o) => `${o.count} won \xB7 ${fmtValue(o.value, "currency")}`)
   };
 }
 var TIER_ACCENT2 = { "Gold": "warn", "Silver": "sky", "Bronze": "rose", "Standard": "mint" };
 function partnersReport(deals, partners, certs, now, defs = { deal: ENTITIES.deal, partner: ENTITIES.partner, certification: ENTITIES.certification }) {
   const { deal: dealDef, partner: partnerDef, certification: certDef } = defs;
+  const partnersOf = partnerResolver(partners, partnerDef);
   const byPartner = /* @__PURE__ */ new Map();
+  const addSource = (key, partner, e) => {
+    if (!byPartner.has(key)) byPartner.set(key, { partner, items: [] });
+    byPartner.get(key).items.push(e);
+  };
   deals.forEach((e) => {
-    const p = entityValue(e, "partner", dealDef) || "(direct)";
-    if (!byPartner.has(p)) byPartner.set(p, []);
-    byPartner.get(p).push(e);
+    const refs = partnersOf(e, dealDef);
+    if (!refs.length) addSource("(direct)", "(direct)", e);
+    refs.forEach(({ key, name, partner }) => {
+      const link = partner ? partner.basename === name ? name : `[[${partner.basename}|${name}]]` : name;
+      addSource(key, link, e);
+    });
   });
-  const partnerSourced = deals.filter((e) => entityValue(e, "partner", dealDef));
-  const partnerWon = partnerSourced.filter((e) => stageOf(e, dealDef) === "Won");
+  const partnerSourced = deals.filter((e) => partnersOf(e, dealDef).length > 0);
+  const partnerWon = partnerSourced.filter((e) => dealOutcome(e, dealDef) === "won");
   const tierMap = /* @__PURE__ */ new Map();
   partners.forEach((p) => {
     const t = String(entityValue(p, "tier", partnerDef) || "Untiered");
@@ -9671,7 +9774,7 @@ function partnersReport(deals, partners, certs, now, defs = { deal: ENTITIES.dea
       { label: "UNIQUE SOURCES", value: byPartner.size, sub: "including direct", accent: "warn" }
     ],
     tiers: [...tierMap.entries()].sort((a, b) => b[1] - a[1]).map(([tier, count]) => ({ label: tier.toUpperCase(), value: String(count), accent: TIER_ACCENT2[tier] || "sky" })),
-    sources: [...byPartner.entries()].sort((a, b) => b[1].length - a[1].length).slice(0, 10).map(([partner, items]) => ({
+    sources: [...byPartner.values()].sort((a, b) => b.items.length - a.items.length).slice(0, 10).map(({ partner, items }) => ({
       partner,
       count: items.length,
       meta: `${items.length} deal${items.length === 1 ? "" : "s"} \xB7 ${fmtValue(sumValues(items, dealDef), "currency")}`
@@ -9722,11 +9825,7 @@ function activityReport(activities, def, now, weekStartsOn) {
     weeks,
     bars: weeks.map((w) => ({ label: w.label, title: `Week of ${w.label} \u2014 ${w.count} activities`, ...reportBar(w.count, maxWeek) })),
     topContacts: [...contactCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([who, count]) => ({ title: who, titleEntityKey: "contact", meta: `${count} activit${count === 1 ? "y" : "ies"}` })),
-    recent: [...activities].sort((a, b) => {
-      const da = new Date(entityValue(a, "when", def) || 0).getTime();
-      const db = new Date(entityValue(b, "when", def) || 0).getTime();
-      return db - da;
-    }).slice(0, 10).map((e) => ({
+    recent: newestFirst(activities, (e) => entityValue(e, "when", def)).slice(0, 10).map((e) => ({
       title: entityTitle(e, "subject", def),
       metaParts: [
         { text: entityValue(e, "type", def) || "\u2014" },
@@ -9921,7 +10020,7 @@ async function renderReportPartners(view, root) {
   const dealsByPartnerCard = left.createDiv({ cls: "cad-dash-card" });
   dealsByPartnerCard.createDiv({ cls: "cad-dash-card-head" }).createDiv({ cls: "cad-dash-card-title", text: "DEALS BY PARTNER" });
   const dbpBody = dealsByPartnerCard.createDiv({ cls: "cad-dash-card-body" });
-  if (!report.sources.length) {
+  if (!report.partnerSourced.length) {
     dbpBody.createDiv({ cls: "cad-empty", text: "No deals attributed to partners yet." });
   } else {
     report.sources.forEach(({ partner: p, meta }) => {

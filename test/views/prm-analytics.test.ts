@@ -85,12 +85,12 @@ describe("renderPRMAnalytics: layout and stats", () => {
   it("counts partners, partner-sourced deals and won revenue, and the sourced share of all deal value", async () => {
     const { view, root } = setup(ALL);
     await view.renderPRMAnalytics(root);
-    // Sourced: D1–D6, D9, D10 (any partner value). Won: D1, D2, D3, D9. Total: sourced + D7 + D8.
+    // Sourced: D1–D6, D9, D10 (any partner value). Won: D1, D2, D3, D6, D9. Total: sourced + D7 + D8.
     expect(stats(root)).toEqual([
       ["sky", "PARTNERS", "5", "on the books"],
       ["mint", "SOURCED DEALS", "8", cur(4520)],
-      ["emerald", "PARTNER REVENUE", cur(3970), "4 won"],
-      ["warn", "PARTNER SHARE", "47%", "of total pipeline value"],
+      ["emerald", "PARTNER REVENUE", cur(4020), "5 won"],
+      ["warn", "PARTNER SHARE", "47%", "of total deal value"],
     ]);
   });
 
@@ -101,7 +101,7 @@ describe("renderPRMAnalytics: layout and stats", () => {
       ["sky", "PARTNERS", "0", "on the books"],
       ["mint", "SOURCED DEALS", "0", cur(0)],
       ["emerald", "PARTNER REVENUE", cur(0), "0 won"],
-      ["warn", "PARTNER SHARE", "0%", "of total pipeline value"],
+      ["warn", "PARTNER SHARE", "0%", "of total deal value"],
     ]);
     expect(root.children.map((c) => c.classes)).toEqual([["cad-page-header"], ["cad-stat-grid"], ["cad-dash-cols"], [], ["cad-dash-cols"]]);
   });
@@ -115,16 +115,16 @@ describe("renderPRMAnalytics: layout and stats", () => {
 });
 
 describe("renderPRMAnalytics: partners by tier", () => {
-  it("counts partners per tier, most first, with each tier's won revenue from deals naming a partner exactly", async () => {
+  it("counts partners per tier, most first, with each tier's won revenue from deals naming a partner in any form", async () => {
     const { view, root } = setup(ALL);
     await view.renderPRMAnalytics(root);
     const tierCard = root.children[3];
     expect(tierCard.style.margin).toBe("0 36px 18px 36px");
     const [row] = tierCard.children;
     expect(row.classes).toEqual(["cad-dash-card-body", "cad-mini-stat-row"]);
-    // Gold: D1 and D9 (a one-item list reads as its item). D3's `[[Acme]]` names no partner.
+    // Gold: D1, D3 (a wikilink), D6 and D9 (a one-item list) all name Acme.
     expect(miniStats(row)).toEqual([
-      ["warn", "2", "GOLD", cur(1070), "4px"],
+      ["warn", "2", "GOLD", cur(1520), "4px"],
       ["sky", "1", "SILVER", cur(2500), "4px"],
       ["mint", "1", "UNTIERED", "—", "4px"],
       ["sky", "1", "PLATINUM", "—", "4px"],
@@ -132,7 +132,7 @@ describe("renderPRMAnalytics: partners by tier", () => {
     expect(row.children.map((m) => m.classes)).toEqual(Array(4).fill(["cad-mini-stat"]));
   });
 
-  it("matches a deal's partner to a partner's name, falling back to its file name", async () => {
+  it("matches a deal's partner to a partner's name or its file name", async () => {
     const files = [
       partner("Acme", { tier: "Bronze" }), partner("Beta", { name: "Beta Ltd", tier: "Standard" }),
       deal("A", { stage: "Won", value: 10, partner: "Acme" }), deal("B", { stage: "Won", value: 20, partner: "Beta" }),
@@ -141,21 +141,20 @@ describe("renderPRMAnalytics: partners by tier", () => {
     await view.renderPRMAnalytics(root);
     expect(miniStats(root.children[3].children[0])).toEqual([
       ["rose", "1", "BRONZE", cur(10), "4px"],
-      ["mint", "1", "STANDARD", "—", "4px"],
+      ["mint", "1", "STANDARD", cur(20), "4px"],
     ]);
   });
 });
 
 describe("renderPRMAnalytics: top partners", () => {
-  it("lists won revenue per partner value, most first, linking a row to the partner it names", async () => {
+  it("lists won revenue per partner, most first, linking a row to the partner it names", async () => {
     const { view, root, sections, file } = setup(ALL);
     await view.renderPRMAnalytics(root);
     expect(sections.mock.calls).toEqual([[
       cols(root).children[0], "TOP PARTNERS · by won revenue",
       [
         { title: "Beta Ltd", meta: cur(2500), file: file("Cadence/Partners/Beta.md") },
-        { title: "Acme", meta: cur(1070), file: file("Cadence/Partners/Acme.md") },
-        { title: "[[Acme]]", meta: cur(400), file: null },
+        { title: "Acme", meta: cur(1520), file: file("Cadence/Partners/Acme.md") },
       ],
       "No partner-attributed wins yet.",
     ]]);
@@ -176,68 +175,72 @@ describe("renderPRMAnalytics: top partners", () => {
 });
 
 describe("renderPRMAnalytics: funnel and conversion", () => {
-  it("splits sourced deals into open (any stage but exactly Won or Lost), won and lost", async () => {
+  it("splits sourced deals into open (any stage but Won or Lost, in any case), won and lost", async () => {
     const { view, root } = setup(ALL);
     await view.renderPRMAnalytics(root);
     const card = funnelCard(root);
     expect(card.classes).toEqual(["cad-dash-card"]);
     expect(card.children[0].children[0].text).toBe("PARTNER FUNNEL");
-    // Open: D4, D6 (a lower-case 'won') and D10 (a non-numeric value counts 0).
+    // Open: D4 and D10 (a non-numeric value counts 0). D6's lower-case 'won' is won.
     expect(miniStats(card.children[1])).toEqual([
       ["sky", "8", "SOURCED", cur(4520), "4px"],
-      ["mint", "3", "OPEN", cur(350), "4px"],
-      ["emerald", "4", "WON", cur(3970), "4px"],
+      ["mint", "2", "OPEN", cur(300), "4px"],
+      ["emerald", "5", "WON", cur(4020), "4px"],
       ["rose", "1", "LOST", cur(200), "4px"],
     ]);
   });
 
-  it("shows won over sourced as a progress bar banded by pctBand", async () => {
+  it("shows won over closed partner deals as a progress bar banded by pctBand, leaving open deals out", async () => {
     const { view, root } = setup(ALL);
     await view.renderPRMAnalytics(root);
     const card = convCard(root);
-    expect(card.children[0].children[0].text).toBe("CONVERSION · sourced → won");
+    expect(card.children[0].children[0].text).toBe("CONVERSION · closed → won");
     const body = card.children[1];
     expect([body.classes, body.style.padding]).toEqual([["cad-dash-card-body"], "20px 16px"]);
     const wrap = body.children[0];
-    expect([wrap.classes, wrap.dataset.pctBand]).toEqual([["cad-proj-progress-wrap"], pctBand(50)]);
+    // Closed: D1, D2, D3, D6 and D9 won, D5 lost. D4 and D10 are open.
+    expect([wrap.classes, wrap.dataset.pctBand]).toEqual([["cad-proj-progress-wrap"], pctBand(83)]);
     expect(wrap.children[0].children.map((s) => [s.classes, s.text])).toEqual([
-      [[], "4/8 sourced deals won"],
-      [["cad-proj-progress-pct"], "50%"],
+      [[], "5/6 closed partner deals won"],
+      [["cad-proj-progress-pct"], "83%"],
     ]);
-    expect(wrap.children[1].children[0].style.width).toBe("50%");
+    expect(wrap.children[1].children[0].style.width).toBe("83%");
   });
 
-  it("rounds the conversion, and shows 0% with nothing sourced", async () => {
-    const files = [deal("A", { stage: "Won", partner: "X" }), deal("B", { partner: "X" }), deal("C", { partner: "X" })];
+  it("rounds the conversion, and shows 0% with nothing closed", async () => {
+    const files = [deal("A", { stage: "Won", partner: "X" }), deal("B", { stage: "Lost", partner: "X" }), deal("C", { stage: "Lost", partner: "X" }), deal("D", { partner: "X" })];
     const { view, root } = setup(files);
     await view.renderPRMAnalytics(root);
     expect(convCard(root).children[1].children[0].children[0].children[1].text).toBe("33%");
-    const twoOfThree = setup([deal("A", { stage: "Won", partner: "X" }), deal("B", { stage: "Won", partner: "X" }), deal("C", { partner: "X" })]);
+    const twoOfThree = setup([deal("A", { stage: "Won", partner: "X" }), deal("B", { stage: "Won", partner: "X" }), deal("C", { stage: "Lost", partner: "X" })]);
     await twoOfThree.view.renderPRMAnalytics(twoOfThree.root);
     expect(convCard(twoOfThree.root).children[1].children[0].children[0].children[1].text).toBe("67%");
-    const empty = setup([]);
+    const empty = setup([deal("A", { stage: "Lead", partner: "X" })]);
     await empty.view.renderPRMAnalytics(empty.root);
     const wrap = convCard(empty.root).children[1].children[0];
     expect([wrap.dataset.pctBand, wrap.children[0].children[0].text, wrap.children[1].children[0].style.width]).toEqual([
-      pctBand(0), "0/0 sourced deals won", "0%",
+      pctBand(0), "0/0 closed partner deals won", "0%",
     ]);
   });
 });
 
 describe("renderPRMAnalytics: quirks", () => {
-  it("QUIRK: a deal whose partner is a wikilink names no partner, so its win adds to no tier and its row links nowhere", async () => {
-    const files = [partner("Acme", { tier: "Gold" }), deal("A", { stage: "Won", value: 900, partner: "[[Acme]]" })];
-    const { view, root, sections } = setup(files);
+  it("a deal whose partner is a wikilink, in another case or a list names that partner, so its win adds to its tier and row", async () => {
+    const files = [
+      partner("Acme", { tier: "Gold" }),
+      deal("A", { stage: "Won", value: 900, partner: "[[Acme]]" }), deal("B", { stage: "Won", value: 90, partner: ["[[acme|Acme Inc]]"] }),
+    ];
+    const { view, root, sections, file } = setup(files);
     await view.renderPRMAnalytics(root);
-    expect(miniStats(root.children[3].children[0])).toEqual([["warn", "1", "GOLD", "—", "4px"]]);
-    expect(sections.mock.calls[0][2]).toEqual([{ title: "[[Acme]]", meta: cur(900), file: null }]);
+    expect(miniStats(root.children[3].children[0])).toEqual([["warn", "1", "GOLD", cur(990), "4px"]]);
+    expect(sections.mock.calls[0][2]).toEqual([{ title: "Acme", meta: cur(990), file: file("Cadence/Partners/Acme.md") }]);
   });
 
-  it("QUIRK: Won and Lost match case-sensitively, so a lower-case 'won' is open and earns no partner revenue", async () => {
+  it("Won and Lost match in any case, so a lower-case 'won' earns partner revenue and 'lost' is lost", async () => {
     const { view, root } = setup([deal("A", { stage: "won", value: 900, partner: "X" }), deal("B", { stage: "lost", value: 1, partner: "X" })]);
     await view.renderPRMAnalytics(root);
-    expect(stats(root)[2]).toEqual(["emerald", "PARTNER REVENUE", cur(0), "0 won"]);
-    expect(miniStats(funnelCard(root).children[1]).map((m) => [m[2], m[1]])).toEqual([["SOURCED", "2"], ["OPEN", "2"], ["WON", "0"], ["LOST", "0"]]);
+    expect(stats(root)[2]).toEqual(["emerald", "PARTNER REVENUE", cur(900), "1 won"]);
+    expect(miniStats(funnelCard(root).children[1]).map((m) => [m[2], m[1]])).toEqual([["SOURCED", "2"], ["OPEN", "0"], ["WON", "1"], ["LOST", "1"]]);
   });
 });
 

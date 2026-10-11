@@ -257,6 +257,22 @@ describe("renderEntityList: kanban layout", () => {
     expect(Notice.messages).toEqual(["Moved to Won"]);
   });
 
+  it("dropping a deal on Won or Lost writes today's `closed` date; an open column leaves it", async () => {
+    vi.useFakeTimers({ toFake: ["Date"], now: new Date(2026, 9, 11, 23, 30) });
+    try {
+      const { view, root, fm } = setup(DEALS);
+      await view.renderEntityList(root, "deal");
+      column(root, "Lost").children[1].trigger("drop", { dataTransfer: dataTransfer({ "text/cadence-entity": ACME.path, "text/cadence-stage": "Proposal" }) });
+      await flush();
+      expect(fm(ACME.path)).toMatchObject({ stage: ["Lost"], closed: "2026-10-11" });
+      column(root, "Lead").children[1].trigger("drop", { dataTransfer: dataTransfer({ "text/cadence-entity": INITECH.path, "text/cadence-stage": "Won" }) });
+      await flush();
+      expect(fm(INITECH.path)).toEqual({ title: "Initech", stage: ["Lead"], value: 1000 });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("ignores a drop from the same stage, without a path, or for a missing file", async () => {
     const { view, root, fm } = setup(DEALS);
     await view.renderEntityList(root, "deal");

@@ -83,3 +83,19 @@ export function fromLocalDatetimeValue(s: string | null | undefined): Date | nul
   // datetime-local has no timezone — interpret as local time
   return new Date(s);
 }
+
+/* A copy sorted newest first by each item's date (a bare YYYY-MM-DD as local
+   midnight, else whatever Date reads). An item with no date, or one Date
+   can't read, goes after every dated one, in input order, rather than
+   sorting as 1970 or as NaN (#54). */
+export function newestFirst<T>(items: T[], when: (item: T) => unknown): T[] {
+  const time = (value: unknown): number | null => {
+    if (value == null || value === '') return null;
+    const t = (parseYmd(value) ?? new Date(value as string)).getTime();
+    return isNaN(t) ? null : t;
+  };
+  return items
+    .map((item) => ({ item, t: time(when(item)) }))
+    .sort((a, b) => (a.t === null ? (b.t === null ? 0 : 1) : b.t === null ? -1 : b.t - a.t))
+    .map(({ item }) => item);
+}

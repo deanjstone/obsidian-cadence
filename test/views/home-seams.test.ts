@@ -125,6 +125,40 @@ describe("computeBriefing", () => {
   });
 });
 
+describe("computeBriefing: deal outcomes", () => {
+  const week = 7 * 86400000;
+  const deal = (n: string, fm: Record<string, unknown>, mtime?: number) => entity(`Cadence/Pipeline/${n}.md`, fm, mtime);
+
+  it("counts a lower-case 'won' as a recent win", () => {
+    const out = computeBriefing({ ...empty, deals: [deal("A", { stage: "won", value: 10 }, NOW.getTime())] }, NOW);
+    expect(out.map((i) => i.text)).toEqual(["1 deal won this week · $10"]);
+  });
+
+  it("dates a recent win by its `closed` date, falling back to the file mtime, so an edit doesn't make an old win recent", () => {
+    const out = computeBriefing({
+      ...empty,
+      deals: [
+        deal("Old", { stage: "Won", value: 1, closed: "2026-09-01" }, NOW.getTime()),
+        deal("New", { stage: "Won", value: 10, closed: "2026-10-09" }, NOW.getTime() - 4 * week),
+        deal("Mtime", { stage: "Won", value: 100 }, NOW.getTime()),
+      ],
+    }, NOW);
+    expect(out.map((i) => i.text)).toEqual(["2 deals won this week · $110"]);
+  });
+
+  it("leaves lower-case 'won' and 'lost' deals out of closing this week and the stale-contact check", () => {
+    const out = computeBriefing({
+      ...empty,
+      deals: [
+        deal("W", { stage: "won", closeBy: "2026-10-12", contact: "Jane" }, NOW.getTime() - 2 * week),
+        deal("L", { stage: [" LOST "], closeBy: "2026-10-12", contact: "Jane" }),
+      ],
+      contacts: [entity("Cadence/Contacts/Jane.md", { name: "Jane" })],
+    }, NOW);
+    expect(out).toEqual([]);
+  });
+});
+
 describe("visibleBriefing", () => {
   it.each([
     [false, 5, 5, 0],
@@ -278,6 +312,12 @@ describe("selectPipelineCard", () => {
     expect(out.value).toBe(13);
     expect(out.top.map((e) => e.basename)).toEqual(["B", "E", "C", "A"]);
   });
+
+  it("matches Won and Lost in any case, so lower-case closed deals are not open", () => {
+    const d = (n: string, fm: Record<string, unknown>) => entity(`Cadence/Pipeline/${n}.md`, fm);
+    const out = selectPipelineCard([d("A", { stage: "Lead", value: 1 }), d("W", { stage: "won", value: 99 }), d("L", { stage: ["lost"], value: 99 })]);
+    expect([out.open.map((e) => e.basename), out.value]).toEqual([["A"], 1]);
+  });
 });
 
 describe("selectRecentActivities", () => {
@@ -285,5 +325,11 @@ describe("selectRecentActivities", () => {
     const a = (n: string, when?: string) => entity(`Cadence/Activities/${n}.md`, when ? { when } : {});
     const out = selectRecentActivities([a("u"), a("1", "2026-01-01"), a("3", "2026-03-01"), a("2", "2026-02-01"), a("5", "2026-05-01"), a("4", "2026-04-01")]);
     expect(out.map((e) => e.basename)).toEqual(["5", "4", "3", "2", "1"]);
+  });
+
+  it("sorts an undated or unreadable activity after every dated one, even one before 1970, in input order", () => {
+    const a = (n: string, when?: string) => entity(`Cadence/Activities/${n}.md`, when === undefined ? {} : { when });
+    const out = selectRecentActivities([a("u"), a("g", "soon"), a("old", "1960-01-01"), a("new", "2026-01-01")]);
+    expect(out.map((e) => e.basename)).toEqual(["new", "old", "u", "g"]);
   });
 });

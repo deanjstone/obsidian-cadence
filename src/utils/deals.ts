@@ -1,8 +1,60 @@
-import type { Entity, EntityDef } from '../types/entities';
+import type { Entity, EntityDef, Frontmatter } from '../types/entities';
+import { parseYmd, ymd } from './dates';
 import { entityValue } from './entities';
+import { parseLinkValues } from './parsing';
 
-/* Deal totals shared by the CRM dashboard and the Pipeline, Sales and
-   Partners reports. */
+/* Deal totals shared by the CRM dashboard, Home, PRM analytics and the
+   Pipeline, Sales and Partners reports: one rule for a deal's outcome. */
+
+/** A stage folded for comparison: trimmed, lower-cased, with runs of
+    spaces, `-` and `_` read as one space. */
+export function foldStage(stage: unknown): string {
+  return String(stage ?? '').trim().toLowerCase().replace(/[\s_-]+/g, ' ');
+}
+
+export type DealOutcome = 'open' | 'won' | 'lost';
+
+/** A stage's outcome, in any case: `won` or `closed won` is won, `lost` or
+    `closed lost` is lost, and anything else (blank and custom stages
+    included) is open. Customised stage options keep closing as long as the
+    closed ones are still called Won and Lost (#54). */
+export function stageOutcome(stage: unknown): DealOutcome {
+  const folded = foldStage(stage).replace(/^closed /, '');
+  return folded === 'won' ? 'won' : folded === 'lost' ? 'lost' : 'open';
+}
+
+/** A deal's stage as text: a one-item list reads as its item. */
+export function dealStage(entity: Entity, def: EntityDef): string {
+  return String(entityValue(entity, 'stage', def));
+}
+
+export function dealOutcome(entity: Entity, def: EntityDef): DealOutcome {
+  return stageOutcome(dealStage(entity, def));
+}
+
+/** The frontmatter a deal's stage write adds, given its stage `before` and
+    `after` (a one-item list reads as its item): `closed: <today>` when the
+    deal moves to Won or Lost from any other outcome, so its close date is
+    when it closed, not its last edit (#54). Anything else adds nothing, so a
+    reopened deal keeps its old date until it closes again. */
+export function closedPatch(before: unknown, after: unknown, now: Date): Frontmatter {
+  const first = (v: unknown) => (Array.isArray(v) ? v[0] : v);
+  const outcome = stageOutcome(first(after));
+  return outcome !== 'open' && outcome !== stageOutcome(first(before)) ? { closed: ymd(now) } : {};
+}
+
+/** When a deal closed: its `closed` date (a bare YYYY-MM-DD as local
+    midnight, or any date Date reads), else its file mtime for deals that
+    predate `closed`, else null (no stat, or an mtime of 0). */
+export function dealClosedAt(entity: Entity, def: EntityDef): Date | null {
+  const closed = entityValue(entity, 'closed', def);
+  if (closed) {
+    const d = parseYmd(closed) ?? new Date(closed as string);
+    if (!isNaN(d.getTime())) return d;
+  }
+  const mtime = entity.file && entity.file.stat ? entity.file.stat.mtime : 0;
+  return mtime ? new Date(mtime) : null;
+}
 
 /* A deal's value as a number; blank or non-numeric is 0. */
 export function dealValue(entity: Entity, def: EntityDef): number {
@@ -14,7 +66,7 @@ export function sumValues(deals: Entity[], def: EntityDef): number {
 }
 
 export interface CrmSummary {
-  /** Every deal not exactly 'Won' or 'Lost', blank and custom stages included. */
+  /** Every deal not Won or Lost (in any case), blank and custom stages included. */
   open: Entity[];
   won: Entity[];
   lost: Entity[];
@@ -27,11 +79,11 @@ export interface CrmSummary {
   avgDeal: number;
 }
 
-/* The pipeline totals. Won and Lost match case-sensitively. */
+/* The pipeline totals, split by dealOutcome. */
 export function crmSummary(deals: Entity[], def: EntityDef): CrmSummary {
-  const open = deals.filter((e) => !['Won', 'Lost'].includes(String(entityValue(e, 'stage', def))));
-  const won = deals.filter((e) => String(entityValue(e, 'stage', def)) === 'Won');
-  const lost = deals.filter((e) => String(entityValue(e, 'stage', def)) === 'Lost');
+  const open = deals.filter((e) => dealOutcome(e, def) === 'open');
+  const won = deals.filter((e) => dealOutcome(e, def) === 'won');
+  const lost = deals.filter((e) => dealOutcome(e, def) === 'lost');
   const wonValue = sumValues(won, def);
   return {
     open, won, lost,
@@ -41,4 +93,108 @@ export function crmSummary(deals: Entity[], def: EntityDef): CrmSummary {
     winRate: won.length + lost.length === 0 ? 0 : Math.round((won.length / (won.length + lost.length)) * 100),
     avgDeal: won.length === 0 ? 0 : wonValue / won.length,
   };
+}
+
+export interface StageGroup {
+  /** The configured option, an off-list stage as first written, or `(no stage)`. */
+  stage: string;
+  items: Entity[];
+}
+
+export const NO_STAGE = '(no stage)';
+
+/* Deals grouped by stage, so every deal is in exactly one group: one group
+   per configured stage, in order, then one per stage off the list in
+   first-seen order, then `(no stage)` for blank ones. Stages match after
+   foldStage, and a Won or Lost spelled like no option ('Closed Won') joins
+   the first option with the same outcome. */
+export function dealsByStage(deals: Entity[], def: EntityDef, stages: string[]): StageGroup[] {
+  const groups: StageGroup[] = stages.map((stage) => ({ stage, items: [] }));
+  const byFold = new Map<string, StageGroup>();
+  groups.forEach((g) => { if (!byFold.has(foldStage(g.stage))) byFold.set(foldStage(g.stage), g); });
+  const byOutcome = new Map<DealOutcome, StageGroup>();
+  groups.forEach((g) => {
+    const outcome = stageOutcome(g.stage);
+    if (outcome !== 'open' && !byOutcome.has(outcome)) byOutcome.set(outcome, g);
+  });
+  const offList: StageGroup[] = [];
+  const noStage: StageGroup = { stage: NO_STAGE, items: [] };
+  deals.forEach((e) => {
+    const stage = dealStage(e, def).trim();
+    const folded = foldStage(stage);
+    let group = folded ? byFold.get(folded) || byOutcome.get(stageOutcome(stage)) : noStage;
+    if (!group) {
+      group = { stage, items: [] };
+      byFold.set(folded, group);
+      offList.push(group);
+    }
+    group.items.push(e);
+  });
+  return [...groups, ...offList, ...(noStage.items.length ? [noStage] : [])];
+}
+
+/* Forecast weights for the built-in open stages, by folded name. */
+const BUILT_IN_CONFIDENCE: Record<string, number> = { 'lead': 0.10, 'qualified': 0.25, 'proposal': 0.50, 'negotiation': 0.75 };
+
+/* A forecast weight for any stage. A built-in open stage (Lead, Qualified,
+   Proposal, Negotiation) keeps its weight in any case. Any other open stage
+   on the configured list is weighed by its place among the open options,
+   in a straight line between its nearest weighted neighbours (0 before the
+   first, 1 after the last). Won, Lost, blank and off-list stages weigh 0. */
+export function stageConfidence(stages: string[]): (stage: unknown) => number {
+  const open = stages.map(foldStage).filter((s) => s && stageOutcome(s) === 'open');
+  const anchors: Array<[number, number]> = [[-1, 0]];
+  open.forEach((s, i) => { if (s in BUILT_IN_CONFIDENCE) anchors.push([i, BUILT_IN_CONFIDENCE[s]]); });
+  anchors.push([open.length, 1]);
+  const weights = new Map<string, number>(Object.entries(BUILT_IN_CONFIDENCE));
+  open.forEach((s, i) => {
+    if (weights.has(s)) return;
+    const before = anchors.filter(([at]) => at < i).pop()!;
+    const after = anchors.find(([at]) => at > i)!;
+    weights.set(s, before[1] + ((after[1] - before[1]) * (i - before[0])) / (after[0] - before[0]));
+  });
+  return (stage) => weights.get(foldStage(stage)) ?? 0;
+}
+
+/** The notes a link field names: each item's link target (parseLinkValues:
+    `[[ ]]` and any `|alias` removed, a plain string split on commas), with
+    case-insensitive repeats dropped and the first spelling kept. */
+export function linkedNames(value: unknown): string[] {
+  const seen = new Set<string>();
+  return parseLinkValues(value).map((v) => v.target).filter((name) => {
+    const key = name.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+export interface PartnerRef {
+  /** One key per partner note, or per unmatched name (case-insensitive). */
+  key: string;
+  /** The partner's name (or file name), else the name as the deal first wrote it. */
+  name: string;
+  partner: Entity | null;
+}
+
+/* The partners each deal names, resolved against the partner notes: a name
+   matches a partner's `name`, else its file name, in any case. A deal naming
+   two partners counts for each. One resolver for PRM analytics and the
+   Partners report (#54). */
+export function partnerResolver(partners: Entity[], partnerDef: EntityDef): (deal: Entity, dealDef: EntityDef) => PartnerRef[] {
+  const byName = new Map<string, Entity>();
+  partners.forEach((p) => {
+    const name = String(entityValue(p, 'name', partnerDef) || '').trim().toLowerCase();
+    if (name && !byName.has(name)) byName.set(name, p);
+  });
+  partners.forEach((p) => {
+    const base = p.basename.toLowerCase();
+    if (!byName.has(base)) byName.set(base, p);
+  });
+  return (deal, dealDef) => linkedNames(entityValue(deal, 'partner', dealDef)).map((name) => {
+    const partner = byName.get(name.toLowerCase()) || null;
+    return partner
+      ? { key: `partner:${partner.file.path}`, name: String(entityValue(partner, 'name', partnerDef) || partner.basename), partner }
+      : { key: `name:${name.toLowerCase()}`, name, partner: null };
+  });
 }

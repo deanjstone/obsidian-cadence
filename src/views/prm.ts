@@ -2,7 +2,7 @@ import { ENTITIES } from '../constants/entities';
 import { CadenceWidgetCreateModal } from '../modals/widget-create';
 import type { Entity, EntityDef } from '../types/entities';
 import type { WidgetConfig } from '../types/modals';
-import { crmSummary, dealValue, sumValues } from '../utils/deals';
+import { crmSummary, dealValue, partnerResolver, sumValues } from '../utils/deals';
 import { entityValue, listEntities } from '../utils/entities';
 import { fmtValue, pctBand, type PctBand } from '../utils/format';
 import type { DashCardRow, MiniStat, StatCard } from './components/cards';
@@ -20,8 +20,9 @@ const TIER_ACCENT: Record<string, string> = { 'Gold': 'warn', 'Silver': 'sky', '
 
 export interface PrmConversion {
   won: number;
-  sourced: number;
-  /** Won over sourced, as a whole percent; 0 with nothing sourced. */
+  /** Partner deals Won or Lost; open ones haven't converted either way yet. */
+  closed: number;
+  /** Won over closed, as a whole percent (the win rate of partner deals); 0 with nothing closed. */
   pct: number;
   band: PctBand;
 }
@@ -31,8 +32,8 @@ export interface PrmAnalytics {
   /** Partners per tier ('Untiered' for none), most first, each with the won
       revenue of deals naming one of its partners ('—' for none). */
   tiers: MiniStat[];
-  /** The top 8 partner values by won revenue. A row opens the partner whose
-      name (or file name) is the value, else it has `file: null`. */
+  /** The top 8 partners by won revenue (partnerResolver). A row opens the
+      partner it names, else it has `file: null`. */
   topPartners: DashCardRow[];
   /** Sourced, open, won and lost partner deals, with their totals. */
   funnel: MiniStat[];
@@ -40,14 +41,16 @@ export interface PrmAnalytics {
 }
 
 /* The numbers behind every PRM analytics card. A partner-sourced deal is any
-   deal with a `partner` value. Won and Lost match case-sensitively, and a
-   deal names a partner only by its exact text, so a wikilink names none. */
+   deal naming a partner. Outcomes follow dealOutcome, and a deal's partners
+   follow partnerResolver: a wikilink, a list item or another case names the
+   same partner. */
 export function prmAnalytics(
   partners: Entity[], deals: Entity[],
   defs: { partner: EntityDef; deal: EntityDef } = { partner: ENTITIES.partner, deal: ENTITIES.deal },
 ): PrmAnalytics {
   const { partner: partnerDef, deal: dealDef } = defs;
-  const partnerSourced = deals.filter((e) => entityValue(e, 'partner', dealDef));
+  const partnersOf = partnerResolver(partners, partnerDef);
+  const partnerSourced = deals.filter((e) => partnersOf(e, dealDef).length > 0);
   const { open: sourcedOpen, won: partnerWon, lost: sourcedLost, openValue, wonValue, lostValue } = crmSummary(partnerSourced, dealDef);
   const sourcedValue = sumValues(partnerSourced, dealDef);
   const totalDealValue = sumValues(deals, dealDef);
@@ -61,51 +64,44 @@ export function prmAnalytics(
     tierMap.set(t, (tierMap.get(t) || 0) + 1);
     tierValueMap.set(t, tierValueMap.get(t) || 0);
   });
-  // Add tier-attributed revenue: deals where partner matches partner-name and partner.tier is known
-  const partnerByName = new Map<string, Entity>();
-  partners.forEach((p) => partnerByName.set(String(entityValue(p, 'name', partnerDef) || p.basename), p));
+  // Tier revenue and top partners: each won deal counts for every partner it names
+  const partnerRevenue = new Map<string, { name: string; partner: Entity | null; value: number }>();
   partnerWon.forEach((d) => {
-    const pname = String(entityValue(d, 'partner', dealDef) || '');
-    const partner = partnerByName.get(pname);
-    if (!partner) return;
-    const tier = String(entityValue(partner, 'tier', partnerDef) || 'Untiered');
-    tierValueMap.set(tier, (tierValueMap.get(tier) || 0) + dealValue(d, dealDef));
+    partnersOf(d, dealDef).forEach(({ key, name, partner }) => {
+      const row = partnerRevenue.get(key) || { name, partner, value: 0 };
+      row.value += dealValue(d, dealDef);
+      partnerRevenue.set(key, row);
+      if (!partner) return;
+      const tier = String(entityValue(partner, 'tier', partnerDef) || 'Untiered');
+      tierValueMap.set(tier, (tierValueMap.get(tier) || 0) + dealValue(d, dealDef));
+    });
   });
 
-  // Top partners by won revenue
-  const partnerRevenue = new Map<string, number>();
-  partnerWon.forEach((d) => {
-    const p = String(entityValue(d, 'partner', dealDef) || '(direct)');
-    partnerRevenue.set(p, (partnerRevenue.get(p) || 0) + dealValue(d, dealDef));
-  });
-
-  const conv = partnerSourced.length === 0 ? 0 : Math.round((partnerWon.length / partnerSourced.length) * 100);
+  const closed = partnerWon.length + sourcedLost.length;
+  const conv = closed === 0 ? 0 : Math.round((partnerWon.length / closed) * 100);
   const currency = (value: number) => fmtValue(value, 'currency');
   return {
     stats: [
       { label: 'PARTNERS', value: partners.length, sub: 'on the books', accent: 'sky' },
       { label: 'SOURCED DEALS', value: partnerSourced.length, sub: currency(sourcedValue), accent: 'mint' },
       { label: 'PARTNER REVENUE', value: currency(wonValue), sub: `${partnerWon.length} won`, accent: 'emerald' },
-      { label: 'PARTNER SHARE', value: `${sharePct}%`, sub: 'of total pipeline value', accent: 'warn' },
+      { label: 'PARTNER SHARE', value: `${sharePct}%`, sub: 'of total deal value', accent: 'warn' },
     ],
     tiers: [...tierMap.entries()].sort((a, b) => b[1] - a[1]).map(([tier, count]) => {
       const value = tierValueMap.get(tier) || 0;
       return { label: tier.toUpperCase(), value: String(count), accent: TIER_ACCENT[tier] || 'sky', sub: value > 0 ? currency(value) : '—' };
     }),
-    topPartners: [...partnerRevenue.entries()]
-      .sort((a, b) => b[1] - a[1])
+    topPartners: [...partnerRevenue.values()]
+      .sort((a, b) => b.value - a.value)
       .slice(0, 8)
-      .map(([p, v]) => {
-        const partner = partnerByName.get(p);
-        return { title: p, meta: currency(v), file: partner ? partner.file : null };
-      }),
+      .map(({ name, partner, value }) => ({ title: name, meta: currency(value), file: partner ? partner.file : null })),
     funnel: [
       { label: 'SOURCED', value: String(partnerSourced.length), sub: currency(sourcedValue), accent: 'sky' },
       { label: 'OPEN', value: String(sourcedOpen.length), sub: currency(openValue), accent: 'mint' },
       { label: 'WON', value: String(partnerWon.length), sub: currency(wonValue), accent: 'emerald' },
       { label: 'LOST', value: String(sourcedLost.length), sub: currency(lostValue), accent: 'rose' },
     ],
-    conversion: { won: partnerWon.length, sourced: partnerSourced.length, pct: conv, band: pctBand(conv) },
+    conversion: { won: partnerWon.length, closed, pct: conv, band: pctBand(conv) },
   };
 }
 
@@ -178,15 +174,15 @@ export async function renderPRMAnalytics(view: AppViewHost, root: HTMLElement): 
   funnelCard.createDiv({ cls: 'cad-dash-card-head' }).createDiv({ cls: 'cad-dash-card-title', text: 'PARTNER FUNNEL' });
   drawMiniStats(funnelCard.createDiv({ cls: 'cad-dash-card-body cad-mini-stat-row' }), report.funnel);
 
-  const { won, sourced, pct: conv, band } = report.conversion;
+  const { won, closed, pct: conv, band } = report.conversion;
   const convCard = right.createDiv({ cls: 'cad-dash-card' });
-  convCard.createDiv({ cls: 'cad-dash-card-head' }).createDiv({ cls: 'cad-dash-card-title', text: `CONVERSION · sourced → won` });
+  convCard.createDiv({ cls: 'cad-dash-card-head' }).createDiv({ cls: 'cad-dash-card-title', text: `CONVERSION · closed → won` });
   const convBody = convCard.createDiv({ cls: 'cad-dash-card-body' });
   convBody.style.padding = '20px 16px';
   const convWrap = convBody.createDiv({ cls: 'cad-proj-progress-wrap' });
   convWrap.dataset.pctBand = band;
   const convLabel = convWrap.createDiv({ cls: 'cad-proj-progress-label' });
-  convLabel.createSpan({ text: `${won}/${sourced} sourced deals won` });
+  convLabel.createSpan({ text: `${won}/${closed} closed partner deals won` });
   convLabel.createSpan({ cls: 'cad-proj-progress-pct', text: `${conv}%` });
   const convBar = convWrap.createDiv({ cls: 'cad-proj-progress-bar' });
   const convFill = convBar.createDiv({ cls: 'cad-proj-progress-fill' });

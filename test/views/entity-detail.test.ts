@@ -292,6 +292,41 @@ describe("renderEntityDetail: fields", () => {
     expect(p.fm("Cadence/Partners/P.md")).toEqual({ name: "P", status: "Active" });
   });
 
+  it("moving a deal's stage to Won or Lost writes today's `closed` date; an open stage or the same outcome leaves it", async () => {
+    vi.setSystemTime(new Date(2026, 9, 11, 23, 30));
+    const { root, render, fm } = setup([DEAL]);
+    await render("deal", DEAL.path);
+    choose(control(root, "STAGE"), "Won");
+    await flush();
+    expect(fm(DEAL.path)).toMatchObject({ stage: ["Won"], closed: "2026-10-11" });
+    vi.setSystemTime(new Date(2026, 9, 12, 9));
+    choose(control(root, "STAGE"), "Negotiation");
+    await flush();
+    expect(fm(DEAL.path)).toMatchObject({ stage: ["Negotiation"], closed: "2026-10-11" });
+    choose(control(root, "STAGE"), "Lost");
+    await flush();
+    expect(fm(DEAL.path)).toMatchObject({ stage: ["Lost"], closed: "2026-10-12" });
+    vi.setSystemTime(new Date(2026, 9, 20, 9));
+    fm(DEAL.path)!.stage = ["lost"];
+    choose(control(root, "STAGE"), "Lost");
+    await flush();
+    expect(fm(DEAL.path)).toMatchObject({ stage: ["Lost"], closed: "2026-10-12" });
+  });
+
+  it("a stage edit on anything but a deal writes no `closed` date", async () => {
+    const field = { key: "stage", label: "Stage", type: "enum" as const, options: ["Open", "Won"] };
+    ENTITIES.vendor = { folder: "Cadence/Vendors", label: "Vendor", plural: "Vendors", fields: [{ key: "name", label: "Name", primary: true }, field], columns: ["name"] };
+    try {
+      const { root, render, fm } = setup([{ path: "Cadence/Vendors/V.md", frontmatter: { name: "V", stage: "Open" } }]);
+      await render("vendor", "Cadence/Vendors/V.md");
+      choose(control(root, "STAGE"), "Won");
+      await flush();
+      expect(fm("Cadence/Vendors/V.md")).toEqual({ name: "V", stage: ["Won"] });
+    } finally {
+      delete ENTITIES.vendor;
+    }
+  });
+
   it("a date input shows the ISO date of a parseable value, empty otherwise, and writes on change", async () => {
     const { root, render, fm } = setup([DEAL, { path: "Cadence/Contacts/x.md", frontmatter: { lastContact: "soon" } }]);
     await render("deal", DEAL.path);

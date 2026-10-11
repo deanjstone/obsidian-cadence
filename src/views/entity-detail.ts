@@ -1,6 +1,7 @@
 import { Notice, type TFile } from 'obsidian';
 import { ENTITIES } from '../constants/entities';
 import { CadenceConfirmModal } from '../modals/confirm';
+import { closedPatch } from '../utils/deals';
 import { createEntity, listEntities } from '../utils/entities';
 import {
   DETAIL_LIST_KEYS, applyFieldEdit, autoCreatesNote, chipAdd, chipConfig, chipCreation, chipLinkTarget, chipValues, chipWriteValue,
@@ -111,7 +112,11 @@ export async function renderEntityDetail(view: AppViewHost, root: HTMLElement, e
   const writeField = async (key: string, raw: unknown) => {
     try {
       const value = coerceFieldEdit(def, key, raw);
-      await view.app.fileManager.processFrontMatter(file, (frontmatter) => applyFieldEdit(frontmatter, key, value));
+      await view.app.fileManager.processFrontMatter(file, (frontmatter) => {
+        const before = frontmatter[key];
+        applyFieldEdit(frontmatter, key, value);
+        if (entityKey === 'deal' && key === 'stage') Object.assign(frontmatter, closedPatch(before, frontmatter[key], new Date()));
+      });
       flashSaved();
     } catch (e) {
       new Notice(`Save failed: ${(e as Error).message}`);
