@@ -82,7 +82,7 @@ export function snapshotCustomEntities(settings: SettingTabSettings, entities: R
 
 /* The key input's suggestions: every entity's field keys, then the keys of
    the given notes' frontmatter (except Obsidian's `position`), in first-seen
-   order. The tab passes up to 200 notes. */
+   order. The tab reads up to 200 notes once per table draw. */
 export function fieldKeySuggestions(entities: Record<string, EntityDef>, frontmatters: Frontmatter[]): Set<string> {
   const keys = new Set<string>();
   for (const ent of Object.values(entities)) {
@@ -434,6 +434,19 @@ export function renderEntityPropertiesSettings(tab: SettingTabHost, containerEl:
 
     let draggedIndex: number | null = null;
 
+    // Key suggestions: every entity's field keys, then the frontmatter keys of up to 200 notes, read once per table
+    const frontmatters: Frontmatter[] = [];
+    try {
+      const vaultFiles = tab.app.vault.getMarkdownFiles().slice(0, 200);
+      for (const vf of vaultFiles) {
+        const cache = tab.app.metadataCache.getFileCache(vf);
+        if (cache && cache.frontmatter) frontmatters.push(cache.frontmatter);
+      }
+    } catch (error) {
+      console.warn('Cadence: could not read frontmatter for key suggestions', error);
+    }
+    const _allSuggestionKeys = fieldKeySuggestions(ENTITIES, frontmatters);
+
     def.fields.forEach((field, index) => {
       const tr = tbody.createEl('tr');
       tr.addClass('cad-prop-row');
@@ -528,16 +541,6 @@ export function renderEntityPropertiesSettings(tab: SettingTabHost, containerEl:
       const datalist = keyWrap.createEl('datalist');
       datalist.id = datalistId;
 
-      // Keys from all known entity fields, then from actual vault frontmatter (sample up to 200 files for perf)
-      const frontmatters: Frontmatter[] = [];
-      try {
-        const vaultFiles = tab.app.vault.getMarkdownFiles().slice(0, 200);
-        for (const vf of vaultFiles) {
-          const cache = tab.app.metadataCache.getFileCache(vf);
-          if (cache && cache.frontmatter) frontmatters.push(cache.frontmatter);
-        }
-      } catch (_) { }
-      const _allSuggestionKeys = fieldKeySuggestions(ENTITIES, frontmatters);
       _allSuggestionKeys.forEach(k => datalist.createEl('option', { value: k }));
 
       const inputKey = keyWrap.createEl('input', {

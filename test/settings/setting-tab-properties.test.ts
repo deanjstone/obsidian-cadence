@@ -288,6 +288,17 @@ describe("Custom Entity Properties: technical key", () => {
     expect(values.slice(fieldKeys.length)).toEqual(["budget", ...Array.from({ length: 198 }, (_, i) => `k${i}`)]);
   });
 
+  it("reads the notes' frontmatter once per table, not once per row", () => {
+    const files: MockFileSpec[] = [{ path: "a.md", frontmatter: { budget: 1 } }, { path: "b.md", frontmatter: { zone: 2 } }];
+    const made = makeSettingTab({ files });
+    const reads = vi.spyOn(made.app.metadataCache, "getFileCache");
+    made.tab.display();
+    expect(propRows(editorOf(made.container))).toHaveLength(7);
+    expect(reads).toHaveBeenCalledTimes(2);
+    const datalists = propRows(editorOf(made.container)).map((tr) => optionValues(tr.children[2].findAll("datalist")[0]));
+    expect(datalists.every((values) => values.includes("budget") && values.includes("zone"))).toBe(true);
+  });
+
   it("filters and sorts the suggestions as the user types", () => {
     addVendor([{ key: "region", label: "Region" }]);
     const { editor } = shown({ entity: "crm_vendor" });
