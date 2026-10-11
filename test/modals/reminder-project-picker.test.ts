@@ -62,7 +62,7 @@ describe("CadenceReminderEditModal project picker", () => {
     ]);
   });
 
-  it("filters suggestions by case-insensitive substring of the name; blank or null shows all", () => {
+  it("filters suggestions by case-insensitive substring of the name or path; blank or null shows all", () => {
     app = createMockApp([projectWebsite, projectTagged, archived]);
     const { projectField } = openModal();
     buttonByText(projectField, "📁 Link to project").trigger("click");
@@ -72,7 +72,8 @@ describe("CadenceReminderEditModal project picker", () => {
     expect(names(null)).toEqual(["Website relaunch", "Ops cleanup", "Archive sweep"]);
     expect(names("WEB")).toEqual(["Website relaunch"]);
     expect(names("ch")).toEqual(["Website relaunch", "Archive sweep"]);
-    expect(names("ops.md")).toEqual([]);
+    expect(names("ops.md")).toEqual(["Ops cleanup"]);
+    expect(names("2025/")).toEqual(["Archive sweep"]);
   });
 
   it("renders each suggestion with a folder emoji and two spaces", () => {
