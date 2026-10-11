@@ -4840,29 +4840,33 @@ function renderMarkdownTextCard(view, parent, file, sectionKey, label, initialVa
   });
   const body = card.createDiv({ attr: { style: "padding: 12px; min-height: 40px; position: relative;" } });
   const previewDiv = body.createDiv({ cls: "markdown-preview-view", attr: { style: "padding: 0; min-height: 30px;" } });
-  const renderPreview = () => {
+  const renderPreview = async () => {
     previewDiv.empty();
     const rawText = initialValue || "";
-    try {
-      import_obsidian15.MarkdownRenderer.renderMarkdown(rawText, previewDiv, file.path, view);
-      previewDiv.querySelectorAll("a.internal-link").forEach((a) => {
-        const href = a.getAttribute("data-href") || a.getAttribute("href");
-        if (href) {
-          a.addEventListener("click", (ev) => {
-            ev.preventDefault();
-            ev.stopPropagation();
-            view.app.workspace.openLinkText(href, file.path, false);
-          });
-        }
-      });
-    } catch (e) {
-      previewDiv.setText(rawText);
-    }
     if (!rawText.trim()) {
-      const ph = previewDiv.createDiv({ text: placeholder || "Empty section.", attr: { style: "color: var(--text-faint); font-style: italic; font-size: 0.9em; padding: 4px 0;" } });
+      previewDiv.createDiv({ text: placeholder || "Empty section.", attr: { style: "color: var(--text-faint); font-style: italic; font-size: 0.9em; padding: 4px 0;" } });
+      return;
     }
+    try {
+      await import_obsidian15.MarkdownRenderer.render(view.app, rawText, previewDiv, file.path, view);
+    } catch (error) {
+      console.warn("Cadence: markdown render failed, showing the raw text", error);
+      previewDiv.empty();
+      previewDiv.setText(rawText);
+      return;
+    }
+    previewDiv.querySelectorAll("a.internal-link").forEach((a) => {
+      const href = a.getAttribute("data-href") || a.getAttribute("href");
+      if (href) {
+        a.addEventListener("click", (ev) => {
+          ev.preventDefault();
+          ev.stopPropagation();
+          view.app.workspace.openLinkText(href, file.path, false);
+        });
+      }
+    });
   };
-  renderPreview();
+  void renderPreview();
 }
 function renderProjectTextSection(view, parent, file, sections, def, flashSaved) {
   const initial = (sections[def.key] || "").replace(/^\s+|\s+$/g, "");

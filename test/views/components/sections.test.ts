@@ -54,13 +54,15 @@ describe("_renderMarkdownTextCard", () => {
     expect(app.workspace.openedLinks).toEqual([["Cadence/Projects/Site.md", "", "split"]]);
   });
 
-  it("renders the value as markdown into a preview, with the view as the component", () => {
-    const { view, parent } = setup();
-    const md = vi.spyOn(MarkdownRenderer, "renderMarkdown");
+  it("renders the value as markdown into a preview with MarkdownRenderer.render, the view as the component", () => {
+    const { view, parent, app } = setup();
+    const md = vi.spyOn(MarkdownRenderer, "render");
+    const deprecated = vi.spyOn(MarkdownRenderer, "renderMarkdown");
     const file = new TFile("a.md");
     view._renderMarkdownTextCard(parent, file, "k", "L", "**hi**", "ph");
     const preview = byClass(parent, "markdown-preview-view")[0];
-    expect(md.mock.calls).toEqual([["**hi**", preview, "a.md", view]]);
+    expect(md.mock.calls).toEqual([[app, "**hi**", preview, "a.md", view]]);
+    expect(deprecated).not.toHaveBeenCalled();
     expect(preview.children).toEqual([]);
   });
 
@@ -71,9 +73,9 @@ describe("_renderMarkdownTextCard", () => {
     expect(preview.children.map((c) => c.text)).toEqual([shown]);
   });
 
-  it("binds rendered internal links to open in place, by data-href then href", () => {
+  it("binds rendered internal links to open in place, by data-href then href", async () => {
     const { view, parent, app } = setup();
-    vi.spyOn(MarkdownRenderer, "renderMarkdown").mockImplementation(async (_md, el) => {
+    vi.spyOn(MarkdownRenderer, "render").mockImplementation(async (_app, _md, el) => {
       const target = el as unknown as FakeElement;
       target.createEl("a", { cls: "internal-link", attr: { "data-href": "Jane Doe", href: "x" } });
       target.createEl("a", { cls: "internal-link", attr: { href: "Bob" } });
@@ -81,19 +83,41 @@ describe("_renderMarkdownTextCard", () => {
       target.createEl("a", { cls: "external-link", attr: { href: "https://x" } });
     });
     view._renderMarkdownTextCard(parent, new TFile("n.md"), "k", "L", "text");
+    await flush();
     const links = byClass(parent, "markdown-preview-view")[0].children;
     const events = links.map((a) => a.trigger("click"));
     expect(events.map((e) => [e.defaultPrevented, e.propagationStopped])).toEqual([[true, true], [true, true], [false, false], [false, false]]);
     expect(app.workspace.openedLinks).toEqual([["Jane Doe", "n.md", false], ["Bob", "n.md", false]]);
   });
 
-  it("falls back to the raw text when the renderer throws synchronously", () => {
+  it("falls back to the raw text when the renderer throws synchronously", async () => {
     const { view, parent } = setup();
-    vi.spyOn(MarkdownRenderer, "renderMarkdown").mockImplementation(() => {
+    vi.spyOn(MarkdownRenderer, "render").mockImplementation(() => {
       throw new Error("boom");
     });
     view._renderMarkdownTextCard(parent, new TFile("n.md"), "k", "L", "raw *md*");
+    await flush();
     expect(byClass(parent, "markdown-preview-view")[0].text).toBe("raw *md*");
+  });
+
+  it("falls back to the raw text when the renderer rejects, with no unhandled rejection", async () => {
+    const { view, parent } = setup();
+    const unhandled = vi.fn();
+    process.on("unhandledRejection", unhandled);
+    try {
+      vi.spyOn(MarkdownRenderer, "render").mockImplementation(async (_app, _md, el) => {
+        (el as unknown as FakeElement).createDiv({ text: "partial" });
+        throw new Error("boom");
+      });
+      view._renderMarkdownTextCard(parent, new TFile("n.md"), "k", "L", "raw *md*");
+      await flush();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      const preview = byClass(parent, "markdown-preview-view")[0];
+      expect([preview.text, preview.children]).toEqual(["raw *md*", []]);
+      expect(unhandled).not.toHaveBeenCalled();
+    } finally {
+      process.off("unhandledRejection", unhandled);
+    }
   });
 });
 

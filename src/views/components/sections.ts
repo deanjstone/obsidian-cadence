@@ -121,33 +121,38 @@ export function renderMarkdownTextCard(view: AppViewHost, parent: HTMLElement, f
   // Preview container
   const previewDiv = body.createDiv({ cls: 'markdown-preview-view', attr: { style: 'padding: 0; min-height: 30px;' } });
 
-  // Render the initial markdown preview
-  const renderPreview = () => {
+  /* Render the markdown preview with MarkdownRenderer.render. It is async,
+     so a rejection is awaited and falls back to the raw text, like a
+     synchronous throw (#59). Blank content shows the placeholder. */
+  const renderPreview = async () => {
     previewDiv.empty();
     const rawText = initialValue || '';
-    try {
-      MarkdownRenderer.renderMarkdown(rawText, previewDiv, file.path, view as unknown as Component);
-
-      // Find all standard Obsidian [[...]] internal links and bind open handlers!
-      previewDiv.querySelectorAll('a.internal-link').forEach(a => {
-        const href = a.getAttribute('data-href') || a.getAttribute('href');
-        if (href) {
-          a.addEventListener('click', (ev) => {
-            ev.preventDefault();
-            ev.stopPropagation();
-            view.app.workspace.openLinkText(href, file.path, false);
-          });
-        }
-      });
-    } catch (e) {
-      previewDiv.setText(rawText);
-    }
-    // Add subtle placeholder if empty
     if (!rawText.trim()) {
-      const ph = previewDiv.createDiv({ text: placeholder || 'Empty section.', attr: { style: 'color: var(--text-faint); font-style: italic; font-size: 0.9em; padding: 4px 0;' } });
+      previewDiv.createDiv({ text: placeholder || 'Empty section.', attr: { style: 'color: var(--text-faint); font-style: italic; font-size: 0.9em; padding: 4px 0;' } });
+      return;
     }
+    try {
+      await MarkdownRenderer.render(view.app, rawText, previewDiv, file.path, view as unknown as Component);
+    } catch (error) {
+      console.warn('Cadence: markdown render failed, showing the raw text', error);
+      previewDiv.empty();
+      previewDiv.setText(rawText);
+      return;
+    }
+
+    // Find all standard Obsidian [[...]] internal links and bind open handlers!
+    previewDiv.querySelectorAll('a.internal-link').forEach(a => {
+      const href = a.getAttribute('data-href') || a.getAttribute('href');
+      if (href) {
+        a.addEventListener('click', (ev) => {
+          ev.preventDefault();
+          ev.stopPropagation();
+          view.app.workspace.openLinkText(href, file.path, false);
+        });
+      }
+    });
   };
-  renderPreview();
+  void renderPreview();
 }
 
 export function renderProjectTextSection(view: AppViewHost, parent: HTMLElement, file: TFile, sections: Record<string, string>, def: ProjectTextSectionDef, flashSaved?: FlashSaved): void {
