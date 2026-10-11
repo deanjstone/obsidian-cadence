@@ -9595,25 +9595,32 @@ function reportBar(value, max) {
 function entityTitle(entity, key, def) {
   return entityValue(entity, key, def) || entity.basename;
 }
-function ownerRows(byOwner, size, limit, meta) {
-  return [...byOwner.entries()].sort((a, b) => size(b[1]) - size(a[1])).slice(0, limit).map(([owner, data]) => ({
-    title: owner,
-    titleEntityKey: owner === "(unassigned)" ? null : "contact",
-    meta: meta(data)
+var UNASSIGNED = "(unassigned)";
+function ownerTotals(deals, def) {
+  const byOwner = /* @__PURE__ */ new Map();
+  deals.forEach((e) => {
+    const owners = linkedNames(entityValue(e, "owner", def));
+    (owners.length ? owners : [UNASSIGNED]).forEach((owner) => {
+      const key = owner === UNASSIGNED ? "" : owner.toLowerCase();
+      const total = byOwner.get(key) || { owner, count: 0, value: 0 };
+      total.count++;
+      total.value += dealValue(e, def);
+      byOwner.set(key, total);
+    });
+  });
+  return [...byOwner.values()];
+}
+function ownerRows(totals, limit, meta) {
+  return [...totals].sort((a, b) => b.value - a.value).slice(0, limit).map((total) => ({
+    title: total.owner,
+    titleEntityKey: total.owner === UNASSIGNED ? null : "contact",
+    meta: meta(total)
   }));
 }
 function pipelineReport(deals, def, stages, now) {
   const { open, won, lost, openValue, wonValue, lostValue, winRate } = crmSummary(deals, def);
   const confidence = stageConfidence(stages);
   const weighted = open.reduce((s, e) => s + dealValue(e, def) * confidence(entityValue(e, "stage", def)), 0);
-  const byOwner = /* @__PURE__ */ new Map();
-  open.forEach((e) => {
-    const owner = String(entityValue(e, "owner", def) || "(unassigned)");
-    if (!byOwner.has(owner)) byOwner.set(owner, { count: 0, value: 0 });
-    const o = byOwner.get(owner);
-    o.count++;
-    o.value += dealValue(e, def);
-  });
   const cohorts = [
     { label: "0\u20137 DAYS", cutoff: 7, count: 0, value: 0, accent: "emerald" },
     { label: "8\u201330 DAYS", cutoff: 30, count: 0, value: 0, accent: "mint" },
@@ -9652,8 +9659,7 @@ function pipelineReport(deals, def, stages, now) {
     ],
     byStage: dealsByStage(deals, def, stages).map(({ stage, items }) => ({ stage, count: items.length, value: sumValues(items, def) })),
     owners: ownerRows(
-      byOwner,
-      (o) => o.value,
+      ownerTotals(open, def),
       8,
       (o) => `${o.count} deal${o.count === 1 ? "" : "s"} \xB7 ${fmtValue(o.value, "currency")}`
     ),
@@ -9687,14 +9693,6 @@ function salesReport(deals, def, now) {
     }
   });
   const maxRev = Math.max(1, ...months.map((m) => m.revenue));
-  const byOwner = /* @__PURE__ */ new Map();
-  won.forEach((e) => {
-    const owner = String(entityValue(e, "owner", def) || "(unassigned)");
-    if (!byOwner.has(owner)) byOwner.set(owner, { count: 0, revenue: 0 });
-    const o = byOwner.get(owner);
-    o.count++;
-    o.revenue += dealValue(e, def);
-  });
   return {
     won,
     lost,
@@ -9719,7 +9717,7 @@ function salesReport(deals, def, now) {
       ],
       file: e.file
     })),
-    owners: ownerRows(byOwner, (o) => o.revenue, 6, (o) => `${o.count} won \xB7 ${fmtValue(o.revenue, "currency")}`)
+    owners: ownerRows(ownerTotals(won, def), 6, (o) => `${o.count} won \xB7 ${fmtValue(o.value, "currency")}`)
   };
 }
 var TIER_ACCENT2 = { "Gold": "warn", "Silver": "sky", "Bronze": "rose", "Standard": "mint" };

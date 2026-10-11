@@ -200,6 +200,18 @@ describe("renderReportSales: top wins and owners", () => {
     expect(empty).toBe("No revenue attributed to owners yet.");
   });
 
+  it("ranks an owner once whatever the case or link form, and credits each owner of a shared win", async () => {
+    const files = [
+      deal("A", { stage: "Won", value: 10, owner: ["[[Jane]]"] }), deal("B", { stage: "Won", value: 20, owner: "jane" }),
+      deal("C", { stage: "Won", value: 5, owner: ["Jane", "[[Bob|Robert]]"] }),
+    ];
+    const { view, root, sections } = setup(files);
+    await view.renderReportSales(root);
+    expect(section(sections, "OWNER LEADERBOARD")[2].map((r: Any) => [r.title, r.meta])).toEqual([
+      ["Jane", `3 won · ${cur(35)}`], ["Bob", `1 won · ${cur(5)}`],
+    ]);
+  });
+
   it("caps the leaderboard at 6 owners", async () => {
     const files = Array.from({ length: 8 }, (_, i) => deal(`P${i}`, { stage: "Won", value: i, owner: `O${i}` }));
     const { view, root, sections } = setup(files);

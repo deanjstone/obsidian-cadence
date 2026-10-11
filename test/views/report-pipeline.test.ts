@@ -155,25 +155,27 @@ describe("renderReportPipeline: by stage", () => {
 });
 
 describe("renderReportPipeline: by owner", () => {
-  it("groups open deals by owner string, sorts by value and links owners to contacts", async () => {
+  it("groups open deals by owner, a wikilink and the plain name as one owner, sorts by value and links owners to contacts", async () => {
     const { view, root, sections } = setup(DEALS);
     await view.renderReportPipeline(root);
     const [parent, title, rows, empty] = section(sections, "OPEN PIPELINE BY OWNER");
     expect(parent).toBe(root.children[4].children[0]);
-    expect(title).toBe("OPEN PIPELINE BY OWNER · top 4");
+    expect(title).toBe("OPEN PIPELINE BY OWNER · top 3");
     expect(rows).toEqual([
       { title: "Bob", titleEntityKey: "contact", meta: `1 deal · ${cur(8000)}` },
       { title: "(unassigned)", titleEntityKey: null, meta: `2 deals · ${cur(4000)}` },
-      { title: "Jane", titleEntityKey: "contact", meta: `1 deal · ${cur(2000)}` },
-      { title: "[[Jane]]", titleEntityKey: "contact", meta: `1 deal · ${cur(1000)}` },
+      { title: "Jane", titleEntityKey: "contact", meta: `2 deals · ${cur(3000)}` },
     ]);
     expect(empty).toBe("No open deals to attribute.");
   });
 
-  it("QUIRK: an owner list is joined into one owner string", async () => {
-    const { view, root, sections } = setup([deal("X", { stage: "Lead", value: 1, owner: ["Ann", "Bo"] })]);
+  it("counts a deal with an owner list for each owner, in any case and link form", async () => {
+    const files = [deal("X", { stage: "Lead", value: 1, owner: ["[[Ann]]", "Bo"] }), deal("Y", { stage: "Lead", value: 2, owner: "ann" })];
+    const { view, root, sections } = setup(files);
     await view.renderReportPipeline(root);
-    expect(section(sections, "OPEN PIPELINE BY OWNER")[2].map((r: Any) => r.title)).toEqual(["Ann,Bo"]);
+    expect(section(sections, "OPEN PIPELINE BY OWNER")[2].map((r: Any) => [r.title, r.meta])).toEqual([
+      ["Ann", `2 deals · ${cur(3)}`], ["Bo", `1 deal · ${cur(1)}`],
+    ]);
   });
 
   it("keeps the top 8 owners and says so in the title", async () => {
@@ -248,6 +250,6 @@ describe("renderReportPipeline: aging and stale", () => {
   it("calls the owner card, then the stale card", async () => {
     const { view, root, sections } = setup(DEALS);
     await view.renderReportPipeline(root);
-    expect(sections.mock.calls.map((c: Any[]) => c[1])).toEqual(["OPEN PIPELINE BY OWNER · top 4", "STALE · 30+ DAYS NO EDITS"]);
+    expect(sections.mock.calls.map((c: Any[]) => c[1])).toEqual(["OPEN PIPELINE BY OWNER · top 3", "STALE · 30+ DAYS NO EDITS"]);
   });
 });

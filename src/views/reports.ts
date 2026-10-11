@@ -3,7 +3,7 @@ import { ENTITIES } from '../constants/entities';
 import type { Entity, EntityDef } from '../types/entities';
 import type { DailyNoteSettings } from '../types/settings';
 import { addDays, dailyNotePath, parseYmd, startOfDay, startOfWeek, ymd } from '../utils/dates';
-import { crmSummary, dealClosedAt, dealOutcome, dealValue, dealsByStage, partnerResolver, stageConfidence, sumValues } from '../utils/deals';
+import { crmSummary, dealClosedAt, dealOutcome, dealValue, dealsByStage, linkedNames, partnerResolver, stageConfidence, sumValues } from '../utils/deals';
 import { entityValue, getDealStages, listEntities } from '../utils/entities';
 import { fmtValue } from '../utils/format';
 import { parseSections } from '../utils/parsing';
@@ -51,15 +51,41 @@ function entityTitle(entity: Entity, key: string, def: EntityDef): string {
   return (entityValue(entity, key, def) as string) || entity.basename;
 }
 
-/* Owner rows: `(unassigned)` is plain text, any other owner links to contacts. */
-function ownerRows<T>(byOwner: Map<string, T>, size: (data: T) => number, limit: number, meta: (data: T) => string): DashCardRow[] {
-  return [...byOwner.entries()]
-    .sort((a, b) => size(b[1]) - size(a[1]))
+interface OwnerTotal {
+  owner: string;
+  count: number;
+  value: number;
+}
+
+const UNASSIGNED = '(unassigned)';
+
+/* Deal count and value per owner, in first-seen order. An owner is each
+   name the `owner` field links (linkedNames), so a wikilink, a list item and
+   another case are one owner, titled as first written, and a deal with two
+   owners counts for each. A deal with none is `(unassigned)`. */
+function ownerTotals(deals: Entity[], def: EntityDef): OwnerTotal[] {
+  const byOwner = new Map<string, OwnerTotal>();
+  deals.forEach((e) => {
+    const owners = linkedNames(entityValue(e, 'owner', def));
+    (owners.length ? owners : [UNASSIGNED]).forEach((owner) => {
+      const key = owner === UNASSIGNED ? '' : owner.toLowerCase();
+      const total = byOwner.get(key) || { owner, count: 0, value: 0 };
+      total.count++; total.value += dealValue(e, def);
+      byOwner.set(key, total);
+    });
+  });
+  return [...byOwner.values()];
+}
+
+/* Owner rows, largest value first: `(unassigned)` is plain text, any other owner links to contacts. */
+function ownerRows(totals: OwnerTotal[], limit: number, meta: (total: OwnerTotal) => string): DashCardRow[] {
+  return [...totals]
+    .sort((a, b) => b.value - a.value)
     .slice(0, limit)
-    .map(([owner, data]) => ({
-      title: owner,
-      titleEntityKey: owner === '(unassigned)' ? null : 'contact',
-      meta: meta(data),
+    .map((total) => ({
+      title: total.owner,
+      titleEntityKey: total.owner === UNASSIGNED ? null : 'contact',
+      meta: meta(total),
     }));
 }
 
@@ -77,7 +103,7 @@ export interface PipelineReport {
   /** One row per configured stage, then one per stage off the list and
       `(no stage)` (dealsByStage), so every deal is in one row. */
   byStage: Array<{ stage: string; count: number; value: number }>;
-  /** The top 8 owners of open deals by value. */
+  /** The top 8 owners of open deals by value (ownerTotals). */
   owners: DashCardRow[];
   /** Open deals by days since the file's last edit (0 when it has no stat):
       up to 7, 30, 90, then older. `value` shows the count and `total` is their value. */
@@ -90,14 +116,6 @@ export function pipelineReport(deals: Entity[], def: EntityDef, stages: string[]
   const { open, won, lost, openValue, wonValue, lostValue, winRate } = crmSummary(deals, def);
   const confidence = stageConfidence(stages);
   const weighted = open.reduce((s, e) => s + dealValue(e, def) * confidence(entityValue(e, 'stage', def)), 0);
-
-  const byOwner = new Map<string, { count: number; value: number }>();
-  open.forEach((e) => {
-    const owner = String(entityValue(e, 'owner', def) || '(unassigned)');
-    if (!byOwner.has(owner)) byOwner.set(owner, { count: 0, value: 0 });
-    const o = byOwner.get(owner)!;
-    o.count++; o.value += dealValue(e, def);
-  });
 
   const cohorts = [
     { label: '0–7 DAYS', cutoff: 7, count: 0, value: 0, accent: 'emerald' },
@@ -134,7 +152,7 @@ export function pipelineReport(deals: Entity[], def: EntityDef, stages: string[]
       { label: 'WIN RATE', value: `${winRate}%`, sub: `${won.length}/${won.length + lost.length} closed`, accent: 'warn' },
     ],
     byStage: dealsByStage(deals, def, stages).map(({ stage, items }) => ({ stage, count: items.length, value: sumValues(items, def) })),
-    owners: ownerRows(byOwner, (o) => o.value, 8,
+    owners: ownerRows(ownerTotals(open, def), 8,
       (o) => `${o.count} deal${o.count === 1 ? '' : 's'} · ${fmtValue(o.value, 'currency')}`),
     cohorts: cohorts.map(({ label, count, value, accent }) => ({
       label, value: String(count), accent, sub: fmtValue(value, 'currency'), count, total: value,
@@ -156,7 +174,7 @@ export interface SalesReport {
   bars: ReportBar[];
   /** The 6 largest wins. */
   topWins: DashCardRow[];
-  /** The top 6 owners by won revenue. */
+  /** The top 6 owners by won revenue (ownerTotals). */
   owners: DashCardRow[];
 }
 
@@ -177,14 +195,6 @@ export function salesReport(deals: Entity[], def: EntityDef, now: Date): SalesRe
     if (idx >= 0) { months[idx].revenue += dealValue(e, def); months[idx].count++; }
   });
   const maxRev = Math.max(1, ...months.map((m) => m.revenue));
-
-  const byOwner = new Map<string, { count: number; revenue: number }>();
-  won.forEach((e) => {
-    const owner = String(entityValue(e, 'owner', def) || '(unassigned)');
-    if (!byOwner.has(owner)) byOwner.set(owner, { count: 0, revenue: 0 });
-    const o = byOwner.get(owner)!;
-    o.count++; o.revenue += dealValue(e, def);
-  });
 
   return {
     won, lost, captureRate,
@@ -211,7 +221,7 @@ export function salesReport(deals: Entity[], def: EntityDef, now: Date): SalesRe
         ],
         file: e.file,
       })),
-    owners: ownerRows(byOwner, (o) => o.revenue, 6, (o) => `${o.count} won · ${fmtValue(o.revenue, 'currency')}`),
+    owners: ownerRows(ownerTotals(won, def), 6, (o) => `${o.count} won · ${fmtValue(o.value, 'currency')}`),
   };
 }
 
