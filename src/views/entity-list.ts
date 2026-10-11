@@ -15,7 +15,7 @@ import {
 export interface EntityListOptions {
   title?: string;
   filter?: (entity: Entity) => boolean;
-  /** Columns shown first; every other field is still appended. */
+  /** The columns shown, in order; no other field is appended. */
   columns?: string[];
 }
 
@@ -75,11 +75,12 @@ export function filterOptions(entities: Entity[], def: EntityDef): FilterOption[
   });
 }
 
-/** The table columns: `columns` (or def.columns) in order, then every other
-    field. Unknown keys are dropped. */
+/** The table columns: `columns` alone, in order, when given (#57); else
+    def.columns in order, then every other field. Unknown keys are dropped. */
 export function listColumns(def: EntityDef, columns?: string[]): EntityField[] {
   const baseCols = columns || def.columns;
   const cols = baseCols.map((k) => def.fields.find((f) => f.key === k)).filter(Boolean) as EntityField[];
+  if (columns) return cols;
   // Dynamically append any custom/extra fields not present in baseCols
   def.fields.forEach((f) => {
     if (!baseCols.includes(f.key) && !cols.some(c => c.key === f.key)) {
@@ -375,7 +376,7 @@ export async function renderEntityList(
   }
 
   const query: ListQuery = { search: '', filters: {} };
-  let sort: ListSort = { field: def.columns[0] || '', asc: true };
+  let sort: ListSort = { field: (opts.columns || def.columns)[0] || '', asc: true };
 
   // Dynamic Filters based on fields
   filterOptions(filtered, def).forEach(({ field: fdef, values }) => {
@@ -424,8 +425,8 @@ export async function renderEntityList(
     cardsWrap.style.display = 'none';
     cardsWrap.empty();
 
-    // 2. Filter, 3. Sort
-    const displayed = sortEntities(filterEntities(filtered, def, cols, query), def, sort);
+    // 2. Filter (search covers every field, shown or not), 3. Sort
+    const displayed = sortEntities(filterEntities(filtered, def, def.fields, query), def, sort);
 
     // 4. Render Layout
     if (layout === 'table') {

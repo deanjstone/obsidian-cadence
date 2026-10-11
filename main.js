@@ -6261,6 +6261,7 @@ function filterOptions(entities, def) {
 function listColumns(def, columns) {
   const baseCols = columns || def.columns;
   const cols = baseCols.map((k) => def.fields.find((f) => f.key === k)).filter(Boolean);
+  if (columns) return cols;
   def.fields.forEach((f) => {
     if (!baseCols.includes(f.key) && !cols.some((c) => c.key === f.key)) {
       cols.push(f);
@@ -6477,7 +6478,7 @@ async function renderEntityList(view, root, entityKey, opts = {}) {
     }
   }
   const query = { search: "", filters: {} };
-  let sort = { field: def.columns[0] || "", asc: true };
+  let sort = { field: (opts.columns || def.columns)[0] || "", asc: true };
   filterOptions(filtered, def).forEach(({ field: fdef, values }) => {
     const k = fdef.key;
     const filterWrap = controls.createDiv({ cls: "cad-filter-select-wrap" });
@@ -6515,7 +6516,7 @@ async function renderEntityList(view, root, entityKey, opts = {}) {
     kanbanWrap.empty();
     cardsWrap.style.display = "none";
     cardsWrap.empty();
-    const displayed = sortEntities(filterEntities(filtered, def, cols, query), def, sort);
+    const displayed = sortEntities(filterEntities(filtered, def, def.fields, query), def, sort);
     if (layout === "table") {
       tableWrap.style.display = "block";
       const table = tableWrap.createEl("table", { cls: "cad-table" });

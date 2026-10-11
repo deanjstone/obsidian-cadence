@@ -57,4 +57,12 @@ describe("renderTeam", () => {
     await view.renderTeam(root);
     expect(root.children[0].children[0].children.map((c) => c.text)).toEqual(["CADENCE", "Team", "1 contact in Cadence/Contacts"]);
   });
+
+  it("shows only the name, role, email and company columns", async () => {
+    const { view, root, list } = setup([{ path: "Cadence/Contacts/Ann.md", frontmatter: { role: "Admin", phone: ["555"], tags: ["vip"] } }]);
+    list.mockRestore();
+    await view.renderTeam(root);
+    const heads = root.children[2].querySelectorAll("th").map((th) => th.children[0].text);
+    expect(heads).toEqual(["Name ", "Role ", "Email ", "Company "]);
+  });
 });

@@ -271,10 +271,18 @@ describe("renderEntityList: table", () => {
     expect(heads(root).map((h) => h[0])).toEqual(["Name ", "Company ", "Email ", "Phone ", "Role ", "Last contact ", "Tags "]);
   });
 
-  it("QUIRK: opts.columns only reorders; the remaining fields are still appended", async () => {
+  it("opts.columns selects the columns as well as ordering them; no other field is appended", async () => {
     const { view, root } = setup(CONTACTS);
     await view.renderEntityList(root, "contact", { columns: ["name", "role", "email", "company"] });
-    expect(heads(root).map((h) => h[0])).toEqual(["Name ", "Role ", "Email ", "Company ", "Phone ", "Last contact ", "Tags "]);
+    expect(heads(root).map((h) => h[0])).toEqual(["Name ", "Role ", "Email ", "Company "]);
+    expect(rows(root)[0].children.length).toBe(4);
+  });
+
+  it("search still matches a field opts.columns leaves out", async () => {
+    const { view, root } = setup(CONTACTS);
+    await view.renderEntityList(root, "contact", { columns: ["name", "role", "email", "company"] });
+    type(search(root), "vip");
+    expect(names(root)).toEqual(["Jane Doe"]);
   });
 
   it("sorts by the first column ascending, marking it ▲ and the rest ↕", async () => {

@@ -78,12 +78,12 @@ describe("listColumns", () => {
     expect(keys(listColumns(contact))).toEqual(["name", "company", "email", "phone", "role", "lastContact", "tags"]);
   });
 
-  it("puts the given columns first, drops unknown keys, and still appends the rest", () => {
-    expect(keys(listColumns(contact, ["role", "nope", "name"]))).toEqual(["role", "name", "email", "phone", "company", "lastContact", "tags"]);
+  it("shows only the given columns, in order, dropping unknown keys", () => {
+    expect(keys(listColumns(contact, ["role", "nope", "name"]))).toEqual(["role", "name"]);
   });
 
   it("keeps a repeated column", () => {
-    expect(keys(listColumns(deal, ["title", "title"]))).toEqual(["title", "title", "stage", "value", "company", "contact", "owner", "closeBy"]);
+    expect(keys(listColumns(deal, ["title", "title"]))).toEqual(["title", "title"]);
   });
 });
 
