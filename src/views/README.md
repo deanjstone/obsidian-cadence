@@ -40,7 +40,7 @@ Members that are Obsidian's `View` contract and have no logic stay on the class:
 | File | Holds |
 |---|---|
 | `host.ts` | `AppViewHost` (the view state and every member a moved surface uses), `AppViewPlugin` and `PromptOptions` |
-| `nav.ts` | `migrateModeId`, `resolveSurface`, `visibleNavGroups`, `modeUsesEntityFolder`, `routeFor` (pure), plus `toggleMobileNav`, `toggleCadenceDark`, `setMode` and `toggleGroup` |
+| `nav.ts` | `migrateModeId`, `customPageMode`, `resolveSurface`, `visibleNavGroups`, `modeUsesEntityFolder`, `routeFor` (pure), plus `toggleMobileNav`, `toggleCadenceDark`, `setMode` and `toggleGroup` |
 | `app-view.ts` | the `CadenceAppView` class, plus `initAppViewState`, `onOpenAppView`, `renderAppView`, the entity-detail open/close functions, `renderComingSoon`, `renderPageHeader`, `openSettingsTab`, `openPrompt`, `createEntityFromPrompt` and the pure `planEntityLinks` |
 | `components/charts.ts` | `drawChart`, `drawChartEmpty`, `drawDonutChart`, `drawBarChart`, `drawKpiGrid`, `drawSimpleList`, plus the pure `chartData`, `sectionChartData`, `donutGeometry`, `barRows`, `kpiCards` and the dashboard widget helpers `dashboardWidgets`, `removeWidget`, `widgetTitle` and `WIDGET_STYLE_OPTIONS` |
 | `components/cards.ts` | `dashCardSection`, plus the `DashCardRow`, `StatCard` and `MiniStat` types |
@@ -72,6 +72,8 @@ Members that are Obsidian's `View` contract and have no logic stay on the class:
 | `../plugin/contact-project-sync.ts` | `syncContactProjectRelationships` and `handleProjectDeletion`, plus the pure `extractEntitiesFromValue`, `isContactField`, `isProjectField`, `noteLinks`, `collectValidLinks`, `autoCreateName`, `projectLinkValue`, `writeProjectLinks`, `addProjectLink`, `removeProjectLink` and `contactProjectsPlan` |
 | `../constants/settings.ts` | `DEFAULT_SETTINGS` and `CURRENCY_OPTIONS` (`setting-tab.ts` re-exports it) |
 | `../main.ts` | the `CadencePlugin` class (`onload`, `onunload`, `openApp`, `openQuickCapture`, `refreshOpenViews` and the delegates) and the `QuickCapturePrefill` type. esbuild bundles it into the root `main.js` |
+
+**A mode is a built surface id, an old id or a custom page's mode, and nothing else** ([#53](https://github.com/deanjstone/obsidian-cadence/issues/53)). Lookups are own-property only (`SURFACE_BY_ID` has no prototype, the route table is a `Map`), so an Object.prototype member name is never a surface. A custom page routes under its id, or under `custom.<id>` when the id is taken by a built surface, an old id or an Object.prototype name (`customPageMode`), so both stay reachable. `render()` runs the mode through `migrateModeId` first, so a stale mode (a deleted page, a hand-edited id) renders Home, labelled Home.
 
 Use one file per major surface (`home.ts`, `today.ts`, `planner.ts`, `inbox.ts`, `entity-list.ts`, …), as in the map's module layout. Named exports only.
 

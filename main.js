@@ -110,7 +110,10 @@ var NAV_GROUPS = [
   }
 ];
 var ALL_SURFACES = NAV_GROUPS.flatMap((g) => g.items);
-var SURFACE_BY_ID = Object.fromEntries(ALL_SURFACES.map((s) => [s.id, s]));
+var SURFACE_BY_ID = Object.assign(
+  /* @__PURE__ */ Object.create(null),
+  Object.fromEntries(ALL_SURFACES.map((s) => [s.id, s]))
+);
 var BUILT_SURFACES = /* @__PURE__ */ new Set([
   "home",
   "planner.inbox",
@@ -7718,19 +7721,29 @@ function renderInboxRow(view, parent, r, bucket) {
 }
 
 // src/views/nav.ts
+var LEGACY_MODE_IDS = { today: "planner.today", planner: "planner.calendar" };
+var ownKey = (table, id) => Object.prototype.hasOwnProperty.call(table, id);
+function customPageMode(page) {
+  const id = page.id;
+  const taken = !!SURFACE_BY_ID[id] || ownKey(LEGACY_MODE_IDS, id) || id in Object.prototype;
+  return taken ? `custom.${id}` : id;
+}
+function customPageFor(mode, customPages) {
+  return customPages.find((p) => customPageMode(p) === mode);
+}
 function migrateModeId(id, settings) {
-  if (id === "today") return "planner.today";
-  if (id === "planner") return "planner.calendar";
+  if (ownKey(LEGACY_MODE_IDS, id)) return LEGACY_MODE_IDS[id];
+  if (SURFACE_BY_ID[id]) return id;
   const customPages = settings.customPages || [];
-  if (customPages.some((p) => p.id === id)) return id;
-  return SURFACE_BY_ID[id] ? id : "home";
+  if (customPageFor(id, customPages)) return id;
+  const byId = customPages.find((p) => p.id === id);
+  return byId ? customPageMode(byId) : "home";
 }
 function resolveSurface(id, settings) {
-  const customPages = settings.customPages || [];
-  const custom = customPages.find((p) => p.id === id);
+  const custom = customPageFor(id, settings.customPages || []);
   if (custom) {
     return {
-      id: custom.id,
+      id: customPageMode(custom),
       label: custom.label,
       icon: custom.icon || "file-text",
       desc: `Custom page displaying ${custom.entityKey} entity.`
@@ -7746,7 +7759,7 @@ function visibleNavGroups(settings) {
     const g = groups.find((group) => group.id === p.sectionId);
     if (g) {
       g.items.push({
-        id: p.id,
+        id: customPageMode(p),
         label: p.label,
         icon: p.icon || "file-text",
         module: p.module || p.sectionId,
@@ -7767,7 +7780,7 @@ function modeUsesEntityFolder(path) {
 }
 var surface = (method) => ({ kind: "surface", method });
 var entityList = (entityKey) => ({ kind: "entityList", entityKey });
-var SURFACE_ROUTES = {
+var SURFACE_ROUTES = new Map(Object.entries({
   "home": surface("renderHome"),
   "planner.inbox": surface("renderInbox"),
   "planner.today": surface("renderTodayPane"),
@@ -7795,12 +7808,11 @@ var SURFACE_ROUTES = {
   "team": surface("renderTeam"),
   "templates": surface("renderTemplatesDashboard"),
   "settings": surface("openSettingsTab")
-};
+}));
 function routeFor(mode, customPages) {
-  if (SURFACE_ROUTES[mode]) {
-    return Object.prototype.hasOwnProperty.call(SURFACE_ROUTES, mode) ? SURFACE_ROUTES[mode] : { kind: "inherited", name: mode };
-  }
-  const custom = customPages.find((p) => p.id === mode);
+  const built = SURFACE_ROUTES.get(mode);
+  if (built) return built;
+  const custom = customPageFor(mode, customPages);
   if (custom) return entityList(custom.entityKey);
   return { kind: "comingSoon" };
 }
@@ -11148,7 +11160,8 @@ async function renderAppView(view) {
     root.empty();
     root.addClass("cadence-app");
     root.toggleClass("cad-dark", !!view.plugin.settings.cadenceAppDark);
-    const active = view._resolveSurface(view.mode) || SURFACE_BY_ID["planner.today"];
+    view.mode = view._migrateModeId(view.mode);
+    const active = view._resolveSurface(view.mode);
     const topbar = root.createDiv({ cls: "cad-app-topbar" });
     const burger = topbar.createEl("button", { cls: "cad-mobile-burger" });
     try {
@@ -11216,7 +11229,7 @@ async function renderAppView(view) {
         });
       }
     });
-    const content = body.createDiv({ cls: "cad-app-content" });
+    let content = body.createDiv({ cls: "cad-app-content" });
     if (view.detailFile && view.detailEntityKey) {
       const exists = view.app.vault.getAbstractFileByPath(view.detailFile.path);
       if (!exists) {
@@ -11235,6 +11248,8 @@ async function renderAppView(view) {
           console.error("Cadence: Failed to render detail view", e);
           view.detailFile = null;
           view.detailEntityKey = null;
+          content.remove();
+          content = body.createDiv({ cls: "cad-app-content" });
         }
       }
     }
@@ -11243,8 +11258,6 @@ async function renderAppView(view) {
       await view[route.method](content);
     } else if (route.kind === "entityList") {
       await view.renderEntityList(content, route.entityKey);
-    } else if (route.kind === "inherited") {
-      await {}[route.name]();
     } else {
       view.renderComingSoon(content, active);
     }

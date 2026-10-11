@@ -7,20 +7,38 @@ import type { AppViewHost } from './host';
    and the nav toggles. The pure functions read settings or plain data only;
    the toggles act on the view. */
 
+/* Mode ids from older versions. */
+const LEGACY_MODE_IDS: Record<string, string> = { today: 'planner.today', planner: 'planner.calendar' };
+
+const ownKey = (table: object, id: string): boolean => Object.prototype.hasOwnProperty.call(table, id);
+
+/* The mode a custom page is routed under: its id, unless that id is taken by
+   a built surface, an old mode id or an Object.prototype member name, when it
+   is `custom.<id>`. Both the page and what owns the id stay reachable. */
+export function customPageMode(page: CustomPage): string {
+  const id = page.id;
+  const taken = !!SURFACE_BY_ID[id] || ownKey(LEGACY_MODE_IDS, id) || id in Object.prototype;
+  return taken ? `custom.${id}` : id;
+}
+
+function customPageFor(mode: string, customPages: CustomPage[]): CustomPage | undefined {
+  return customPages.find(p => customPageMode(p) === mode);
+}
+
 export function migrateModeId(id: string, settings: Partial<AppViewSettings>): string {
-  if (id === 'today') return 'planner.today';
-  if (id === 'planner') return 'planner.calendar';
+  if (ownKey(LEGACY_MODE_IDS, id)) return LEGACY_MODE_IDS[id];
+  if (SURFACE_BY_ID[id]) return id;
   const customPages = settings.customPages || [];
-  if (customPages.some(p => p.id === id)) return id;
-  return SURFACE_BY_ID[id] ? id : 'home';
+  if (customPageFor(id, customPages)) return id;
+  const byId = customPages.find(p => p.id === id);
+  return byId ? customPageMode(byId) : 'home';
 }
 
 export function resolveSurface(id: string, settings: Partial<AppViewSettings>): NavSurface {
-  const customPages = settings.customPages || [];
-  const custom = customPages.find(p => p.id === id);
+  const custom = customPageFor(id, settings.customPages || []);
   if (custom) {
     return {
-      id: custom.id,
+      id: customPageMode(custom),
       label: custom.label,
       icon: custom.icon || 'file-text',
       desc: `Custom page displaying ${custom.entityKey} entity.`
@@ -39,7 +57,7 @@ export function visibleNavGroups(settings: Partial<AppViewSettings>): NavGroup[]
     const g = groups.find((group) => group.id === p.sectionId);
     if (g) {
       g.items.push({
-        id: p.id,
+        id: customPageMode(p),
         label: p.label,
         icon: p.icon || 'file-text',
         module: p.module || p.sectionId,
@@ -72,20 +90,16 @@ export type SurfaceMethod =
   | 'renderReportPartners' | 'renderReportActivity' | 'renderReportGraph' | 'renderProductivity'
   | 'renderTeam' | 'renderTemplatesDashboard' | 'openSettingsTab';
 
-/* What render() shows for a mode. `inherited` keeps an original quirk: the
-   route table was a plain object, so a mode named after an Object.prototype
-   member (only reachable through a hand-edited custom page id) "routed" to
-   that member. */
+/* What render() shows for a mode. */
 export type SurfaceRoute =
   | { kind: 'surface'; method: SurfaceMethod }
   | { kind: 'entityList'; entityKey: string }
-  | { kind: 'comingSoon' }
-  | { kind: 'inherited'; name: string };
+  | { kind: 'comingSoon' };
 
 const surface = (method: SurfaceMethod): SurfaceRoute => ({ kind: 'surface', method });
 const entityList = (entityKey: string): SurfaceRoute => ({ kind: 'entityList', entityKey });
 
-const SURFACE_ROUTES: Record<string, SurfaceRoute> = {
+const SURFACE_ROUTES = new Map<string, SurfaceRoute>(Object.entries({
   'home': surface('renderHome'),
   'planner.inbox': surface('renderInbox'),
   'planner.today': surface('renderTodayPane'),
@@ -113,17 +127,15 @@ const SURFACE_ROUTES: Record<string, SurfaceRoute> = {
   'team': surface('renderTeam'),
   'templates': surface('renderTemplatesDashboard'),
   'settings': surface('openSettingsTab'),
-};
+}));
 
-/* render()'s route table. A built surface wins over a custom page with the
-   same id; anything else falls through to the coming-soon card. */
+/* render()'s route table. A built surface owns its id; a custom page whose
+   id is taken routes under `custom.<id>` (customPageMode). Anything else
+   falls through to the coming-soon card. */
 export function routeFor(mode: string, customPages: CustomPage[]): SurfaceRoute {
-  if (SURFACE_ROUTES[mode]) {
-    return Object.prototype.hasOwnProperty.call(SURFACE_ROUTES, mode)
-      ? SURFACE_ROUTES[mode]
-      : { kind: 'inherited', name: mode };
-  }
-  const custom = customPages.find(p => p.id === mode);
+  const built = SURFACE_ROUTES.get(mode);
+  if (built) return built;
+  const custom = customPageFor(mode, customPages);
   if (custom) return entityList(custom.entityKey);
   return { kind: 'comingSoon' };
 }
