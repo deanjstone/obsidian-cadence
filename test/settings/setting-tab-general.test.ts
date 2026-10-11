@@ -105,10 +105,10 @@ describe("Modules", () => {
     expect(component<ToggleComponent>(settingByName(container, "PRM")).value).toBe(true);
   });
 
-  it("QUIRK: with no modules object, drawing the page creates one with PRM on (the defaults have it off)", () => {
+  it("with no modules object, drawing the page creates one from the defaults, PRM off", () => {
     const { container, plugin } = shown({ settings: { modules: undefined } });
-    expect(plugin.settings.modules).toEqual({ crm: true, prm: true, planner: true, projects: true });
-    expect(component<ToggleComponent>(settingByName(container, "PRM")).value).toBe(true);
+    expect(plugin.settings.modules).toEqual({ crm: true, prm: false, planner: true, projects: true });
+    expect(component<ToggleComponent>(settingByName(container, "PRM")).value).toBe(false);
     expect(plugin.saved).toEqual([]);
   });
 
