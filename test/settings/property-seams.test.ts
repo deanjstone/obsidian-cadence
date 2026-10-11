@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from "vitest";
 import { createMockApp, SuggestModal, TFile } from "../mocks/obsidian";
 import {
   applyPropertyEdit,
-  copyPropertyShape,
   entityPickerLabel,
   entityPickerOptions,
   fieldKeySuggestions,
@@ -20,15 +19,15 @@ import {
   parseEnumOptions,
   sanitizeFieldKey,
   snapshotCustomEntities,
+  sourceOptions,
   sourceState,
-  syncSharedProperties,
   vaultFolderPaths,
 } from "../../src/settings/entity-properties";
 import type { EntityDef, EntityField } from "../../src/types/entities";
 import type { SettingTabSettings } from "../../src/types/settings";
 
 /* Direct tests for the property-editor seams over a plain registry: locks,
-   syncing, the key/type/label/options/source/lock/remove/add/move edits
+   the snapshot, the key/type/label/options/source/lock/remove/add/move edits
    and the migrations they return, the cell helpers, and the named folder
    picker. */
 
@@ -86,20 +85,21 @@ describe("locks", () => {
     expect(isPermanentlyLocked("vendor", { key: "status", label: "" })).toBe(false);
   });
 
-  it("defaults the locked flag in place: type and core fields locked, custom fields not; an explicit flag wins", () => {
-    const fields: EntityField[] = [{ key: "type", label: "" }, { key: "x", label: "" }, { key: "y", label: "", locked: true }];
-    expect(fields.map((f) => isFieldLocked("vendor", f))).toEqual([true, false, true]);
-    expect(fields.map((f) => f.locked)).toEqual([true, false, true]);
+  it("defaults the lock without writing a flag: type and core fields locked, custom fields not; an explicit flag wins", () => {
+    const fields: EntityField[] = [{ key: "type", label: "" }, { key: "x", label: "" }, { key: "y", label: "", locked: true }, { key: "type", label: "", locked: false }];
+    expect(fields.map((f) => isFieldLocked("vendor", f))).toEqual([true, false, true, false]);
+    expect(fields.map((f) => f.locked)).toEqual([undefined, undefined, true, false]);
     const core: EntityField = { key: "email", label: "" };
     expect(isFieldLocked("contact", core)).toBe(true);
-    expect(core.locked).toBe(true);
+    expect(isFieldLocked("contact", { key: "email", label: "", locked: false })).toBe(false);
+    expect(core.locked).toBeUndefined();
     const primary: EntityField = { key: "name", label: "", primary: true };
     expect(isFieldLocked("vendor", primary)).toBe(true);
     expect(primary.locked).toBeUndefined();
   });
 });
 
-describe("snapshot and sync", () => {
+describe("snapshot", () => {
   it("copies every entity's fields deeply into customEntities", () => {
     const s = settings();
     const r = registry();
@@ -108,25 +108,6 @@ describe("snapshot and sync", () => {
     expect(s.customEntities!.partner).toEqual(r.partner.fields);
     expect(s.customEntities!.partner[1]).not.toBe(r.partner.fields[1]);
     expect(s.customEntities!.partner[1].options).not.toBe(r.partner.fields[1].options);
-  });
-
-  it("copies label, type, options and source, deleting what the source lacks", () => {
-    const target: EntityField = { key: "a", label: "Old", type: "enum", options: ["o"], suggestionSource: "tags", locked: true };
-    copyPropertyShape(target, { key: "b", label: "New" });
-    expect(target).toEqual({ key: "a", label: "New", type: undefined, locked: true });
-    const options = ["p"];
-    copyPropertyShape(target, { key: "b", label: "L", type: "enum", options, suggestionSource: "none" });
-    expect(target).toMatchObject({ type: "enum", options: ["p"], suggestionSource: "none" });
-    expect(target.options).not.toBe(options);
-  });
-
-  it("syncs every other same-key field but never a type field", () => {
-    const r = registry();
-    syncSharedProperties(r, r.vendor.fields[2]);
-    expect(r.partner.fields[1]).toEqual({ key: "region", label: "Region", type: undefined });
-    expect(r.deal.fields[2]).toEqual({ key: "region", label: "Region", type: undefined });
-    syncSharedProperties(r, r.vendor.fields[1]);
-    expect(r.partner.fields[2].label).toBe("Kind");
   });
 });
 
@@ -169,7 +150,16 @@ describe("key suggestions and cell helpers", () => {
     expect(sourceState({ key: "x", label: "", type: "multitext", suggestionSource: "folder:A/B" })).toEqual({ selected: "folder", isCustomFolder: true, folderPath: "A/B" });
     expect(sourceState({ key: "x", label: "", type: "tags" })).toEqual({ selected: "tags", isCustomFolder: false, folderPath: "" });
     expect(sourceState({ key: "x", label: "", type: "multitext", suggestionSource: "folder" })).toEqual({ selected: "folder", isCustomFolder: false, folderPath: "" });
-    expect(sourceState({ key: "owner", label: "", type: "multitext" })).toEqual({ selected: null, isCustomFolder: false, folderPath: "" });
+    expect(sourceState({ key: "owner", label: "", type: "multitext" })).toEqual({ selected: "contact", isCustomFolder: false, folderPath: "" });
+    expect(sourceState({ key: "x", label: "", type: "multitext", suggestionSource: "entity:deal" })).toEqual({ selected: "entity:deal", isCustomFolder: false, folderPath: "" });
+  });
+
+  it("offers the fixed sources, led by the field's own source when it is not one of them", () => {
+    const values = (f: EntityField) => sourceOptions(f).map((o) => o.value);
+    expect(values({ key: "x", label: "", type: "tags" })).toEqual(["history", "tags", "none", "folder"]);
+    expect(values({ key: "x", label: "", type: "multitext", suggestionSource: "folder:A" })).toEqual(["history", "tags", "none", "folder"]);
+    expect(sourceOptions({ key: "owner", label: "", type: "multitext" })[0]).toEqual({ value: "contact", label: "Contact notes" });
+    expect(sourceOptions({ key: "x", label: "", suggestionSource: "entity:deal" })[0]).toEqual({ value: "entity:deal", label: "Deal notes" });
   });
 
   it("formats folder sources and badges", () => {
@@ -204,20 +194,24 @@ describe("key suggestions and cell helpers", () => {
 });
 
 describe("applyPropertyEdit", () => {
-  it("relabels (blank → key) and syncs, without migrations or redraw", () => {
+  it("relabels (blank → key) this field only, without migrations or redraw", () => {
     const r = registry();
+    const others = structuredClone([r.partner, r.deal]);
     expect(applyPropertyEdit(r, "vendor", { kind: "label", field: r.vendor.fields[2], value: " Zone " })).toEqual({ ok: true, migrations: [], rerender: false });
-    expect(r.partner.fields[1].label).toBe("Zone");
+    expect(r.vendor.fields[2].label).toBe("Zone");
+    expect([r.partner, r.deal]).toEqual(others);
     applyPropertyEdit(r, "vendor", { kind: "label", field: r.vendor.fields[2], value: "" });
     expect(r.vendor.fields[2].label).toBe("region");
   });
 
-  it("sets enum options and sources, syncing them", () => {
+  it("sets enum options and sources on this field only", () => {
     const r = registry();
+    const others = structuredClone([r.partner, r.deal]);
     applyPropertyEdit(r, "vendor", { kind: "options", field: r.vendor.fields[2], value: "a, b" });
-    expect(r.deal.fields[2].options).toEqual(["a", "b"]);
+    expect(r.vendor.fields[2].options).toEqual(["a", "b"]);
     applyPropertyEdit(r, "vendor", { kind: "source", field: r.vendor.fields[2], value: "folder:X" });
-    expect(r.partner.fields[1].suggestionSource).toBe("folder:X");
+    expect(r.vendor.fields[2].suggestionSource).toBe("folder:X");
+    expect([r.partner, r.deal]).toEqual(others);
   });
 
   it("locks and unlocks with a redraw", () => {
@@ -234,22 +228,31 @@ describe("applyPropertyEdit", () => {
     expect(r).toEqual(before);
   });
 
-  it("renames a key here and in every entity sharing it, returning their migrations in order, and links to the shared field", () => {
+  it("renames a key in this entity only, with one migration and no link, even when other entities share the old or new key", () => {
     const r = registry();
+    const others = structuredClone([r.partner, r.deal]);
     const field = r.vendor.fields[2];
-    const result = applyPropertyEdit(r, "vendor", { kind: "key", field, index: 2, value: "Zone" });
-    expect(result).toEqual({
+    expect(applyPropertyEdit(r, "vendor", { kind: "key", field, index: 2, value: "Zone" })).toEqual({
       ok: true,
-      migrations: [
-        { kind: "key", entityKey: "vendor", oldKey: "region", newKey: "zone" },
-        { kind: "key", entityKey: "partner", oldKey: "region", newKey: "zone" },
-        { kind: "key", entityKey: "deal", oldKey: "region", newKey: "zone" },
-      ],
-      notice: 'Linked key to existing property "zone".',
+      migrations: [{ kind: "key", entityKey: "vendor", oldKey: "region", newKey: "zone" }],
       rerender: true,
     });
-    expect([field.key, r.partner.fields[1].key, r.deal.fields[2].key]).toEqual(["zone", "zone", "zone"]);
-    expect(field).toEqual({ key: "zone", label: "Area", type: "multitext", options: ["x"], suggestionSource: "history" });
+    expect(field).toEqual({ key: "zone", label: "Region" });
+    const notes = r.vendor.fields[3];
+    expect(applyPropertyEdit(r, "vendor", { kind: "key", field: notes, index: 3, value: "stage" })).toEqual({
+      ok: true,
+      migrations: [{ kind: "key", entityKey: "vendor", oldKey: "notes", newKey: "stage" }],
+      rerender: true,
+    });
+    expect(notes).toEqual({ key: "stage", label: "Notes", type: "text", locked: false });
+    expect([r.partner, r.deal]).toEqual(others);
+  });
+
+  it("re-entering a field's own key in another case changes nothing and migrates nothing", () => {
+    const r = registry();
+    const before = structuredClone(r);
+    expect(applyPropertyEdit(r, "vendor", { kind: "key", field: r.vendor.fields[2], index: 2, value: " REGION " })).toEqual({ ok: true, migrations: [], rerender: true });
+    expect(r).toEqual(before);
   });
 
   it("renames a key no other entity has, with one migration and no notice", () => {
@@ -263,19 +266,17 @@ describe("applyPropertyEdit", () => {
     expect(field.key).toBe("remarks");
   });
 
-  it("changes a type here and in every entity sharing the key, migrating each from this field's old type", () => {
+  it("changes a type in this entity only, migrating from its own old type", () => {
     const r = registry();
+    const others = structuredClone([r.partner, r.deal]);
     const field = r.vendor.fields[2];
     expect(applyPropertyEdit(r, "vendor", { kind: "type", field, value: "date" })).toEqual({
       ok: true,
-      migrations: [
-        { kind: "type", entityKey: "vendor", fieldKey: "region", oldType: "text", newType: "date" },
-        { kind: "type", entityKey: "partner", fieldKey: "region", oldType: "text", newType: "date" },
-        { kind: "type", entityKey: "deal", fieldKey: "region", oldType: "text", newType: "date" },
-      ],
+      migrations: [{ kind: "type", entityKey: "vendor", fieldKey: "region", oldType: "text", newType: "date" }],
       rerender: true,
     });
-    expect([field.type, r.partner.fields[1].type, r.deal.fields[2].type]).toEqual(["date", "date", "date"]);
+    expect(field).toEqual({ key: "region", label: "Region", type: "date" });
+    expect([r.partner, r.deal]).toEqual(others);
   });
 
   it("changes a type field's type alone", () => {

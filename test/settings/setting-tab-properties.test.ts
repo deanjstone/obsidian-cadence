@@ -161,12 +161,13 @@ describe("Custom Entity Properties: table and locks", () => {
     expect(lockState(editor())).toEqual(["🔒", "🔒", "🔐", "🔐", "🔐", "🔐", "🔐"]);
   });
 
-  it("QUIRK: drawing the table writes locked: true into every core field it shows (and type: locked on a custom entity)", () => {
+  it("drawing the table writes no locked flags into the registry, on core or custom entities", () => {
     addVendor([{ key: "region", label: "Region" }]);
-    shown();
-    expect(ENTITIES.project.fields.map((f: Any) => f.locked)).toEqual([undefined, undefined, undefined, true, true, true, true]);
+    const { editor } = shown();
+    expect(lockState(editor())).toEqual(["🔒", "🔒", "🔒", "🔐", "🔐", "🔐", "🔐"]);
+    expect(ENTITIES.project.fields.map((f: Any) => f.locked)).toEqual([undefined, undefined, undefined, undefined, undefined, undefined, undefined]);
     shown({ entity: "crm_vendor" });
-    expect(ENTITIES.crm_vendor.fields.map((f: Any) => f.locked)).toEqual([undefined, true, false]);
+    expect(ENTITIES.crm_vendor.fields.map((f: Any) => f.locked)).toEqual([undefined, undefined, undefined]);
   });
 
   it("leaves a custom entity's fields unlocked except type, with drag handles and lock buttons", () => {
@@ -238,7 +239,7 @@ describe("Custom Entity Properties: label", () => {
     expect(ENTITIES.project.fields[4].label).toBe("started");
   });
 
-  it("copies the label, type, options and source to every other entity's field with the same key", async () => {
+  it("relabels only this field, leaving every other entity's field with the same key alone", async () => {
     addVendor([{ key: "region", label: "Region", type: "multitext", suggestionSource: "history" }]);
     ENTITIES.partner.fields.find((f: Any) => f.key === "region")!.options = ["x"];
     const { editor, calls } = shown({ entity: "crm_vendor" });
@@ -246,18 +247,21 @@ describe("Custom Entity Properties: label", () => {
     r.label.value = "Area";
     r.label.trigger("change");
     await vi.waitFor(() => expect(calls).toHaveLength(3));
-    expect(ENTITIES.partner.fields.find((f: Any) => f.key === "region")).toEqual({ key: "region", label: "Area", type: "multitext", suggestionSource: "history" });
+    expect(ENTITIES.crm_vendor.fields[2]).toMatchObject({ key: "region", label: "Area", type: "multitext", suggestionSource: "history" });
+    expect(ENTITIES.partner.fields.find((f: Any) => f.key === "region")).toEqual({ key: "region", label: "Region", options: ["x"] });
   });
 
-  it("QUIRK: relabelling the project's status overwrites every other status field's options with the project's", async () => {
+  it("relabelling the project's status leaves every other status field's label and options alone", async () => {
+    const others = ["partner", "registration", "commission", "lead", "sequence"];
+    const before = others.map((k) => structuredClone(ENTITIES[k].fields.find((f: Any) => f.key === "status")));
     const { editor, calls } = shown();
     const r = row(editor(), "status");
     r.label.value = "State";
     r.label.trigger("change");
     await vi.waitFor(() => expect(calls).toHaveLength(3));
-    const partnerStatus = ENTITIES.partner.fields.find((f: Any) => f.key === "status")!;
-    expect(partnerStatus).toEqual({ key: "status", label: "State", type: "enum", options: ["active", "on_hold", "backlog", "done", "cancelled"] });
-    expect(partnerStatus.options).not.toBe(ENTITIES.project.fields[1].options);
+    expect(ENTITIES.project.fields[1]).toEqual({ key: "status", label: "State", type: "enum", options: ["active", "on_hold", "backlog", "done", "cancelled"] });
+    expect(others.map((k) => ENTITIES[k].fields.find((f: Any) => f.key === "status"))).toEqual(before);
+    expect(ENTITIES.partner.fields.find((f: Any) => f.key === "status")).toEqual({ key: "status", label: "Status", type: "enum", options: ["Active", "Onboarding", "Inactive", "Churned"] });
   });
 
   it("never syncs a `type` field to other entities", async () => {
@@ -282,6 +286,17 @@ describe("Custom Entity Properties: technical key", () => {
     const fieldKeys = [...new Set(Object.values(ENTITIES).flatMap((e: Any) => e.fields.map((f: Any) => f.key)))];
     expect(values.slice(0, fieldKeys.length)).toEqual(fieldKeys);
     expect(values.slice(fieldKeys.length)).toEqual(["budget", ...Array.from({ length: 198 }, (_, i) => `k${i}`)]);
+  });
+
+  it("reads the notes' frontmatter once per table, not once per row", () => {
+    const files: MockFileSpec[] = [{ path: "a.md", frontmatter: { budget: 1 } }, { path: "b.md", frontmatter: { zone: 2 } }];
+    const made = makeSettingTab({ files });
+    const reads = vi.spyOn(made.app.metadataCache, "getFileCache");
+    made.tab.display();
+    expect(propRows(editorOf(made.container))).toHaveLength(7);
+    expect(reads).toHaveBeenCalledTimes(2);
+    const datalists = propRows(editorOf(made.container)).map((tr) => optionValues(tr.children[2].findAll("datalist")[0]));
+    expect(datalists.every((values) => values.includes("budget") && values.includes("zone"))).toBe(true);
   });
 
   it("filters and sorts the suggestions as the user types", () => {
@@ -323,7 +338,7 @@ describe("Custom Entity Properties: technical key", () => {
     r.key.value = "Remarks-2!";
     r.key.trigger("change");
     await vi.waitFor(() => expect(made.calls).toEqual(["save", "register", "refresh"]));
-    expect(ENTITIES.crm_vendor.fields[2]).toEqual({ key: "remarks2", label: "Notes", type: "text", locked: false });
+    expect(ENTITIES.crm_vendor.fields[2]).toEqual({ key: "remarks2", label: "Notes", type: "text" });
     const fm = (path: string) => made.app.metadataCache.getFileCache(made.app.vault.getAbstractFileByPath(path) as Any)?.frontmatter;
     expect(fm("Cadence/Vendors/Acme.md")).toEqual({ remarks2: "hi" });
     expect(fm("Cadence/Vendors/Beta.md")).toEqual({ other: 1 });
@@ -331,19 +346,20 @@ describe("Custom Entity Properties: technical key", () => {
     expect(row(made.editor(), "remarks2").label.value).toBe("Notes");
   });
 
-  it("links to an existing property of that key: copies its label, type, options and source, with a notice", async () => {
+  it("renaming to a key another entity uses keeps this field's own label, type, options and source, with no link notice", async () => {
     addVendor([{ key: "grade", label: "Grade", type: "text", options: ["x"], suggestionSource: "none" }]);
+    const partnerTier = structuredClone(ENTITIES.partner.fields[1]);
     const { editor, calls } = shown({ entity: "crm_vendor" });
     const r = row(editor(), "grade");
     r.key.value = "tier";
     r.key.trigger("change");
     await vi.waitFor(() => expect(calls).toHaveLength(3));
-    expect(ENTITIES.crm_vendor.fields[2]).toEqual({ key: "tier", label: "Tier", type: "enum", options: ["Gold", "Silver", "Bronze", "Standard"], locked: false });
-    expect(ENTITIES.crm_vendor.fields[2].options).not.toBe(ENTITIES.partner.fields[1].options);
-    expect(Notice.messages).toEqual(['Linked key to existing property "tier".']);
+    expect(ENTITIES.crm_vendor.fields[2]).toEqual({ key: "tier", label: "Grade", type: "text", options: ["x"], suggestionSource: "none" });
+    expect(ENTITIES.partner.fields[1]).toEqual(partnerTier);
+    expect(Notice.messages).toEqual([]);
   });
 
-  it("QUIRK: renames the same key in every other entity (migrating their notes), then reports the cascade's own rename as a link", async () => {
+  it("renames the key in this entity only: other entities keep theirs, and their notes are not migrated", async () => {
     addVendor([{ key: "region", label: "Region" }]);
     const files = [
       { path: "Cadence/Vendors/V.md", frontmatter: { region: "EU" } },
@@ -354,25 +370,22 @@ describe("Custom Entity Properties: technical key", () => {
     r.key.value = "zone";
     r.key.trigger("change");
     await vi.waitFor(() => expect(made.calls).toHaveLength(3));
-    expect(ENTITIES.partner.fields.map((f: Any) => f.key)).toEqual(["name", "tier", "status", "owner", "zone"]);
+    expect(ENTITIES.crm_vendor.fields.map((f: Any) => f.key)).toEqual(["name", "type", "zone"]);
+    expect(ENTITIES.partner.fields.map((f: Any) => f.key)).toEqual(["name", "tier", "status", "owner", "region"]);
     const fm = (path: string) => made.app.metadataCache.getFileCache(made.app.vault.getAbstractFileByPath(path) as Any)?.frontmatter;
-    expect([fm("Cadence/Vendors/V.md"), fm("Cadence/Partners/P.md")]).toEqual([{ zone: "EU" }, { zone: "US" }]);
-    expect(Notice.messages).toEqual([
-      'Renamed frontmatter key "region" to "zone" in 1 files.',
-      'Renamed frontmatter key "region" to "zone" in 1 files.',
-      'Linked key to existing property "zone".',
-    ]);
+    expect([fm("Cadence/Vendors/V.md"), fm("Cadence/Partners/P.md")]).toEqual([{ zone: "EU" }, { region: "US" }]);
+    expect(Notice.messages).toEqual(['Renamed frontmatter key "region" to "zone" in 1 files.']);
   });
 
-  it("QUIRK: re-entering the field's own key in another case relinks it to another entity's field of that key", async () => {
+  it("re-entering the field's own key in another case keeps the field as it is", async () => {
     addVendor([{ key: "region", label: "Territory", type: "multitext" }]);
     const { editor, calls } = shown({ entity: "crm_vendor" });
     const r = row(editor(), "region");
     r.key.value = "REGION";
     r.key.trigger("change");
     await vi.waitFor(() => expect(calls).toHaveLength(3));
-    expect(ENTITIES.crm_vendor.fields[2]).toEqual({ key: "region", label: "Region", locked: false });
-    expect(Notice.messages).toEqual(['Linked key to existing property "region".']);
+    expect(ENTITIES.crm_vendor.fields[2]).toEqual({ key: "region", label: "Territory", type: "multitext" });
+    expect(Notice.messages).toEqual([]);
   });
 });
 
@@ -391,7 +404,7 @@ describe("Custom Entity Properties: type", () => {
     expect(optionTexts(t.type)).toEqual(["Text", "Select (Enum)"]);
   });
 
-  it("changes the type, migrating this entity's notes and every other entity sharing the key, then redraws", async () => {
+  it("changes the type, migrating only this entity's notes, then redraws", async () => {
     addVendor([{ key: "region", label: "Region" }]);
     const files = [
       { path: "Cadence/Vendors/V.md", frontmatter: { region: "EU, APAC" } },
@@ -403,27 +416,26 @@ describe("Custom Entity Properties: type", () => {
     r.type.trigger("change");
     await vi.waitFor(() => expect(made.calls).toEqual(["save", "register", "refresh"]));
     expect(ENTITIES.crm_vendor.fields[2].type).toBe("multitext");
-    expect(ENTITIES.partner.fields[4]).toEqual({ key: "region", label: "Region", type: "multitext" });
+    expect(ENTITIES.partner.fields[4]).toEqual({ key: "region", label: "Region" });
     const fm = (path: string) => made.app.metadataCache.getFileCache(made.app.vault.getAbstractFileByPath(path) as Any)?.frontmatter;
-    expect([fm("Cadence/Vendors/V.md"), fm("Cadence/Partners/P.md")]).toEqual([{ region: ["EU", "APAC"] }, { region: ["US"] }]);
-    expect(Notice.messages).toEqual([
-      'Migrated 1 files for field "region" to type "multitext".',
-      'Migrated 1 files for field "region" to type "multitext".',
-    ]);
+    expect([fm("Cadence/Vendors/V.md"), fm("Cadence/Partners/P.md")]).toEqual([{ region: ["EU", "APAC"] }, { region: "US" }]);
+    expect(Notice.messages).toEqual(['Migrated 1 files for field "region" to type "multitext".']);
     expect(row(made.editor(), "region").type.value).toBe("multitext");
   });
 
-  it("QUIRK: other entities migrate from this field's old type, not their own", async () => {
+  it("other entities' same-key fields keep their type, and their notes are not migrated", async () => {
     addVendor([{ key: "steps", label: "Steps", type: "text" }]);
-    const files = [{ path: "Cadence/Sequences/S.md", frontmatter: { steps: 3 } }];
+    const files = [{ path: "Cadence/Sequences/S.md", frontmatter: { steps: "3 steps" } }];
     const made = shown({ files, entity: "crm_vendor" });
     const r = row(made.editor(), "steps");
-    r.type.value = "text";
-    r.type.value = "number";
+    r.type.value = "date";
     r.type.trigger("change");
     await vi.waitFor(() => expect(made.calls).toHaveLength(3));
-    expect(ENTITIES.sequence.fields[2].type).toBe("number");
-    expect(Notice.messages).toEqual(['Migrated 1 files for field "steps" to type "number".']);
+    expect(ENTITIES.crm_vendor.fields[2].type).toBe("date");
+    expect(ENTITIES.sequence.fields[2]).toEqual({ key: "steps", label: "Steps", type: "number" });
+    const fm = made.app.metadataCache.getFileCache(made.app.vault.getAbstractFileByPath("Cadence/Sequences/S.md") as Any)?.frontmatter;
+    expect(fm).toEqual({ steps: "3 steps" });
+    expect(Notice.messages).toEqual([]);
   });
 
   it("changes an unlocked `type` field without touching other entities' type fields", async () => {
@@ -467,14 +479,17 @@ describe("Custom Entity Properties: options and source", () => {
     expect(ENTITIES.crm_vendor.fields[2].options).toEqual(["Gold", "Silver"]);
   });
 
-  it("lets a permanently locked enum's options be edited", async () => {
+  it("shows a permanently locked enum's options read-only (the project's status, the deal's stage)", async () => {
     const { editor, calls } = shown();
     const input = cell(editor(), "status").children[0];
-    expect(input.disabled).toBe(false);
+    expect([input.disabled, input.value]).toEqual([true, "active, on_hold, backlog, done, cancelled"]);
     input.value = "open, closed";
     input.trigger("change");
-    await vi.waitFor(() => expect(calls).toHaveLength(3));
-    expect(ENTITIES.project.fields[1].options).toEqual(["open", "closed"]);
+    await Promise.resolve();
+    expect(calls).toEqual([]);
+    expect(ENTITIES.project.fields[1].options).toEqual(["active", "on_hold", "backlog", "done", "cancelled"]);
+    expect(cell(shown({ entity: "deal" }).editor(), "stage").children[0].disabled).toBe(true);
+    expect(cell(shown({ entity: "partner" }).editor(), "status").children[0].disabled).toBe(false);
   });
 
   it("offers suggestion sources for list and tag fields, selecting the field's source", () => {
@@ -493,10 +508,15 @@ describe("Custom Entity Properties: options and source", () => {
     expect([wrap.classes, wrap.style.display]).toEqual([["cad-folder-picker-wrap"], "none"]);
   });
 
-  it("QUIRK: a derived source that is not an option (owner → contact) leaves the select on its first option", () => {
-    addVendor([{ key: "owner", label: "Owner", type: "multitext" }]);
+  it("a derived source that is not a fixed option (owner → contact) is offered first and selected", () => {
+    addVendor([{ key: "owner", label: "Owner", type: "multitext" }, { key: "deals", label: "Deals", type: "multitext", suggestionSource: "entity:deal" }]);
     const { editor } = shown({ entity: "crm_vendor" });
-    expect(cell(editor(), "owner").findAll("select")[0].value).toBe("history");
+    const select = cell(editor(), "owner").findAll("select")[0];
+    expect(select.value).toBe("contact");
+    expect(optionValues(select)).toEqual(["contact", "history", "tags", "none", "folder"]);
+    expect(optionTexts(select)[0]).toBe("Contact notes");
+    const deals = cell(editor(), "deals").findAll("select")[0];
+    expect([deals.value, optionTexts(deals)[0]]).toEqual(["entity:deal", "Deal notes"]);
   });
 
   it("shows the folder picker with the folder path for a folder: source", () => {
@@ -541,6 +561,19 @@ describe("Custom Entity Properties: options and source", () => {
     expect(calls).toHaveLength(3);
   });
 
+  it("switching to a fixed source resets the badge's colour as well as its text", async () => {
+    addVendor([{ key: "refs", label: "Refs", type: "multitext", suggestionSource: "folder:Cadence/Contacts" }]);
+    const { editor, calls } = shown({ entity: "crm_vendor" });
+    const c = cell(editor(), "refs");
+    const badge = c.findAll("span")[0];
+    expect(badge.style.color).toBe("var(--text-normal)");
+    const select = c.findAll("select")[0];
+    select.value = "none";
+    select.trigger("change");
+    await vi.waitFor(() => expect(calls).toHaveLength(3));
+    expect([badge.text, badge.style.color]).toEqual(["Aucun dossier", "var(--text-faint)"]);
+  });
+
   it("opens a folder picker over the notes' folders and saves the chosen folder", async () => {
     addVendor([{ key: "refs", label: "Refs", type: "multitext" }]);
     const files = [{ path: "Cadence/Contacts/A.md" }, { path: "Areas/Home/B.md" }, { path: "root.md" }, { path: "Cadence/x.pdf" }];
@@ -572,14 +605,27 @@ describe("Custom Entity Properties: options and source", () => {
     expect(opened[0].getSuggestions("")).toEqual(["Alpha", "Zed"]);
   });
 
-  it("syncs a chosen source to other entities' fields with the same key", async () => {
+  it("saves a chosen source on this field only, leaving other entities' fields with the same key alone", async () => {
     addVendor([{ key: "owner", label: "Owner", type: "multitext" }]);
+    const dealOwner = structuredClone(ENTITIES.deal.fields.find((f: Any) => f.key === "owner"));
     const { editor, calls } = shown({ entity: "crm_vendor" });
     const select = cell(editor(), "owner").findAll("select")[0];
     select.value = "none";
     select.trigger("change");
     await vi.waitFor(() => expect(calls).toHaveLength(3));
-    expect(ENTITIES.deal.fields.find((f: Any) => f.key === "owner")).toEqual({ key: "owner", label: "Owner", type: "multitext", suggestionSource: "none" });
+    expect(ENTITIES.crm_vendor.fields[2].suggestionSource).toBe("none");
+    expect(ENTITIES.deal.fields.find((f: Any) => f.key === "owner")).toEqual(dealOwner);
+  });
+
+  it("editing the partner's status options leaves the project's status options alone", async () => {
+    const projectStatus = structuredClone(ENTITIES.project.fields[1]);
+    const { editor, calls } = shown({ entity: "partner" });
+    const input = cell(editor(), "status").children[0];
+    input.value = "Prospect, Signed";
+    input.trigger("change");
+    await vi.waitFor(() => expect(calls).toHaveLength(3));
+    expect(ENTITIES.partner.fields.find((f: Any) => f.key === "status")!.options).toEqual(["Prospect", "Signed"]);
+    expect(ENTITIES.project.fields[1]).toEqual(projectStatus);
   });
 });
 
@@ -603,10 +649,10 @@ describe("Custom Entity Properties: delete, add and reorder", () => {
     expect(plugin.saved[0].customEntities.crm_vendor[4]).toEqual({ key: "new_property_2", label: "New Property", type: "text" });
     buttonByText(editor(), "+ Add property").trigger("click");
     await vi.waitFor(() => expect(calls).toHaveLength(6));
-    // The redraw after each add marks the new field unlocked.
+    // The redraw after each add leaves the new field's lock unset.
     expect(ENTITIES.crm_vendor.fields.slice(4)).toEqual([
-      { key: "new_property_2", label: "New Property", type: "text", locked: false },
-      { key: "new_property_4", label: "New Property", type: "text", locked: false },
+      { key: "new_property_2", label: "New Property", type: "text" },
+      { key: "new_property_4", label: "New Property", type: "text" },
     ]);
     expect(propRows(editor())).toHaveLength(6);
   });

@@ -61,22 +61,13 @@ export function isPermanentlyLocked(entityKey: string, field: EntityField): bool
   return false;
 }
 
-/* Whether a field is locked. A field with no `locked` flag gets one, in
-   place: true for `type` and for every core entity's field, false for a
-   custom entity's. Flagged quirk: drawing the table writes these flags into
-   the registry, and the next save persists them. */
+/* Whether a field is locked: its `locked` flag, else true for `type` and
+   for every core entity's field, false for a custom entity's. Reading the
+   default writes nothing into the registry. */
 export function isFieldLocked(entityKey: string, field: EntityField): boolean {
   if (isPermanentlyLocked(entityKey, field)) return true;
-
-  // Default type field to locked (but toggleable) for BOTH core and custom entities
-  if (field.locked === undefined) {
-    if (field.key === 'type') {
-      field.locked = true;
-    } else {
-      field.locked = CORE_ENTITY_KEYS.includes(entityKey);
-    }
-  }
-  return !!field.locked;
+  if (field.locked !== undefined) return !!field.locked;
+  return field.key === 'type' || CORE_ENTITY_KEYS.includes(entityKey);
 }
 
 /* Copy every entity's fields into settings.customEntities (deep copies). */
@@ -89,38 +80,9 @@ export function snapshotCustomEntities(settings: SettingTabSettings, entities: R
   }
 }
 
-/* Give `target` the label, type, options (copied) and suggestion source of
-   `source`, deleting what `source` lacks. */
-export function copyPropertyShape(target: EntityField, source: EntityField): void {
-  target.label = source.label;
-  target.type = source.type;
-  if (source.options) {
-    target.options = JSON.parse(JSON.stringify(source.options));
-  } else {
-    delete target.options;
-  }
-  if (source.suggestionSource) {
-    target.suggestionSource = source.suggestionSource;
-  } else {
-    delete target.suggestionSource;
-  }
-}
-
-/* Every other entity's field with the same key takes this field's shape.
-   `type` fields are never synced. Flagged quirk: so relabelling the
-   project's status also overwrites every other status field's options. */
-export function syncSharedProperties(entities: Record<string, EntityDef>, sourceField: EntityField): void {
-  if (sourceField.key === 'type') return; // Do NOT sync 'type' properties across entities!
-  for (const ent of Object.values(entities)) {
-    ent.fields.forEach(f => {
-      if (f.key === sourceField.key && f !== sourceField) copyPropertyShape(f, sourceField);
-    });
-  }
-}
-
 /* The key input's suggestions: every entity's field keys, then the keys of
    the given notes' frontmatter (except Obsidian's `position`), in first-seen
-   order. The tab passes up to 200 notes. */
+   order. The tab reads up to 200 notes once per table draw. */
 export function fieldKeySuggestions(entities: Record<string, EntityDef>, frontmatters: Frontmatter[]): Set<string> {
   const keys = new Set<string>();
   for (const ent of Object.values(entities)) {
@@ -192,14 +154,32 @@ export const SOURCE_OPTIONS: Option[] = [
   { value: 'folder', label: 'Folder…' },
 ];
 
+/* The field's source, else the derived one, when it is not a folder and
+   not one of SOURCE_OPTIONS (owner → contact, entity:deal); else null. */
+function otherSource(field: EntityField): string | null {
+  const activeSource = field.suggestionSource || getFieldSuggestionSource(field);
+  if (!activeSource || activeSource.startsWith('folder:')) return null;
+  return SOURCE_OPTIONS.some(s => s.value === activeSource) ? null : activeSource;
+}
+
+/* The source picker's options: SOURCE_OPTIONS, led by the field's own
+   source when it is not one of them, labelled by its entity ("Contact
+   notes"), so the select can show it. */
+export function sourceOptions(field: EntityField): Option[] {
+  const other = otherSource(field);
+  if (!other) return SOURCE_OPTIONS;
+  const name = other.startsWith('entity:') ? other.slice('entity:'.length) : other;
+  return [{ value: other, label: `${name.charAt(0).toUpperCase()}${name.slice(1)} notes` }, ...SOURCE_OPTIONS];
+}
+
 /* The source picker's state: the field's source (else the derived one),
    whether it is a `folder:<path>`, that path, and which option is
-   selected. Flagged quirk: a derived source that is not an option
-   (owner → contact) selects nothing, so the select shows its first. */
+   selected: a source that is not in SOURCE_OPTIONS selects its own
+   option (sourceOptions). */
 export function sourceState(field: EntityField): { selected: string | null; isCustomFolder: boolean; folderPath: string } {
   const activeSource = field.suggestionSource || getFieldSuggestionSource(field);
   const isCustomFolder = !!(activeSource && activeSource.startsWith('folder:'));
-  let selected: string | null = null;
+  let selected: string | null = otherSource(field);
   SOURCE_OPTIONS.forEach(s => {
     if (!isCustomFolder && s.value === activeSource) selected = s.value;
     else if (isCustomFolder && s.value === 'folder') selected = s.value;
@@ -295,25 +275,22 @@ export type AppliedPropertyEdit = Extract<PropertyEditResult, { ok: true }>;
 /* Applies one edit to the registry, in place, and returns the frontmatter
    migrations to run (in order), a notice to show after them, and whether
    the table is redrawn. A refused edit changes nothing and returns its
-   notice. Label, options and source edits sync to the other entities'
-   fields with the same key (syncSharedProperties). */
+   notice. An edit changes only the field it is made on: same-key fields
+   on other entities are independent (#47). */
 export function applyPropertyEdit(entities: Record<string, EntityDef>, entityKey: string, edit: PropertyEdit): PropertyEditResult {
   const def = entities[entityKey];
   const migrations: FrontmatterMigration[] = [];
   switch (edit.kind) {
     case 'label': {
       edit.field.label = edit.value.trim() || edit.field.key;
-      syncSharedProperties(entities, edit.field);
       return { ok: true, migrations, rerender: false };
     }
     case 'options': {
       edit.field.options = parseEnumOptions(edit.value);
-      syncSharedProperties(entities, edit.field);
       return { ok: true, migrations, rerender: false };
     }
     case 'source': {
       edit.field.suggestionSource = edit.value;
-      syncSharedProperties(entities, edit.field);
       return { ok: true, migrations, rerender: false };
     }
     case 'lock': {
@@ -329,48 +306,17 @@ export function applyPropertyEdit(entities: Record<string, EntityDef>, entityKey
       }
 
       const oldKey = field.key;
-      // Migrate files of the current selected entity
+      if (sanitized === oldKey) return { ok: true, migrations, rerender: true };
       migrations.push({ kind: 'key', entityKey, oldKey, newKey: sanitized });
-      // Migrate files and update keys of any other entity sharing the same old key
-      for (const [ek, ent] of Object.entries(entities)) {
-        if (ek === entityKey) continue;
-        const targetField = ent.fields.find(f => f.key === oldKey);
-        if (targetField) {
-          migrations.push({ kind: 'key', entityKey: ek, oldKey, newKey: sanitized });
-          targetField.key = sanitized;
-        }
-      }
       field.key = sanitized;
-      // After key is renamed, check if the new key matches any existing fields in other entities to sync with them
-      const matchingField = Object.values(entities)
-        .flatMap(ent => ent.fields)
-        .find(f => f.key === sanitized && f !== field);
-      if (matchingField) {
-        copyPropertyShape(field, matchingField);
-        return { ok: true, migrations, notice: `Linked key to existing property "${sanitized}".`, rerender: true };
-      }
-      syncSharedProperties(entities, field);
       return { ok: true, migrations, rerender: true };
     }
     case 'type': {
       const { field } = edit;
       const oldType = field.type || 'text';
       const newType = edit.value;
-      // Migrate current selected entity files
       migrations.push({ kind: 'type', entityKey, fieldKey: field.key, oldType, newType });
-      // Migrate files and update types for any other entity sharing this key
-      if (field.key !== 'type') {
-        for (const [ek, ent] of Object.entries(entities)) {
-          if (ek === entityKey) continue;
-          const targetField = ent.fields.find(f => f.key === field.key);
-          if (targetField) {
-            migrations.push({ kind: 'type', entityKey: ek, fieldKey: field.key, oldType, newType });
-            targetField.type = newType;
-          }
-        }
-      }
       field.type = newType;
-      syncSharedProperties(entities, field);
       return { ok: true, migrations, rerender: true };
     }
     case 'remove': {
@@ -488,6 +434,19 @@ export function renderEntityPropertiesSettings(tab: SettingTabHost, containerEl:
 
     let draggedIndex: number | null = null;
 
+    // Key suggestions: every entity's field keys, then the frontmatter keys of up to 200 notes, read once per table
+    const frontmatters: Frontmatter[] = [];
+    try {
+      const vaultFiles = tab.app.vault.getMarkdownFiles().slice(0, 200);
+      for (const vf of vaultFiles) {
+        const cache = tab.app.metadataCache.getFileCache(vf);
+        if (cache && cache.frontmatter) frontmatters.push(cache.frontmatter);
+      }
+    } catch (error) {
+      console.warn('Cadence: could not read frontmatter for key suggestions', error);
+    }
+    const _allSuggestionKeys = fieldKeySuggestions(ENTITIES, frontmatters);
+
     def.fields.forEach((field, index) => {
       const tr = tbody.createEl('tr');
       tr.addClass('cad-prop-row');
@@ -582,16 +541,6 @@ export function renderEntityPropertiesSettings(tab: SettingTabHost, containerEl:
       const datalist = keyWrap.createEl('datalist');
       datalist.id = datalistId;
 
-      // Keys from all known entity fields, then from actual vault frontmatter (sample up to 200 files for perf)
-      const frontmatters: Frontmatter[] = [];
-      try {
-        const vaultFiles = tab.app.vault.getMarkdownFiles().slice(0, 200);
-        for (const vf of vaultFiles) {
-          const cache = tab.app.metadataCache.getFileCache(vf);
-          if (cache && cache.frontmatter) frontmatters.push(cache.frontmatter);
-        }
-      } catch (_) { }
-      const _allSuggestionKeys = fieldKeySuggestions(ENTITIES, frontmatters);
       _allSuggestionKeys.forEach(k => datalist.createEl('option', { value: k }));
 
       const inputKey = keyWrap.createEl('input', {
@@ -653,16 +602,20 @@ export function renderEntityPropertiesSettings(tab: SettingTabHost, containerEl:
           placeholder: 'Option A, Option B...',
           cls: 'cad-prop-input'
         });
-        inputOptions.addEventListener('change', async () => {
-          await commit(edit({ kind: 'options', field, value: inputOptions.value }));
-        });
+        if (permLocked) {
+          inputOptions.disabled = true;
+        } else {
+          inputOptions.addEventListener('change', async () => {
+            await commit(edit({ kind: 'options', field, value: inputOptions.value }));
+          });
+        }
       } else if (optionsKind === 'source') {
         // Source selector: static options + folder picker
         const sourceWrap = tdOptions.createDiv({ cls: 'cad-source-wrap' });
         const selectSource = sourceWrap.createEl('select', { cls: 'cad-prop-input' });
         const { selected, isCustomFolder, folderPath: currentFolderPath } = sourceState(field);
 
-        SOURCE_OPTIONS.forEach(s => {
+        sourceOptions(field).forEach(s => {
           const opt = selectSource.createEl('option', { value: s.value, text: s.label });
           if (s.value === selected) opt.selected = true;
         });
@@ -723,7 +676,9 @@ export function renderEntityPropertiesSettings(tab: SettingTabHost, containerEl:
           folderPickerWrap.style.display = show ? 'flex' : 'none';
           if (!show) {
             _folderPath = '';
-            folderBadgeEl.setText(folderBadge('').text);
+            const cleared = folderBadge('');
+            folderBadgeEl.setText(cleared.text);
+            folderBadgeEl.style.color = cleared.color;
             await saveSugSource();
           }
         });
