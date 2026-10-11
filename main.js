@@ -9527,13 +9527,14 @@ function partnersReport(deals, partners, certs, now, defs = { deal: ENTITIES.dea
     tierMap.set(t, tierMap.get(t) + 1);
   });
   const horizon = now + 90 * DAY_MS2;
+  const today = startOfDay(now).getTime();
   const upcoming = certs.map((e) => {
     const exp = entityValue(e, "expires", certDef);
     if (!exp) return null;
-    const d = new Date(exp);
+    const d = parseYmd(exp) ?? new Date(exp);
     if (isNaN(d.getTime())) return null;
     return { entity: e, date: d };
-  }).filter((x) => x && x.date.getTime() >= now && x.date.getTime() <= horizon).sort((a, b) => a.date - b.date).slice(0, 8);
+  }).filter((x) => x && x.date.getTime() >= today && x.date.getTime() <= horizon).sort((a, b) => a.date - b.date).slice(0, 8);
   return {
     partnerSourced,
     partnerWon,
