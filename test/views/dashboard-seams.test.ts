@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { TFile } from "obsidian";
 import { ENTITIES } from "../../src/constants/entities";
 import {
-  WIDGET_STYLE_OPTIONS, chartData, dashboardWidgets, removeWidget,
+  WIDGET_STYLE_OPTIONS, chartData, dashboardWidgets, removeWidget, widgetTitle,
 } from "../../src/views/components/charts";
 import {
   crmStatCards, crmSummary, customerBase, dealValue, hotDeals, pipelineByStage, recentActivities, staleDeals,
@@ -280,6 +280,14 @@ describe("dashboard widgets", () => {
   it("removeWidget drops every widget with the id, tolerating a missing list", () => {
     expect(removeWidget([W1, W2, { ...W1, title: "dup" }], "w1")).toEqual([W2]);
     expect(removeWidget(undefined, "w1")).toEqual([]);
+  });
+
+  it("widgetTitle keeps a title, and gives 'Untitled chart' for a missing, blank or null one", () => {
+    expect(widgetTitle(W1)).toBe(W1.title);
+    expect(widgetTitle({ title: 42 as unknown as string })).toBe("42");
+    expect([widgetTitle({}), widgetTitle({ title: "  " }), widgetTitle({ title: null as unknown as string })]).toEqual([
+      "Untitled chart", "Untitled chart", "Untitled chart",
+    ]);
   });
 
   it("offers donut, bar, KPI and list", () => {

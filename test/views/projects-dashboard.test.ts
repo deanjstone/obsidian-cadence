@@ -460,9 +460,14 @@ describe("renderProjectsDashboard: custom chart widgets", () => {
     expect(rendered).toHaveBeenCalledTimes(1);
   });
 
-  it("QUIRK: a widget with no title throws, so later widgets never draw", async () => {
-    const { view, root, charts } = setup(PROJECTS, { projectDashboardWidgets: [{ id: "w", groupBy: "tags", style: "bar" }, W2] });
-    await expect(view.renderProjectsDashboard(root)).rejects.toThrow(TypeError);
-    expect(charts).not.toHaveBeenCalled();
+  it("a widget with no title draws as 'Untitled chart', and the widgets after it still draw", async () => {
+    const confirm = vi.fn().mockReturnValue(false);
+    vi.stubGlobal("confirm", confirm);
+    const { view, root, charts } = setup(PROJECTS, { projectDashboardWidgets: [{ id: "w", groupBy: "tags", style: "bar" }, { ...W1, id: "b", title: "  " }, W2] });
+    await view.renderProjectsDashboard(root);
+    expect(widgetsGrid(root).children.map((c) => c.children[0].children[0].text)).toEqual(["UNTITLED CHART", "UNTITLED CHART", "OWNERS"]);
+    expect(charts.mock.calls.map((c) => c[1])).toEqual(["bar", "bar", "donut"]);
+    widgetsGrid(root).children[0].children[0].children[1].children[1].trigger("click");
+    expect(confirm.mock.calls).toEqual([['Delete chart "Untitled chart"?']]);
   });
 });

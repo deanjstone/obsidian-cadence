@@ -6,7 +6,7 @@ import type { EntityDef, Entity, ProjectMeta } from '../types/entities';
 import type { WidgetConfig } from '../types/modals';
 import { entityValue, getEnumOptions, listEntities, listEntityFiles, readEntity, readProjectMeta } from '../utils/entities';
 import { fmtValue } from '../utils/format';
-import { WIDGET_STYLE_OPTIONS, chartData, dashboardWidgets, removeWidget } from './components/charts';
+import { WIDGET_STYLE_OPTIONS, chartData, dashboardWidgets, removeWidget, widgetTitle } from './components/charts';
 import type { AppViewHost } from './host';
 
 /* The Projects dashboard (projects.dashboard): status cards, the priority
@@ -403,7 +403,7 @@ export async function renderProjectsDashboard(view: AppViewHost, root: HTMLEleme
       // Card Head
       const head = card.createDiv({ cls: 'cad-dash-card-head', attr: { style: 'display: flex; justify-content: space-between; align-items: center; padding: 10px 14px;' } });
 
-      head.createDiv({ cls: 'cad-dash-card-title', text: w.title.toUpperCase(), attr: { style: 'font-weight: 700; font-size: 0.75rem; letter-spacing: 0.12em;' } });
+      head.createDiv({ cls: 'cad-dash-card-title', text: widgetTitle(w).toUpperCase(), attr: { style: 'font-weight: 700; font-size: 0.75rem; letter-spacing: 0.12em;' } });
 
       const actionsWrap = head.createDiv({ attr: { style: 'display: flex; gap: 8px; align-items: center;' } });
 
@@ -433,7 +433,7 @@ export async function renderProjectsDashboard(view: AppViewHost, root: HTMLEleme
       const delBtn = actionsWrap.createEl('button', { cls: 'cad-btn',
         text: '×', attr: { style: 'color: var(--text-error); padding: 2px 8px; font-weight: bold; border-color: var(--text-error); font-size: 1.1em; height: auto; border-radius: 4px; background: transparent;' } });
       delBtn.addEventListener('click', async () => {
-        if (!confirm(`Delete chart "${w.title}"?`)) return;
+        if (!confirm(`Delete chart "${widgetTitle(w)}"?`)) return;
         view.plugin.settings.projectDashboardWidgets = removeWidget(view.plugin.settings.projectDashboardWidgets, w.id);
         await view.plugin.saveSettings();
         view.render();

@@ -308,6 +308,17 @@ describe("renderPRMAnalytics: custom chart widgets", () => {
     expect(rendered).toHaveBeenCalledTimes(2);
   });
 
+  it("a widget with no title draws as 'Untitled chart', and the widgets after it still draw", async () => {
+    const confirm = vi.fn().mockReturnValue(false);
+    vi.stubGlobal("confirm", confirm);
+    const { view, root, charts } = setup(ALL, { prmDashboardWidgets: [{ id: "w", groupBy: "tier", style: "bar" }, W2] });
+    await view.renderPRMAnalytics(root);
+    expect(widgetsGrid(root).children.map((c) => c.children[0].children[0].text)).toEqual(["UNTITLED CHART", "REGIONS"]);
+    expect(charts.mock.calls.map((c) => c[1])).toEqual(["bar", "kpi"]);
+    widgetsGrid(root).children[0].children[0].children[1].children[1].trigger("click");
+    expect(confirm.mock.calls).toEqual([['Delete chart "Untitled chart"?']]);
+  });
+
   it("+ Add Custom Chart opens the widget modal for partners; its result is appended, saved and rendered", async () => {
     const open = vi.spyOn(CadenceWidgetCreateModal.prototype, "open").mockImplementation(() => {});
     const { view, root, plugin, rendered } = setup(ALL);
