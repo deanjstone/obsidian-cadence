@@ -547,7 +547,7 @@ export function renderDynamicH2Section(view: AppViewHost, parent: HTMLElement, f
     const parentName = file.basename;
     const filteredList = crossSectionRows(listEntities(view.app, targetEntity), linkField, parentName, frontmatterReader(view));
 
-    const chartData = sectionChartData(filteredList, groupField, frontmatterReader(view));
+    const chartData = sectionChartData(filteredList, groupField, def);
 
     const card = parent.createDiv({ cls: 'cad-pd-card' });
     card.style.gridColumn = '1 / -1';

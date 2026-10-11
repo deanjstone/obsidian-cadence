@@ -4504,17 +4504,8 @@ function widgetTitle(widget) {
 function removeWidget(widgets, id) {
   return (widgets || []).filter((item) => item.id !== id);
 }
-function sectionChartData(entities, groupField, frontmatterOf) {
-  const counts = {};
-  entities.forEach((e) => {
-    const val = frontmatterOf(e)[groupField];
-    const vals = Array.isArray(val) ? val : [val == null ? "" : val];
-    vals.forEach((v) => {
-      const label = String(v).replace(/^\[\[|\]\]$/g, "").trim() || "Unspecified";
-      counts[label] = (counts[label] || 0) + 1;
-    });
-  });
-  return toChartData(counts);
+function sectionChartData(entities, groupField, def) {
+  return chartData(entities, { groupBy: groupField }, def);
 }
 function donutGeometry(data) {
   const total = data.reduce((sum, item) => sum + item.count, 0);
@@ -5218,7 +5209,7 @@ function renderDynamicH2Section(view, parent, file, sections, rawKey, flashSaved
     const def = ENTITIES[targetEntity];
     const parentName = file.basename;
     const filteredList = crossSectionRows(listEntities(view.app, targetEntity), linkField, parentName, frontmatterReader(view));
-    const chartData2 = sectionChartData(filteredList, groupField, frontmatterReader(view));
+    const chartData2 = sectionChartData(filteredList, groupField, def);
     const card = parent.createDiv({ cls: "cad-pd-card" });
     card.style.gridColumn = "1 / -1";
     const head = card.createDiv({ cls: "cad-pd-card-head" });

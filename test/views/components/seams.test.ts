@@ -37,27 +37,24 @@ describe("chartData (dashboard widgets)", () => {
 });
 
 describe("sectionChartData (#chart- headings)", () => {
-  const frontmatterOf = (e: Entity) => e.frontmatter;
-
-  it("counts the raw frontmatter value: blank list items and null count as Unspecified, an empty list counts nothing", () => {
+  it("counts as chartData does: list items once each, blank items skipped, a blank scalar as Unspecified", () => {
     const deals = [
-      entity("a", { stage: ["[[Won]]", ""] }),
-      entity("b", { stage: [] }),
-      entity("c", { stage: null }),
+      entity("a", { owner: ["[[Won]]", ""] }),
+      entity("b", { owner: [] }),
+      entity("c", { owner: null }),
       entity("d", {}),
     ];
-    expect(sectionChartData(deals, "stage", frontmatterOf)).toEqual([{ label: "Unspecified", count: 3 }, { label: "Won", count: 1 }]);
+    expect(sectionChartData(deals, "owner", ENTITIES.deal)).toEqual([{ label: "Unspecified", count: 2 }, { label: "Won", count: 1 }]);
+    expect(sectionChartData(deals, "owner", ENTITIES.deal)).toEqual(chartData(deals, { groupBy: "owner" }, ENTITIES.deal));
   });
 
-  it("does not fall back to the basename for the primary field, unlike chartData", () => {
+  it("falls back to the basename for the primary field, as chartData does", () => {
     const deals = [entity("x", {})];
-    expect(sectionChartData(deals, "title", frontmatterOf)).toEqual([{ label: "Unspecified", count: 1 }]);
-    expect(chartData(deals, { groupBy: "title" }, ENTITIES.deal)).toEqual([{ label: "x", count: 1 }]);
+    expect(sectionChartData(deals, "title", ENTITIES.deal)).toEqual([{ label: "x", count: 1 }]);
   });
 
-  it("reads frontmatter through the given lookup", () => {
-    const lookup = () => ({ tier: "Gold" });
-    expect(sectionChartData([entity("p", { tier: "Silver" })], "tier", lookup)).toEqual([{ label: "Gold", count: 1 }]);
+  it("reads through entityValue, so a stage list counts its first item", () => {
+    expect(sectionChartData([entity("p", { stage: ["Won", "Lost"] })], "stage", ENTITIES.deal)).toEqual([{ label: "Won", count: 1 }]);
   });
 });
 

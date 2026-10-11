@@ -3,6 +3,8 @@ import { FakeElement, MarkdownRenderer, Notice, Platform, TFile, type MockFileSp
 import { flush, makeAppView } from "../../helpers/app-view";
 import { companyAcme, contactJane, dealAcme } from "../../fixtures/vault";
 import { ENTITIES } from "../../../src/constants/entities";
+import { listEntities } from "../../../src/utils/entities";
+import { chartData } from "../../../src/views/components/charts";
 
 /* Characterization tests for the detail-form sections shared by the
    entity, company and project detail forms, the templates and Today:
@@ -477,7 +479,22 @@ describe("_renderDynamicH2Section", () => {
     expect(rendered).toHaveBeenCalledTimes(1);
   });
 
-  it("renders a #chart- section counting the linked targets' raw group field, most frequent first", () => {
+  it("counts a #chart- section as a dashboard widget counts (chartData): through entityValue, blank list items skipped", () => {
+    const untitled: MockFileSpec = { path: "Cadence/Pipeline/Untitled.md", frontmatter: { type: "deal", company: "Acme Corp", owner: ["[[Sam Lee]]", " "] } };
+    const { view, parent, file, app } = setup([...files, untitled]);
+    const chart = vi.spyOn(view, "_drawChart").mockImplementation(() => {});
+    view._renderDynamicH2Section(parent, file(companyAcme.path), {}, "By title #chart-deal-company-title-list");
+    view._renderDynamicH2Section(parent, file(companyAcme.path), {}, "By owner #chart-deal-company-owner-list");
+    const linked = listEntities(app as never, "deal").filter((e) => e.basename !== "Other");
+    expect(chart.mock.calls.map((c) => c[2])).toEqual([
+      chartData(linked, { groupBy: "title" }, ENTITIES.deal),
+      chartData(linked, { groupBy: "owner" }, ENTITIES.deal),
+    ]);
+    expect(chart.mock.calls[0][2]).toContainEqual({ label: "Untitled", count: 1 });
+    expect(chart.mock.calls[1][2]).toEqual([{ label: "Sam Lee", count: 3 }]);
+  });
+
+  it("renders a #chart- section counting the linked targets' group field, most frequent first", () => {
     const extra: MockFileSpec = { path: "Cadence/Pipeline/Z.md", frontmatter: { type: "deal", company: "Acme Corp", stage: ["[[Won]]", ""], owner: null } };
     const { view, parent, file } = setup([...files, extra]);
     const chart = vi.spyOn(view, "_drawChart").mockImplementation(() => {});
@@ -485,7 +502,7 @@ describe("_renderDynamicH2Section", () => {
     view._renderDynamicH2Section(parent, file(companyAcme.path), {}, "By owner #chart-deal-company-owner-bar");
     expect(parent.children[0].children[0].children[0].text).toBe("BY STAGE · 3 Deals");
     expect(chart.mock.calls.map((c) => [c[1], c[2]])).toEqual([
-      ["donut", [{ label: "Won", count: 2 }, { label: "Proposal", count: 1 }, { label: "Unspecified", count: 1 }]],
+      ["donut", [{ label: "Won", count: 2 }, { label: "Proposal", count: 1 }]],
       ["bar", [{ label: "Sam Lee", count: 2 }, { label: "Unspecified", count: 1 }]],
     ]);
     expect(chart.mock.calls[0][0]).toBe(parent.children[0].children[1].children[0]);
