@@ -6,7 +6,8 @@ import { ENTITIES } from "../../src/constants/entities";
 
 /* Characterization tests for the Custom Navigation Pages section of
    CadenceSettingTab.display(): the page table, deleting a page (which also
-   drops its entity schema from the settings and from ENTITIES), and the
+   drops its custom entity schema from the settings and from ENTITIES, unless
+   another page still shows it or it is a core entity), and the
    add-page form (which derives an entity key from the label and registers
    a two-field schema). */
 
@@ -129,23 +130,28 @@ describe("Custom Navigation Pages: delete", () => {
     expect(calls).toEqual([]);
   });
 
-  it("QUIRK: deleting one of two pages that share an entity drops the schema the other still shows", async () => {
-    ENTITIES.crm_vendor = { folder: "Cadence/Vendors", label: "Vendor", plural: "Vendors", fields: [], columns: ["name"] };
+  it("deleting one of two pages that share an entity keeps the schema the other still shows", async () => {
+    const vendor = { folder: "Cadence/Vendors", label: "Vendor", plural: "Vendors", fields: [], columns: ["name"] };
+    ENTITIES.crm_vendor = vendor;
+    const schema: Any[] = [];
     const twin = { ...pages[0], id: "custom.9", label: "Vendors again" };
-    const { section, plugin, calls } = shown({ customPages: [pages[0], twin], customEntities: { crm_vendor: [] } });
+    const { section, plugin, calls } = shown({ customPages: [pages[0], twin], customEntities: { crm_vendor: schema } });
     buttonByText(section, "Delete").trigger("click");
     await vi.waitFor(() => expect(calls).toEqual(["save", "refresh", "display"]));
     expect(plugin.settings.customPages.map((p: Any) => p.id)).toEqual(["custom.9"]);
-    expect(plugin.settings.customEntities.crm_vendor).toBeUndefined();
-    expect(ENTITIES.crm_vendor).toBeUndefined();
+    expect(plugin.settings.customEntities.crm_vendor).toBe(schema);
+    expect(ENTITIES.crm_vendor).toBe(vendor);
   });
 
-  it("QUIRK: a page pointed at a core entity deletes that core entity from ENTITIES and the settings", async () => {
-    const { section, plugin, calls } = shown({ customPages: [pages[2]], customEntities: { contact: [] } });
+  it("a page pointed at a core entity never deletes that core entity from ENTITIES or the settings", async () => {
+    const contact = ENTITIES.contact;
+    const schema: Any[] = [];
+    const { section, plugin, calls } = shown({ customPages: [pages[2]], customEntities: { contact: schema } });
     buttonByText(section, "Delete").trigger("click");
     await vi.waitFor(() => expect(calls).toEqual(["save", "refresh", "display"]));
-    expect(ENTITIES.contact).toBeUndefined();
-    expect(plugin.settings.customEntities.contact).toBeUndefined();
+    expect(plugin.settings.customPages).toEqual([]);
+    expect(ENTITIES.contact).toBe(contact);
+    expect(plugin.settings.customEntities.contact).toBe(schema);
   });
 });
 
