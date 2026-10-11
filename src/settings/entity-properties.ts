@@ -295,25 +295,22 @@ export type AppliedPropertyEdit = Extract<PropertyEditResult, { ok: true }>;
 /* Applies one edit to the registry, in place, and returns the frontmatter
    migrations to run (in order), a notice to show after them, and whether
    the table is redrawn. A refused edit changes nothing and returns its
-   notice. Label, options and source edits sync to the other entities'
-   fields with the same key (syncSharedProperties). */
+   notice. An edit changes only the field it is made on: same-key fields
+   on other entities are independent (#47). */
 export function applyPropertyEdit(entities: Record<string, EntityDef>, entityKey: string, edit: PropertyEdit): PropertyEditResult {
   const def = entities[entityKey];
   const migrations: FrontmatterMigration[] = [];
   switch (edit.kind) {
     case 'label': {
       edit.field.label = edit.value.trim() || edit.field.key;
-      syncSharedProperties(entities, edit.field);
       return { ok: true, migrations, rerender: false };
     }
     case 'options': {
       edit.field.options = parseEnumOptions(edit.value);
-      syncSharedProperties(entities, edit.field);
       return { ok: true, migrations, rerender: false };
     }
     case 'source': {
       edit.field.suggestionSource = edit.value;
-      syncSharedProperties(entities, edit.field);
       return { ok: true, migrations, rerender: false };
     }
     case 'lock': {

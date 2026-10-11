@@ -238,7 +238,7 @@ describe("Custom Entity Properties: label", () => {
     expect(ENTITIES.project.fields[4].label).toBe("started");
   });
 
-  it("copies the label, type, options and source to every other entity's field with the same key", async () => {
+  it("relabels only this field, leaving every other entity's field with the same key alone", async () => {
     addVendor([{ key: "region", label: "Region", type: "multitext", suggestionSource: "history" }]);
     ENTITIES.partner.fields.find((f: Any) => f.key === "region")!.options = ["x"];
     const { editor, calls } = shown({ entity: "crm_vendor" });
@@ -246,18 +246,21 @@ describe("Custom Entity Properties: label", () => {
     r.label.value = "Area";
     r.label.trigger("change");
     await vi.waitFor(() => expect(calls).toHaveLength(3));
-    expect(ENTITIES.partner.fields.find((f: Any) => f.key === "region")).toEqual({ key: "region", label: "Area", type: "multitext", suggestionSource: "history" });
+    expect(ENTITIES.crm_vendor.fields[2]).toMatchObject({ key: "region", label: "Area", type: "multitext", suggestionSource: "history" });
+    expect(ENTITIES.partner.fields.find((f: Any) => f.key === "region")).toEqual({ key: "region", label: "Region", options: ["x"] });
   });
 
-  it("QUIRK: relabelling the project's status overwrites every other status field's options with the project's", async () => {
+  it("relabelling the project's status leaves every other status field's label and options alone", async () => {
+    const others = ["partner", "registration", "commission", "lead", "sequence"];
+    const before = others.map((k) => structuredClone(ENTITIES[k].fields.find((f: Any) => f.key === "status")));
     const { editor, calls } = shown();
     const r = row(editor(), "status");
     r.label.value = "State";
     r.label.trigger("change");
     await vi.waitFor(() => expect(calls).toHaveLength(3));
-    const partnerStatus = ENTITIES.partner.fields.find((f: Any) => f.key === "status")!;
-    expect(partnerStatus).toEqual({ key: "status", label: "State", type: "enum", options: ["active", "on_hold", "backlog", "done", "cancelled"] });
-    expect(partnerStatus.options).not.toBe(ENTITIES.project.fields[1].options);
+    expect(ENTITIES.project.fields[1]).toEqual({ key: "status", label: "State", type: "enum", options: ["active", "on_hold", "backlog", "done", "cancelled"] });
+    expect(others.map((k) => ENTITIES[k].fields.find((f: Any) => f.key === "status"))).toEqual(before);
+    expect(ENTITIES.partner.fields.find((f: Any) => f.key === "status")).toEqual({ key: "status", label: "Status", type: "enum", options: ["Active", "Onboarding", "Inactive", "Churned"] });
   });
 
   it("never syncs a `type` field to other entities", async () => {
@@ -572,14 +575,27 @@ describe("Custom Entity Properties: options and source", () => {
     expect(opened[0].getSuggestions("")).toEqual(["Alpha", "Zed"]);
   });
 
-  it("syncs a chosen source to other entities' fields with the same key", async () => {
+  it("saves a chosen source on this field only, leaving other entities' fields with the same key alone", async () => {
     addVendor([{ key: "owner", label: "Owner", type: "multitext" }]);
+    const dealOwner = structuredClone(ENTITIES.deal.fields.find((f: Any) => f.key === "owner"));
     const { editor, calls } = shown({ entity: "crm_vendor" });
     const select = cell(editor(), "owner").findAll("select")[0];
     select.value = "none";
     select.trigger("change");
     await vi.waitFor(() => expect(calls).toHaveLength(3));
-    expect(ENTITIES.deal.fields.find((f: Any) => f.key === "owner")).toEqual({ key: "owner", label: "Owner", type: "multitext", suggestionSource: "none" });
+    expect(ENTITIES.crm_vendor.fields[2].suggestionSource).toBe("none");
+    expect(ENTITIES.deal.fields.find((f: Any) => f.key === "owner")).toEqual(dealOwner);
+  });
+
+  it("editing the partner's status options leaves the project's status options alone", async () => {
+    const projectStatus = structuredClone(ENTITIES.project.fields[1]);
+    const { editor, calls } = shown({ entity: "partner" });
+    const input = cell(editor(), "status").children[0];
+    input.value = "Prospect, Signed";
+    input.trigger("change");
+    await vi.waitFor(() => expect(calls).toHaveLength(3));
+    expect(ENTITIES.partner.fields.find((f: Any) => f.key === "status")!.options).toEqual(["Prospect", "Signed"]);
+    expect(ENTITIES.project.fields[1]).toEqual(projectStatus);
   });
 });
 

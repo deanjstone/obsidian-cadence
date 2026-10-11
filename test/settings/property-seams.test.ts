@@ -204,20 +204,24 @@ describe("key suggestions and cell helpers", () => {
 });
 
 describe("applyPropertyEdit", () => {
-  it("relabels (blank → key) and syncs, without migrations or redraw", () => {
+  it("relabels (blank → key) this field only, without migrations or redraw", () => {
     const r = registry();
+    const others = structuredClone([r.partner, r.deal]);
     expect(applyPropertyEdit(r, "vendor", { kind: "label", field: r.vendor.fields[2], value: " Zone " })).toEqual({ ok: true, migrations: [], rerender: false });
-    expect(r.partner.fields[1].label).toBe("Zone");
+    expect(r.vendor.fields[2].label).toBe("Zone");
+    expect([r.partner, r.deal]).toEqual(others);
     applyPropertyEdit(r, "vendor", { kind: "label", field: r.vendor.fields[2], value: "" });
     expect(r.vendor.fields[2].label).toBe("region");
   });
 
-  it("sets enum options and sources, syncing them", () => {
+  it("sets enum options and sources on this field only", () => {
     const r = registry();
+    const others = structuredClone([r.partner, r.deal]);
     applyPropertyEdit(r, "vendor", { kind: "options", field: r.vendor.fields[2], value: "a, b" });
-    expect(r.deal.fields[2].options).toEqual(["a", "b"]);
+    expect(r.vendor.fields[2].options).toEqual(["a", "b"]);
     applyPropertyEdit(r, "vendor", { kind: "source", field: r.vendor.fields[2], value: "folder:X" });
-    expect(r.partner.fields[1].suggestionSource).toBe("folder:X");
+    expect(r.vendor.fields[2].suggestionSource).toBe("folder:X");
+    expect([r.partner, r.deal]).toEqual(others);
   });
 
   it("locks and unlocks with a redraw", () => {
