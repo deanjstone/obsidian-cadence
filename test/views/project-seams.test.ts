@@ -53,10 +53,10 @@ describe("project page seams", () => {
     expect(projectMetaFields(def).map((f) => f.label)).toEqual(["Ty2", "X"]);
   });
 
-  it("writeProjectFrontmatter: deletes null, undefined and '', writes the rest (an empty list included)", () => {
-    const fm: Frontmatter = { a: 1, b: 2, c: 3, keep: "k" };
+  it("writeProjectFrontmatter: deletes null, undefined, '' and an empty list, writes the rest", () => {
+    const fm: Frontmatter = { a: 1, b: 2, c: 3, d: ["x"], keep: "k" };
     writeProjectFrontmatter(fm, { a: null, b: undefined, c: "", d: [], e: 0, f: false, g: "x" });
-    expect(fm).toEqual({ keep: "k", d: [], e: 0, f: false, g: "x" });
+    expect(fm).toEqual({ keep: "k", e: 0, f: false, g: "x" });
   });
 
   it("projectProgress: null without milestones, else the band, label and percent", () => {

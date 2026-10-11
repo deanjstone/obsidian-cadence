@@ -518,12 +518,12 @@ describe("_commitTasks", () => {
 });
 
 describe("_writeProjectFrontmatter", () => {
-  it("sets each patched key, deletes null, undefined and '', keeps [] and 0, then flashes", async () => {
+  it("sets each patched key, deletes null, undefined, '' and [], keeps 0, then flashes", async () => {
     const { view, file, app, flashSaved } = setup([
       { path: "Cadence/Projects/P.md", frontmatter: { a: 1, b: 2, c: 3, d: 4 } },
     ]);
     await view._writeProjectFrontmatter(file("Cadence/Projects/P.md"), { a: null, b: undefined, c: "", d: [], e: 0, f: "x" }, flashSaved);
-    expect(app.metadataCache.getFileCache(file("Cadence/Projects/P.md"))?.frontmatter).toEqual({ d: [], e: 0, f: "x" });
+    expect(app.metadataCache.getFileCache(file("Cadence/Projects/P.md"))?.frontmatter).toEqual({ e: 0, f: "x" });
     expect(flashSaved).toHaveBeenCalledTimes(1);
     await view._writeProjectFrontmatter(file("Cadence/Projects/P.md"), { g: 1 });
   });

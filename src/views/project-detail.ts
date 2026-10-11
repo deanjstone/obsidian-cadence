@@ -76,13 +76,12 @@ export function projectMetaFields(def: EntityDef): EntityField[] {
   return def.fields.filter(f => !(f.primary || f.key === 'status' || f.key === 'priority') && !(f.key === 'type' && f.type !== 'enum'));
 }
 
-/** Apply a patch inside a processFrontMatter callback: null, undefined and
-    '' delete the key, anything else is written.
-    Flagged quirk (kept as-is): an empty list is written as [], where the
-    company page and the generic form delete the key. */
+/** Apply a patch inside a processFrontMatter callback: null, undefined, ''
+    and an empty list delete the key, as on the company page and the generic
+    form (#50); anything else is written. */
 export function writeProjectFrontmatter(frontmatter: Frontmatter, patch: Record<string, unknown>): void {
   Object.entries(patch).forEach(([k, v]) => {
-    if (v == null || v === '') delete frontmatter[k];
+    if (v == null || v === '' || (Array.isArray(v) && v.length === 0)) delete frontmatter[k];
     else frontmatter[k] = v;
   });
 }

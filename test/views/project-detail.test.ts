@@ -288,17 +288,17 @@ describe("renderProjectDetail: meta row", () => {
     expect(fm(APOLLO.path)?.owner).toEqual(["[[Sam Lee]]", "[[Ann]]"]);
   });
 
-  it("× and Backspace remove chips; removing the last keeps an empty list", async () => {
+  it("× and Backspace remove chips; removing the last deletes the key", async () => {
     const { root, render, fm } = setup([APOLLO]);
     await render();
     chip(root, "TAGS", "q4").children[1].trigger("click");
     await flush();
-    // QUIRK: the project write only deletes null and '', so the key stays as []. The company page deletes it.
-    expect(fm(APOLLO.path)?.tags).toEqual([]);
+    // An empty list deletes the key, as on the company page and the generic form.
+    expect(fm(APOLLO.path)).not.toHaveProperty("tags");
     chipInput(root, "OWNER").trigger("keydown", { key: "Backspace" });
     await flush();
     expect(chips(root, "OWNER")).toEqual([]);
-    expect(fm(APOLLO.path)?.owner).toEqual([]);
+    expect(fm(APOLLO.path)).not.toHaveProperty("owner");
   });
 
   it("suggests contacts for the owner and vault tags for tags, and adds on mousedown", async () => {
