@@ -15,10 +15,14 @@ export const CORE_ENTITY_KEYS = ['contact', 'company', 'partner', 'registration'
 /* The entities whose fields become Obsidian property types. */
 export const PROPERTY_TYPE_ENTITIES = ['project', 'deal', 'contact', 'company', 'activity'];
 
-/* Fills what the shallow merge left missing or empty, in place: each
-   default entity schema (a deep copy) and the two default widgets of each
-   dashboard. QUIRK (#22): the merge is shallow, so with no saved data the
-   nested objects are DEFAULT_SETTINGS' own and nothing here copies them. */
+/* A deep copy of DEFAULT_SETTINGS, so a load never shares, or edits, the
+   defaults' nested objects. */
+export function defaultSettings(): PluginSettings {
+  return JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+}
+
+/* Fills what the merge left missing or empty, in place: each default entity
+   schema (a deep copy) and the two default widgets of each dashboard. */
 export function fillSettingDefaults(settings: PluginSettings, defaults: PluginSettings): void {
   // Deep default customEntities if missing or empty
   if (!settings.customEntities) {
@@ -154,7 +158,7 @@ export function propertyTypeFor(f: EntityField): string {
 
 export async function loadSettings(plugin: PluginHost): Promise<void> {
   const loadedData = await plugin.loadData() || {};
-  plugin.settings = Object.assign({}, DEFAULT_SETTINGS, loadedData);
+  plugin.settings = Object.assign(defaultSettings(), loadedData);
   fillSettingDefaults(plugin.settings, DEFAULT_SETTINGS);
   setCurrentCurrency(plugin.settings.currency || 'USD');
   reconstructEntities(plugin.settings, ENTITIES);

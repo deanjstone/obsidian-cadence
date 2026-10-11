@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ENTITIES } from "../../src/constants/entities";
+import { DEFAULT_SETTINGS } from "../../src/constants/settings";
 import { fmtValue } from "../../src/utils/format";
 import { restoreEntities, snapshotEntities } from "../helpers/setting-tab";
 import { makePlugin } from "../helpers/plugin";
@@ -58,13 +59,22 @@ describe("loadSettings: merge with the defaults", () => {
     expect(plugin.settings.modules).toEqual({ prm: true });
   });
 
-  it("QUIRK: with no saved data, nested defaults are shared, not copied", async () => {
+  it("with no saved data, nested defaults are copied, never shared between loads or with DEFAULT_SETTINGS", async () => {
     const a = await loaded(null);
     const b = await loaded(undefined);
-    expect(a.plugin.settings.reminders).toBe(b.plugin.settings.reminders);
-    expect(a.plugin.settings.customEntities).toBe(b.plugin.settings.customEntities);
-    expect(a.plugin.settings.modules).toBe(b.plugin.settings.modules);
     expect(a.plugin.settings).not.toBe(b.plugin.settings);
+    for (const key of ["reminders", "customEntities", "modules", "collapsedGroups", "pageLayouts", "customPages"]) {
+      expect(a.plugin.settings[key]).not.toBe(b.plugin.settings[key]);
+      expect(a.plugin.settings[key]).not.toBe((DEFAULT_SETTINGS as Any)[key]);
+    }
+    expect(a.plugin.settings.customEntities.project).not.toBe(b.plugin.settings.customEntities.project);
+    a.plugin.settings.modules.prm = true;
+    a.plugin.settings.reminders.push({ id: "r" });
+    expect(b.plugin.settings.modules.prm).toBe(false);
+    expect(b.plugin.settings.reminders).toEqual([]);
+    expect(DEFAULT_SETTINGS.modules.prm).toBe(false);
+    expect(DEFAULT_SETTINGS.reminders).toEqual([]);
+    expect(DEFAULT_SETTINGS.customEntities.project.map((f) => f.key)).not.toContain("type");
   });
 
   it("keeps the saved customEntities object and its non-empty lists", async () => {

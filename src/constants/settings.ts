@@ -1,9 +1,8 @@
 import type { PluginSettings } from '../types/settings';
 
 /* The settings a fresh install starts with. loadSettings
-   (src/plugin/settings.ts) merges the saved data over a shallow copy of
-   these, so nested objects are shared with any install that saved none
-   (flagged in #22). */
+   (src/plugin/settings.ts) merges the saved data over a deep copy of
+   these, so no install shares or edits their nested objects. */
 export const DEFAULT_SETTINGS: PluginSettings = {
   dailyNoteFolder: 'daily',
   dailyNoteFormat: 'YYYY-MM-DD',
