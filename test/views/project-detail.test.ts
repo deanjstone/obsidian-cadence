@@ -245,7 +245,7 @@ describe("renderProjectDetail: meta row", () => {
     expect([control(root, "STARTED").value, control(root, "DUE").value]).toEqual(["2026-09-01", "2026-12-01"]);
   });
 
-  it("skips a non-enum type field, and checks chips before enum", async () => {
+  it("skips a non-enum type field, and checks enum before chips", async () => {
     await withFields(
       [
         { key: "type", label: "Type" },
@@ -258,8 +258,9 @@ describe("renderProjectDetail: meta row", () => {
       async () => {
         const { root, render } = setup([APOLLO], { currency: "EUR" });
         await render();
+        // An enum with a suggestion source is a select, as on the generic detail form (#56).
         expect(cellKinds(root).slice(4)).toEqual([
-          ["TIER", "chips"], ["PHASE", "select"], ["BUDGET", "input:number"], ["SIZE", "input:number"], ["CODE", "input:text"],
+          ["TIER", "select"], ["PHASE", "select"], ["BUDGET", "input:number"], ["SIZE", "input:number"], ["CODE", "input:text"],
         ]);
         expect([control(root, "BUDGET").placeholder, control(root, "SIZE").placeholder]).toEqual(["EUR amount", ""]);
       },

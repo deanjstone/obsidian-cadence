@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { TFile, TFolder } from "../mocks/obsidian";
 import { ENTITIES } from "../../src/constants/entities";
 import {
-  COMPANY_LIST_KEYS, DETAIL_LIST_KEYS, applyFieldEdit, chipAdd, chipConfig, chipCreation, chipLinkTarget, chipValues,
+  COMPANY_LIST_KEYS, DETAIL_LIST_KEYS, applyFieldEdit, chipAdd, chipConfig, chipCreation, chipLabel, chipLinkTarget, chipValues,
   chipWriteValue, coerceFieldEdit, dateInputValue, enumCurrent, filterSuggestions, findNoteByName, folderNoteNames,
   historyValues, isChipField,
 } from "../../src/utils/field-edit";
@@ -130,18 +130,21 @@ describe("isChipField and chipConfig", () => {
     expect(chipConfig(field("company", { isList: true }), ENTITIES, []).isList).toBe(true);
   });
 
-  it("a folder source keeps its path, and targets an entity whose folder it names", () => {
-    expect(chipConfig(field("s", { suggestionSource: "folder:Cadence/Suppliers" }), ENTITIES, [])).toMatchObject({
+  it("a folder source keeps its path without trailing slashes, and an entity's folder (any case) becomes that folder", () => {
+    expect(chipConfig(field("s", { suggestionSource: "folder:Cadence/Suppliers/" }), ENTITIES, [])).toMatchObject({
       targetEntityKey: null, customFolderPath: "Cadence/Suppliers", isPlainChip: false,
     });
     expect(chipConfig(field("s", { suggestionSource: "folder:cadence/companies//" }), ENTITIES, [])).toMatchObject({
-      targetEntityKey: "company", customFolderPath: "cadence/companies//",
+      targetEntityKey: "company", customFolderPath: "Cadence/Companies",
     });
   });
 
-  it("an entity: source is neither an entity nor a folder, so it has no target", () => {
+  it("an entity:<key> source targets that entity; an unknown key has no target", () => {
     expect(chipConfig(field("s", { suggestionSource: "entity:company" }), ENTITIES, [])).toMatchObject({
-      suggestionSource: "entity:company", isPlainChip: false, targetEntityKey: null, customFolderPath: null,
+      suggestionSource: "entity:company", isPlainChip: false, targetEntityKey: "company", customFolderPath: null,
+    });
+    expect(chipConfig(field("s", { suggestionSource: "entity:nope" }), ENTITIES, [])).toMatchObject({
+      targetEntityKey: null, customFolderPath: null,
     });
   });
 });
@@ -169,9 +172,18 @@ describe("chip values", () => {
   it("adds a trimmed value to a list, replaces a single value, and reports blanks and duplicates", () => {
     expect(chipAdd(["a"], " b ", true)).toEqual({ kind: "added", name: "b", values: ["a", "b"] });
     expect(chipAdd(["a"], "b", false)).toEqual({ kind: "added", name: "b", values: ["b"] });
-    expect(chipAdd(["a"], "a", false)).toEqual({ kind: "added", name: "a", values: ["a"] });
+    expect(chipAdd(["a"], " a ", false)).toEqual({ kind: "duplicate" });
     expect(chipAdd(["a"], " a ", true)).toEqual({ kind: "duplicate" });
     expect(chipAdd(["a"], "   ", true)).toEqual({ kind: "blank" });
+  });
+
+  it("a history chip shows a linked value unwrapped, and a typed value matching its label is a duplicate (#56)", () => {
+    expect(chipLabel("[[Board]]", "history")).toBe("Board");
+    expect(chipLabel("[[a]]", "none")).toBe("[[a]]");
+    expect(chipLabel("[[a]]", "tags")).toBe("[[a]]");
+    const label = (v: string) => chipLabel(v, "history");
+    expect(chipAdd(["[[Board]]"], "Board", true, label)).toEqual({ kind: "duplicate" });
+    expect(chipAdd(["[[Board]]"], "CTO", true, label)).toEqual({ kind: "added", name: "CTO", values: ["[[Board]]", "CTO"] });
   });
 
   it("does not modify the list it is given", () => {
@@ -210,9 +222,10 @@ describe("chip links and note creation", () => {
   const acme = new TFile("Cadence/Companies/Acme.md") as never;
   const other = new TFile("Elsewhere/ACME.md") as never;
 
-  it("finds the first note with the name, any case", () => {
+  it("finds the note with the exact name, else the first in any case", () => {
     expect(findNoteByName([acme, other], "acme")).toBe(acme);
-    expect(findNoteByName([other, acme], "Acme")).toBe(other);
+    expect(findNoteByName([other, acme], "Acme")).toBe(acme);
+    expect(findNoteByName([other, acme], "ACME")).toBe(other);
     expect(findNoteByName([acme], "Globex")).toBeUndefined();
   });
 
@@ -272,9 +285,9 @@ describe("company detail seams", () => {
     expect(companyMetaFields(def).map((f) => f.type)).toEqual(["enum"]);
   });
 
-  it("checks chips before enum", () => {
+  it("checks enum before chips", () => {
     expect(company.fields.map(companyMetaControl)).toEqual(["input", "chips", "chips", "input", "chips", "chips"]);
-    expect(companyMetaControl(field("owner", { type: "enum" }))).toBe("chips");
+    expect(companyMetaControl(field("owner", { type: "enum" }))).toBe("enum");
     expect(companyMetaControl(field("stage", { type: "enum" }))).toBe("enum");
     expect(companyMetaControl(field("n", { type: "currency" }))).toBe("input");
   });

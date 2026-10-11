@@ -12,13 +12,14 @@ export function getDealStages(): string[] {
 
 /* Resolve which entity an arbitrary file belongs to, by frontmatter `type`
    first, then path-prefix fallback. Returns null if not a Cadence entity.
-   Flagged quirk: a one-item array `type: [deal]` matches (it indexes
-   ENTITIES by its string form) and is returned as the array itself. */
+   A one-item array `type: [deal]` reads as its one key (#56); a longer
+   array names no entity. */
 export function entityKeyFromFile(app: App, file: TFile | null | undefined): EntityKey | null {
   if (!file) return null;
   const cache = app.metadataCache.getFileCache(file);
-  const t = cache && cache.frontmatter && cache.frontmatter.type;
-  if (t && ENTITIES[t as string]) return t as EntityKey;
+  const raw = cache && cache.frontmatter && cache.frontmatter.type;
+  const t = Array.isArray(raw) ? (raw.length === 1 ? raw[0] : null) : raw;
+  if (typeof t === 'string' && Object.prototype.hasOwnProperty.call(ENTITIES, t) && ENTITIES[t]) return t;
   for (const [key, def] of Object.entries(ENTITIES)) {
     if (file.path.startsWith(def.folder + '/')) return key;
   }

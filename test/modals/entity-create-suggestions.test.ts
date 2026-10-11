@@ -105,7 +105,7 @@ describe("CadenceEntityCreateModal suggestions", () => {
     expect(typeInto("missing", "spec").style.display).toBe("none");
   });
 
-  it("suggests contacts for an entity:<key> source, ignoring the key (flagged)", () => {
+  it("suggests the named entity's notes for an entity:<key> source", () => {
     ENTITIES.widget = {
       folder: "Cadence/Widgets", label: "Widget", plural: "Widgets", columns: [],
       fields: [
@@ -114,8 +114,20 @@ describe("CadenceEntityCreateModal suggestions", () => {
       ],
     };
     const { typeInto } = openCreate("widget");
-    expect(shown(typeInto("client", "a"))).toEqual(["Jane Doe", "Jo March"]);
-    expect(shown(typeInto("client", "acme"))).toEqual([]);
+    expect(shown(typeInto("client", "a"))).toEqual(["Acme Corp"]);
+    expect(shown(typeInto("client", "jo"))).toEqual([]);
+  });
+
+  it("reads an entity's notes for a folder source naming its folder with a trailing slash or another case (#56)", () => {
+    ENTITIES.widget = {
+      folder: "Cadence/Widgets", label: "Widget", plural: "Widgets", columns: [],
+      fields: [
+        { key: "name", label: "Name", primary: true },
+        { key: "client", label: "Client", suggestionSource: "folder:cadence/companies/" },
+      ],
+    };
+    const { typeInto } = openCreate("widget");
+    expect(shown(typeInto("client", "acme"))).toEqual(["Acme Corp"]);
   });
 
   it("replaces the last segment with the picked name on mousedown", () => {

@@ -1,6 +1,6 @@
-import type { TFile } from 'obsidian';
+import type { App, TFile } from 'obsidian';
 import type { EntityDef, EntityField, Frontmatter } from '../types/entities';
-import { getFieldSuggestionSource } from './entities';
+import { getFieldSuggestionSource, listEntityFiles } from './entities';
 import type { VaultNode } from './vault';
 
 /* Field editing shared by the entity detail form and the company detail
@@ -86,37 +86,55 @@ export interface ChipConfig {
   isPlainChip: boolean;
   /** Written as a list; otherwise one value replaces the last. */
   isList: boolean;
-  /** The entity the chips link to: the source itself, or the entity whose
-      folder a folder: source names. */
+  /** The entity the chips link to: the source itself, the entity an
+      entity:<key> source names, or the entity whose folder a folder:
+      source names. */
   targetEntityKey: string | null;
   /** A folder: source's path; suggestions list its notes. */
   customFolderPath: string | null;
 }
 
+/** The entity and folder a suggestion source names (#56). An entity key or
+    `entity:<key>` names that entity (own keys only). A `folder:<path>` names
+    the path without trailing slashes; when that is an entity's folder, in
+    any case, it names the entity and its folder as the entity spells it. */
+export function suggestionTarget(
+  suggestionSource: string, entities: Record<string, EntityDef>,
+): { targetEntityKey: string | null; customFolderPath: string | null } {
+  const isEntity = (key: string) => Object.prototype.hasOwnProperty.call(entities, key) && entities[key] != null;
+  if (isEntity(suggestionSource)) return { targetEntityKey: suggestionSource, customFolderPath: null };
+  if (suggestionSource.startsWith('entity:')) {
+    const key = suggestionSource.slice('entity:'.length);
+    return { targetEntityKey: isEntity(key) ? key : null, customFolderPath: null };
+  }
+  if (!suggestionSource.startsWith('folder:')) return { targetEntityKey: null, customFolderPath: null };
+  const path = suggestionSource.slice('folder:'.length).replace(/\/+$/, '');
+  if (!path) return { targetEntityKey: null, customFolderPath: null };
+  for (const [ek, def] of Object.entries(entities)) {
+    if (def && def.folder && def.folder.replace(/\/+$/, '').toLowerCase() === path.toLowerCase()) {
+      return { targetEntityKey: ek, customFolderPath: def.folder.replace(/\/+$/, '') };
+    }
+  }
+  return { targetEntityKey: null, customFolderPath: path };
+}
+
 /** How a chip field links, suggests and saves. `listKeys` is
-    DETAIL_LIST_KEYS or COMPANY_LIST_KEYS. A folder: source that names an
-    entity's folder (case- and trailing-slash-insensitive) targets that
-    entity, but keeps its folder path for suggestions. */
+    DETAIL_LIST_KEYS or COMPANY_LIST_KEYS. The target comes from
+    suggestionTarget. */
 export function chipConfig(f: EntityField, entities: Record<string, EntityDef>, listKeys: string[]): ChipConfig {
   const fieldType = f.type || 'text';
   const suggestionSource = getFieldSuggestionSource(f);
-  const isEntitySrc = entities[suggestionSource] != null;
-  const isFolderSrc = suggestionSource && suggestionSource.startsWith('folder:');
   const isPlainChip = ['tags', 'none', 'history'].includes(suggestionSource);
   const isList = fieldType === 'tags' || fieldType === 'multitext' || f.isList === true || listKeys.includes(f.key);
-  let targetEntityKey = isEntitySrc ? suggestionSource : null;
-  const customFolderPath = isFolderSrc ? suggestionSource.slice('folder:'.length) : null;
-
-  if (isFolderSrc && customFolderPath) {
-    const normalizedPath = customFolderPath.replace(/\/+$/, '').toLowerCase();
-    for (const [ek, def] of Object.entries(entities)) {
-      if (def && def.folder && def.folder.replace(/\/+$/, '').toLowerCase() === normalizedPath) {
-        targetEntityKey = ek;
-        break;
-      }
-    }
-  }
+  const { targetEntityKey, customFolderPath } = suggestionTarget(suggestionSource, entities);
   return { suggestionSource, isPlainChip, isList, targetEntityKey, customFolderPath };
+}
+
+/** What a chip shows for a stored value: a history value unwrapped from
+    [[ ]], like its suggestions (#56); any other value as it is. The value
+    itself is written back unchanged. */
+export function chipLabel(value: string, suggestionSource: string): string {
+  return suggestionSource === 'history' ? value.replace(/^\[\[|\]\]$/g, '').trim() : value;
 }
 
 /** One stored value as a chip: trimmed, and unwrapped from [[ ]] unless plain. */
@@ -148,16 +166,15 @@ export type ChipAdd =
   | { kind: 'duplicate' }
   | { kind: 'added'; name: string; values: string[] };
 
-/** Adding a typed value: blank does nothing, a list's existing value only
-    clears the input, otherwise the trimmed name is appended (or replaces
-    the value of a single-value field). */
-export function chipAdd(values: string[], raw: string, isList: boolean): ChipAdd {
+/** Adding a typed value: blank does nothing, a value already chosen (by
+    its label, so `Board` matches a stored `[[Board]]`) only clears the
+    input, in a list or a single-value field (#56); otherwise the trimmed
+    name is appended (or replaces the value of a single-value field). */
+export function chipAdd(values: string[], raw: string, isList: boolean, label: (value: string) => string = (v) => v): ChipAdd {
   const name = raw.trim();
   if (!name) return { kind: 'blank' };
-  if (isList) {
-    if (values.includes(name)) return { kind: 'duplicate' };
-    return { kind: 'added', name, values: [...values, name] };
-  }
+  if (values.some((v) => label(v) === name)) return { kind: 'duplicate' };
+  if (isList) return { kind: 'added', name, values: [...values, name] };
   return { kind: 'added', name, values: [name] };
 }
 
@@ -176,20 +193,34 @@ export function historyValues(frontmatters: Frontmatter[], key: string): string[
   return Array.from(allValues);
 }
 
-/** Basenames of the .md notes under a folder, recursively; none for a
-    missing folder or a file. */
-export function folderNoteNames(folderNode: VaultNode | null): string[] {
-  const names: string[] = [];
+/** The .md notes under a folder, recursively; none for a missing folder
+    or a file. */
+export function folderNotes(folderNode: VaultNode | null): TFile[] {
+  const notes: TFile[] = [];
   if (folderNode && folderNode.children) {
     const walk = (node: VaultNode) => {
       for (const child of node.children!) {
         if (child.children) walk(child);
-        else if (child.path && child.path.endsWith('.md')) names.push((child as TFile).basename);
+        else if (child.path && child.path.endsWith('.md')) notes.push(child as TFile);
       }
     };
     walk(folderNode);
   }
-  return names;
+  return notes;
+}
+
+/** Basenames of the .md notes under a folder, recursively. */
+export function folderNoteNames(folderNode: VaultNode | null): string[] {
+  return folderNotes(folderNode).map((note) => note.basename);
+}
+
+/** The notes a link chip can name (#56): its folder's notes, else its
+    target entity's notes, else none. Suggestions, click-through and the
+    auto-create check all read this, not the whole vault. */
+export function chipScopeNotes(app: App, targetEntityKey: string | null, customFolderPath: string | null): TFile[] {
+  if (customFolderPath) return folderNotes(app.vault.getAbstractFileByPath(customFolderPath) as VaultNode | null);
+  if (targetEntityKey) return listEntityFiles(app, targetEntityKey);
+  return [];
 }
 
 /** Candidates containing the (trimmed, lower-cased) query, minus the chips
@@ -198,9 +229,11 @@ export function filterSuggestions(candidates: string[], query: string, taken: st
   return candidates.filter((v) => (!query || v.toLowerCase().includes(query)) && !taken.includes(v));
 }
 
-/** The note a chip names: the first markdown file with that basename, any case. */
+/** The note a chip names among `files` (its scope, chipScopeNotes): the
+    one with that exact basename, else the first in any case. */
 export function findNoteByName(files: TFile[], name: string): TFile | undefined {
-  return files.find(cFile => cFile.basename.toLowerCase() === name.toLowerCase());
+  return files.find(cFile => cFile.basename === name)
+    || files.find(cFile => cFile.basename.toLowerCase() === name.toLowerCase());
 }
 
 export type ChipLinkTarget =
@@ -245,12 +278,12 @@ export function chipCreation(
 
 export type MetaControl = 'chips' | 'enum' | 'input';
 
-/** The cell a company or project meta-row field edits with. Chips are
-    checked first, so (flagged) an enum with a suggestion source is a chip
-    input on those pages but a select on the generic form. */
+/** The cell a company or project meta-row field edits with. Enum is
+    checked first, so an enum with a suggestion source is a select, as on
+    the generic form (#56). */
 export function metaControl(f: EntityField): MetaControl {
-  if (isChipField(f)) return 'chips';
-  return (f.type || 'text') === 'enum' ? 'enum' : 'input';
+  if ((f.type || 'text') === 'enum') return 'enum';
+  return isChipField(f) ? 'chips' : 'input';
 }
 
 /** An input cell's type: date, number (for number and currency), else text. */
