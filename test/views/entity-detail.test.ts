@@ -448,6 +448,24 @@ describe("renderEntityDetail: chip fields", () => {
     expect(app.vault.created).toHaveLength(2);
   });
 
+  it("a link chip whose target is not a contact, company or project links without creating a note", async () => {
+    const { root, render, app, fm } = setup([{ path: "Cadence/Registrations/R.md", frontmatter: { title: "R" } }]);
+    await render("registration", "Cadence/Registrations/R.md");
+    await enter(chipInput(root, "PARTNER"), "Globex Partners");
+    await flush();
+    expect(fm("Cadence/Registrations/R.md")?.partner).toBe("[[Globex Partners]]");
+    expect(app.vault.created).toEqual([]);
+    expect(Notice.messages).toEqual([]);
+  });
+
+  it("an auto-created note keeps the name's case", async () => {
+    const { root, render, app } = setup([JANE]);
+    await render("contact", JANE.path);
+    await enter(chipInput(root, "COMPANY"), "iOS Labs GmbH");
+    await flush();
+    expect(app.vault.created).toEqual(["Cadence/Companies/iOS Labs GmbH.md"]);
+  });
+
   it("the note lookup is case-insensitive across the vault, so an existing note is not recreated", async () => {
     const { root, render, app } = setup([JANE, ACME, { path: "Elsewhere/INITECH.md" }]);
     await render("contact", JANE.path);
@@ -599,8 +617,9 @@ describe("renderEntityDetail: chip suggestions", () => {
       await enter(chipInput(root, "SUPPLIER"), "Rivet Inc");
       await enter(chipInput(root, "ACCOUNT"), "Hooli");
       await flush();
-      expect(app.vault.created).toEqual(["Cadence/Suppliers/Rivet Inc.md", "Cadence/Companies/Hooli.md"]);
-      expect(Notice.messages).toEqual(["Created new Note: Rivet Inc", "Created new Company: Hooli"]);
+      // Only a relation field (contact, company, project) auto-creates (#45): the supplier folder does not.
+      expect(app.vault.created).toEqual(["Cadence/Companies/Hooli.md"]);
+      expect(Notice.messages).toEqual(["Created new Company: Hooli"]);
     } finally {
       restore();
     }

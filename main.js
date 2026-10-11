@@ -1525,9 +1525,6 @@ function collectValidLinks(notes, contactNames, projectNames, entities) {
   }
   return validLinks;
 }
-function autoCreateName(nameLower, basenames) {
-  return basenames.find((b) => b.toLowerCase() === nameLower) || nameLower.charAt(0).toUpperCase() + nameLower.slice(1);
-}
 function projectLinkValue(names) {
   if (names.length === 0) return null;
   if (names.length === 1) return `[[${names[0]}]]`;
@@ -1545,19 +1542,23 @@ function addProjectLink(current, projectName) {
   if (current.some((p) => p.toLowerCase() === projectName.toLowerCase())) return current;
   return [...current, projectName];
 }
+function projectItems(value) {
+  if (Array.isArray(value)) return value.map(String);
+  if (value == null) return [];
+  return String(value).split(/,(?![^[]*\]\])/).map((s) => s.trim()).filter(Boolean);
+}
+function appendProjectLink(value, projectName) {
+  const names = extractEntitiesFromValue(value);
+  if (addProjectLink(names, projectName) === names) return null;
+  const items = [...projectItems(value), `[[${projectName}]]`];
+  return items.length === 1 ? items[0] : items;
+}
 function removeProjectLink(current, projectName) {
   return current.filter((p) => p.toLowerCase() !== projectName.toLowerCase());
 }
-function contactProjectsPlan(existing, target) {
-  const existingLower = existing.map((p) => p.toLowerCase());
-  const targetLower = target.map((p) => p.toLowerCase());
-  const needsUpdate = existingLower.some((p) => !targetLower.includes(p)) || targetLower.some((p) => !existingLower.includes(p));
-  if (!needsUpdate) return null;
-  return {
-    names: target,
-    added: target.filter((p) => !existing.some((ep) => ep.toLowerCase() === p.toLowerCase())),
-    removed: existing.filter((ep) => !target.some((p) => p.toLowerCase() === ep.toLowerCase()))
-  };
+function contactProjectsPlan(existing, backed) {
+  const added = backed.filter((p) => !existing.some((ep) => ep.toLowerCase() === p.toLowerCase()));
+  return added.length > 0 ? { added } : null;
 }
 async function syncContactProjectRelationships(plugin, changedFile) {
   if (plugin._syncInProgress) return;
@@ -1576,26 +1577,8 @@ async function syncContactProjectRelationships(plugin, changedFile) {
       projectMap.set(f.basename.toLowerCase(), f);
     }
     const frontmatterOf = (f) => (plugin.app.metadataCache.getFileCache(f) || {}).frontmatter || {};
-    const autoCreate = async (entityKey, nameLower, allFiles, map) => {
-      try {
-        const originalName = autoCreateName(nameLower, allFiles.map((f) => f.basename));
-        const file = await createEntity(plugin.app, entityKey, originalName);
-        map.set(nameLower, file);
-        new import_obsidian4.Notice(`Fiche ${entityKey === "contact" ? "contact" : "projet"} cr\xE9\xE9e automatiquement pour "${originalName}".`);
-      } catch (e) {
-        console.error(`Cadence: Failed to auto-create ${entityKey} ${nameLower}`, e);
-      }
-    };
     const changedEntityKey = entityKeyFromFile(plugin.app, changedFile);
     if (changedEntityKey === "contact") {
-      const currentProjectsOfContact = new Set(
-        extractEntitiesFromValue(frontmatterOf(changedFile).project).map((p) => p.toLowerCase())
-      );
-      for (const p of currentProjectsOfContact) {
-        if (!projectMap.has(p)) {
-          await autoCreate("project", p, plugin.app.vault.getMarkdownFiles(), projectMap);
-        }
-      }
     } else if (changedEntityKey === "project") {
       const projectLower = changedFile.basename.toLowerCase();
       const projectFm = frontmatterOf(changedFile);
@@ -1607,43 +1590,16 @@ async function syncContactProjectRelationships(plugin, changedFile) {
         }
       }
       const currentContactsOfProject = new Set(projectContacts.map((c) => c.toLowerCase()));
-      for (const c of currentContactsOfProject) {
-        if (!contactMap.has(c)) {
-          await autoCreate("contact", c, plugin.app.vault.getMarkdownFiles(), contactMap);
-        }
-      }
       for (const [contactLower, contactFile] of contactMap.entries()) {
         const contactProjects = extractEntitiesFromValue(frontmatterOf(contactFile).project);
         const listsProject = contactProjects.some((p) => p.toLowerCase() === projectLower);
         const projectListsContact = currentContactsOfProject.has(contactLower);
         if (projectListsContact && !listsProject) {
           await plugin.app.fileManager.processFrontMatter(contactFile, (cfm) => {
-            const currentProjects = extractEntitiesFromValue(cfm.project);
-            if (!currentProjects.some((p) => p.toLowerCase() === projectLower)) {
-              writeProjectLinks(cfm, addProjectLink(currentProjects, changedFile.basename));
-            }
+            const value = appendProjectLink(cfm.project, changedFile.basename);
+            if (value !== null) cfm.project = value;
           });
           new import_obsidian4.Notice(`Lien automatique : Projet "${changedFile.basename}" associ\xE9 au contact "${contactFile.basename}".`);
-        } else if (!projectListsContact && listsProject) {
-          let hasOtherSource = false;
-          const allFiles = plugin.app.vault.getMarkdownFiles();
-          for (const f of allFiles) {
-            if (f.path === changedFile.path || f.path === contactFile.path) continue;
-            const cache = plugin.app.metadataCache.getFileCache(f);
-            if (!cache || !cache.frontmatter) continue;
-            const note = { entityKey: entityKeyFromFile(plugin.app, f), basename: f.basename, frontmatter: cache.frontmatter };
-            const { contacts, projects } = noteLinks(note, contactMap, projectMap, ENTITIES);
-            if (contacts.has(contactLower) && projects.has(projectLower)) {
-              hasOtherSource = true;
-              break;
-            }
-          }
-          if (!hasOtherSource) {
-            await plugin.app.fileManager.processFrontMatter(contactFile, (cfm) => {
-              writeProjectLinks(cfm, removeProjectLink(extractEntitiesFromValue(cfm.project), projectLower));
-            });
-            new import_obsidian4.Notice(`Lien automatique : Projet "${changedFile.basename}" dissoci\xE9 du contact "${contactFile.basename}".`);
-          }
         }
       }
     } else {
@@ -1657,11 +1613,6 @@ async function syncContactProjectRelationships(plugin, changedFile) {
         notes.push({ entityKey, basename: f.basename, frontmatter: cache.frontmatter });
       }
       const validLinks = collectValidLinks(notes, contactMap, projectMap, ENTITIES);
-      for (const link of validLinks) {
-        const [c, p] = link.split("|");
-        if (!contactMap.get(c)) await autoCreate("contact", c, allFiles, contactMap);
-        if (!projectMap.get(p)) await autoCreate("project", p, allFiles, projectMap);
-      }
       for (const [contactLower, contactFile] of contactMap.entries()) {
         const existingProjects = extractEntitiesFromValue(frontmatterOf(contactFile).project);
         const projectNamesToLink = /* @__PURE__ */ new Set();
@@ -1677,14 +1628,12 @@ async function syncContactProjectRelationships(plugin, changedFile) {
         const plan = contactProjectsPlan(existingProjects, Array.from(projectNamesToLink));
         if (plan) {
           await plugin.app.fileManager.processFrontMatter(contactFile, (cfm) => {
-            writeProjectLinks(cfm, plan.names);
+            for (const name of plan.added) {
+              const value = appendProjectLink(cfm.project, name);
+              if (value !== null) cfm.project = value;
+            }
           });
-          if (plan.added.length > 0) {
-            new import_obsidian4.Notice(`Lien automatique : Projet "${plan.added.join(", ")}" associ\xE9 \xE0 "${contactFile.basename}".`);
-          }
-          if (plan.removed.length > 0) {
-            new import_obsidian4.Notice(`Lien automatique : Projet "${plan.removed.join(", ")}" dissoci\xE9 de "${contactFile.basename}".`);
-          }
+          new import_obsidian4.Notice(`Lien automatique : Projet "${plan.added.join(", ")}" associ\xE9 \xE0 "${contactFile.basename}".`);
         }
       }
     }
@@ -1701,6 +1650,8 @@ async function handleProjectDeletion(plugin, file) {
   if (!file.path.startsWith(projectFolder + "/")) return;
   const projectName = file.basename;
   if (!projectName) return;
+  const remaining = listEntityFiles(plugin.app, "project");
+  if (remaining.some((f) => f.path !== file.path && f.basename.toLowerCase() === projectName.toLowerCase())) return;
   try {
     plugin._syncInProgress = true;
     const contactFiles = listEntityFiles(plugin.app, "contact");
@@ -3583,6 +3534,174 @@ var CadencePromptModal = class extends import_obsidian11.Modal {
   }
 };
 
+// src/utils/field-edit.ts
+function coerceFieldEdit(def, key, raw) {
+  let value = raw;
+  const fdef = def.fields.find((f) => f.key === key);
+  if (fdef) {
+    if (fdef.type === "tags") {
+      if (Array.isArray(raw)) {
+        value = raw;
+      } else {
+        value = (raw || "").split(",").map((t) => t.trim()).filter(Boolean);
+      }
+    } else if (fdef.type === "number" || fdef.type === "currency") {
+      const n = Number(raw);
+      value = isNaN(n) ? null : n;
+    } else if (key === "stage") {
+      value = raw ? [raw] : null;
+    } else if (raw === "") {
+      value = null;
+    }
+  }
+  return value;
+}
+function applyFieldEdit(frontmatter, key, value) {
+  if (value == null || Array.isArray(value) && value.length === 0) {
+    delete frontmatter[key];
+  } else {
+    frontmatter[key] = value;
+  }
+}
+function dateInputValue(current) {
+  const d = new Date(current);
+  return isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
+}
+function enumCurrent(current) {
+  return Array.isArray(current) ? String(current[0] || "") : String(current || "");
+}
+function isChipField(f) {
+  const fieldType = f.type || "text";
+  return fieldType === "tags" || fieldType === "multitext" || getFieldSuggestionSource(f) !== "none";
+}
+var DETAIL_LIST_KEYS = ["tags", "owner", "assigned", "contacts", "domain", "industry", "role", "with", "related"];
+var COMPANY_LIST_KEYS = ["owner", "contacts", "domain", "industry", "role", "with", "related"];
+function chipConfig(f, entities, listKeys) {
+  const fieldType = f.type || "text";
+  const suggestionSource = getFieldSuggestionSource(f);
+  const isEntitySrc = entities[suggestionSource] != null;
+  const isFolderSrc = suggestionSource && suggestionSource.startsWith("folder:");
+  const isPlainChip = ["tags", "none", "history"].includes(suggestionSource);
+  const isList = fieldType === "tags" || fieldType === "multitext" || f.isList === true || listKeys.includes(f.key);
+  let targetEntityKey = isEntitySrc ? suggestionSource : null;
+  const customFolderPath = isFolderSrc ? suggestionSource.slice("folder:".length) : null;
+  if (isFolderSrc && customFolderPath) {
+    const normalizedPath = customFolderPath.replace(/\/+$/, "").toLowerCase();
+    for (const [ek, def] of Object.entries(entities)) {
+      if (def && def.folder && def.folder.replace(/\/+$/, "").toLowerCase() === normalizedPath) {
+        targetEntityKey = ek;
+        break;
+      }
+    }
+  }
+  return { suggestionSource, isPlainChip, isList, targetEntityKey, customFolderPath };
+}
+function unwrapChip(v, isPlainChip) {
+  return isPlainChip ? String(v).trim() : String(v).replace(/^\[\[|\]\]$/g, "").trim();
+}
+function chipValues(current, isPlainChip) {
+  if (Array.isArray(current)) {
+    return current.map((v) => unwrapChip(v, isPlainChip)).filter(Boolean);
+  } else if (current != null && current !== "") {
+    return [unwrapChip(current, isPlainChip)].filter(Boolean);
+  }
+  return [];
+}
+function chipWriteValue(values, isPlainChip, isList) {
+  if (isPlainChip) {
+    return isList ? values : values[0] || null;
+  }
+  return isList ? values.map((o) => `[[${o}]]`) : values[0] ? `[[${values[0]}]]` : null;
+}
+function chipAdd(values, raw, isList) {
+  const name = raw.trim();
+  if (!name) return { kind: "blank" };
+  if (isList) {
+    if (values.includes(name)) return { kind: "duplicate" };
+    return { kind: "added", name, values: [...values, name] };
+  }
+  return { kind: "added", name, values: [name] };
+}
+function historyValues(frontmatters, key) {
+  const allValues = /* @__PURE__ */ new Set();
+  frontmatters.forEach((fm) => {
+    const val = fm[key];
+    if (Array.isArray(val)) {
+      val.forEach((v) => {
+        if (v) allValues.add(String(v).replace(/^\[\[|\]\]$/g, "").trim());
+      });
+    } else if (val != null && val !== "") {
+      allValues.add(String(val).replace(/^\[\[|\]\]$/g, "").trim());
+    }
+  });
+  return Array.from(allValues);
+}
+function folderNoteNames(folderNode) {
+  const names = [];
+  if (folderNode && folderNode.children) {
+    const walk = (node) => {
+      for (const child of node.children) {
+        if (child.children) walk(child);
+        else if (child.path && child.path.endsWith(".md")) names.push(child.basename);
+      }
+    };
+    walk(folderNode);
+  }
+  return names;
+}
+function filterSuggestions(candidates, query, taken) {
+  return candidates.filter((v) => (!query || v.toLowerCase().includes(query)) && !taken.includes(v));
+}
+function findNoteByName(files, name) {
+  return files.find((cFile) => cFile.basename.toLowerCase() === name.toLowerCase());
+}
+function chipLinkTarget(targetEntityKey, targetFile, name) {
+  if (targetFile) {
+    if (targetEntityKey && !targetEntityKey.startsWith("folder:")) {
+      return { kind: "entity", entityKey: targetEntityKey, file: targetFile };
+    }
+    return { kind: "file", file: targetFile };
+  }
+  return { kind: "link", linktext: name };
+}
+var AUTO_CREATE_ENTITIES = ["contact", "company", "project"];
+function autoCreatesNote(targetEntityKey) {
+  return targetEntityKey != null && AUTO_CREATE_ENTITIES.includes(targetEntityKey);
+}
+function chipCreation(suggestionSource, targetEntityKey, entities) {
+  return {
+    source: suggestionSource === "history" ? "folder:Cadence/Shared" : targetEntityKey || suggestionSource,
+    label: entities[targetEntityKey] ? entities[targetEntityKey].label : "Note"
+  };
+}
+function metaControl(f) {
+  if (isChipField(f)) return "chips";
+  return (f.type || "text") === "enum" ? "enum" : "input";
+}
+function metaInputType(fieldType) {
+  return fieldType === "date" ? "date" : fieldType === "number" || fieldType === "currency" ? "number" : "text";
+}
+function metaInputValue(fieldType, raw) {
+  let val = raw || null;
+  if (fieldType === "number" || fieldType === "currency") {
+    const n = Number(raw);
+    val = isNaN(n) ? null : n;
+  }
+  return val;
+}
+function splitSectionColumns(keys) {
+  const left = [];
+  const right = [];
+  keys.forEach((key, idx) => {
+    if (idx % 2 === 0) {
+      left.push(key);
+    } else {
+      right.push(key);
+    }
+  });
+  return { left, right };
+}
+
 // src/views/calendar.ts
 var import_obsidian12 = require("obsidian");
 
@@ -3916,170 +4035,6 @@ var CadenceConfirmModal = class extends import_obsidian13.Modal {
   }
 };
 
-// src/utils/field-edit.ts
-function coerceFieldEdit(def, key, raw) {
-  let value = raw;
-  const fdef = def.fields.find((f) => f.key === key);
-  if (fdef) {
-    if (fdef.type === "tags") {
-      if (Array.isArray(raw)) {
-        value = raw;
-      } else {
-        value = (raw || "").split(",").map((t) => t.trim()).filter(Boolean);
-      }
-    } else if (fdef.type === "number" || fdef.type === "currency") {
-      const n = Number(raw);
-      value = isNaN(n) ? null : n;
-    } else if (key === "stage") {
-      value = raw ? [raw] : null;
-    } else if (raw === "") {
-      value = null;
-    }
-  }
-  return value;
-}
-function applyFieldEdit(frontmatter, key, value) {
-  if (value == null || Array.isArray(value) && value.length === 0) {
-    delete frontmatter[key];
-  } else {
-    frontmatter[key] = value;
-  }
-}
-function dateInputValue(current) {
-  const d = new Date(current);
-  return isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
-}
-function enumCurrent(current) {
-  return Array.isArray(current) ? String(current[0] || "") : String(current || "");
-}
-function isChipField(f) {
-  const fieldType = f.type || "text";
-  return fieldType === "tags" || fieldType === "multitext" || getFieldSuggestionSource(f) !== "none";
-}
-var DETAIL_LIST_KEYS = ["tags", "owner", "assigned", "contacts", "domain", "industry", "role", "with", "related"];
-var COMPANY_LIST_KEYS = ["owner", "contacts", "domain", "industry", "role", "with", "related"];
-function chipConfig(f, entities, listKeys) {
-  const fieldType = f.type || "text";
-  const suggestionSource = getFieldSuggestionSource(f);
-  const isEntitySrc = entities[suggestionSource] != null;
-  const isFolderSrc = suggestionSource && suggestionSource.startsWith("folder:");
-  const isPlainChip = ["tags", "none", "history"].includes(suggestionSource);
-  const isList = fieldType === "tags" || fieldType === "multitext" || f.isList === true || listKeys.includes(f.key);
-  let targetEntityKey = isEntitySrc ? suggestionSource : null;
-  const customFolderPath = isFolderSrc ? suggestionSource.slice("folder:".length) : null;
-  if (isFolderSrc && customFolderPath) {
-    const normalizedPath = customFolderPath.replace(/\/+$/, "").toLowerCase();
-    for (const [ek, def] of Object.entries(entities)) {
-      if (def && def.folder && def.folder.replace(/\/+$/, "").toLowerCase() === normalizedPath) {
-        targetEntityKey = ek;
-        break;
-      }
-    }
-  }
-  return { suggestionSource, isPlainChip, isList, targetEntityKey, customFolderPath };
-}
-function unwrapChip(v, isPlainChip) {
-  return isPlainChip ? String(v).trim() : String(v).replace(/^\[\[|\]\]$/g, "").trim();
-}
-function chipValues(current, isPlainChip) {
-  if (Array.isArray(current)) {
-    return current.map((v) => unwrapChip(v, isPlainChip)).filter(Boolean);
-  } else if (current != null && current !== "") {
-    return [unwrapChip(current, isPlainChip)].filter(Boolean);
-  }
-  return [];
-}
-function chipWriteValue(values, isPlainChip, isList) {
-  if (isPlainChip) {
-    return isList ? values : values[0] || null;
-  }
-  return isList ? values.map((o) => `[[${o}]]`) : values[0] ? `[[${values[0]}]]` : null;
-}
-function chipAdd(values, raw, isList) {
-  const name = raw.trim();
-  if (!name) return { kind: "blank" };
-  if (isList) {
-    if (values.includes(name)) return { kind: "duplicate" };
-    return { kind: "added", name, values: [...values, name] };
-  }
-  return { kind: "added", name, values: [name] };
-}
-function historyValues(frontmatters, key) {
-  const allValues = /* @__PURE__ */ new Set();
-  frontmatters.forEach((fm) => {
-    const val = fm[key];
-    if (Array.isArray(val)) {
-      val.forEach((v) => {
-        if (v) allValues.add(String(v).replace(/^\[\[|\]\]$/g, "").trim());
-      });
-    } else if (val != null && val !== "") {
-      allValues.add(String(val).replace(/^\[\[|\]\]$/g, "").trim());
-    }
-  });
-  return Array.from(allValues);
-}
-function folderNoteNames(folderNode) {
-  const names = [];
-  if (folderNode && folderNode.children) {
-    const walk = (node) => {
-      for (const child of node.children) {
-        if (child.children) walk(child);
-        else if (child.path && child.path.endsWith(".md")) names.push(child.basename);
-      }
-    };
-    walk(folderNode);
-  }
-  return names;
-}
-function filterSuggestions(candidates, query, taken) {
-  return candidates.filter((v) => (!query || v.toLowerCase().includes(query)) && !taken.includes(v));
-}
-function findNoteByName(files, name) {
-  return files.find((cFile) => cFile.basename.toLowerCase() === name.toLowerCase());
-}
-function chipLinkTarget(targetEntityKey, targetFile, name) {
-  if (targetFile) {
-    if (targetEntityKey && !targetEntityKey.startsWith("folder:")) {
-      return { kind: "entity", entityKey: targetEntityKey, file: targetFile };
-    }
-    return { kind: "file", file: targetFile };
-  }
-  return { kind: "link", linktext: name };
-}
-function chipCreation(suggestionSource, targetEntityKey, entities) {
-  return {
-    source: suggestionSource === "history" ? "folder:Cadence/Shared" : targetEntityKey || suggestionSource,
-    label: entities[targetEntityKey] ? entities[targetEntityKey].label : "Note"
-  };
-}
-function metaControl(f) {
-  if (isChipField(f)) return "chips";
-  return (f.type || "text") === "enum" ? "enum" : "input";
-}
-function metaInputType(fieldType) {
-  return fieldType === "date" ? "date" : fieldType === "number" || fieldType === "currency" ? "number" : "text";
-}
-function metaInputValue(fieldType, raw) {
-  let val = raw || null;
-  if (fieldType === "number" || fieldType === "currency") {
-    const n = Number(raw);
-    val = isNaN(n) ? null : n;
-  }
-  return val;
-}
-function splitSectionColumns(keys) {
-  const left = [];
-  const right = [];
-  keys.forEach((key, idx) => {
-    if (idx % 2 === 0) {
-      left.push(key);
-    } else {
-      right.push(key);
-    }
-  });
-  return { left, right };
-}
-
 // src/views/company-detail.ts
 function companyDetailTitle(fm, basename) {
   return fm.name || basename;
@@ -4287,7 +4242,7 @@ async function renderCompanyDetail(view, root, file) {
         valuesList = added.values;
         renderChips();
         await save();
-        if (!isPlainChip) {
+        if (!isPlainChip && autoCreatesNote(targetEntityKey)) {
           const targetFile = findNoteByName(view.app.vault.getMarkdownFiles(), name);
           if (!targetFile) {
             try {
@@ -5791,7 +5746,7 @@ async function renderEntityDetail(view, root, entityKey, file) {
           valuesList = added.values;
           renderChips();
           await save();
-          if (!isPlainChip) {
+          if (!isPlainChip && autoCreatesNote(targetEntityKey)) {
             const targetFile = findNoteByName(view.app.vault.getMarkdownFiles(), name);
             if (!targetFile) {
               try {
@@ -8329,7 +8284,7 @@ async function renderProjectDetail(view, root, file) {
         valuesList = added.values;
         renderChips();
         await save();
-        if (!isPlainChip) {
+        if (!isPlainChip && autoCreatesNote(targetEntityKey)) {
           const targetFile = findNoteByName(view.app.vault.getMarkdownFiles(), name);
           if (!targetFile) {
             try {
@@ -11261,12 +11216,13 @@ function planEntityLinks(def, defaults, values) {
       if (extras[key]) {
         const rawVal = extras[key];
         const parts = Array.isArray(rawVal) ? rawVal.map(String) : String(rawVal).split(",");
-        const names = parts.map((n) => n.replace(/^\[\[|\]\]$/g, "").trim()).filter(Boolean);
+        const names = parts.map((n) => n.trim().replace(/^\[\[|\]\]$/g, "").trim()).filter(Boolean);
         extras[key] = names.map((n) => `[[${n}]]`);
-        const creationSource = suggestionSource === "history" ? "folder:Cadence/Shared" : suggestionSource;
-        let targetEntityKey = ENTITIES[suggestionSource] ? suggestionSource : null;
-        if (suggestionSource.startsWith("folder:")) {
-          const customFolderPath = suggestionSource.slice("folder:".length);
+        const source = suggestionSource.startsWith("entity:") ? suggestionSource.slice("entity:".length) : suggestionSource;
+        const creationSource = source === "history" ? "folder:Cadence/Shared" : source;
+        let targetEntityKey = ENTITIES[source] ? source : null;
+        if (source.startsWith("folder:")) {
+          const customFolderPath = source.slice("folder:".length);
           const normalizedPath = customFolderPath.replace(/\/+$/, "").toLowerCase();
           for (const [ek, edef] of Object.entries(ENTITIES)) {
             if (edef && edef.folder && edef.folder.replace(/\/+$/, "").toLowerCase() === normalizedPath) {
@@ -11275,6 +11231,7 @@ function planEntityLinks(def, defaults, values) {
             }
           }
         }
+        if (!autoCreatesNote(targetEntityKey)) continue;
         const label = targetEntityKey ? ENTITIES[targetEntityKey].label : "Note";
         for (const name of names) links.push({ name, creationSource, label });
       }

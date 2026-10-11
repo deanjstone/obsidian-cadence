@@ -1,7 +1,7 @@
 import { Notice, type TFile } from 'obsidian';
 import { ENTITIES } from '../constants/entities';
 import type { EntityDef, Frontmatter } from '../types/entities';
-import { createEntity, entityKeyFromFile, getFieldSuggestionSource, listEntityFiles } from '../utils/entities';
+import { entityKeyFromFile, getFieldSuggestionSource, listEntityFiles } from '../utils/entities';
 import type { PluginHost } from './host';
 
 /* The contact↔project sync. onload runs syncContactProjectRelationships on
@@ -9,11 +9,14 @@ import type { PluginHost } from './host';
    vault 'delete'. Only contacts' `project` field is written. CadencePlugin
    keeps a one-line delegate for each.
 
+   The sync only adds (#45): a change never removes a project a contact
+   lists. Only deleting a project note removes it.
+
    The link maths is plain data over names and frontmatter: which names a
    value holds (extractEntitiesFromValue), which fields name contacts or
    projects, which contact–project pairs a note backs (noteLinks,
    collectValidLinks), and the `project` value to write (projectLinkValue,
-   addProjectLink, removeProjectLink, contactProjectsPlan). */
+   appendProjectLink, removeProjectLink, contactProjectsPlan). */
 
 /* A note as the sync sees it: its entity type, name and frontmatter. */
 export interface SyncNote {
@@ -145,13 +148,6 @@ export function collectValidLinks(
   return validLinks;
 }
 
-/* The name to give an auto-created contact or project: the casing of any
-   note with that basename, else the lower-cased name with its first letter
-   capitalised. QUIRK (#22): "iOS App" with no note becomes "Ios app". */
-export function autoCreateName(nameLower: string, basenames: string[]): string {
-  return basenames.find(b => b.toLowerCase() === nameLower) || (nameLower.charAt(0).toUpperCase() + nameLower.slice(1));
-}
-
 /* A contact's `project` value: one link as a string, several as a list, and
    none as null (the key is deleted). Every name is rewritten as a link. */
 export function projectLinkValue(names: string[]): string | string[] | null {
@@ -177,26 +173,35 @@ export function addProjectLink(current: string[], projectName: string): string[]
   return [...current, projectName];
 }
 
+/* A contact's `project` value as the items it holds, each as typed: a
+   list's items, or a string split on the commas outside its links. */
+function projectItems(value: unknown): string[] {
+  if (Array.isArray(value)) return value.map(String);
+  if (value == null) return [];
+  return String(value).split(/,(?![^[]*\]\])/).map(s => s.trim()).filter(Boolean);
+}
+
+/* The contact's `project` value with a link to `projectName` appended, or
+   null when it already lists it (case-insensitive). The other items stay as
+   typed: a plain name is not rewritten as a link (#45). */
+export function appendProjectLink(value: unknown, projectName: string): string | string[] | null {
+  const names = extractEntitiesFromValue(value);
+  if (addProjectLink(names, projectName) === names) return null;
+  const items = [...projectItems(value), `[[${projectName}]]`];
+  return items.length === 1 ? items[0] : items;
+}
+
 /* The contact's project names without `projectName` (case-insensitive). */
 export function removeProjectLink(current: string[], projectName: string): string[] {
   return current.filter(p => p.toLowerCase() !== projectName.toLowerCase());
 }
 
-/* What the vault-wide pass writes to one contact, or null when its
-   projects already match the target (case-insensitively, as sets). */
-export function contactProjectsPlan(
-  existing: string[],
-  target: string[],
-): { names: string[]; added: string[]; removed: string[] } | null {
-  const existingLower = existing.map(p => p.toLowerCase());
-  const targetLower = target.map(p => p.toLowerCase());
-  const needsUpdate = existingLower.some(p => !targetLower.includes(p)) || targetLower.some(p => !existingLower.includes(p));
-  if (!needsUpdate) return null;
-  return {
-    names: target,
-    added: target.filter(p => !existing.some(ep => ep.toLowerCase() === p.toLowerCase())),
-    removed: existing.filter(ep => !target.some(p => p.toLowerCase() === ep.toLowerCase())),
-  };
+/* The backed projects the vault-wide pass adds to one contact, or null when
+   it already lists them all (case-insensitively). The sync is additive: a
+   project the contact lists is never removed, backed or not (#45). */
+export function contactProjectsPlan(existing: string[], backed: string[]): { added: string[] } | null {
+  const added = backed.filter(p => !existing.some(ep => ep.toLowerCase() === p.toLowerCase()));
+  return added.length > 0 ? { added } : null;
 }
 
 export async function syncContactProjectRelationships(plugin: PluginHost, changedFile: TFile | null | undefined): Promise<void> {
@@ -225,33 +230,12 @@ export async function syncContactProjectRelationships(plugin: PluginHost, change
 
     const frontmatterOf = (f: TFile): Frontmatter => (plugin.app.metadataCache.getFileCache(f) || {}).frontmatter || {};
 
-    const autoCreate = async (entityKey: 'contact' | 'project', nameLower: string, allFiles: TFile[], map: Map<string, TFile>) => {
-      try {
-        const originalName = autoCreateName(nameLower, allFiles.map(f => f.basename));
-        const file = await createEntity(plugin.app, entityKey, originalName);
-        map.set(nameLower, file);
-        new Notice(`Fiche ${entityKey === 'contact' ? 'contact' : 'projet'} créée automatiquement pour "${originalName}".`);
-      } catch (e) {
-        console.error(`Cadence: Failed to auto-create ${entityKey} ${nameLower}`, e);
-      }
-    };
-
     const changedEntityKey = entityKeyFromFile(plugin.app, changedFile);
 
     if (changedEntityKey === 'contact') {
-      const currentProjectsOfContact = new Set(
-        extractEntitiesFromValue(frontmatterOf(changedFile).project).map(p => p.toLowerCase())
-      );
-
-      // Auto-create any projects in contact sheet that do not exist yet
-      for (const p of currentProjectsOfContact) {
-        if (!projectMap.has(p)) {
-          await autoCreate('project', p, plugin.app.vault.getMarkdownFiles(), projectMap);
-        }
-      }
-
       // We only sync projects to contacts (one-way relationship).
-      // Editing a contact sheet does not push the contact name back to project owner fields.
+      // Editing a contact sheet does not push the contact name back to project owner fields,
+      // and the sync never creates notes (#45): only a form edit to a relation field does.
     }
     else if (changedEntityKey === 'project') {
       const projectLower = changedFile.basename.toLowerCase();
@@ -266,13 +250,6 @@ export async function syncContactProjectRelationships(plugin: PluginHost, change
       }
       const currentContactsOfProject = new Set(projectContacts.map(c => c.toLowerCase()));
 
-      // Auto-create any contacts in project sheet that do not exist yet
-      for (const c of currentContactsOfProject) {
-        if (!contactMap.has(c)) {
-          await autoCreate('contact', c, plugin.app.vault.getMarkdownFiles(), contactMap);
-        }
-      }
-
       // For each contact in the vault, check if they should be linked
       for (const [contactLower, contactFile] of contactMap.entries()) {
         const contactProjects = extractEntitiesFromValue(frontmatterOf(contactFile).project);
@@ -282,35 +259,10 @@ export async function syncContactProjectRelationships(plugin: PluginHost, change
         if (projectListsContact && !listsProject) {
           // User manually added contact to project sheet!
           await plugin.app.fileManager.processFrontMatter(contactFile, (cfm: Frontmatter) => {
-            const currentProjects = extractEntitiesFromValue(cfm.project);
-            if (!currentProjects.some(p => p.toLowerCase() === projectLower)) {
-              writeProjectLinks(cfm, addProjectLink(currentProjects, changedFile.basename));
-            }
+            const value = appendProjectLink(cfm.project, changedFile.basename);
+            if (value !== null) cfm.project = value;
           });
           new Notice(`Lien automatique : Projet "${changedFile.basename}" associé au contact "${contactFile.basename}".`);
-        } else if (!projectListsContact && listsProject) {
-          // User removed contact from project sheet! Check if there is any other note listing both.
-          let hasOtherSource = false;
-          const allFiles = plugin.app.vault.getMarkdownFiles();
-          for (const f of allFiles) {
-            if (f.path === changedFile.path || f.path === contactFile.path) continue;
-            const cache = plugin.app.metadataCache.getFileCache(f);
-            if (!cache || !cache.frontmatter) continue;
-
-            const note = { entityKey: entityKeyFromFile(plugin.app, f), basename: f.basename, frontmatter: cache.frontmatter };
-            const { contacts, projects } = noteLinks(note, contactMap, projectMap, ENTITIES);
-            if (contacts.has(contactLower) && projects.has(projectLower)) {
-              hasOtherSource = true;
-              break;
-            }
-          }
-
-          if (!hasOtherSource) {
-            await plugin.app.fileManager.processFrontMatter(contactFile, (cfm: Frontmatter) => {
-              writeProjectLinks(cfm, removeProjectLink(extractEntitiesFromValue(cfm.project), projectLower));
-            });
-            new Notice(`Lien automatique : Projet "${changedFile.basename}" dissocié du contact "${contactFile.basename}".`);
-          }
         }
       }
     }
@@ -327,13 +279,6 @@ export async function syncContactProjectRelationships(plugin: PluginHost, change
         notes.push({ entityKey, basename: f.basename, frontmatter: cache.frontmatter });
       }
       const validLinks = collectValidLinks(notes, contactMap, projectMap, ENTITIES);
-
-      // Auto-create any referenced Contacts or Projects that do not exist yet
-      for (const link of validLinks) {
-        const [c, p] = link.split('|');
-        if (!contactMap.get(c)) await autoCreate('contact', c, allFiles, contactMap);
-        if (!projectMap.get(p)) await autoCreate('project', p, allFiles, projectMap);
-      }
 
       // Sync all Contacts according to validLinks
       for (const [contactLower, contactFile] of contactMap.entries()) {
@@ -353,15 +298,12 @@ export async function syncContactProjectRelationships(plugin: PluginHost, change
         const plan = contactProjectsPlan(existingProjects, Array.from(projectNamesToLink));
         if (plan) {
           await plugin.app.fileManager.processFrontMatter(contactFile, (cfm: Frontmatter) => {
-            writeProjectLinks(cfm, plan.names);
+            for (const name of plan.added) {
+              const value = appendProjectLink(cfm.project, name);
+              if (value !== null) cfm.project = value;
+            }
           });
-
-          if (plan.added.length > 0) {
-            new Notice(`Lien automatique : Projet "${plan.added.join(', ')}" associé à "${contactFile.basename}".`);
-          }
-          if (plan.removed.length > 0) {
-            new Notice(`Lien automatique : Projet "${plan.removed.join(', ')}" dissocié de "${contactFile.basename}".`);
-          }
+          new Notice(`Lien automatique : Projet "${plan.added.join(', ')}" associé à "${contactFile.basename}".`);
         }
       }
 
@@ -385,6 +327,11 @@ export async function handleProjectDeletion(plugin: PluginHost, file: TFile | nu
 
   const projectName = file.basename;
   if (!projectName) return;
+
+  // Projects can sit in sub-folders, so a deleted note there counts only
+  // when no other project note of that name remains (#45).
+  const remaining = listEntityFiles(plugin.app, 'project');
+  if (remaining.some(f => f.path !== file.path && f.basename.toLowerCase() === projectName.toLowerCase())) return;
 
   try {
     plugin._syncInProgress = true;

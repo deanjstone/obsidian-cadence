@@ -7,7 +7,7 @@ import type { Reminder } from '../types/reminders';
 import { ymd } from '../utils/dates';
 import { createEntity, getEnumOptions, listEntities, readProjectMeta } from '../utils/entities';
 import {
-  COMPANY_LIST_KEYS, chipAdd, chipConfig, chipCreation, chipLinkTarget, chipValues, chipWriteValue, dateInputValue,
+  COMPANY_LIST_KEYS, autoCreatesNote, chipAdd, chipConfig, chipCreation, chipLinkTarget, chipValues, chipWriteValue, dateInputValue,
   enumCurrent, filterSuggestions, findNoteByName, folderNoteNames, historyValues, metaControl, metaInputType,
   metaInputValue, splitSectionColumns,
 } from '../utils/field-edit';
@@ -492,7 +492,7 @@ export async function renderProjectDetail(view: AppViewHost, root: HTMLElement, 
         renderChips();
         await save();
 
-        if (!isPlainChip) {
+        if (!isPlainChip && autoCreatesNote(targetEntityKey)) {
           const targetFile = findNoteByName(view.app.vault.getMarkdownFiles(), name);
           if (!targetFile) {
             try {

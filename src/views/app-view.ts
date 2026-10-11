@@ -8,6 +8,7 @@ import { CadenceEntityCreateModal } from '../modals/entity-create';
 import { CadencePromptModal } from '../modals/prompt';
 import { dailyNotePath, startOfDay, weekDates } from '../utils/dates';
 import { createEntity, entityKeyFromFile, getFieldSuggestionSource } from '../utils/entities';
+import { autoCreatesNote } from '../utils/field-edit';
 import type { DailySections, Milestone, MilestoneInput, TaskItem } from '../utils/parsing';
 import { renderPlannerPane, togglePlannerTask, type PlannerDay } from './calendar';
 import { renderCompanyDetail } from './company-detail';
@@ -431,7 +432,8 @@ export interface EntityLink {
    and the notes it links to, in field order. Defaults are overlaid by the
    modal's values and the primary key is dropped (the template sets it).
    Every field with an entity or folder suggestion source becomes a list of
-   wiki-links. */
+   wiki-links; only a contact, company or project target lists its notes
+   to auto-create (#45). */
 export function planEntityLinks(
   def: EntityDef, defaults: Record<string, unknown>, values: Record<string, unknown>,
 ): { extras: Record<string, unknown>; links: EntityLink[] } {
@@ -448,15 +450,17 @@ export function planEntityLinks(
       if (extras[key]) {
         const rawVal = extras[key];
         const parts = Array.isArray(rawVal) ? rawVal.map(String) : String(rawVal).split(',');
-        // QUIRK (kept): brackets are stripped before trimming, so " [[Bob]]" becomes "[[Bob".
-        const names = parts.map(n => n.replace(/^\[\[|\]\]$/g, '').trim()).filter(Boolean);
+        // Trim before stripping the brackets, so " [[Bob]]" is "Bob" (#45).
+        const names = parts.map(n => n.trim().replace(/^\[\[|\]\]$/g, '').trim()).filter(Boolean);
         extras[key] = names.map(n => `[[${n}]]`);
 
-        // QUIRK (kept): 'history' is excluded above, so this always picks suggestionSource.
-        const creationSource = suggestionSource === 'history' ? 'folder:Cadence/Shared' : suggestionSource;
-        let targetEntityKey = ENTITIES[suggestionSource] ? suggestionSource : null;
-        if (suggestionSource.startsWith('folder:')) {
-          const customFolderPath = suggestionSource.slice('folder:'.length);
+        // An entity:<key> source names the entity <key>, not a folder called entity:<key> (#45).
+        const source = suggestionSource.startsWith('entity:') ? suggestionSource.slice('entity:'.length) : suggestionSource;
+        // QUIRK (kept): 'history' is excluded above, so this always picks source.
+        const creationSource = source === 'history' ? 'folder:Cadence/Shared' : source;
+        let targetEntityKey = ENTITIES[source] ? source : null;
+        if (source.startsWith('folder:')) {
+          const customFolderPath = source.slice('folder:'.length);
           const normalizedPath = customFolderPath.replace(/\/+$/, '').toLowerCase();
           for (const [ek, edef] of Object.entries(ENTITIES)) {
             if (edef && edef.folder && edef.folder.replace(/\/+$/, '').toLowerCase() === normalizedPath) {
@@ -465,6 +469,8 @@ export function planEntityLinks(
             }
           }
         }
+        // Only a relation field (contact, company, project) auto-creates its notes (#45).
+        if (!autoCreatesNote(targetEntityKey)) continue;
         const label = targetEntityKey ? ENTITIES[targetEntityKey].label : 'Note';
         for (const name of names) links.push({ name, creationSource, label });
       }

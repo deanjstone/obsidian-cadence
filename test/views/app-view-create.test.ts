@@ -116,12 +116,11 @@ describe("CadenceAppView _createEntityFromPrompt", () => {
     expect(render).toHaveBeenCalledTimes(1);
   });
 
-  it("QUIRK: a comma-separated link with a space before [[ keeps its brackets and auto-creates [[Name", async () => {
+  it("a comma-separated link with a space before [[ links the existing note and creates no [[Name", async () => {
     const { app, fm } = await submit("deal", { name: "D", values: { contact: "Ann, [[Bob]]" } }, { files: [{ path: "Cadence/Contacts/Bob.md" }] });
-    // Brackets are stripped before the space is trimmed, so " [[Bob]]" becomes "[[Bob".
-    expect(app.vault.created).toEqual(["Cadence/Pipeline/D.md", "Cadence/Contacts/Ann.md", "Cadence/Contacts/[[Bob.md"]);
-    expect(Notice.messages.slice(0, 2)).toEqual(["Created new Contact: Ann", "Created new Contact: [[Bob"]);
-    expect(fm("Cadence/Pipeline/D.md")!.contact).toEqual(["[[Ann]]", "[[[[Bob]]"]);
+    expect(app.vault.created).toEqual(["Cadence/Pipeline/D.md", "Cadence/Contacts/Ann.md"]);
+    expect(Notice.messages.slice(0, 2)).toEqual(["Created new Contact: Ann", "Created Deal: D\nSaved to Cadence/Pipeline/D.md"]);
+    expect(fm("Cadence/Pipeline/D.md")!.contact).toEqual(["[[Ann]]", "[[Bob]]"]);
   });
 
   it("uses a default for a field the modal left out, and links only fields with an entity or folder source", async () => {
@@ -136,7 +135,7 @@ describe("CadenceAppView _createEntityFromPrompt", () => {
     });
   });
 
-  it("auto-creates into a folder: source, using the matching entity's label when the folder is an entity folder", async () => {
+  it("auto-creates only into a folder: source that is a contact, company or project folder", async () => {
     const extra = [
       { key: "vendor", label: "Vendor", suggestionSource: "folder:Cadence/Companies/" },
       { key: "venue", label: "Venue", suggestionSource: "folder:Venues" },
@@ -144,22 +143,33 @@ describe("CadenceAppView _createEntityFromPrompt", () => {
     ENTITIES.deal.fields.push(...(extra as Any));
     try {
       const { app } = await submit("deal", { name: "D", values: { vendor: "Globex", venue: "Hall" } });
-      expect(app.vault.created).toEqual(["Cadence/Pipeline/D.md", "Cadence/Companies/Globex.md", "Venues/Hall.md"]);
-      expect(Notice.messages.slice(0, 2)).toEqual(["Created new Company: Globex", "Created new Note: Hall"]);
+      expect(app.vault.created).toEqual(["Cadence/Pipeline/D.md", "Cadence/Companies/Globex.md"]);
+      expect(Notice.messages.slice(0, 2)).toEqual(["Created new Company: Globex", "Created Deal: D\nSaved to Cadence/Pipeline/D.md"]);
     } finally {
       ENTITIES.deal.fields.splice(-2, 2);
     }
   });
 
-  it("QUIRK: an entity:<key> source auto-creates the note in a folder literally named entity:<key>", async () => {
+  it("an entity:<key> source auto-creates the note in that entity's folder", async () => {
     ENTITIES.deal.fields.push({ key: "sponsor", label: "Sponsor", suggestionSource: "entity:company" } as Any);
     try {
       const { app } = await submit("deal", { name: "D", values: { sponsor: "Initech" } });
-      expect(app.vault.created).toEqual(["Cadence/Pipeline/D.md", "entity:company/Initech.md"]);
-      expect(Notice.messages[0]).toBe("Created new Note: Initech");
+      expect(app.vault.created).toEqual(["Cadence/Pipeline/D.md", "Cadence/Companies/Initech.md"]);
+      expect(Notice.messages[0]).toBe("Created new Company: Initech");
     } finally {
       ENTITIES.deal.fields.pop();
     }
+  });
+
+  it("links a partner field without creating a note", async () => {
+    const { app, fm } = await submit("registration", { name: "R", values: { partner: "Globex Partners" } });
+    expect(app.vault.created).toEqual(["Cadence/Registrations/R.md"]);
+    expect(fm("Cadence/Registrations/R.md")!.partner).toEqual(["[[Globex Partners]]"]);
+  });
+
+  it("keeps an auto-created name's case", async () => {
+    const { app } = await submit("deal", { name: "D", values: { contact: "McKenzie DUPONT" } });
+    expect(app.vault.created).toEqual(["Cadence/Pipeline/D.md", "Cadence/Contacts/McKenzie DUPONT.md"]);
   });
 
   it("warns and carries on when a referenced note cannot be auto-created", async () => {

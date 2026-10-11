@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  addProjectLink, autoCreateName, collectValidLinks, contactProjectsPlan, extractEntitiesFromValue, isContactField,
+  addProjectLink, appendProjectLink, collectValidLinks, contactProjectsPlan, extractEntitiesFromValue, isContactField,
   isProjectField, noteLinks, projectLinkValue, removeProjectLink, writeProjectLinks, type SyncNote,
 } from "../../src/plugin/contact-project-sync";
 import type { EntityDef, Frontmatter } from "../../src/types/entities";
@@ -104,17 +104,6 @@ describe("collectValidLinks", () => {
   });
 });
 
-describe("autoCreateName", () => {
-  it("takes the casing of a note with the same basename", () => {
-    expect(autoCreateName("big plan", ["Other", "Big Plan", "big plan"])).toBe("Big Plan");
-  });
-
-  it("QUIRK: else capitalises the lower-cased name", () => {
-    expect(autoCreateName("ios app", [])).toBe("Ios app");
-    expect(autoCreateName("", [])).toBe("");
-  });
-});
-
 describe("project link values", () => {
   it("writes one link as a string, several as a list, none as null", () => {
     expect(projectLinkValue([])).toBeNull();
@@ -130,6 +119,15 @@ describe("project link values", () => {
     expect(fm).toEqual({ name: "Jane" });
   });
 
+  it("appendProjectLink appends a link to the raw value, keeping each item as typed", () => {
+    expect(appendProjectLink(undefined, "Apollo")).toBe("[[Apollo]]");
+    expect(appendProjectLink("", "Apollo")).toBe("[[Apollo]]");
+    expect(appendProjectLink("Zeta", "Apollo")).toEqual(["Zeta", "[[Apollo]]"]);
+    expect(appendProjectLink("Zeta, [[Old|the old one]]", "Apollo")).toEqual(["Zeta", "[[Old|the old one]]", "[[Apollo]]"]);
+    expect(appendProjectLink(["[[Zeta]]", "plain"], "Apollo")).toEqual(["[[Zeta]]", "plain", "[[Apollo]]"]);
+    expect(appendProjectLink(["apollo"], "Apollo")).toBeNull();
+  });
+
   it("addProjectLink appends a missing project only", () => {
     const current = ["Apollo"];
     expect(addProjectLink(current, "Zeta")).toEqual(["Apollo", "Zeta"]);
@@ -143,15 +141,14 @@ describe("project link values", () => {
 });
 
 describe("contactProjectsPlan", () => {
-  it("is null when the sets match case-insensitively, whatever the order", () => {
+  it("is null when every backed project is already listed, case-insensitively", () => {
     expect(contactProjectsPlan(["Apollo", "zeta"], ["Zeta", "apollo"])).toBeNull();
     expect(contactProjectsPlan([], [])).toBeNull();
   });
 
-  it("writes the target and reports what was added and removed", () => {
-    expect(contactProjectsPlan(["Apollo", "Old"], ["apollo", "New"])).toEqual({
-      names: ["apollo", "New"], added: ["New"], removed: ["Old"],
-    });
-    expect(contactProjectsPlan(["Apollo"], [])).toEqual({ names: [], added: [], removed: ["Apollo"] });
+  it("only adds: a backed project missing from the contact is added, and none is removed", () => {
+    expect(contactProjectsPlan(["Apollo", "Old"], ["apollo", "New"])).toEqual({ added: ["New"] });
+    expect(contactProjectsPlan(["Apollo"], [])).toBeNull();
+    expect(contactProjectsPlan(["Apollo", "Old"], ["apollo"])).toBeNull();
   });
 });

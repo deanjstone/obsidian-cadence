@@ -93,30 +93,31 @@ describe("sync guards", () => {
 });
 
 describe("a contact note changes", () => {
-  it("creates each listed project that does not exist, and writes no links", async () => {
+  it("creates no note for a listed project that does not exist, and writes no links", async () => {
     const { app } = await loadedVault([
       { path: jane.path, frontmatter: { type: "contact", project: ["[[Website relaunch]]", "[[Zeta launch]]"] } },
       website,
     ]);
     await changed(app, jane.path);
-    expect(app.vault.created).toEqual(["Cadence/Projects/Zeta launch.md"]);
+    expect(app.vault.created).toEqual([]);
     expect(app.fileManager.processed).toEqual([]);
-    expect(Notice.messages).toEqual(['Fiche projet créée automatiquement pour "Zeta launch".']);
+    expect(Notice.messages).toEqual([]);
   });
 
-  it("names a created project after a note with the same basename, if any", async () => {
+  it("creates no project even when another note has the same basename", async () => {
     const { app } = await loadedVault([
       { path: jane.path, frontmatter: { type: "contact", project: "[[big plan]]" } },
       { path: "Notes/Big Plan.md", body: "x" },
     ]);
     await changed(app, jane.path);
-    expect(app.vault.created).toEqual(["Cadence/Projects/Big Plan.md"]);
+    expect(app.vault.created).toEqual([]);
   });
 
-  it("QUIRK: otherwise lower-cases the name and capitalises its first letter", async () => {
+  it("re-cases no name: the contact's project names stay as typed", async () => {
     const { app } = await loadedVault([{ path: jane.path, frontmatter: { type: "contact", project: "iOS App, Big DATA" } }]);
     await changed(app, jane.path);
-    expect(app.vault.created).toEqual(["Cadence/Projects/Ios app.md", "Cadence/Projects/Big data.md"]);
+    expect(app.vault.created).toEqual([]);
+    expect(fm(app, jane.path)?.project).toBe("iOS App, Big DATA");
   });
 
   it("does nothing when every listed project exists", async () => {
@@ -126,17 +127,14 @@ describe("a contact note changes", () => {
     expect(Notice.messages).toEqual([]);
   });
 
-  it("logs a project it cannot create and goes on", async () => {
+  it("never calls vault.create, so a vault that cannot create logs nothing", async () => {
     const { app } = await loadedVault([{ path: jane.path, frontmatter: { type: "contact", project: "[[A]], [[B]]" } }]);
-    const create = app.vault.create.bind(app.vault);
-    app.vault.create = async (path: string, content: string) => {
-      if (path.endsWith("/A.md")) throw new Error("disk full");
-      return create(path, content);
-    };
+    const create = vi.spyOn(app.vault, "create").mockRejectedValue(new Error("disk full"));
     const log = vi.spyOn(console, "error").mockImplementation(() => {});
     await changed(app, jane.path);
-    expect(log).toHaveBeenCalledWith("Cadence: Failed to auto-create project a", expect.any(Error));
-    expect(app.vault.created).toEqual(["Cadence/Projects/B.md"]);
+    expect(create).not.toHaveBeenCalled();
+    expect(log).not.toHaveBeenCalled();
+    expect(app.vault.created).toEqual([]);
   });
 });
 
@@ -148,14 +146,14 @@ describe("a project note changes", () => {
     expect(Notice.messages).toEqual(['Lien automatique : Projet "Apollo" associé au contact "Sam Lee".']);
   });
 
-  it("QUIRK: appends to the contact's projects and rewrites them all as links", async () => {
+  it("appends a link to the contact's projects and leaves its plain names as typed", async () => {
     const { app } = await loadedVault([
       { path: sam.path, frontmatter: { type: "contact", project: "Website relaunch" } },
       website,
       { path: apollo.path, frontmatter: { type: "project", contacts: ["Sam Lee"] } },
     ]);
     await changed(app, apollo.path);
-    expect(fm(app, sam.path)?.project).toEqual(["[[Website relaunch]]", "[[Apollo]]"]);
+    expect(fm(app, sam.path)?.project).toEqual(["Website relaunch", "[[Apollo]]"]);
   });
 
   it("reads every contact field: owner, contact, contacts, with, assigned and contact-sourced fields", async () => {
@@ -184,15 +182,12 @@ describe("a project note changes", () => {
     expect(app.vault.created).toEqual([]);
   });
 
-  it("creates a named contact that does not exist, then links it", async () => {
+  it("creates no note for a named contact that does not exist", async () => {
     const { app } = await loadedVault([{ path: apollo.path, frontmatter: { type: "project", owner: ["[[New Person]]"] } }]);
     await changed(app, apollo.path);
-    expect(app.vault.created).toEqual(["Cadence/Contacts/New person.md"]);
-    expect(fm(app, "Cadence/Contacts/New person.md")?.project).toBe("[[Apollo]]");
-    expect(Notice.messages).toEqual([
-      'Fiche contact créée automatiquement pour "New person".',
-      'Lien automatique : Projet "Apollo" associé au contact "New person".',
-    ]);
+    expect(app.vault.created).toEqual([]);
+    expect(app.fileManager.processed).toEqual([]);
+    expect(Notice.messages).toEqual([]);
   });
 
   it("leaves a contact that already lists the project", async () => {
@@ -201,21 +196,22 @@ describe("a project note changes", () => {
     expect(app.fileManager.processed).toEqual([]);
   });
 
-  it("removes the project from a contact the project no longer names", async () => {
+  it("keeps the project on a contact the project does not name", async () => {
     const { app } = await loadedVault([
       { path: jane.path, frontmatter: { type: "contact", project: ["[[Apollo]]", "[[website relaunch]]"] } },
       apollo,
       { path: website.path, frontmatter: { type: "project", owner: [] } },
     ]);
     await changed(app, website.path);
-    expect(fm(app, jane.path)?.project).toBe("[[Apollo]]");
-    expect(Notice.messages).toEqual(['Lien automatique : Projet "Website relaunch" dissocié du contact "Jane Doe".']);
+    expect(fm(app, jane.path)?.project).toEqual(["[[Apollo]]", "[[website relaunch]]"]);
+    expect(app.fileManager.processed).toEqual([]);
+    expect(Notice.messages).toEqual([]);
   });
 
-  it("deletes the contact's project key when that was its last project", async () => {
+  it("keeps the contact's last project", async () => {
     const { app } = await loadedVault([jane, { path: website.path, frontmatter: { type: "project" } }]);
     await changed(app, website.path);
-    expect(fm(app, jane.path)).not.toHaveProperty("project");
+    expect(fm(app, jane.path)?.project).toEqual(["[[Website relaunch]]"]);
   });
 
   it("keeps the link when another note names both the contact and the project", async () => {
@@ -229,7 +225,7 @@ describe("a project note changes", () => {
     expect(app.fileManager.processed).toEqual([]);
   });
 
-  it("does not count the contact's own note, or a note naming only one side, as another source", async () => {
+  it("keeps the link with no other source: not the contact's own note, nor a note naming only one side", async () => {
     const { app } = await loadedVault([
       jane,
       { path: website.path, frontmatter: { type: "project" } },
@@ -237,7 +233,8 @@ describe("a project note changes", () => {
       { path: "Meetings/Bare.md" },
     ]);
     await changed(app, website.path);
-    expect(fm(app, jane.path)).not.toHaveProperty("project");
+    expect(fm(app, jane.path)?.project).toEqual(["[[Website relaunch]]"]);
+    expect(app.fileManager.processed).toEqual([]);
   });
 });
 
@@ -264,6 +261,17 @@ describe("any other note changes", () => {
     expect(fm(app, sam.path)?.project).toBe("[[Apollo]]");
   });
 
+  it("adds a backed project without rewriting the contact's plain names as links", async () => {
+    const { app } = await loadedVault([
+      { path: sam.path, frontmatter: { type: "contact", project: "Website relaunch, Hand list" } },
+      website,
+      apollo,
+      { path: "Notes/n.md", frontmatter: { owner: "[[Sam Lee]]", project: "[[Apollo]]" } },
+    ]);
+    await changed(app, "Notes/n.md");
+    expect(fm(app, sam.path)?.project).toEqual(["Website relaunch", "Hand list", "[[Apollo]]"]);
+  });
+
   it("writes nothing when the contacts already match", async () => {
     const { app } = await loadedVault([jane, website, { path: "Notes/n.md", frontmatter: { a: "b" } }]);
     await changed(app, "Notes/n.md");
@@ -271,7 +279,7 @@ describe("any other note changes", () => {
     expect(Notice.messages).toEqual([]);
   });
 
-  it("QUIRK: a project a contact lists by hand is removed when no other note backs it", async () => {
+  it("keeps a project a contact lists by hand, even when no other note backs it", async () => {
     const { app } = await loadedVault([
       { path: jane.path, frontmatter: { type: "contact", project: ["[[Website relaunch]]", "[[Apollo]]"] } },
       website,
@@ -279,23 +287,36 @@ describe("any other note changes", () => {
       { path: "Notes/unrelated.md", frontmatter: { mood: "fine" } },
     ]);
     await changed(app, "Notes/unrelated.md");
-    expect(fm(app, jane.path)?.project).toBe("[[Website relaunch]]");
-    expect(Notice.messages).toEqual(['Lien automatique : Projet "Apollo" dissocié de "Jane Doe".']);
+    expect(fm(app, jane.path)?.project).toEqual(["[[Website relaunch]]", "[[Apollo]]"]);
+    expect(app.fileManager.processed).toEqual([]);
+    expect(Notice.messages).toEqual([]);
   });
 
-  it("deletes the project key of a contact with no backed project", async () => {
+  it("keeps the project key of a contact with no backed project", async () => {
     const { app } = await loadedVault([jane, { path: website.path, frontmatter: { type: "project" } }, { path: "Notes/n.md", frontmatter: { a: 1 } }]);
     await changed(app, "Notes/n.md");
-    expect(fm(app, jane.path)).not.toHaveProperty("project");
+    expect(fm(app, jane.path)?.project).toEqual(["[[Website relaunch]]"]);
   });
 
-  it("QUIRK: creates a contact for any name in a contact field, and a project for any name in a project field", async () => {
+  it("creates no note for a name in a contact or project field", async () => {
     const { app } = await loadedVault([
       { path: "Cadence/Pipeline/Globex.md", frontmatter: { type: "deal", owner: "Globex Inc", project: "Big Deal" } },
     ]);
     await changed(app, "Cadence/Pipeline/Globex.md");
-    expect(app.vault.created).toEqual(["Cadence/Contacts/Globex inc.md", "Cadence/Projects/Big deal.md"]);
-    expect(fm(app, "Cadence/Contacts/Globex inc.md")?.project).toBe("[[Big deal]]");
+    expect(app.vault.created).toEqual([]);
+    expect(app.fileManager.processed).toEqual([]);
+    expect(Notice.messages).toEqual([]);
+  });
+
+  it("links an existing contact to an existing project, but creates neither missing side", async () => {
+    const { app } = await loadedVault([
+      sam,
+      apollo,
+      { path: "Cadence/Pipeline/Mixed.md", frontmatter: { type: "deal", owner: ["[[Sam Lee]]", "[[Ghost]]"], project: ["[[Apollo]]", "[[Nowhere]]"] } },
+    ]);
+    await changed(app, "Cadence/Pipeline/Mixed.md");
+    expect(app.vault.created).toEqual([]);
+    expect(fm(app, sam.path)?.project).toBe("[[Apollo]]");
   });
 
   it("does not use contact notes as a source of links", async () => {
@@ -307,7 +328,7 @@ describe("any other note changes", () => {
     ]);
     await changed(app, "Notes/n.md");
     expect(fm(app, sam.path)?.project).toBeUndefined();
-    expect(fm(app, jane.path)).not.toHaveProperty("project");
+    expect(fm(app, jane.path)?.project).toBe("[[Apollo]]");
   });
 
   it("splits comma lists and strips link aliases", async () => {
@@ -339,6 +360,19 @@ describe("a project note is deleted", () => {
     const { app } = await loadedVault([{ path: jane.path, frontmatter: { type: "contact", project: "[[Old]]" } }]);
     await app.vault.trigger("delete", new TFile("Cadence/Projects/Archive/Old.md"));
     expect(fm(app, jane.path)).not.toHaveProperty("project");
+  });
+
+  it("keeps the project while another project note of that name remains, as for a same-named note in a sub-folder", async () => {
+    const { app } = await loadedVault([
+      { path: jane.path, frontmatter: { type: "contact", project: ["[[Apollo]]", "[[Kickoff]]"] } },
+      apollo,
+      { path: "Cadence/Projects/Kickoff.md", frontmatter: { type: "project" } },
+    ]);
+    await app.vault.trigger("delete", new TFile("Cadence/Projects/Archive/Apollo.md"));
+    await app.vault.trigger("delete", new TFile("Cadence/Projects/Apollo/kickoff.md"));
+    expect(fm(app, jane.path)?.project).toEqual(["[[Apollo]]", "[[Kickoff]]"]);
+    expect(app.fileManager.processed).toEqual([]);
+    expect(Notice.messages).toEqual([]);
   });
 
   it("ignores notes outside the projects folder, non-markdown files and files without a path", async () => {
