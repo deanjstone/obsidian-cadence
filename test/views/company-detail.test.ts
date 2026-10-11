@@ -334,6 +334,39 @@ describe("renderCompanyDetail: meta row", () => {
   });
 });
 
+describe("renderCompanyDetail: failed writes", () => {
+  it("a failed chip, select or input write notices and does not flash Saved", async () => {
+    await withFields([{ key: "phase", label: "Phase", type: "enum", options: ["A", "B"] }], async () => {
+      const { root, render, app } = setup([ACME, SAM]);
+      vi.spyOn(app.fileManager, "processFrontMatter").mockRejectedValue(new Error("locked"));
+      await render();
+      await enter(chipInput(root, "DOMAIN"), "acme.dev");
+      const sel = control(root, "PHASE");
+      sel.value = "A";
+      sel.trigger("change");
+      type(control(root, "SIZE"), "Big", "blur");
+      type(control(root, "SIZE"), "Bigger");
+      await vi.advanceTimersByTimeAsync(350);
+      await flush();
+      expect(Notice.messages).toEqual(["Save failed: locked", "Save failed: locked", "Save failed: locked", "Save failed: locked"]);
+      expect(badge(root).text).toBe("");
+    });
+  });
+
+  it("an input cell flashes Saved only once its write has landed", async () => {
+    const { root, render, app } = setup([ACME]);
+    let land: () => void = () => {};
+    vi.spyOn(app.fileManager, "processFrontMatter").mockImplementation(() => new Promise<void>((resolve) => { land = resolve; }));
+    await render();
+    type(control(root, "SIZE"), "Big", "blur");
+    await flush();
+    expect(badge(root).text).toBe("");
+    land();
+    await flush();
+    expect(badge(root).text).toBe("Saved");
+  });
+});
+
 describe("renderCompanyDetail: sections", () => {
   it("alternates the H2 sections between two columns, then renders the cross sections in a padded container", async () => {
     const { root, render, h2, cross, file } = setup([ACME]);

@@ -63,6 +63,16 @@ export async function renderCompanyDetail(view: AppViewHost, root: HTMLElement, 
     clearTimeout(savedBadge._t);
     savedBadge._t = setTimeout(() => savedBadge.removeClass('show'), 1400);
   };
+  /* Every meta-cell write: flashes Saved once it has landed, and notices a
+     failure rather than leaving an unhandled rejection (#50). */
+  const writeField = async (key: string, value: unknown) => {
+    try {
+      await view.app.fileManager.processFrontMatter(file, (frontmatter) => applyFieldEdit(frontmatter, key, value));
+      flashSaved();
+    } catch (e) {
+      new Notice(`Save failed: ${(e as Error).message}`);
+    }
+  };
   const openNote = headRight.createEl('button', { cls: 'cad-btn', text: 'Open as note' });
   openNote.addEventListener('click', () => view.app.workspace.openLinkText(file.path, '', false));
   const deleteBtn = headRight.createEl('button', { cls: 'cad-btn cad-btn-danger', text: 'Delete' });
@@ -251,9 +261,7 @@ export async function renderCompanyDetail(view: AppViewHost, root: HTMLElement, 
       };
 
       const save = async () => {
-        const val = chipWriteValue(valuesList, isPlainChip, isList);
-        await view.app.fileManager.processFrontMatter(file, (frontmatter) => applyFieldEdit(frontmatter, key, val));
-        flashSaved();
+        await writeField(key, chipWriteValue(valuesList, isPlainChip, isList));
       };
 
       const addVal = async (raw: string) => {
@@ -316,9 +324,7 @@ export async function renderCompanyDetail(view: AppViewHost, root: HTMLElement, 
         if (enumCurrent(current) === opt) o.selected = true;
       });
       const commit = async () => {
-        const val = coerceFieldEdit(def, key, sel.value);
-        await view.app.fileManager.processFrontMatter(file, (frontmatter) => applyFieldEdit(frontmatter, key, val));
-        flashSaved();
+        await writeField(key, coerceFieldEdit(def, key, sel.value));
       };
       sel.addEventListener('change', commit);
     } else {
@@ -333,11 +339,7 @@ export async function renderCompanyDetail(view: AppViewHost, root: HTMLElement, 
       }
 
       let t: ReturnType<typeof setTimeout> | undefined;
-      const commit = () => {
-        const val = metaInputValue(fieldType, inp.value);
-        view.app.fileManager.processFrontMatter(file, (frontmatter) => applyFieldEdit(frontmatter, key, val));
-        flashSaved();
-      };
+      const commit = () => writeField(key, metaInputValue(fieldType, inp.value));
       inp.addEventListener('input', () => { clearTimeout(t); t = setTimeout(commit, 350); });
       inp.addEventListener('blur', commit);
     }
