@@ -38,13 +38,15 @@ describe("renderTeam", () => {
     expect(roles.map((role) => filter(entity({ role })))).toEqual([true, true, true, false, false, false, false]);
   });
 
-  it("QUIRK: the match is a substring, so 'Teammate', 'Administrator' and 'Remember' count, and a role list is joined", async () => {
+  it("matches whole words only, so 'Teammate', 'Administrator', 'Remember' and 'Steam' don't count, and each role in a list is matched on its own", async () => {
     const { view, root, list } = setup();
     await view.renderTeam(root);
     const { filter } = list.mock.calls[0][2] as Any;
-    expect(["Teammate", "Administrator", "Remember", "Steam"].map((role) => filter(entity({ role })))).toEqual([true, true, true, true]);
+    expect(["Teammate", "Administrator", "Remember", "Steam"].map((role) => filter(entity({ role })))).toEqual([false, false, false, false]);
+    expect(["Team members", "Co-admin", "[[Admin]]", "Teams"].map((role) => filter(entity({ role })))).toEqual([true, true, true, true]);
     expect(filter(entity({ role: ["Sales", "Admin"] }))).toBe(true);
     expect(filter(entity({ role: ["Sales"] }))).toBe(false);
+    expect(filter(entity({ role: ["Ste", "am"] }))).toBe(false);
   });
 
   it("lists only matching contacts when the real list renders", async () => {
@@ -56,5 +58,13 @@ describe("renderTeam", () => {
     list.mockRestore();
     await view.renderTeam(root);
     expect(root.children[0].children[0].children.map((c) => c.text)).toEqual(["CADENCE", "Team", "1 contact in Cadence/Contacts"]);
+  });
+
+  it("shows only the name, role, email and company columns", async () => {
+    const { view, root, list } = setup([{ path: "Cadence/Contacts/Ann.md", frontmatter: { role: "Admin", phone: ["555"], tags: ["vip"] } }]);
+    list.mockRestore();
+    await view.renderTeam(root);
+    const heads = root.children[2].querySelectorAll("th").map((th) => th.children[0].text);
+    expect(heads).toEqual(["Name ", "Role ", "Email ", "Company "]);
   });
 });

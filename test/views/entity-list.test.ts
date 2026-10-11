@@ -170,10 +170,13 @@ describe("renderEntityList: layout", () => {
     ]);
   });
 
-  it("QUIRK: an unknown saved layout shows no container at all", async () => {
-    const { view, root } = setup(CONTACTS, "crm.contacts", { pageLayouts: { "crm.contacts": "gallery" } });
+  it("an unknown saved layout shows the surface's default layout, and keeps the saved value", async () => {
+    const { view, root, plugin } = setup(CONTACTS, "crm.contacts", { pageLayouts: { "crm.contacts": "gallery" } });
     await view.renderEntityList(root, "contact");
-    expect(wraps(root).map(([, d]) => d)).toEqual(["none", "none", "none"]);
+    expect(wraps(root).map(([, d]) => d)).toEqual(["block", "none", "none"]);
+    expect(names(root)).toEqual(["Bob Smith", "carol", "Jane Doe"]);
+    expect(actions(root)[0].children[0].style.background).toBe("var(--background-modifier-border)");
+    expect(plugin.settings.pageLayouts).toEqual({ "crm.contacts": "gallery" });
   });
 });
 
@@ -232,12 +235,12 @@ describe("renderEntityList: search and filters", () => {
     expect(tds.map((td) => [td.text, (td as Any).colSpan, td.style.textAlign])).toEqual([["No matching entries found.", 7, "center"]]);
   });
 
-  it("QUIRK: options are case-sensitive but matching is not, so 'Active' and 'active' both list and both match", async () => {
+  it("options fold case like matching does, so 'Active' and 'active' list once and both match", async () => {
     const files = [contact("A", { name: "A", company: "Active" }), contact("B", { name: "B", company: "active" })];
     const { view, root } = setup(files);
     await view.renderEntityList(root, "contact");
-    expect(filters(root)[0].options.map((o) => o.value)).toEqual(["", "Active", "active"]);
-    choose(filters(root)[0], "active");
+    expect(filters(root)[0].options.map((o) => o.value)).toEqual(["", "Active"]);
+    choose(filters(root)[0], "Active");
     expect(names(root)).toEqual(["A", "B"]);
   });
 
@@ -271,10 +274,18 @@ describe("renderEntityList: table", () => {
     expect(heads(root).map((h) => h[0])).toEqual(["Name ", "Company ", "Email ", "Phone ", "Role ", "Last contact ", "Tags "]);
   });
 
-  it("QUIRK: opts.columns only reorders; the remaining fields are still appended", async () => {
+  it("opts.columns selects the columns as well as ordering them; no other field is appended", async () => {
     const { view, root } = setup(CONTACTS);
     await view.renderEntityList(root, "contact", { columns: ["name", "role", "email", "company"] });
-    expect(heads(root).map((h) => h[0])).toEqual(["Name ", "Role ", "Email ", "Company ", "Phone ", "Last contact ", "Tags "]);
+    expect(heads(root).map((h) => h[0])).toEqual(["Name ", "Role ", "Email ", "Company "]);
+    expect(rows(root)[0].children.length).toBe(4);
+  });
+
+  it("search still matches a field opts.columns leaves out", async () => {
+    const { view, root } = setup(CONTACTS);
+    await view.renderEntityList(root, "contact", { columns: ["name", "role", "email", "company"] });
+    type(search(root), "vip");
+    expect(names(root)).toEqual(["Jane Doe"]);
   });
 
   it("sorts by the first column ascending, marking it ▲ and the rest ↕", async () => {
@@ -288,11 +299,14 @@ describe("renderEntityList: table", () => {
     expect([ths[0].style.cursor, ths[0].style.userSelect]).toEqual(["pointer", "none"]);
   });
 
-  it("QUIRK: clicking the sorted header reverses it but still shows ▲", async () => {
+  it("clicking the sorted header reverses it and shows ▼; a third click shows ▲ again", async () => {
     const { view, root } = setup(CONTACTS);
     await view.renderEntityList(root, "contact");
     table(root).querySelectorAll("th")[0].trigger("click");
     expect(names(root)).toEqual(["Jane Doe", "carol", "Bob Smith"]);
+    expect(table(root).querySelectorAll("th")[0].children[1].text).toBe("▼");
+    table(root).querySelectorAll("th")[0].trigger("click");
+    expect(names(root)).toEqual(["Bob Smith", "carol", "Jane Doe"]);
     expect(table(root).querySelectorAll("th")[0].children[1].text).toBe("▲");
   });
 
@@ -446,7 +460,7 @@ describe("renderEntityList: a custom entity (custom pages)", () => {
 });
 
 describe("renderEntityList: card grid", () => {
-  it("non-project cards take the pill from the first status/type/tier field, and comma-separate links", async () => {
+  it("non-project cards take the pill from status before type and tier, and comma-separate links", async () => {
     const partner: MockFileSpec = {
       path: "Cadence/Partners/Initech.md",
       frontmatter: { name: "Initech", tier: "Gold", status: "Active", owner: "[[Sam]], [[Kim]]", region: "EMEA" },
@@ -454,10 +468,9 @@ describe("renderEntityList: card grid", () => {
     const { view, root } = setup([partner], "prm.partners", { pageLayouts: { "prm.partners": "cards" } });
     await view.renderEntityList(root, "partner");
     const card = root.children[4].querySelectorAll("div.cad-proj-card")[0];
-    // fields.find matches in field order, so tier wins over status.
-    expect(card.children[0].children[1].children.map((p) => p.text)).toEqual(["Gold"]);
+    expect(card.children[0].children[1].children.map((p) => p.text)).toEqual(["Active"]);
     expect(card.children[1].children.map((d) => d.children.map((c) => c.text))).toEqual([
-      ["Status: ", "Active"],
+      ["Tier: ", "Gold"],
       ["Owner: ", "Sam", ", ", "Kim"],
       ["Region: ", "EMEA"],
     ]);

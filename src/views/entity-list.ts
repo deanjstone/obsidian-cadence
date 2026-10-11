@@ -15,14 +15,20 @@ import {
 export interface EntityListOptions {
   title?: string;
   filter?: (entity: Entity) => boolean;
-  /** Columns shown first; every other field is still appended. */
+  /** The columns shown, in order; no other field is appended. */
   columns?: string[];
 }
 
-/** The saved layout for a surface, else cards for Projects, kanban for the
-    Pipeline and a table elsewhere. Any saved string is returned as-is. */
+const LIST_LAYOUTS = ['table', 'kanban', 'cards'];
+
+/** The saved layout for a surface when it is table, kanban or cards, else
+    cards for Projects, kanban for the Pipeline and a table elsewhere. An
+    unknown saved value (`list`, hand-edited) falls back, and is left in
+    the settings as it is (#57, #74). */
 export function listLayout(mode: string, pageLayouts: Record<string, string> | undefined): string {
-  return pageLayouts?.[mode] || (mode === 'projects.projects' ? 'cards' : (mode === 'crm.pipeline' ? 'kanban' : 'table'));
+  const saved = pageLayouts?.[mode];
+  if (saved && LIST_LAYOUTS.includes(saved)) return saved;
+  return mode === 'projects.projects' ? 'cards' : (mode === 'crm.pipeline' ? 'kanban' : 'table');
 }
 
 /** `3 contacts in Cadence/Contacts`, with the singular label for one. */
@@ -44,8 +50,16 @@ export function filterableKeys(def: EntityDef): string[] {
 
 export interface FilterOption {
   field: EntityField;
-  /** Distinct values, links unwrapped, sorted by code unit (so case-sensitive). */
+  /** Distinct values, links unwrapped, once in any case (first-seen
+      spelling), sorted case-insensitively: filters match in any case too. */
   values: string[];
+}
+
+/** A filter's view of a value: what the note stores, so an entity with no
+    `type` has none, rather than entityValue's fallback to its entity key. */
+function filterValue(e: Entity, k: string, def: EntityDef): unknown {
+  const raw = e.frontmatter?.[k];
+  return raw == null || raw === '' ? '' : entityValue(e, k, def);
 }
 
 /** One filter select per filterable key with at least one value among `entities`. */
@@ -54,32 +68,28 @@ export function filterOptions(entities: Entity[], def: EntityDef): FilterOption[
     const fdef = def.fields.find(f => f.key === k);
     if (!fdef) return [];
 
-    const uniqueVals = new Set<string>();
+    const uniqueVals = new Map<string, string>();
     entities.forEach(e => {
-      const val = entityValue(e, k, def);
-      if (Array.isArray(val)) {
-        val.forEach(v => {
-          if (v) {
-            const clean = unwrapLink(v);
-            if (clean) uniqueVals.add(clean);
-          }
-        });
-      } else if (val != null && val !== '') {
-        const clean = unwrapLink(val);
-        if (clean) uniqueVals.add(clean);
-      }
+      const val = filterValue(e, k, def);
+      (Array.isArray(val) ? val : [val]).forEach(v => {
+        if (v == null || v === '') return;
+        const clean = unwrapLink(v);
+        if (clean && !uniqueVals.has(clean.toLowerCase())) uniqueVals.set(clean.toLowerCase(), clean);
+      });
     });
 
     if (uniqueVals.size === 0) return [];
-    return [{ field: fdef, values: Array.from(uniqueVals).sort() }];
+    const values = Array.from(uniqueVals.values()).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+    return [{ field: fdef, values }];
   });
 }
 
-/** The table columns: `columns` (or def.columns) in order, then every other
-    field. Unknown keys are dropped. */
+/** The table columns: `columns` alone, in order, when given (#57); else
+    def.columns in order, then every other field. Unknown keys are dropped. */
 export function listColumns(def: EntityDef, columns?: string[]): EntityField[] {
   const baseCols = columns || def.columns;
   const cols = baseCols.map((k) => def.fields.find((f) => f.key === k)).filter(Boolean) as EntityField[];
+  if (columns) return cols;
   // Dynamically append any custom/extra fields not present in baseCols
   def.fields.forEach((f) => {
     if (!baseCols.includes(f.key) && !cols.some(c => c.key === f.key)) {
@@ -112,7 +122,7 @@ export function filterEntities(list: Entity[], def: EntityDef, cols: EntityField
 
     for (const [k, filterVal] of Object.entries(query.filters)) {
       if (!filterVal) continue;
-      const val = entityValue(e, k, def);
+      const val = filterValue(e, k, def);
       if (Array.isArray(val)) {
         const cleanVals = val.map(v => unwrapLink(v).toLowerCase());
         if (!cleanVals.includes(filterVal.toLowerCase())) return false;
@@ -133,8 +143,9 @@ export interface ListSort {
 }
 
 /** A sorted copy: numbers and currency numerically, dates by time (invalid
-    as 0), anything else as text, numeric-aware and case-insensitive. String
-    values have their [[ ]] stripped; arrays are compared as joined text. */
+    as 0), anything else as text, numeric-aware and case-insensitive. Values
+    have their [[ ]] stripped; an array is compared as its unwrapped items,
+    comma-joined (#57). */
 export function sortEntities(list: Entity[], def: EntityDef, sort: ListSort): Entity[] {
   const sorted = list.slice();
   const currentSortField = sort.field;
@@ -148,6 +159,8 @@ export function sortEntities(list: Entity[], def: EntityDef, sort: ListSort): En
 
       if (valA && typeof valA === 'string') valA = unwrapLink(valA);
       if (valB && typeof valB === 'string') valB = unwrapLink(valB);
+      if (Array.isArray(valA)) valA = valA.map(unwrapLink).join(', ');
+      if (Array.isArray(valB)) valB = valB.map(unwrapLink).join(', ');
 
       if (valA == null) valA = '';
       if (valB == null) valB = '';
@@ -200,9 +213,10 @@ export function tableCell(f: EntityField): TableCell {
   return { kind: 'text' };
 }
 
-/** The card pill's field: the first status, type or tier field, else the first enum. */
+/** The card pill's field: status, else type, else tier, else the first enum
+    (so a partner pills on its status, not its tier, #57). */
 export function cardStatusField(def: EntityDef): EntityField | undefined {
-  return def.fields.find(f => f.key === 'status' || f.key === 'type' || f.key === 'tier') || def.fields.find(f => f.type === 'enum');
+  return ['status', 'type', 'tier'].map(k => def.fields.find(f => f.key === k)).find(Boolean) || def.fields.find(f => f.type === 'enum');
 }
 
 /** A card pill's text: the first item of an array. */
@@ -344,8 +358,11 @@ export async function renderEntityList(
   searchInput.style.width = '100%';
   searchInput.style.margin = '0';
 
+  // Read once per render: each call can read the vault
+  const kanbanParams = layout === 'kanban' ? view.getEntityKanbanParams(entityKey) : null;
+
   // Render Kanban GroupBy Selector in the Controls bar
-  if (layout === 'kanban') {
+  if (kanbanParams) {
     const kanbanFields = kanbanGroupByFields(def);
     if (kanbanFields.length > 0) {
       const groupSelectWrap = controls.createDiv({ attr: { style: 'display: inline-flex; align-items: center; gap: 6px; margin-left: auto;' } });
@@ -361,8 +378,7 @@ export async function renderEntityList(
 
       kanbanFields.forEach(f => {
         const optEl = groupSelect.createEl('option', { value: f.key, text: f.label });
-        const currentParams = view.getEntityKanbanParams(entityKey);
-        if (currentParams.groupBy === f.key) optEl.selected = true;
+        if (kanbanParams.groupBy === f.key) optEl.selected = true;
       });
 
       groupSelect.addEventListener('change', async () => {
@@ -375,7 +391,7 @@ export async function renderEntityList(
   }
 
   const query: ListQuery = { search: '', filters: {} };
-  let sort: ListSort = { field: def.columns[0] || '', asc: true };
+  let sort: ListSort = { field: (opts.columns || def.columns)[0] || '', asc: true };
 
   // Dynamic Filters based on fields
   filterOptions(filtered, def).forEach(({ field: fdef, values }) => {
@@ -424,8 +440,8 @@ export async function renderEntityList(
     cardsWrap.style.display = 'none';
     cardsWrap.empty();
 
-    // 2. Filter, 3. Sort
-    const displayed = sortEntities(filterEntities(filtered, def, cols, query), def, sort);
+    // 2. Filter (search covers every field, shown or not), 3. Sort
+    const displayed = sortEntities(filterEntities(filtered, def, def.fields, query), def, sort);
 
     // 4. Render Layout
     if (layout === 'table') {
@@ -440,7 +456,7 @@ export async function renderEntityList(
         th.style.cursor = 'pointer';
         th.style.userSelect = 'none';
         const thSpan = th.createSpan({ text: f.label + ' ' });
-        const indicator = th.createSpan({ text: f.key === sort.field ? '▲' : '↕' });
+        const indicator = th.createSpan({ text: f.key === sort.field ? (sort.asc ? '▲' : '▼') : '↕' });
         indicator.style.opacity = f.key === sort.field ? '1' : '0.4';
         indicator.style.marginLeft = '4px';
 
@@ -486,14 +502,13 @@ export async function renderEntityList(
           });
         });
       }
-    } else if (layout === 'kanban') {
+    } else if (kanbanParams) {
       kanbanWrap.style.display = 'block';
-      const kanbanParams = view.getEntityKanbanParams(entityKey);
       const { groupBy, groups } = kanbanParams;
       const board = kanbanWrap.createDiv({ cls: 'cad-kanban-board' });
 
       const valueField = kanbanValueField(def);
-      kanbanGroups(displayed, groupBy, groups, def).forEach(({ stage, items }) => {
+      kanbanGroups(displayed, groupBy, groups, def).forEach(({ stage, items, blank }) => {
 
         const col = board.createDiv({ cls: 'cad-kanban-col' });
         col.dataset.stage = stage;
@@ -504,33 +519,36 @@ export async function renderEntityList(
 
         const list = col.createDiv({ cls: 'cad-kanban-col-list' });
 
-        list.addEventListener('dragover', (ev) => {
-          ev.preventDefault();
-          try { ev.dataTransfer!.dropEffect = 'move'; } catch (_) { }
-          col.addClass('drag-over');
-        });
-        list.addEventListener('dragleave', (ev) => {
-          if (!col.contains(ev.relatedTarget as Node | null)) col.removeClass('drag-over');
-        });
-        list.addEventListener('drop', async (ev) => {
-          ev.preventDefault();
-          col.removeClass('drag-over');
-          const path = ev.dataTransfer!.getData('text/cadence-entity');
-          const fromStage = ev.dataTransfer!.getData('text/cadence-stage');
-          if (!path || fromStage === stage) return;
-          const file = view.app.vault.getAbstractFileByPath(path);
-          if (!file || !(file instanceof TFile)) return;
-          try {
-            await view.app.fileManager.processFrontMatter(file, (fm) => {
-              const before = fm[groupBy];
-              fm[groupBy] = kanbanDropValue(def.fields.find(fd => fd.key === groupBy), stage);
-              if (entityKey === 'deal' && groupBy === 'stage') Object.assign(fm, closedPatch(before, fm[groupBy], new Date()));
-            });
-            new Notice(`Moved to ${stage}`);
-          } catch (e) {
-            new Notice(`Failed to move: ${(e as Error).message}`);
-          }
-        });
+        // The (no value) column is not a drop target: there is nothing to write.
+        if (!blank) {
+          list.addEventListener('dragover', (ev) => {
+            ev.preventDefault();
+            try { ev.dataTransfer!.dropEffect = 'move'; } catch (_) { }
+            col.addClass('drag-over');
+          });
+          list.addEventListener('dragleave', (ev) => {
+            if (!col.contains(ev.relatedTarget as Node | null)) col.removeClass('drag-over');
+          });
+          list.addEventListener('drop', async (ev) => {
+            ev.preventDefault();
+            col.removeClass('drag-over');
+            const path = ev.dataTransfer!.getData('text/cadence-entity');
+            const fromStage = ev.dataTransfer!.getData('text/cadence-stage');
+            if (!path || fromStage === stage) return;
+            const file = view.app.vault.getAbstractFileByPath(path);
+            if (!file || !(file instanceof TFile)) return;
+            try {
+              await view.app.fileManager.processFrontMatter(file, (fm) => {
+                const before = fm[groupBy];
+                fm[groupBy] = kanbanDropValue(def.fields.find(fd => fd.key === groupBy), stage);
+                if (entityKey === 'deal' && groupBy === 'stage') Object.assign(fm, closedPatch(before, fm[groupBy], new Date()));
+              });
+              new Notice(`Moved to ${stage}`);
+            } catch (e) {
+              new Notice(`Failed to move: ${(e as Error).message}`);
+            }
+          });
+        }
 
         if (!items.length) {
           list.createDiv({ cls: 'cad-empty', text: '—' });

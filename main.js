@@ -6019,17 +6019,17 @@ var import_obsidian19 = require("obsidian");
 // src/views/kanban.ts
 var import_obsidian18 = require("obsidian");
 function unwrapLink(value) {
-  return String(value).replace(/^\[\[|\]\]$/g, "").trim();
+  return String(value).trim().replace(/^\[\[|\]\]$/g, "").trim();
+}
+function isRelationField(f) {
+  return !["none", "tags", "history"].includes(getFieldSuggestionSource(f));
 }
 function kanbanGroupBy(entityKey, def, saved) {
-  let groupBy = saved;
-  if (!groupBy) {
-    const fallbackField = def.fields.find((field) => !field.primary && ["enum", "text"].includes(field.type));
-    groupBy = fallbackField ? fallbackField.key : "status";
-    if (entityKey === "deal") groupBy = "stage";
-    else if (entityKey === "activity") groupBy = "type";
-  }
-  return groupBy;
+  const offered = kanbanGroupByFields(def);
+  if (saved && offered.some((f) => f.key === saved)) return saved;
+  if (entityKey === "deal" && offered.some((f) => f.key === "stage")) return "stage";
+  const typed = offered.find((f) => f.type === "enum" || f.type === "text");
+  return (typed || offered[0])?.key ?? "";
 }
 function kanbanOptions(def, groupBy) {
   const f = def.fields.find((field) => field.key === groupBy);
@@ -6038,38 +6038,50 @@ function kanbanOptions(def, groupBy) {
 function distinctGroups(entities, groupBy, def) {
   const uniqueVals = /* @__PURE__ */ new Set();
   entities.forEach((e) => {
-    const val = entityValue(e, groupBy, def);
-    if (val) {
-      const parts = Array.isArray(val) ? val : String(val).split(",");
-      parts.forEach((v) => {
-        const clean = unwrapLink(v);
-        if (clean) uniqueVals.add(clean);
-      });
-    }
+    kanbanValues(entityValue(e, groupBy, def)).forEach((v) => uniqueVals.add(v));
   });
-  const groups = Array.from(uniqueVals);
-  return groups.length ? groups : ["To Do", "In Progress", "Done"];
+  return Array.from(uniqueVals);
 }
 function getEntityKanbanParams(view, entityKey) {
   const def = ENTITIES[entityKey];
   if (!def) return { groupBy: "status", groups: ["Active", "Done"] };
   const groupBy = kanbanGroupBy(entityKey, def, view.plugin.settings.pageKanbanGroupBy?.[entityKey]);
   let groups = kanbanOptions(def, groupBy);
-  if (!groups.length) groups = distinctGroups(listEntities(view.app, entityKey), groupBy, def);
+  if (groupBy && !groups.length) groups = distinctGroups(listEntities(view.app, entityKey), groupBy, def);
   return { groupBy, groups };
 }
 function kanbanGroupByFields(def) {
-  return def.fields.filter((field) => !field.primary && ["enum", "text", "multitext", "tags"].includes(field.type));
+  return def.fields.filter((field) => !field.primary && (["enum", "text", "multitext", "tags"].includes(field.type) || isRelationField(field)));
 }
-function inKanbanGroup(val, stage) {
-  if (Array.isArray(val)) {
-    const cleanVals = val.map((v) => unwrapLink(v).toLowerCase());
-    return cleanVals.includes(stage.toLowerCase());
-  }
-  return unwrapLink(val || "").toLowerCase() === stage.toLowerCase();
+function kanbanValues(val) {
+  if (val == null || val === "") return [];
+  const parts = Array.isArray(val) ? val : String(val).split(/,(?![^[]*\]\])/);
+  return parts.map(unwrapLink).filter(Boolean);
 }
 function kanbanGroups(list, groupBy, groups, def) {
-  return groups.map((stage) => ({ stage, items: list.filter((e) => inKanbanGroup(entityValue(e, groupBy, def), stage)) }));
+  const columns = groups.map((stage) => ({ stage, items: [] }));
+  const byValue = /* @__PURE__ */ new Map();
+  columns.forEach((c) => {
+    if (!byValue.has(c.stage.toLowerCase())) byValue.set(c.stage.toLowerCase(), c);
+  });
+  const field = def.fields.find((f) => f.key === groupBy);
+  const blank = { stage: `(no ${(field ? field.label : groupBy || "group").toLowerCase()})`, items: [], blank: true };
+  list.forEach((e) => {
+    const values = groupBy ? kanbanValues(entityValue(e, groupBy, def)) : [];
+    if (!values.length) {
+      blank.items.push(e);
+      return;
+    }
+    const value = values.find((v) => byValue.has(v.toLowerCase())) ?? values[0];
+    let col = byValue.get(value.toLowerCase());
+    if (!col) {
+      col = { stage: value, items: [] };
+      columns.push(col);
+      byValue.set(value.toLowerCase(), col);
+    }
+    col.items.push(e);
+  });
+  return blank.items.length ? [...columns, blank] : columns;
 }
 function kanbanValueField(def) {
   return def.fields.find((f) => f.type === "currency" || f.type === "number");
@@ -6084,7 +6096,7 @@ function kanbanColumnMeta(items, def) {
 }
 function kanbanDropValue(fDef, stage) {
   const isList = fDef && (fDef.type === "multitext" || fDef.type === "tags" || fDef.isList === true || fDef.key === "stage");
-  const isLink = fDef && fDef.suggestionSource && fDef.suggestionSource !== "none" && fDef.suggestionSource !== "tags" && fDef.suggestionSource !== "history";
+  const isLink = fDef && isRelationField(fDef);
   if (isList) {
     return isLink ? [`[[${stage}]]`] : [stage];
   }
@@ -6223,8 +6235,11 @@ async function renderEntityKanban(view, root, entityKey, groupBy, groups) {
 }
 
 // src/views/entity-list.ts
+var LIST_LAYOUTS = ["table", "kanban", "cards"];
 function listLayout(mode, pageLayouts) {
-  return pageLayouts?.[mode] || (mode === "projects.projects" ? "cards" : mode === "crm.pipeline" ? "kanban" : "table");
+  const saved = pageLayouts?.[mode];
+  if (saved && LIST_LAYOUTS.includes(saved)) return saved;
+  return mode === "projects.projects" ? "cards" : mode === "crm.pipeline" ? "kanban" : "table";
 }
 function listSubtitle(count, def) {
   return `${count} ${count === 1 ? def.label.toLowerCase() : def.plural.toLowerCase()} in ${def.folder}`;
@@ -6235,32 +6250,32 @@ function filterableKeys(def) {
     return !!fdef && (fdef.type === "enum" || ["company", "role", "with", "related", "status", "tier", "type"].includes(k));
   });
 }
+function filterValue(e, k, def) {
+  const raw = e.frontmatter?.[k];
+  return raw == null || raw === "" ? "" : entityValue(e, k, def);
+}
 function filterOptions(entities, def) {
   return filterableKeys(def).flatMap((k) => {
     const fdef = def.fields.find((f) => f.key === k);
     if (!fdef) return [];
-    const uniqueVals = /* @__PURE__ */ new Set();
+    const uniqueVals = /* @__PURE__ */ new Map();
     entities.forEach((e) => {
-      const val = entityValue(e, k, def);
-      if (Array.isArray(val)) {
-        val.forEach((v) => {
-          if (v) {
-            const clean = unwrapLink(v);
-            if (clean) uniqueVals.add(clean);
-          }
-        });
-      } else if (val != null && val !== "") {
-        const clean = unwrapLink(val);
-        if (clean) uniqueVals.add(clean);
-      }
+      const val = filterValue(e, k, def);
+      (Array.isArray(val) ? val : [val]).forEach((v) => {
+        if (v == null || v === "") return;
+        const clean = unwrapLink(v);
+        if (clean && !uniqueVals.has(clean.toLowerCase())) uniqueVals.set(clean.toLowerCase(), clean);
+      });
     });
     if (uniqueVals.size === 0) return [];
-    return [{ field: fdef, values: Array.from(uniqueVals).sort() }];
+    const values = Array.from(uniqueVals.values()).sort((a, b) => a.localeCompare(b, void 0, { numeric: true, sensitivity: "base" }));
+    return [{ field: fdef, values }];
   });
 }
 function listColumns(def, columns) {
   const baseCols = columns || def.columns;
   const cols = baseCols.map((k) => def.fields.find((f) => f.key === k)).filter(Boolean);
+  if (columns) return cols;
   def.fields.forEach((f) => {
     if (!baseCols.includes(f.key) && !cols.some((c) => c.key === f.key)) {
       cols.push(f);
@@ -6281,7 +6296,7 @@ function filterEntities(list, def, cols, query) {
     }
     for (const [k, filterVal] of Object.entries(query.filters)) {
       if (!filterVal) continue;
-      const val = entityValue(e, k, def);
+      const val = filterValue(e, k, def);
       if (Array.isArray(val)) {
         const cleanVals = val.map((v) => unwrapLink(v).toLowerCase());
         if (!cleanVals.includes(filterVal.toLowerCase())) return false;
@@ -6304,6 +6319,8 @@ function sortEntities(list, def, sort) {
       let valB = entityValue(b, currentSortField, def);
       if (valA && typeof valA === "string") valA = unwrapLink(valA);
       if (valB && typeof valB === "string") valB = unwrapLink(valB);
+      if (Array.isArray(valA)) valA = valA.map(unwrapLink).join(", ");
+      if (Array.isArray(valB)) valB = valB.map(unwrapLink).join(", ");
       if (valA == null) valA = "";
       if (valB == null) valB = "";
       let diff = 0;
@@ -6340,7 +6357,7 @@ function tableCell(f) {
   return { kind: "text" };
 }
 function cardStatusField(def) {
-  return def.fields.find((f) => f.key === "status" || f.key === "type" || f.key === "tier") || def.fields.find((f) => f.type === "enum");
+  return ["status", "type", "tier"].map((k) => def.fields.find((f) => f.key === k)).find(Boolean) || def.fields.find((f) => f.type === "enum");
 }
 function pillText(val) {
   const clean = Array.isArray(val) ? val[0] : val;
@@ -6450,7 +6467,8 @@ async function renderEntityList(view, root, entityKey, opts = {}) {
   });
   searchInput.style.width = "100%";
   searchInput.style.margin = "0";
-  if (layout === "kanban") {
+  const kanbanParams = layout === "kanban" ? view.getEntityKanbanParams(entityKey) : null;
+  if (kanbanParams) {
     const kanbanFields = kanbanGroupByFields(def);
     if (kanbanFields.length > 0) {
       const groupSelectWrap = controls.createDiv({ attr: { style: "display: inline-flex; align-items: center; gap: 6px; margin-left: auto;" } });
@@ -6465,8 +6483,7 @@ async function renderEntityList(view, root, entityKey, opts = {}) {
       groupSelect.style.borderRadius = "6px";
       kanbanFields.forEach((f) => {
         const optEl = groupSelect.createEl("option", { value: f.key, text: f.label });
-        const currentParams = view.getEntityKanbanParams(entityKey);
-        if (currentParams.groupBy === f.key) optEl.selected = true;
+        if (kanbanParams.groupBy === f.key) optEl.selected = true;
       });
       groupSelect.addEventListener("change", async () => {
         if (!view.plugin.settings.pageKanbanGroupBy) view.plugin.settings.pageKanbanGroupBy = {};
@@ -6477,7 +6494,7 @@ async function renderEntityList(view, root, entityKey, opts = {}) {
     }
   }
   const query = { search: "", filters: {} };
-  let sort = { field: def.columns[0] || "", asc: true };
+  let sort = { field: (opts.columns || def.columns)[0] || "", asc: true };
   filterOptions(filtered, def).forEach(({ field: fdef, values }) => {
     const k = fdef.key;
     const filterWrap = controls.createDiv({ cls: "cad-filter-select-wrap" });
@@ -6515,7 +6532,7 @@ async function renderEntityList(view, root, entityKey, opts = {}) {
     kanbanWrap.empty();
     cardsWrap.style.display = "none";
     cardsWrap.empty();
-    const displayed = sortEntities(filterEntities(filtered, def, cols, query), def, sort);
+    const displayed = sortEntities(filterEntities(filtered, def, def.fields, query), def, sort);
     if (layout === "table") {
       tableWrap.style.display = "block";
       const table = tableWrap.createEl("table", { cls: "cad-table" });
@@ -6527,7 +6544,7 @@ async function renderEntityList(view, root, entityKey, opts = {}) {
         th.style.cursor = "pointer";
         th.style.userSelect = "none";
         const thSpan = th.createSpan({ text: f.label + " " });
-        const indicator = th.createSpan({ text: f.key === sort.field ? "\u25B2" : "\u2195" });
+        const indicator = th.createSpan({ text: f.key === sort.field ? sort.asc ? "\u25B2" : "\u25BC" : "\u2195" });
         indicator.style.opacity = f.key === sort.field ? "1" : "0.4";
         indicator.style.marginLeft = "4px";
         headers.push({ key: f.key, th, indicator });
@@ -6569,49 +6586,50 @@ async function renderEntityList(view, root, entityKey, opts = {}) {
           });
         });
       }
-    } else if (layout === "kanban") {
+    } else if (kanbanParams) {
       kanbanWrap.style.display = "block";
-      const kanbanParams = view.getEntityKanbanParams(entityKey);
       const { groupBy, groups } = kanbanParams;
       const board = kanbanWrap.createDiv({ cls: "cad-kanban-board" });
       const valueField = kanbanValueField(def);
-      kanbanGroups(displayed, groupBy, groups, def).forEach(({ stage, items }) => {
+      kanbanGroups(displayed, groupBy, groups, def).forEach(({ stage, items, blank }) => {
         const col = board.createDiv({ cls: "cad-kanban-col" });
         col.dataset.stage = stage;
         const head = col.createDiv({ cls: "cad-kanban-col-head" });
         head.createDiv({ cls: "cad-kanban-col-title", text: stage });
         head.createDiv({ cls: "cad-kanban-col-meta", text: kanbanColumnMeta(items, def) });
         const list = col.createDiv({ cls: "cad-kanban-col-list" });
-        list.addEventListener("dragover", (ev) => {
-          ev.preventDefault();
-          try {
-            ev.dataTransfer.dropEffect = "move";
-          } catch (_) {
-          }
-          col.addClass("drag-over");
-        });
-        list.addEventListener("dragleave", (ev) => {
-          if (!col.contains(ev.relatedTarget)) col.removeClass("drag-over");
-        });
-        list.addEventListener("drop", async (ev) => {
-          ev.preventDefault();
-          col.removeClass("drag-over");
-          const path = ev.dataTransfer.getData("text/cadence-entity");
-          const fromStage = ev.dataTransfer.getData("text/cadence-stage");
-          if (!path || fromStage === stage) return;
-          const file = view.app.vault.getAbstractFileByPath(path);
-          if (!file || !(file instanceof import_obsidian19.TFile)) return;
-          try {
-            await view.app.fileManager.processFrontMatter(file, (fm) => {
-              const before = fm[groupBy];
-              fm[groupBy] = kanbanDropValue(def.fields.find((fd) => fd.key === groupBy), stage);
-              if (entityKey === "deal" && groupBy === "stage") Object.assign(fm, closedPatch(before, fm[groupBy], /* @__PURE__ */ new Date()));
-            });
-            new import_obsidian19.Notice(`Moved to ${stage}`);
-          } catch (e) {
-            new import_obsidian19.Notice(`Failed to move: ${e.message}`);
-          }
-        });
+        if (!blank) {
+          list.addEventListener("dragover", (ev) => {
+            ev.preventDefault();
+            try {
+              ev.dataTransfer.dropEffect = "move";
+            } catch (_) {
+            }
+            col.addClass("drag-over");
+          });
+          list.addEventListener("dragleave", (ev) => {
+            if (!col.contains(ev.relatedTarget)) col.removeClass("drag-over");
+          });
+          list.addEventListener("drop", async (ev) => {
+            ev.preventDefault();
+            col.removeClass("drag-over");
+            const path = ev.dataTransfer.getData("text/cadence-entity");
+            const fromStage = ev.dataTransfer.getData("text/cadence-stage");
+            if (!path || fromStage === stage) return;
+            const file = view.app.vault.getAbstractFileByPath(path);
+            if (!file || !(file instanceof import_obsidian19.TFile)) return;
+            try {
+              await view.app.fileManager.processFrontMatter(file, (fm) => {
+                const before = fm[groupBy];
+                fm[groupBy] = kanbanDropValue(def.fields.find((fd) => fd.key === groupBy), stage);
+                if (entityKey === "deal" && groupBy === "stage") Object.assign(fm, closedPatch(before, fm[groupBy], /* @__PURE__ */ new Date()));
+              });
+              new import_obsidian19.Notice(`Moved to ${stage}`);
+            } catch (e) {
+              new import_obsidian19.Notice(`Failed to move: ${e.message}`);
+            }
+          });
+        }
         if (!items.length) {
           list.createDiv({ cls: "cad-empty", text: "\u2014" });
         } else {
@@ -8041,9 +8059,11 @@ function prmAnalytics(partners, deals, defs = { partner: ENTITIES.partner, deal:
     conversion: { won: partnerWon.length, closed, pct: conv, band: pctBand(conv) }
   };
 }
+var TEAM_ROLE = /\b(team|admin|member)s?\b/i;
 function isTeamMember(entity, def = ENTITIES.contact) {
-  const role = String(entityValue(entity, "role", def) || "").toLowerCase();
-  return role.includes("team") || role.includes("admin") || role.includes("member");
+  const role = entityValue(entity, "role", def);
+  const roles = Array.isArray(role) ? role : [role];
+  return roles.some((r) => r != null && TEAM_ROLE.test(String(r)));
 }
 function teamListOptions() {
   return {

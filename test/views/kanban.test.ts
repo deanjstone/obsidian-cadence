@@ -76,12 +76,12 @@ describe("getEntityKanbanParams", () => {
     expect(view.getEntityKanbanParams(entityKey)).toEqual({ groupBy, groups });
   });
 
-  it("QUIRK: with no enum/text field it groups by a missing 'status', so the columns are To Do / In Progress / Done", () => {
-    const { view } = setup([{ path: "Cadence/Contacts/A.md", frontmatter: { name: "A", status: "x" } }]);
-    // contact has no status field; the values come from frontmatter anyway.
-    expect(view.getEntityKanbanParams("contact")).toEqual({ groupBy: "status", groups: ["x"] });
+  it("with no enum/text field it groups by the first field the selector offers, with no made-up columns", () => {
+    const { view } = setup([{ path: "Cadence/Contacts/A.md", frontmatter: { name: "A", status: "x", company: ["[[Acme]]"] } }]);
+    // contact has no status field; its first offered field is the company relation.
+    expect(view.getEntityKanbanParams("contact")).toEqual({ groupBy: "company", groups: ["Acme"] });
     const empty = setup();
-    expect(empty.view.getEntityKanbanParams("contact")).toEqual({ groupBy: "status", groups: ["To Do", "In Progress", "Done"] });
+    expect(empty.view.getEntityKanbanParams("contact")).toEqual({ groupBy: "company", groups: [] });
   });
 
   it("uses the saved group-by for the entity, and its options", () => {
@@ -99,19 +99,34 @@ describe("getEntityKanbanParams", () => {
     expect(view.getEntityKanbanParams("deal")).toEqual({ groupBy: "company", groups: ["Acme Corp", "Globex", "Initech"] });
   });
 
-  it("QUIRK: a saved group-by overrides even the deal and activity defaults", () => {
-    const { view } = setup([], "crm.pipeline", { pageKanbanGroupBy: { deal: "owner" } });
-    expect(view.getEntityKanbanParams("deal")).toEqual({ groupBy: "owner", groups: ["To Do", "In Progress", "Done"] });
+  it("a saved group-by applies only when the selector offers it; otherwise the default applies and the setting is kept", () => {
+    const { view, plugin } = setup([], "crm.pipeline", { pageKanbanGroupBy: { deal: "owner", activity: "when" } });
+    expect(view.getEntityKanbanParams("deal")).toEqual({ groupBy: "owner", groups: [] });
+    plugin.settings.pageKanbanGroupBy.deal = "value";
+    expect(view.getEntityKanbanParams("deal").groupBy).toBe("stage");
+    expect(view.getEntityKanbanParams("activity").groupBy).toBe("type");
+    expect(plugin.settings.pageKanbanGroupBy).toEqual({ deal: "value", activity: "when" });
   });
 });
 
 describe("renderEntityList: kanban layout", () => {
-  it("offers a group-by selector of non-primary enum/text/multitext/tags fields, with the current one selected", async () => {
+  it("offers a group-by selector of non-primary enum/text/multitext/tags and relation fields, with the current one selected", async () => {
     const { view, root } = setup(DEALS);
     await view.renderEntityList(root, "deal");
     const select = groupSelect(root);
     expect(select.parent!.children[0].text).toBe("Group columns by:");
-    expect(select.options.map((o) => [o.value, o.text, o.selected])).toEqual([["stage", "Stage", true]]);
+    expect(select.options.map((o) => [o.value, o.text, o.selected])).toEqual([
+      ["stage", "Stage", true], ["company", "Company", false], ["contact", "Contact", false], ["owner", "Owner", false],
+    ]);
+  });
+
+  it("grouped by a relation, columns are its linked names, and a drop writes a link", async () => {
+    const { view, root, fm } = setup(DEALS, "crm.pipeline", { pageKanbanGroupBy: { deal: "owner" } });
+    await view.renderEntityList(root, "deal");
+    expect(columns(root).map((c) => [c.dataset.stage, cardTitles(c)])).toEqual([["Sam", ["Acme renewal"]], ["(no owner)", ["Globex", "Initech", "Stray"]]]);
+    column(root, "Sam").children[1].trigger("drop", { dataTransfer: dataTransfer({ "text/cadence-entity": GLOBEX.path, "text/cadence-stage": "(no owner)" }) });
+    await flush();
+    expect(fm(GLOBEX.path)!.owner).toBe("[[Sam]]");
   });
 
   it("saves a new group-by for the entity, creating pageKanbanGroupBy, and re-renders", async () => {
@@ -119,7 +134,7 @@ describe("renderEntityList: kanban layout", () => {
     delete plugin.settings.pageKanbanGroupBy;
     await view.renderEntityList(root, "partner");
     const select = groupSelect(root);
-    expect(select.options.map((o) => [o.value, o.selected])).toEqual([["tier", true], ["status", false]]);
+    expect(select.options.map((o) => [o.value, o.selected])).toEqual([["tier", true], ["status", false], ["owner", false]]);
     select.value = "status";
     select.trigger("change");
     await flush();
@@ -128,33 +143,69 @@ describe("renderEntityList: kanban layout", () => {
     expect(rendered).toHaveBeenCalledTimes(1);
   });
 
-  it("has no selector when no field qualifies (untyped fields don't count)", async () => {
-    const { view, root } = setup([{ path: "Cadence/Certifications/C.md", frontmatter: { name: "C" } }], "prm.certifications");
+  it("offers a relation field; untyped plain fields don't count", async () => {
+    const { view, root } = setup([{ path: "Cadence/Certifications/C.md", frontmatter: { name: "C", level: "1" } }], "prm.certifications");
     await view.renderEntityList(root, "certification");
-    expect(root.children[1].querySelectorAll("select.cad-prop-input")).toEqual([]);
+    expect(groupSelect(root).options.map((o) => [o.value, o.selected])).toEqual([["partner", true]]);
   });
 
-  it("QUIRK: the selector recomputes the params once per option", async () => {
+  it("has no selector when no field qualifies, and shows every entity in one column", async () => {
+    ENTITIES.vendor = { folder: "Cadence/Vendors", label: "Vendor", plural: "Vendors", columns: ["name"], fields: [{ key: "name", label: "Name", primary: true }, { key: "region", label: "Region" }] };
+    try {
+      const { view, root } = setup([{ path: "Cadence/Vendors/V.md", frontmatter: { name: "V", region: "EU" } }], "custom-v");
+      await view.renderEntityList(root, "vendor");
+      expect(root.children[1].querySelectorAll("select.cad-prop-input")).toEqual([]);
+      expect(columns(root).map((c) => [c.dataset.stage, cardTitles(c)])).toEqual([["(no group)", ["V"]]]);
+    } finally {
+      delete ENTITIES.vendor;
+    }
+  });
+
+  it("computes the params once per render, for the selector and the board, however many options or redraws", async () => {
     const { view, root } = setup([{ path: "Cadence/Partners/P.md", frontmatter: { name: "P" } }], "prm.partners");
     const params = vi.spyOn(view, "getEntityKanbanParams");
     await view.renderEntityList(root, "partner");
-    // two options in the selector, then one more for the board.
-    expect(params.mock.calls).toEqual([["partner"], ["partner"], ["partner"]]);
+    const input = root.children[1].children[0].children[0];
+    input.value = "p";
+    input.trigger("input");
+    expect(params.mock.calls).toEqual([["partner"]]);
   });
 
   it("renders a column per group, matching case-insensitively through arrays and links", async () => {
     const { view, root } = setup(DEALS);
     await view.renderEntityList(root, "deal");
     expect(board(root).classes).toEqual(["cad-kanban-board"]);
-    expect(columns(root).map((c) => c.dataset.stage)).toEqual(["Lead", "Qualified", "Proposal", "Negotiation", "Won", "Lost"]);
+    expect(columns(root).map((c) => c.dataset.stage)).toEqual(["Lead", "Qualified", "Proposal", "Negotiation", "Won", "Lost", "Archived"]);
     expect(cardTitles(column(root, "Proposal"))).toEqual(["Acme renewal", "Globex"]);
     expect(cardTitles(column(root, "Won"))).toEqual(["Initech"]);
   });
 
-  it("QUIRK: an entity whose value matches no group is on no column", async () => {
+  it("an entity whose value matches no group gets its own column after the groups, so every counted entity is on the board", async () => {
     const { view, root } = setup(DEALS);
     await view.renderEntityList(root, "deal");
-    expect(columns(root).flatMap((c) => cardTitles(c))).toEqual(["Acme renewal", "Globex", "Initech"]);
+    expect(columns(root).flatMap((c) => cardTitles(c))).toEqual(["Acme renewal", "Globex", "Initech", "Stray"]);
+    expect(colHead(column(root, "Archived"))).toEqual(["Archived", `1 · ${fmtValue(0, "currency")}`]);
+  });
+
+  it("an entity with no value sits in a last (no stage) column, which takes no drop", async () => {
+    const blank = deal("Blank", { title: "Blank", value: 5 });
+    const { view, root, fm } = setup([...DEALS, blank]);
+    await view.renderEntityList(root, "deal");
+    expect(columns(root).map((c) => c.dataset.stage).slice(-2)).toEqual(["Archived", "(no stage)"]);
+    const none = column(root, "(no stage)");
+    expect(cardTitles(none)).toEqual(["Blank"]);
+    const dt = dataTransfer({ "text/cadence-entity": ACME.path, "text/cadence-stage": "Proposal" });
+    const over = none.children[1].trigger("dragover", { dataTransfer: dt });
+    none.children[1].trigger("drop", { dataTransfer: dt });
+    await flush();
+    expect([over.defaultPrevented, none.classes, fm(ACME.path)!.stage, Notice.messages]).toEqual([false, ["cad-kanban-col"], ["Proposal"], []]);
+  });
+
+  it("an entity with several values sits in one column: the first value that matches a group", async () => {
+    const files = [deal("Two", { title: "Two", stage: "Won", owner: ["[[Sam]]", "Kim"] }), deal("One", { title: "One", stage: "Won", owner: "Kim" })];
+    const { view, root } = setup(files, "crm.pipeline", { pageKanbanGroupBy: { deal: "owner" } });
+    await view.renderEntityList(root, "deal");
+    expect(columns(root).map((c) => [c.dataset.stage, cardTitles(c)])).toEqual([["Sam", ["Two"]], ["Kim", ["One"]]]);
   });
 
   it("heads each column with its count and the value field's total, or the count alone", async () => {
@@ -434,6 +485,6 @@ describe("kanban: gaps found by the mutation check", () => {
   it("the group-by selector selects the saved field even when it isn't first", async () => {
     const { view, root } = setup([{ path: "Cadence/Partners/P.md", frontmatter: { name: "P" } }], "prm.partners", { pageKanbanGroupBy: { partner: "status" } });
     await view.renderEntityList(root, "partner");
-    expect(groupSelect(root).options.map((o) => [o.value, o.selected])).toEqual([["tier", false], ["status", true]]);
+    expect(groupSelect(root).options.map((o) => [o.value, o.selected])).toEqual([["tier", false], ["status", true], ["owner", false]]);
   });
 });

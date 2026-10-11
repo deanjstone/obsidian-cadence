@@ -105,12 +105,15 @@ export function prmAnalytics(
   };
 }
 
-/* A Team member: a contact whose role contains "team", "admin" or "member"
-   in any case. A substring matches ("Teammate", "Remember"), and a role
-   list is matched as its comma-joined text. */
+const TEAM_ROLE = /\b(team|admin|member)s?\b/i;
+
+/* A Team member: a contact with a role naming "team", "admin" or "member"
+   (or their plurals) as a whole word, in any case, so "Teammate" and
+   "Remember" don't count (#57). Each role in a list is matched on its own. */
 export function isTeamMember(entity: Entity, def: EntityDef = ENTITIES.contact): boolean {
-  const role = String(entityValue(entity, 'role', def) || '').toLowerCase();
-  return role.includes('team') || role.includes('admin') || role.includes('member');
+  const role = entityValue(entity, 'role', def);
+  const roles = Array.isArray(role) ? role : [role];
+  return roles.some((r) => r != null && TEAM_ROLE.test(String(r)));
 }
 
 /* What Team passes to the contact list: a fresh object per call. */
