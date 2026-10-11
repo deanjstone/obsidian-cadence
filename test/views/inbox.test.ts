@@ -3,6 +3,7 @@ import { FakeElement, type MockFileSpec } from "../mocks/obsidian";
 import { flush, makeAppView } from "../helpers/app-view";
 import { projectWebsite } from "../fixtures/vault";
 import { CadenceReminderEditModal } from "../../src/modals/reminder-edit";
+import { CadenceConfirmModal } from "../../src/modals/confirm";
 import { reminderTimeStr } from "../../src/utils/reminders";
 
 /* Characterization tests for the Inbox surface: renderInbox,
@@ -309,16 +310,23 @@ describe("_renderInboxRow", () => {
     expect(propagate).not.toHaveBeenCalled();
   });
 
-  it("× deletes only after confirm()", () => {
+  it("× deletes only after CadenceConfirmModal confirms, never through window.confirm", () => {
     const { view, calls } = setup();
-    const confirm = vi.fn().mockReturnValueOnce(false).mockReturnValueOnce(true);
+    const confirm = vi.fn(() => true);
     vi.stubGlobal("confirm", confirm);
+    const open = vi.spyOn(CadenceConfirmModal.prototype, "open").mockImplementation(() => {});
     const { actions } = row(view, reminder("a", null));
     const del = actions.children[3];
     del.trigger("click");
+    const declined = open.mock.contexts[0] as Any;
+    expect([declined.title, declined.message, declined.confirmLabel]).toEqual(["Delete reminder", "Delete this reminder?", "Delete"]);
+    declined.close();
+    expect(calls).toEqual([]);
     del.trigger("click");
-    expect(confirm.mock.calls).toEqual([["Delete this reminder?"], ["Delete this reminder?"]]);
+    (open.mock.contexts[1] as Any).onConfirm();
+    expect(confirm).not.toHaveBeenCalled();
     expect(calls).toEqual([["deleteReminder", "a"]]);
+    vi.unstubAllGlobals();
   });
 });
 
