@@ -9910,7 +9910,7 @@ function productivityReport(notes, now, settings) {
   let activeDays = 0;
   let streak = 0, streakBroken = false;
   const perDay = [];
-  for (const d of days) {
+  days.forEach((d, i) => {
     const c = notes.get(ymd(d));
     let open = 0, done = 0, jChars = 0, hasNote = false;
     if (c !== void 0) {
@@ -9926,9 +9926,9 @@ function productivityReport(notes, now, settings) {
     if (hasNote) activeDays++;
     if (!streakBroken) {
       if (hasNote && (done > 0 || jChars > 0)) streak++;
-      else streakBroken = true;
+      else if (i > 0) streakBroken = true;
     }
-  }
+  });
   const completion = totalOpen + totalDone === 0 ? 0 : Math.round(totalDone / (totalOpen + totalDone) * 100);
   const last14 = perDay.slice(0, 14).reverse();
   const max = Math.max(1, ...last14.map((p) => p.done));

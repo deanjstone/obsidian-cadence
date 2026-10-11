@@ -405,7 +405,9 @@ export interface ProductivityReport {
   journalChars: number;
   /** Days of the last 30 with a note. */
   activeDays: number;
-  /** Days back from today, today included, with a note and a done task or journal text. */
+  /** Consecutive days, back from today, with a note and a done task or journal text. Today counts
+      once it is active; until then the streak runs back from yesterday, so a day not yet started
+      never breaks it. */
   streak: number;
   /** Done over all tasks in the last 30 days, as a whole percent. */
   completion: number;
@@ -428,7 +430,7 @@ export function productivityReport(notes: Map<string, string>, now: Date, settin
   let activeDays = 0;
   let streak = 0, streakBroken = false;
   const perDay: Array<{ date: Date; open: number; done: number; jChars: number; hasNote: boolean }> = [];
-  for (const d of days) {
+  days.forEach((d, i) => {
     const c = notes.get(ymd(d));
     let open = 0, done = 0, jChars = 0, hasNote = false;
     if (c !== undefined) {
@@ -442,9 +444,9 @@ export function productivityReport(notes: Map<string, string>, now: Date, settin
     if (hasNote) activeDays++;
     if (!streakBroken) {
       if (hasNote && (done > 0 || jChars > 0)) streak++;
-      else streakBroken = true;
+      else if (i > 0) streakBroken = true;
     }
-  }
+  });
   const completion = totalOpen + totalDone === 0 ? 0 : Math.round((totalDone / (totalOpen + totalDone)) * 100);
 
   const last14 = perDay.slice(0, 14).reverse();

@@ -91,10 +91,19 @@ describe("renderProductivity: layout and stats", () => {
     ]);
   });
 
-  it("QUIRK: the streak counts back from today, so a day not yet started breaks it", async () => {
+  it("a day not yet started keeps the streak: it counts back from yesterday until today is active", async () => {
     const { view, root } = setup([note("2026-10-10", "## Today\n- [x] a"), note("2026-10-09", "## Today\n- [x] b")]);
     await view.renderProductivity(root);
-    expect(stats(root)[1]).toEqual(["mint", "STREAK", "0d", "consecutive active days"]);
+    expect(stats(root)[1]).toEqual(["mint", "STREAK", "2d", "consecutive active days"]);
+  });
+
+  it("today's note with nothing done yet keeps the streak too; a missed yesterday still breaks it", async () => {
+    const started = setup([note("2026-10-11", "## Today\n- [ ] a"), note("2026-10-10", "## Journal\ny")]);
+    await started.view.renderProductivity(started.root);
+    expect(stats(started.root)[1][2]).toBe("1d");
+    const missed = setup([note("2026-10-09", "## Today\n- [x] a")]);
+    await missed.view.renderProductivity(missed.root);
+    expect(stats(missed.root)[1][2]).toBe("0d");
   });
 
   it("counts a journal-only day in the streak", async () => {
