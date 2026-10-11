@@ -5376,6 +5376,30 @@ function stageConfidence(stages) {
   });
   return (stage) => weights.get(foldStage(stage)) ?? 0;
 }
+function linkedNames(value) {
+  const seen = /* @__PURE__ */ new Set();
+  return parseLinkValues(value).map((v) => v.target).filter((name) => {
+    const key = name.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+function partnerResolver(partners, partnerDef) {
+  const byName = /* @__PURE__ */ new Map();
+  partners.forEach((p) => {
+    const name = String(entityValue(p, "name", partnerDef) || "").trim().toLowerCase();
+    if (name && !byName.has(name)) byName.set(name, p);
+  });
+  partners.forEach((p) => {
+    const base = p.basename.toLowerCase();
+    if (!byName.has(base)) byName.set(base, p);
+  });
+  return (deal, dealDef) => linkedNames(entityValue(deal, "partner", dealDef)).map((name) => {
+    const partner = byName.get(name.toLowerCase()) || null;
+    return partner ? { key: `partner:${partner.file.path}`, name: String(entityValue(partner, "name", partnerDef) || partner.basename), partner } : { key: `name:${name.toLowerCase()}`, name, partner: null };
+  });
+}
 
 // src/views/crm-dashboard.ts
 var DAY_MS = 864e5;
@@ -7918,7 +7942,8 @@ async function toggleGroup(view, groupId) {
 var TIER_ACCENT = { "Gold": "warn", "Silver": "sky", "Bronze": "rose", "Standard": "mint", "Untiered": "mint" };
 function prmAnalytics(partners, deals, defs = { partner: ENTITIES.partner, deal: ENTITIES.deal }) {
   const { partner: partnerDef, deal: dealDef } = defs;
-  const partnerSourced = deals.filter((e) => entityValue(e, "partner", dealDef));
+  const partnersOf = partnerResolver(partners, partnerDef);
+  const partnerSourced = deals.filter((e) => partnersOf(e, dealDef).length > 0);
   const { open: sourcedOpen, won: partnerWon, lost: sourcedLost, openValue, wonValue, lostValue } = crmSummary(partnerSourced, dealDef);
   const sourcedValue = sumValues(partnerSourced, dealDef);
   const totalDealValue = sumValues(deals, dealDef);
@@ -7930,19 +7955,16 @@ function prmAnalytics(partners, deals, defs = { partner: ENTITIES.partner, deal:
     tierMap.set(t, (tierMap.get(t) || 0) + 1);
     tierValueMap.set(t, tierValueMap.get(t) || 0);
   });
-  const partnerByName = /* @__PURE__ */ new Map();
-  partners.forEach((p) => partnerByName.set(String(entityValue(p, "name", partnerDef) || p.basename), p));
-  partnerWon.forEach((d) => {
-    const pname = String(entityValue(d, "partner", dealDef) || "");
-    const partner = partnerByName.get(pname);
-    if (!partner) return;
-    const tier = String(entityValue(partner, "tier", partnerDef) || "Untiered");
-    tierValueMap.set(tier, (tierValueMap.get(tier) || 0) + dealValue(d, dealDef));
-  });
   const partnerRevenue = /* @__PURE__ */ new Map();
   partnerWon.forEach((d) => {
-    const p = String(entityValue(d, "partner", dealDef) || "(direct)");
-    partnerRevenue.set(p, (partnerRevenue.get(p) || 0) + dealValue(d, dealDef));
+    partnersOf(d, dealDef).forEach(({ key, name, partner }) => {
+      const row = partnerRevenue.get(key) || { name, partner, value: 0 };
+      row.value += dealValue(d, dealDef);
+      partnerRevenue.set(key, row);
+      if (!partner) return;
+      const tier = String(entityValue(partner, "tier", partnerDef) || "Untiered");
+      tierValueMap.set(tier, (tierValueMap.get(tier) || 0) + dealValue(d, dealDef));
+    });
   });
   const conv = partnerSourced.length === 0 ? 0 : Math.round(partnerWon.length / partnerSourced.length * 100);
   const currency = (value) => fmtValue(value, "currency");
@@ -7957,10 +7979,7 @@ function prmAnalytics(partners, deals, defs = { partner: ENTITIES.partner, deal:
       const value = tierValueMap.get(tier) || 0;
       return { label: tier.toUpperCase(), value: String(count), accent: TIER_ACCENT[tier] || "sky", sub: value > 0 ? currency(value) : "\u2014" };
     }),
-    topPartners: [...partnerRevenue.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([p, v]) => {
-      const partner = partnerByName.get(p);
-      return { title: p, meta: currency(v), file: partner ? partner.file : null };
-    }),
+    topPartners: [...partnerRevenue.values()].sort((a, b) => b.value - a.value).slice(0, 8).map(({ name, partner, value }) => ({ title: name, meta: currency(value), file: partner ? partner.file : null })),
     funnel: [
       { label: "SOURCED", value: String(partnerSourced.length), sub: currency(sourcedValue), accent: "sky" },
       { label: "OPEN", value: String(sourcedOpen.length), sub: currency(openValue), accent: "mint" },
@@ -9705,13 +9724,21 @@ function salesReport(deals, def, now) {
 var TIER_ACCENT2 = { "Gold": "warn", "Silver": "sky", "Bronze": "rose", "Standard": "mint" };
 function partnersReport(deals, partners, certs, now, defs = { deal: ENTITIES.deal, partner: ENTITIES.partner, certification: ENTITIES.certification }) {
   const { deal: dealDef, partner: partnerDef, certification: certDef } = defs;
+  const partnersOf = partnerResolver(partners, partnerDef);
   const byPartner = /* @__PURE__ */ new Map();
+  const addSource = (key, partner, e) => {
+    if (!byPartner.has(key)) byPartner.set(key, { partner, items: [] });
+    byPartner.get(key).items.push(e);
+  };
   deals.forEach((e) => {
-    const p = entityValue(e, "partner", dealDef) || "(direct)";
-    if (!byPartner.has(p)) byPartner.set(p, []);
-    byPartner.get(p).push(e);
+    const refs = partnersOf(e, dealDef);
+    if (!refs.length) addSource("(direct)", "(direct)", e);
+    refs.forEach(({ key, name, partner }) => {
+      const link = partner ? partner.basename === name ? name : `[[${partner.basename}|${name}]]` : name;
+      addSource(key, link, e);
+    });
   });
-  const partnerSourced = deals.filter((e) => entityValue(e, "partner", dealDef));
+  const partnerSourced = deals.filter((e) => partnersOf(e, dealDef).length > 0);
   const partnerWon = partnerSourced.filter((e) => dealOutcome(e, dealDef) === "won");
   const tierMap = /* @__PURE__ */ new Map();
   partners.forEach((p) => {
@@ -9738,7 +9765,7 @@ function partnersReport(deals, partners, certs, now, defs = { deal: ENTITIES.dea
       { label: "UNIQUE SOURCES", value: byPartner.size, sub: "including direct", accent: "warn" }
     ],
     tiers: [...tierMap.entries()].sort((a, b) => b[1] - a[1]).map(([tier, count]) => ({ label: tier.toUpperCase(), value: String(count), accent: TIER_ACCENT2[tier] || "sky" })),
-    sources: [...byPartner.entries()].sort((a, b) => b[1].length - a[1].length).slice(0, 10).map(([partner, items]) => ({
+    sources: [...byPartner.values()].sort((a, b) => b.items.length - a.items.length).slice(0, 10).map(({ partner, items }) => ({
       partner,
       count: items.length,
       meta: `${items.length} deal${items.length === 1 ? "" : "s"} \xB7 ${fmtValue(sumValues(items, dealDef), "currency")}`

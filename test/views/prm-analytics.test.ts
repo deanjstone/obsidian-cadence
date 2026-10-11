@@ -115,16 +115,16 @@ describe("renderPRMAnalytics: layout and stats", () => {
 });
 
 describe("renderPRMAnalytics: partners by tier", () => {
-  it("counts partners per tier, most first, with each tier's won revenue from deals naming a partner exactly", async () => {
+  it("counts partners per tier, most first, with each tier's won revenue from deals naming a partner in any form", async () => {
     const { view, root } = setup(ALL);
     await view.renderPRMAnalytics(root);
     const tierCard = root.children[3];
     expect(tierCard.style.margin).toBe("0 36px 18px 36px");
     const [row] = tierCard.children;
     expect(row.classes).toEqual(["cad-dash-card-body", "cad-mini-stat-row"]);
-    // Gold: D1, D6 and D9 (a one-item list reads as its item). D3's `[[Acme]]` names no partner.
+    // Gold: D1, D3 (a wikilink), D6 and D9 (a one-item list) all name Acme.
     expect(miniStats(row)).toEqual([
-      ["warn", "2", "GOLD", cur(1120), "4px"],
+      ["warn", "2", "GOLD", cur(1520), "4px"],
       ["sky", "1", "SILVER", cur(2500), "4px"],
       ["mint", "1", "UNTIERED", "—", "4px"],
       ["sky", "1", "PLATINUM", "—", "4px"],
@@ -132,7 +132,7 @@ describe("renderPRMAnalytics: partners by tier", () => {
     expect(row.children.map((m) => m.classes)).toEqual(Array(4).fill(["cad-mini-stat"]));
   });
 
-  it("matches a deal's partner to a partner's name, falling back to its file name", async () => {
+  it("matches a deal's partner to a partner's name or its file name", async () => {
     const files = [
       partner("Acme", { tier: "Bronze" }), partner("Beta", { name: "Beta Ltd", tier: "Standard" }),
       deal("A", { stage: "Won", value: 10, partner: "Acme" }), deal("B", { stage: "Won", value: 20, partner: "Beta" }),
@@ -141,21 +141,20 @@ describe("renderPRMAnalytics: partners by tier", () => {
     await view.renderPRMAnalytics(root);
     expect(miniStats(root.children[3].children[0])).toEqual([
       ["rose", "1", "BRONZE", cur(10), "4px"],
-      ["mint", "1", "STANDARD", "—", "4px"],
+      ["mint", "1", "STANDARD", cur(20), "4px"],
     ]);
   });
 });
 
 describe("renderPRMAnalytics: top partners", () => {
-  it("lists won revenue per partner value, most first, linking a row to the partner it names", async () => {
+  it("lists won revenue per partner, most first, linking a row to the partner it names", async () => {
     const { view, root, sections, file } = setup(ALL);
     await view.renderPRMAnalytics(root);
     expect(sections.mock.calls).toEqual([[
       cols(root).children[0], "TOP PARTNERS · by won revenue",
       [
         { title: "Beta Ltd", meta: cur(2500), file: file("Cadence/Partners/Beta.md") },
-        { title: "Acme", meta: cur(1120), file: file("Cadence/Partners/Acme.md") },
-        { title: "[[Acme]]", meta: cur(400), file: null },
+        { title: "Acme", meta: cur(1520), file: file("Cadence/Partners/Acme.md") },
       ],
       "No partner-attributed wins yet.",
     ]]);
@@ -225,12 +224,15 @@ describe("renderPRMAnalytics: funnel and conversion", () => {
 });
 
 describe("renderPRMAnalytics: quirks", () => {
-  it("QUIRK: a deal whose partner is a wikilink names no partner, so its win adds to no tier and its row links nowhere", async () => {
-    const files = [partner("Acme", { tier: "Gold" }), deal("A", { stage: "Won", value: 900, partner: "[[Acme]]" })];
-    const { view, root, sections } = setup(files);
+  it("a deal whose partner is a wikilink, in another case or a list names that partner, so its win adds to its tier and row", async () => {
+    const files = [
+      partner("Acme", { tier: "Gold" }),
+      deal("A", { stage: "Won", value: 900, partner: "[[Acme]]" }), deal("B", { stage: "Won", value: 90, partner: ["[[acme|Acme Inc]]"] }),
+    ];
+    const { view, root, sections, file } = setup(files);
     await view.renderPRMAnalytics(root);
-    expect(miniStats(root.children[3].children[0])).toEqual([["warn", "1", "GOLD", "—", "4px"]]);
-    expect(sections.mock.calls[0][2]).toEqual([{ title: "[[Acme]]", meta: cur(900), file: null }]);
+    expect(miniStats(root.children[3].children[0])).toEqual([["warn", "1", "GOLD", cur(990), "4px"]]);
+    expect(sections.mock.calls[0][2]).toEqual([{ title: "Acme", meta: cur(990), file: file("Cadence/Partners/Acme.md") }]);
   });
 
   it("Won and Lost match in any case, so a lower-case 'won' earns partner revenue and 'lost' is lost", async () => {

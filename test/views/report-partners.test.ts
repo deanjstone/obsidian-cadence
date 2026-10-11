@@ -80,14 +80,14 @@ describe("renderReportPartners: layout and stats", () => {
     ]);
   });
 
-  it("QUIRK: counts sources by partner value, so a one-item list is a separate source from the same partner as text", async () => {
+  it("counts sources by the partner they name, so a one-item list and a wikilink to the same partner are one source", async () => {
     const { view, root } = setup(ALL);
     await view.renderReportPartners(root);
     expect(stats(root)).toEqual([
       ["sky", "PARTNERS", "5", "on the books"],
       ["mint", "PARTNER DEALS", "4", cur(3550)],
       ["emerald", "PARTNER REV", cur(3000), "2 won"],
-      ["warn", "UNIQUE SOURCES", "4", "including direct"],
+      ["warn", "UNIQUE SOURCES", "3", "including direct"],
     ]);
   });
 
@@ -134,13 +134,12 @@ describe("renderReportPartners: deals by partner", () => {
     await view.renderReportPartners(root);
     expect(dealsCard(root).children[0].children[0].text).toBe("DEALS BY PARTNER");
     expect(dealRows(root)).toEqual([
-      ["", `2 deals · ${cur(1500)}`],
+      ["", `3 deals · ${cur(1550)}`],
       ["(direct)", `2 deals · ${cur(400)}`],
       ["", `1 deal · ${cur(2000)}`],
-      ["", `1 deal · ${cur(50)}`],
     ]);
     const titles = dealsCard(root).children[1].children.map((r) => r.children[0]);
-    expect(links.mock.calls).toEqual([[titles[0], "[[Acme]]", "partner"], [titles[2], "[[Beta]]", "partner"], [titles[3], ACME_LIST, "partner"]]);
+    expect(links.mock.calls).toEqual([[titles[0], "Acme", "partner"], [titles[2], "Beta", "partner"]]);
   });
 
   it("QUIRK: with only direct deals, the card lists (direct) rather than its empty message", async () => {

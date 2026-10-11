@@ -1,6 +1,7 @@
 import type { Entity, EntityDef, Frontmatter } from '../types/entities';
 import { parseYmd, ymd } from './dates';
 import { entityValue } from './entities';
+import { parseLinkValues } from './parsing';
 
 /* Deal totals shared by the CRM dashboard, Home, PRM analytics and the
    Pipeline, Sales and Partners reports: one rule for a deal's outcome. */
@@ -153,4 +154,47 @@ export function stageConfidence(stages: string[]): (stage: unknown) => number {
     weights.set(s, before[1] + ((after[1] - before[1]) * (i - before[0])) / (after[0] - before[0]));
   });
   return (stage) => weights.get(foldStage(stage)) ?? 0;
+}
+
+/** The notes a link field names: each item's link target (parseLinkValues:
+    `[[ ]]` and any `|alias` removed, a plain string split on commas), with
+    case-insensitive repeats dropped and the first spelling kept. */
+export function linkedNames(value: unknown): string[] {
+  const seen = new Set<string>();
+  return parseLinkValues(value).map((v) => v.target).filter((name) => {
+    const key = name.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+export interface PartnerRef {
+  /** One key per partner note, or per unmatched name (case-insensitive). */
+  key: string;
+  /** The partner's name (or file name), else the name as the deal first wrote it. */
+  name: string;
+  partner: Entity | null;
+}
+
+/* The partners each deal names, resolved against the partner notes: a name
+   matches a partner's `name`, else its file name, in any case. A deal naming
+   two partners counts for each. One resolver for PRM analytics and the
+   Partners report (#54). */
+export function partnerResolver(partners: Entity[], partnerDef: EntityDef): (deal: Entity, dealDef: EntityDef) => PartnerRef[] {
+  const byName = new Map<string, Entity>();
+  partners.forEach((p) => {
+    const name = String(entityValue(p, 'name', partnerDef) || '').trim().toLowerCase();
+    if (name && !byName.has(name)) byName.set(name, p);
+  });
+  partners.forEach((p) => {
+    const base = p.basename.toLowerCase();
+    if (!byName.has(base)) byName.set(base, p);
+  });
+  return (deal, dealDef) => linkedNames(entityValue(deal, 'partner', dealDef)).map((name) => {
+    const partner = byName.get(name.toLowerCase()) || null;
+    return partner
+      ? { key: `partner:${partner.file.path}`, name: String(entityValue(partner, 'name', partnerDef) || partner.basename), partner }
+      : { key: `name:${name.toLowerCase()}`, name, partner: null };
+  });
 }

@@ -3,7 +3,7 @@ import { ENTITIES } from '../constants/entities';
 import type { Entity, EntityDef } from '../types/entities';
 import type { DailyNoteSettings } from '../types/settings';
 import { addDays, dailyNotePath, parseYmd, startOfDay, startOfWeek, ymd } from '../utils/dates';
-import { crmSummary, dealClosedAt, dealOutcome, dealValue, dealsByStage, stageConfidence, sumValues } from '../utils/deals';
+import { crmSummary, dealClosedAt, dealOutcome, dealValue, dealsByStage, partnerResolver, stageConfidence, sumValues } from '../utils/deals';
 import { entityValue, getDealStages, listEntities } from '../utils/entities';
 import { fmtValue } from '../utils/format';
 import { parseSections } from '../utils/parsing';
@@ -218,15 +218,17 @@ export function salesReport(deals: Entity[], def: EntityDef, now: Date): SalesRe
 const TIER_ACCENT: Record<string, string> = { 'Gold': 'warn', 'Silver': 'sky', 'Bronze': 'rose', 'Standard': 'mint' };
 
 export interface PartnersReport {
-  /** Deals with any `partner` value. */
+  /** Deals naming a partner. */
   partnerSourced: Entity[];
   partnerWon: Entity[];
   stats: StatCard[];
   /** Partners per tier ('Untiered' for none), most first. */
   tiers: MiniStat[];
-  /** The top 10 sources by deal count. `partner` is the raw value, or
-      '(direct)' for none, so a one-item list is its own source. */
-  sources: Array<{ partner: unknown; count: number; meta: string }>;
+  /** The top 10 sources by deal count, one per partner a deal names
+      (partnerResolver), or '(direct)' for none. `partner` is the link to
+      draw: the partner's file name (`[[file|name]]` when its name differs),
+      else the name as written. */
+  sources: Array<{ partner: string; count: number; meta: string }>;
   /** Up to 8 certifications expiring from `now` to 90 days out, soonest first. */
   certs: DashCardRow[];
 }
@@ -236,14 +238,21 @@ export function partnersReport(
   defs: { deal: EntityDef; partner: EntityDef; certification: EntityDef } = { deal: ENTITIES.deal, partner: ENTITIES.partner, certification: ENTITIES.certification },
 ): PartnersReport {
   const { deal: dealDef, partner: partnerDef, certification: certDef } = defs;
-  // TODO: confirm shape — `partner` is read raw, so a list is its own key.
-  const byPartner = new Map<unknown, Entity[]>();
+  const partnersOf = partnerResolver(partners, partnerDef);
+  const byPartner = new Map<string, { partner: string; items: Entity[] }>();
+  const addSource = (key: string, partner: string, e: Entity) => {
+    if (!byPartner.has(key)) byPartner.set(key, { partner, items: [] });
+    byPartner.get(key)!.items.push(e);
+  };
   deals.forEach((e) => {
-    const p = entityValue(e, 'partner', dealDef) || '(direct)';
-    if (!byPartner.has(p)) byPartner.set(p, []);
-    byPartner.get(p)!.push(e);
+    const refs = partnersOf(e, dealDef);
+    if (!refs.length) addSource('(direct)', '(direct)', e);
+    refs.forEach(({ key, name, partner }) => {
+      const link = partner ? (partner.basename === name ? name : `[[${partner.basename}|${name}]]`) : name;
+      addSource(key, link, e);
+    });
   });
-  const partnerSourced = deals.filter((e) => entityValue(e, 'partner', dealDef));
+  const partnerSourced = deals.filter((e) => partnersOf(e, dealDef).length > 0);
   const partnerWon = partnerSourced.filter((e) => dealOutcome(e, dealDef) === 'won');
 
   const tierMap = new Map<string, number>();
@@ -277,10 +286,10 @@ export function partnersReport(
     ],
     tiers: [...tierMap.entries()].sort((a, b) => b[1] - a[1])
       .map(([tier, count]) => ({ label: tier.toUpperCase(), value: String(count), accent: TIER_ACCENT[tier] || 'sky' })),
-    sources: [...byPartner.entries()]
-      .sort((a, b) => b[1].length - a[1].length)
+    sources: [...byPartner.values()]
+      .sort((a, b) => b.items.length - a.items.length)
       .slice(0, 10)
-      .map(([partner, items]) => ({
+      .map(({ partner, items }) => ({
         partner,
         count: items.length,
         meta: `${items.length} deal${items.length === 1 ? '' : 's'} · ${fmtValue(sumValues(items, dealDef), 'currency')}`,
@@ -618,7 +627,7 @@ export async function renderReportPartners(view: AppViewHost, root: HTMLElement)
       if (p && p !== '(direct)') {
         view._renderEntityLinks(titleDiv, p, 'partner');
       } else {
-        titleDiv.setText((p as string) || '');
+        titleDiv.setText(p || '');
       }
       row.createDiv({ cls: 'cad-dash-row-meta', text: meta });
     });

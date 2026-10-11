@@ -206,10 +206,18 @@ describe("partnersReport", () => {
 
   it("groups deals by source", () => {
     expect(report.sources).toEqual([
-      { partner: "[[A]]", count: 2, meta: `2 deals · ${cur(30)}` },
+      { partner: "A", count: 2, meta: `2 deals · ${cur(30)}` },
       { partner: "(direct)", count: 1, meta: `1 deal · ${cur(40)}` },
     ]);
     expect(partnersReport([], [], [], NOW).sources).toEqual([]);
+  });
+
+  it("resolves a source to its partner note by name or file name, in any case, linking the note under its name", () => {
+    const beta = entity("Beta", { name: "Beta Ltd" });
+    const sources = partnersReport(
+      [entity("X", { partner: "beta ltd" }), entity("Y", { partner: ["[[Beta]]"] }), entity("Z", { partner: "[[Gamma]]" })], [beta], [], NOW,
+    ).sources;
+    expect(sources.map((x) => [x.partner, x.count])).toEqual([["[[Beta|Beta Ltd]]", 2], ["Gamma", 1]]);
   });
 
   it("lists certs inside the 90-day horizon, soonest first", () => {

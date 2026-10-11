@@ -79,11 +79,11 @@ describe("prmAnalytics", () => {
     ]);
   });
 
-  it("names a partner only by exact text, so a wikilinked or differently-cased partner earns no tier revenue", () => {
+  it("names a partner by link target in any case, so a wikilinked or differently-cased partner earns its tier revenue", () => {
     const deals = [entity("A", { stage: "Won", value: 10, partner: "[[Acme]]" }), entity("B", { stage: "Won", value: 20, partner: "acme" })];
     const report = prmAnalytics([PARTNERS[0]], deals);
-    expect(report.tiers).toEqual([{ label: "GOLD", value: "1", accent: "warn", sub: "—" }]);
-    expect(report.topPartners.map((r) => r.file)).toEqual([null, null]);
+    expect(report.tiers).toEqual([{ label: "GOLD", value: "1", accent: "warn", sub: cur(30) }]);
+    expect(report.topPartners).toEqual([{ title: "Acme", meta: cur(30), file: PARTNERS[0].file }]);
   });
 
   it("takes the defs it is given", () => {
