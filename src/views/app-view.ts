@@ -461,8 +461,6 @@ export function planEntityLinks(
 
         // An entity:<key> source names the entity <key>, not a folder called entity:<key> (#45).
         const source = suggestionSource.startsWith('entity:') ? suggestionSource.slice('entity:'.length) : suggestionSource;
-        // QUIRK (kept): 'history' is excluded above, so this always picks source.
-        const creationSource = source === 'history' ? 'folder:Cadence/Shared' : source;
         let targetEntityKey = ENTITIES[source] ? source : null;
         if (source.startsWith('folder:')) {
           const customFolderPath = source.slice('folder:'.length);
@@ -477,7 +475,7 @@ export function planEntityLinks(
         // Only a relation field (contact, company, project) auto-creates its notes (#45).
         if (!autoCreatesNote(targetEntityKey)) continue;
         const label = targetEntityKey ? ENTITIES[targetEntityKey].label : 'Note';
-        for (const name of names) links.push({ name, creationSource, label });
+        for (const name of names) links.push({ name, creationSource: source, label });
       }
     }
   }

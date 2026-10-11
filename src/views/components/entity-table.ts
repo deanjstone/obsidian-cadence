@@ -93,8 +93,7 @@ export function renderEntityTable(view: AppViewHost, parent: HTMLElement, entity
       } else {
         const sugSrc = f.suggestionSource || getFieldSuggestionSource(f);
         if (f.type === 'multitext' && sugSrc && sugSrc !== 'none' && sugSrc !== 'tags' && sugSrc !== 'history') {
-          const targetSrc = sugSrc === 'history' ? 'folder:Cadence/Shared' : sugSrc;
-          view._renderEntityLinks(td, val, targetSrc);
+          view._renderEntityLinks(td, val, sugSrc);
         } else if (f.key === 'company') {
           view._renderEntityLinks(td, val, 'company');
         } else if (f.key === 'partner') {

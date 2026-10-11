@@ -4810,8 +4810,7 @@ function renderEntityTable(view, parent, entityKey, filteredList, columns) {
       } else {
         const sugSrc = f.suggestionSource || getFieldSuggestionSource(f);
         if (f.type === "multitext" && sugSrc && sugSrc !== "none" && sugSrc !== "tags" && sugSrc !== "history") {
-          const targetSrc = sugSrc === "history" ? "folder:Cadence/Shared" : sugSrc;
-          view._renderEntityLinks(td, val, targetSrc);
+          view._renderEntityLinks(td, val, sugSrc);
         } else if (f.key === "company") {
           view._renderEntityLinks(td, val, "company");
         } else if (f.key === "partner") {
@@ -11568,7 +11567,6 @@ function planEntityLinks(def, defaults, values) {
         const names = parts.map((n) => n.trim().replace(/^\[\[|\]\]$/g, "").trim()).filter(Boolean);
         extras[key] = names.map((n) => `[[${n}]]`);
         const source = suggestionSource.startsWith("entity:") ? suggestionSource.slice("entity:".length) : suggestionSource;
-        const creationSource = source === "history" ? "folder:Cadence/Shared" : source;
         let targetEntityKey = ENTITIES[source] ? source : null;
         if (source.startsWith("folder:")) {
           const customFolderPath = source.slice("folder:".length);
@@ -11582,7 +11580,7 @@ function planEntityLinks(def, defaults, values) {
         }
         if (!autoCreatesNote(targetEntityKey)) continue;
         const label = targetEntityKey ? ENTITIES[targetEntityKey].label : "Note";
-        for (const name of names) links.push({ name, creationSource, label });
+        for (const name of names) links.push({ name, creationSource: source, label });
       }
     }
   }
