@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ALL_SURFACES, SURFACE_BY_ID } from "../../src/constants/nav";
 import {
-  migrateModeId, modeUsesEntityFolder, resolveSurface, routeFor, visibleNavGroups,
+  customPageMode, migrateModeId, modeUsesEntityFolder, resolveSurface, routeFor, visibleNavGroups,
 } from "../../src/views/nav";
 import type { CustomPage } from "../../src/types/settings";
 
@@ -21,7 +21,32 @@ describe("migrateModeId", () => {
     expect(migrateModeId("reports.graph", {})).toBe("reports.graph");
     expect(migrateModeId("custom.1", { customPages: pages })).toBe("custom.1");
     expect(migrateModeId("custom.1", {})).toBe("home");
-    expect(migrateModeId("valueOf", {})).toBe("valueOf");
+    expect(migrateModeId("valueOf", {})).toBe("home");
+  });
+});
+
+describe("custom page modes", () => {
+  const odd = (id: string): CustomPage => ({ id, label: "Odd", sectionId: "crm", entityKey: "vendor" });
+
+  it("gives a page whose id is taken (a built surface, an old id, an Object.prototype name) a custom. mode", () => {
+    const customPages = ["team", "today", "toString", "__proto__", "custom.1"].map(odd);
+    expect(customPageMode(customPages[0])).toBe("custom.team");
+    expect(customPages.map(customPageMode)).toEqual([
+      "custom.team", "custom.today", "custom.toString", "custom.__proto__", "custom.1",
+    ]);
+    const crm = visibleNavGroups({ customPages }).find((g) => g.id === "crm")!;
+    expect(crm.items.slice(-5).map((i) => i.id)).toEqual(customPages.map(customPageMode));
+    expect(resolveSurface("custom.team", { customPages })).toMatchObject({ id: "custom.team", label: "Odd" });
+    expect(routeFor("custom.today", customPages)).toEqual({ kind: "entityList", entityKey: "vendor" });
+  });
+
+  it("keeps a built surface or old id ahead of a page with that id, and maps any other page id to its mode", () => {
+    const customPages = ["team", "today", "toString"].map(odd);
+    expect(migrateModeId("team", { customPages })).toBe("team");
+    expect(migrateModeId("today", { customPages })).toBe("planner.today");
+    expect(migrateModeId("toString", { customPages })).toBe("custom.toString");
+    expect(migrateModeId("custom.team", { customPages })).toBe("custom.team");
+    expect(migrateModeId("custom.team", {})).toBe("home");
   });
 });
 
@@ -77,8 +102,11 @@ describe("routeFor", () => {
     expect(routeFor("team", [{ ...pages[0], id: "team" }])).toEqual({ kind: "surface", method: "renderTeam" });
   });
 
-  it("QUIRK: reports an Object.prototype member name as an inherited route, ahead of custom pages", () => {
-    expect(routeFor("toString", [{ ...pages[0], id: "toString" }])).toEqual({ kind: "inherited", name: "toString" });
-    expect(routeFor("__proto__", [])).toEqual({ kind: "inherited", name: "__proto__" });
+  it("never routes an Object.prototype member name to an inherited member", () => {
+    expect(routeFor("toString", [])).toEqual({ kind: "comingSoon" });
+    expect(routeFor("__proto__", [])).toEqual({ kind: "comingSoon" });
+    // A custom page with such an id routes under its own `custom.` mode.
+    expect(routeFor("custom.toString", [{ ...pages[0], id: "toString" }])).toEqual({ kind: "entityList", entityKey: "vendor" });
+    expect(routeFor("custom.__proto__", [{ ...pages[0], id: "__proto__" }])).toEqual({ kind: "entityList", entityKey: "vendor" });
   });
 });

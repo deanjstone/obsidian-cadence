@@ -1,6 +1,6 @@
 import { ItemView, Notice, setIcon, type TAbstractFile, type TFile, type WorkspaceLeaf } from 'obsidian';
 import { ENTITIES } from '../constants/entities';
-import { BUILT_SURFACES, SURFACE_BY_ID, VIEW_TYPE_CADENCE_APP, type NavSurface } from '../constants/nav';
+import { BUILT_SURFACES, VIEW_TYPE_CADENCE_APP, type NavSurface } from '../constants/nav';
 import { DEFAULT_SETTINGS } from '../constants/settings';
 import type { Entity, EntityDef, EntityKey, TaskNotesTask } from '../types/entities';
 import type { ChartStyle } from '../types/modals';
@@ -204,7 +204,10 @@ export async function renderAppView(view: AppViewHost): Promise<void> {
     root.addClass('cadence-app');
     root.toggleClass('cad-dark', !!view.plugin.settings.cadenceAppDark);
 
-    const active = view._resolveSurface(view.mode) || SURFACE_BY_ID['planner.today'];
+    // A mode with no surface or custom page (a deleted page, a hand-edited
+    // id) falls back as migrateModeId does, so the label matches what renders.
+    view.mode = view._migrateModeId(view.mode);
+    const active = view._resolveSurface(view.mode);
 
     /* ── Top brand bar ──────────────────────── */
     const topbar = root.createDiv({ cls: 'cad-app-topbar' });
@@ -311,9 +314,6 @@ export async function renderAppView(view: AppViewHost): Promise<void> {
       await view[route.method](content);
     } else if (route.kind === 'entityList') {
       await view.renderEntityList(content, route.entityKey);
-    } else if (route.kind === 'inherited') {
-      // QUIRK (kept): the original called the inherited member of its route-table object.
-      await ({} as Record<string, () => unknown>)[route.name]();
     } else {
       view.renderComingSoon(content, active);
     }

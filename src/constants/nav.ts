@@ -90,9 +90,13 @@ export const NAV_GROUPS: NavGroup[] = [
   },
 ];
 
-// Convenience flat lookup
+// Convenience flat lookup. No prototype, so an Object.prototype member name
+// (`toString`, `__proto__`, …) is not a surface id.
 export const ALL_SURFACES: NavSurface[] = NAV_GROUPS.flatMap((g) => g.items);
-export const SURFACE_BY_ID: Record<string, NavSurface> = Object.fromEntries(ALL_SURFACES.map((s) => [s.id, s]));
+export const SURFACE_BY_ID: Record<string, NavSurface> = Object.assign(
+  Object.create(null) as Record<string, NavSurface>,
+  Object.fromEntries(ALL_SURFACES.map((s) => [s.id, s])),
+);
 
 export const BUILT_SURFACES: Set<string> = new Set([
   'home',

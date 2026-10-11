@@ -106,15 +106,15 @@ describe("CadenceAppView render: shell", () => {
     expect(one(root, "div", "cad-app-topbar-meta").text).toBe("VENDORS");
   });
 
-  it("QUIRK: a mode named after an Object.prototype member throws before routing", async () => {
-    const { view, spies } = await rendered();
-    view.mode = "toString";
-    await expect(view.render()).rejects.toThrow(TypeError);
-    expect(surfaceCalls(spies)).toEqual([["renderHome"]]);
-    // The guard is released by the finally block, so the next render runs.
-    view.mode = "home";
-    await view.render();
-    expect(spies.renderHome).toHaveBeenCalledTimes(2);
+  it("renders Home, labelled Home, for a mode named after an Object.prototype member", async () => {
+    const { view, spies, root } = await rendered();
+    for (const mode of ["toString", "constructor", "__proto__"]) {
+      view.mode = mode;
+      await expect(view.render()).resolves.toBeUndefined();
+      expect(view.mode).toBe("home");
+      expect(one(root, "div", "cad-app-topbar-meta").text).toBe("HOME");
+    }
+    expect(surfaceCalls(spies)).toEqual([["renderHome"], ["renderHome"], ["renderHome"], ["renderHome"]]);
   });
 });
 
@@ -223,34 +223,67 @@ describe("CadenceAppView render: routing", () => {
     expect(surfaceCalls(custom.spies)).toEqual([["renderEntityList", "vendor"]]);
   });
 
-  it("QUIRK: a custom page that shadows a built surface id renders the built surface", async () => {
-    const { spies } = await rendered({
-      settings: { defaultTab: "team", customPages: [{ id: "team", label: "Mine", sectionId: "crm", entityKey: "vendor" }] },
-    });
+  it("gives a custom page that shadows a built surface id its own route, and keeps the built surface", async () => {
+    const customPages = [
+      { id: "team", label: "Mine", sectionId: "crm", entityKey: "vendor" },
+      { id: "today", label: "Daily", sectionId: "crm", entityKey: "note" },
+    ];
+    const { view, root, spies } = await rendered({ settings: { defaultTab: "team", customPages } });
     expect(surfaceCalls(spies)).toEqual([["renderTeam"]]);
+    const item = (label: string) => navItems(root).find((i) => byClass(i, "span", "cad-app-nav-label")[0].text === label)!;
+    item("Mine").trigger("click");
+    await flush();
+    expect(view.mode).toBe("custom.team");
+    expect(one(root, "div", "cad-app-topbar-meta").text).toBe("MINE");
+    expect(item("Mine").classes).toContain("active");
+    expect(item("Team").classes).not.toContain("active");
+    item("Daily").trigger("click");
+    await flush();
+    expect(view.mode).toBe("custom.today");
+    expect(one(root, "div", "cad-app-topbar-meta").text).toBe("DAILY");
+    item("Team").trigger("click");
+    await flush();
+    expect(spies.renderTeam).toHaveBeenCalledTimes(2);
+    expect(spies.renderEntityList.mock.calls.map((c) => c[1])).toEqual(["vendor", "note"]);
   });
 
-  it("QUIRK: a custom page whose id is an Object.prototype member renders nothing (or throws)", async () => {
-    const page = (id: string) => [{ id, label: "Odd", sectionId: "crm", entityKey: "vendor" }];
-    const blank = await rendered({ settings: { defaultTab: "toString", customPages: page("toString") } });
-    expect(surfaceCalls(blank.spies)).toEqual([]);
-    expect(one(blank.root, "div", "cad-app-content").children).toHaveLength(0);
-    const { view } = makeAppView({ settings: { defaultTab: "__proto__", customPages: page("__proto__") } });
-    const spies = stubSurfaces(view);
-    await expect(view.render()).rejects.toThrow(TypeError);
-    expect(surfaceCalls(spies)).toEqual([]);
+  it("renders a custom page whose id is an Object.prototype member as its entity list, labelled", async () => {
+    for (const id of ["toString", "constructor", "__proto__"]) {
+      const { view, root, spies } = await rendered({
+        settings: { defaultTab: id, customPages: [{ id, label: "Odd", sectionId: "crm", entityKey: "vendor" }] },
+      });
+      expect(view.mode).toBe(`custom.${id}`);
+      expect(surfaceCalls(spies)).toEqual([["renderEntityList", "vendor"]]);
+      expect(one(root, "div", "cad-app-topbar-meta").text).toBe("ODD");
+      const active = navItems(root).filter((i) => i.classes.includes("active"));
+      expect(active.map((i) => byClass(i, "span", "cad-app-nav-label")[0].text)).toEqual(["Odd"]);
+    }
   });
 
-  it("falls through to the coming-soon card when the mode has no route", async () => {
+  it("falls back to Home, labelled Home, when the active custom page is deleted", async () => {
+    const page = { id: "custom.1", label: "Vendors", sectionId: "crm", entityKey: "vendor" };
+    const { view, root, spies, plugin } = await rendered({ settings: { defaultTab: "custom.1", customPages: [page] } });
+    expect(one(root, "div", "cad-app-topbar-meta").text).toBe("VENDORS");
+    plugin.settings.customPages = [];
+    await view.render();
+    expect(view.mode).toBe("home");
+    expect(surfaceCalls(spies)).toEqual([["renderHome"], ["renderEntityList", "vendor"]]);
+    expect(spies.renderHome.mock.invocationCallOrder[0]).toBeGreaterThan(spies.renderEntityList.mock.invocationCallOrder[0]);
+    expect(one(root, "div", "cad-app-topbar-meta").text).toBe("HOME");
+    expect(byClass(root, "div", "cad-soon-title")).toHaveLength(0);
+    const active = navItems(root).filter((i) => i.classes.includes("active"));
+    expect(active.map((i) => byClass(i, "span", "cad-app-nav-label")[0].text)).toEqual(["Home"]);
+  });
+
+  it("renders Home, labelled Home, when the mode has no route", async () => {
     const { view, root, spies } = await rendered();
     view.mode = "crm.forecast";
     await view.render();
-    expect(surfaceCalls(spies)).toEqual([["renderHome"]]);
-    const content = one(root, "div", "cad-app-content");
-    expect(content.classes).toEqual(["cad-app-content", "cadence-soon"]);
-    // The top bar labels it Home: _resolveSurface falls back for an unknown id.
+    expect(view.mode).toBe("home");
+    expect(surfaceCalls(spies)).toEqual([["renderHome"], ["renderHome"]]);
+    expect(one(root, "div", "cad-app-content").classes).toEqual(["cad-app-content"]);
     expect(one(root, "div", "cad-app-topbar-meta").text).toBe("HOME");
-    expect(one(root, "div", "cad-soon-title").text).toBe("Home");
+    expect(byClass(root, "div", "cad-soon-title")).toHaveLength(0);
   });
 });
 

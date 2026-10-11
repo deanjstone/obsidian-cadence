@@ -68,11 +68,11 @@ describe("CadenceAppView _migrateModeId", () => {
     expect(view._migrateModeId("home")).toBe("home");
   });
 
-  it("QUIRK: accepts Object.prototype member names as surface ids", () => {
+  it("sends Object.prototype member names home: only own surface ids count", () => {
     const { view } = makeAppView();
-    // SURFACE_BY_ID is a plain object, so inherited members count as known ids.
-    expect(view._migrateModeId("toString")).toBe("toString");
-    expect(view._migrateModeId("constructor")).toBe("constructor");
+    expect(view._migrateModeId("toString")).toBe("home");
+    expect(view._migrateModeId("constructor")).toBe("home");
+    expect(view._migrateModeId("__proto__")).toBe("home");
   });
 });
 
