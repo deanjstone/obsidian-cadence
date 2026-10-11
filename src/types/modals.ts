@@ -13,14 +13,14 @@ export interface WidgetConfig {
   /** `widget.<Date.now()>` */
   id: string;
   title: string;
-  /** Field key, or '' when the entity has no non-primary fields. */
+  /** Field key. The modal refuses to submit without one (#60). */
   groupBy: string;
   // TODO: confirm shape — read from a <select>, so any string the DOM holds.
   style: ChartStyle | string;
 }
 
 export interface CrossSectionConfig {
-  /** `xs_` + up to 8 base-36 chars of Math.random(). */
+  /** `xs_` + 8 base-36 chars of Math.random(), zero-padded (#60). */
   id: string;
   parentEntity: EntityKey;
   targetEntity: EntityKey;
@@ -29,6 +29,9 @@ export interface CrossSectionConfig {
 }
 
 export interface ChartSectionConfig {
+  /** `ch_` + 8 base-36 chars of Math.random(), zero-padded (#60). */
+  id: string;
+  parentEntity: EntityKey;
   targetEntity: EntityKey;
   linkField: string;
   groupField: string;

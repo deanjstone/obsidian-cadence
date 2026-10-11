@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createMockApp, type App, type FakeElement } from "../mocks/obsidian";
+import { createMockApp, Notice, type App, type FakeElement } from "../mocks/obsidian";
 import { buttonByText, contentOf, optionTexts, optionValues } from "../helpers/dom";
 import { ENTITIES } from "../../src/constants/entities";
 import { CadenceCrossSectionModal } from "../../src/modals/cross-section";
@@ -14,6 +14,7 @@ type Any = any;
 let app: App;
 beforeEach(() => {
   app = createMockApp();
+  Notice.messages.length = 0;
 });
 afterEach(() => {
   vi.restoreAllMocks();
@@ -79,17 +80,33 @@ describe("CadenceCrossSectionModal", () => {
     expect(onSubmit.mock.invocationCallOrder[0]).toBeLessThan(close.mock.invocationCallOrder[0]);
   });
 
-  it("can produce a short id when Math.random has few base-36 digits (flagged)", () => {
+  it("pads the id to 8 characters when Math.random has few base-36 digits", () => {
     vi.spyOn(Math, "random").mockReturnValue(0.5);
     const { content, onSubmit } = openCrossSection("company");
     buttonByText(content, "Add Section").trigger("click");
     expect(onSubmit.mock.calls[0][0]).toEqual({
-      id: "xs_i",
+      id: "xs_i0000000",
       parentEntity: "company",
       targetEntity: "contact",
       linkField: "email",
       viewType: "table",
     });
+  });
+
+  it("won't submit a blank link field: it notices and stays open", () => {
+    ENTITIES.gadget = { folder: "Cadence/Gadgets", label: "Gadget", plural: "Gadgets", columns: [], fields: [{ key: "name", label: "Name", primary: true }] };
+    try {
+      const { content, target, field, onSubmit, close } = openCrossSection("company");
+      target.value = "gadget";
+      target.trigger("change");
+      expect(field.options).toHaveLength(0);
+      buttonByText(content, "Add Section").trigger("click");
+      expect(Notice.messages).toEqual(["Gadgets have no field to link by."]);
+      expect(onSubmit).not.toHaveBeenCalled();
+      expect(close).not.toHaveBeenCalled();
+    } finally {
+      delete ENTITIES.gadget;
+    }
   });
 
   it("closes from Cancel without calling onSubmit", () => {
