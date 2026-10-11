@@ -1,7 +1,7 @@
 import { Notice, SuggestModal, TFile, type App } from 'obsidian';
 import { ymd } from '../utils/dates';
 import { listEntityFiles, projectNameFromPath } from '../utils/entities';
-import { tickDailyTasks, tickProjectTasks } from '../utils/task-lines';
+import { tickDailyTasks, tickProjectTasks, toggleDailyTaskByRef, type TaskRef } from '../utils/task-lines';
 import type { Reminder } from '../types/reminders';
 import type { AppViewHost, TaskCompleteSource } from './host';
 
@@ -202,4 +202,21 @@ export async function tickDailyNoteTaskByText(view: AppViewHost, file: TFile, te
   const next = tickDailyTasks(content, view.plugin.settings, text, done);
   if (next === null) return;
   await view.app.vault.modify(file, next);
+}
+
+/** A row's tick in a daily note (Home's Today card, Today and the
+    Calendar). It re-reads the note, finds the task the row showed by its
+    ref, ticks that line only and propagates its text. When the task is
+    gone from the note it writes nothing and says so; the caller re-renders. */
+export async function tickDailyNoteTask(view: AppViewHost, file: TFile, ref: TaskRef, checked: boolean, date: Date): Promise<void> {
+  const content = await view.app.vault.read(file);
+  const toggled = toggleDailyTaskByRef(content, view.plugin.settings, ref, checked);
+  if (!toggled) {
+    new Notice('That task changed in the note, so nothing was ticked.');
+    return;
+  }
+  await view.app.vault.modify(file, toggled.content);
+  if (toggled.taskText) {
+    await view._propagateTaskComplete(toggled.taskText, checked, { kind: 'daily', file, date });
+  }
 }

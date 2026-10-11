@@ -276,7 +276,7 @@ describe("_homeTodayCard (daily notes)", () => {
     expect(card(parent).body.children[0].children[1].text).toBe("");
   });
 
-  it("ticks a task in the note, propagates the completion, and re-renders (QUIRK: the rewrite adds a blank line before the next heading)", async () => {
+  it("ticks a task in the note, propagates the completion, and re-renders, editing only that line", async () => {
     const { view, parent, app, rendered, file } = setup([today("# x\n## Today\n- [ ] a\n- [ ] b\n## Journal\nhi\n")]);
     const propagate = vi.spyOn(view, "_propagateTaskComplete").mockResolvedValue(undefined);
     await view._homeTodayCard(parent);
@@ -284,7 +284,7 @@ describe("_homeTodayCard (daily notes)", () => {
     cb.checked = true;
     cb.trigger("change");
     await flush();
-    expect(await app.vault.read(file("daily/2026-10-10.md") as never)).toBe("# x\n## Today\n- [ ] a\n- [x] b\n\n## Journal\nhi\n");
+    expect(await app.vault.read(file("daily/2026-10-10.md") as never)).toBe("# x\n## Today\n- [ ] a\n- [x] b\n## Journal\nhi\n");
     expect(propagate.mock.calls).toEqual([["b", true, { kind: "daily", file: file("daily/2026-10-10.md"), date: NOW }]]);
     expect(rendered).toHaveBeenCalledTimes(1);
   });
@@ -301,7 +301,7 @@ describe("_homeTodayCard (daily notes)", () => {
     expect(propagate.mock.calls).toEqual([["a", false, expect.objectContaining({ kind: "daily" })]]);
   });
 
-  it("QUIRK: ticks the task at the row's index in the re-read note, and skips propagation for a blank task", async () => {
+  it("ticks the task the row showed, even after a line was added above it in the note", async () => {
     const { view, parent, app, file } = setup([today("## Today\n- [ ] a\n- [ ] b\n")]);
     const propagate = vi.spyOn(view, "_propagateTaskComplete").mockResolvedValue(undefined);
     await view._homeTodayCard(parent);
@@ -310,8 +310,8 @@ describe("_homeTodayCard (daily notes)", () => {
     cb.checked = true;
     cb.trigger("change");
     await flush();
-    expect(await app.vault.read(file("daily/2026-10-10.md") as never)).toBe("## Today\n- [x] \n- [ ] a\n- [ ] b\n");
-    expect(propagate).not.toHaveBeenCalled();
+    expect(await app.vault.read(file("daily/2026-10-10.md") as never)).toBe("## Today\n- [ ] \n- [x] a\n- [ ] b\n");
+    expect(propagate.mock.calls).toEqual([["a", true, expect.objectContaining({ kind: "daily" })]]);
   });
 
   it("shows a linked project chip that opens the project, and a change-link button", async () => {

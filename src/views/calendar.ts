@@ -2,7 +2,7 @@ import { TFile } from 'obsidian';
 import { addDays, dailyNotePath, sameDay, startOfDay, weekDates, ymd } from '../utils/dates';
 import { ensureDailyNote } from '../utils/daily-notes';
 import { parseSections } from '../utils/parsing';
-import { countTaskLines, taskLineRows, taskNotesToday, toggleDailyTask } from '../utils/task-lines';
+import { countTaskLines, taskLineRef, taskLineRows, taskNotesToday } from '../utils/task-lines';
 import { listTaskNotesTasks, toggleTaskNotesTask } from '../utils/tasknotes';
 import type { TAbstractFile } from 'obsidian';
 import type { TaskNotesTask } from '../types/entities';
@@ -175,13 +175,8 @@ export async function togglePlannerTask(view: AppViewHost, day: PlannerDay, idx:
       await toggleTaskNotesTask(view.app, taskObj.file, checked);
     }
   } else {
-    if (!day.file) return;
-    const content = await view.app.vault.read(day.file as TFile);
-    const { content: newContent, taskText } = toggleDailyTask(content, view.plugin.settings, idx, checked);
-    await view.app.vault.modify(day.file as TFile, newContent);
-    if (taskText) {
-      await view._propagateTaskComplete(taskText, checked, { kind: 'daily', file: day.file as TFile, date: day.date });
-    }
+    const ref = taskLineRef(day.tasks, idx);
+    if (day.file && ref) await view._tickDailyNoteTask(day.file as TFile, ref, checked, day.date);
   }
   view.render();
 }

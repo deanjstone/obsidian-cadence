@@ -5,9 +5,11 @@ import { parseHeaderKey, parseSections, replaceSection } from './parsing';
 /* Checklist lines (`- [ ] …`) and the markdown rewrites behind every task
    tick and append on Home, Today, the Calendar and task propagation. Each
    rewrite is `(content, input) → content`; the caller reads and writes the
-   file. Built on parseSections, replaceSection and stringifyTasks, so they
-   share those helpers' behaviour: replaceSection leaves a blank line before
-   the next heading, and only checklist lines survive a rewrite. */
+   file. A tick edits only the box of the lines it changes, so every other
+   line, indentation and blank line in the note stays as it was. Appending a
+   task and replacing the journal go through replaceSection, which leaves a
+   blank line before the next heading, and only checklist lines survive an
+   append. */
 
 type TaskHeadings = Pick<DailyNoteSettings, 'tasksHeading' | 'journalHeading'>;
 
@@ -76,18 +78,43 @@ export function taskNotesToday(allTaskNotes: TaskNotesTask[], todayYmd: string):
   return { tasks, lines: tasks.map(t => `- [${t.done ? 'x' : ' '}] ${t.title}`) };
 }
 
-/** Ticks (or unticks) the line at `idx`, and returns the new lines with the
-    task's trimmed text. */
-export function toggleTaskLine(tasks: string[], idx: number, checked: boolean): { tasks: string[]; taskText: string } {
-  const taskLine = tasks[idx] || '';
-  const taskText = taskLine.replace(TASK_PREFIX, '').trim();
-  const newTasks = tasks.map((line, i) => {
-    if (i !== idx) return line;
-    return checked
-      ? line.replace(/^\s*-\s\[\s\]\s/, '- [x] ')
-      : line.replace(/^\s*-\s\[(x|X)\]\s/, '- [ ] ');
-  });
-  return { tasks: newTasks, taskText };
+/** Ticks (or unticks) the line at `idx` in place, and returns the new
+    lines with the task's trimmed text. Null when there is no line at `idx`. */
+export function toggleTaskLine(tasks: string[], idx: number, checked: boolean): { tasks: string[]; taskText: string } | null {
+  const taskLine = tasks[idx];
+  if (taskLine === undefined) return null;
+  return {
+    tasks: tasks.map((line, i) => (i === idx ? setTaskLineState(line, checked) : line)),
+    taskText: taskLine.replace(TASK_PREFIX, '').trim(),
+  };
+}
+
+/** Which task a rendered row shows: its text (box and indentation
+    stripped, untrimmed) and which occurrence of that text it is in the
+    list. A tick finds the task by this, not by row index, so it still hits
+    the same task after lines are added or removed above it. */
+export interface TaskRef {
+  text: string;
+  occurrence: number;
+}
+
+/** The ref of the checklist line at `idx`, or null past the end. */
+export function taskLineRef(lines: string[], idx: number): TaskRef | null {
+  if (lines[idx] === undefined) return null;
+  const texts = lines.map((line) => line.replace(TASK_PREFIX, ''));
+  const text = texts[idx];
+  return { text, occurrence: texts.slice(0, idx).filter((t) => t === text).length };
+}
+
+/** The index of the line `ref` names, or -1 when it is gone. */
+export function findTaskLine(lines: string[], ref: TaskRef): number {
+  let seen = 0;
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].replace(TASK_PREFIX, '') !== ref.text) continue;
+    if (seen === ref.occurrence) return i;
+    seen++;
+  }
+  return -1;
 }
 
 /** Open and done counts over checklist lines, each by its own leading
@@ -111,11 +138,21 @@ export function taskLineRows(lines: string[]): Array<{ checked: boolean; text: s
 }
 
 /** Ticks the daily note's task at row `idx` (counting checklist lines under
-    the tasks heading). Returns the new content and the task's trimmed text. */
-export function toggleDailyTask(content: string, settings: TaskHeadings, idx: number, checked: boolean): { content: string; taskText: string } {
-  const parsed = parseSections(content, settings);
-  const { tasks, taskText } = toggleTaskLine(parsed.tasks, idx, checked);
-  return { content: replaceSection(content, settings.tasksHeading, tasks.join('\n')), taskText };
+    the tasks heading), editing only that line. Returns the new content and
+    the task's trimmed text, or null when there is no such row. */
+export function toggleDailyTask(content: string, settings: TaskHeadings, idx: number, checked: boolean): { content: string; taskText: string } | null {
+  const lines = content.split('\n');
+  const lineIdx = sectionTaskLineIndexes(lines, (heading) => heading === settings.tasksHeading)[idx];
+  if (lineIdx === undefined) return null;
+  const toggled = toggleTaskLine(lines, lineIdx, checked)!;
+  return { content: toggled.tasks.join('\n'), taskText: toggled.taskText };
+}
+
+/** Ticks the daily-note task `ref` names, wherever it now sits under the
+    tasks heading. Null when the task is gone from the note. */
+export function toggleDailyTaskByRef(content: string, settings: TaskHeadings, ref: TaskRef, checked: boolean): { content: string; taskText: string } | null {
+  const idx = findTaskLine(parseSections(content, settings).tasks, ref);
+  return idx === -1 ? null : toggleDailyTask(content, settings, idx, checked);
 }
 
 /** Appends an open task under the tasks heading (added at the end if missing). */

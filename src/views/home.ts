@@ -13,7 +13,7 @@ import { listTaskNotesTasks, toggleTaskNotesTask } from '../utils/tasknotes';
 import type { Entity, ProjectMeta, TaskNotesTask } from '../types/entities';
 import type { Reminder } from '../types/reminders';
 import type { Milestone } from '../utils/parsing';
-import { countTaskLines, taskLineRows, taskNotesToday, toggleDailyTask } from '../utils/task-lines';
+import { countTaskLines, taskLineRef, taskLineRows, taskNotesToday } from '../utils/task-lines';
 import type { AppViewHost } from './host';
 
 /* Moved to src/utils/task-lines.ts, where Today and the Calendar share them. */
@@ -474,12 +474,7 @@ export async function homeTodayCard(view: AppViewHost, parent: HTMLElement): Pro
         const taskObj = todayTaskNotes[idx];
         await toggleTaskNotesTask(view.app, taskObj.file, cb.checked);
       } else {
-        const cur = await view.app.vault.read(file!);
-        const { content: next, taskText } = toggleDailyTask(cur, settings, idx, cb.checked);
-        await view.app.vault.modify(file!, next);
-        if (taskText) {
-          await view._propagateTaskComplete(taskText, cb.checked, { kind: 'daily', file: file!, date: new Date() });
-        }
+        await view._tickDailyNoteTask(file!, taskLineRef(tasksList, idx)!, cb.checked, new Date());
       }
       view.render();
     });
