@@ -247,6 +247,11 @@ export class Workspace {
   on(name: string, callback: (...args: any[]) => unknown) {
     return { name, callback };
   }
+  /** Every offref() ref, in order. */
+  readonly offrefs: unknown[] = [];
+  offref(ref: unknown) {
+    this.offrefs.push(ref);
+  }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tests stand plain { view } objects in for leaves
   getLeavesOfType(_type: string): any[] {
     return [];

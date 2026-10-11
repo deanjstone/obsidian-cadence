@@ -91,10 +91,19 @@ describe("renderProductivity: layout and stats", () => {
     ]);
   });
 
-  it("QUIRK: the streak counts back from today, so a day not yet started breaks it", async () => {
+  it("a day not yet started keeps the streak: it counts back from yesterday until today is active", async () => {
     const { view, root } = setup([note("2026-10-10", "## Today\n- [x] a"), note("2026-10-09", "## Today\n- [x] b")]);
     await view.renderProductivity(root);
-    expect(stats(root)[1]).toEqual(["mint", "STREAK", "0d", "consecutive active days"]);
+    expect(stats(root)[1]).toEqual(["mint", "STREAK", "2d", "consecutive active days"]);
+  });
+
+  it("today's note with nothing done yet keeps the streak too; a missed yesterday still breaks it", async () => {
+    const started = setup([note("2026-10-11", "## Today\n- [ ] a"), note("2026-10-10", "## Journal\ny")]);
+    await started.view.renderProductivity(started.root);
+    expect(stats(started.root)[1][2]).toBe("1d");
+    const missed = setup([note("2026-10-09", "## Today\n- [x] a")]);
+    await missed.view.renderProductivity(missed.root);
+    expect(stats(missed.root)[1][2]).toBe("0d");
   });
 
   it("counts a journal-only day in the streak", async () => {
@@ -190,10 +199,16 @@ describe("renderProductivity: by weekday", () => {
     expect(weekdays(root).map((w) => [w[2], w[1]])).toEqual([["SUN", "50%"], ["MON", "—"], ["TUE", "—"], ["WED", "—"], ["THU", "50%"], ["FRI", "0%"], ["SAT", "100%"]]);
   });
 
-  it("QUIRK: any other week start keeps the Sunday labels, so Saturday-start shows Sunday's tasks under MON", async () => {
+  it("any other week start labels from that day, so Saturday-start shows Sunday's tasks under SUN", async () => {
     const { view, root } = setup([note("2026-10-11", "## Today\n- [x] a\n- [ ] b")], { weekStartsOn: 6 });
     await view.renderProductivity(root);
-    expect(weekdays(root).map((w) => [w[2], w[1]])).toEqual([["SUN", "—"], ["MON", "50%"], ["TUE", "—"], ["WED", "—"], ["THU", "—"], ["FRI", "—"], ["SAT", "—"]]);
+    expect(weekdays(root).map((w) => [w[2], w[1]])).toEqual([["SAT", "—"], ["SUN", "50%"], ["MON", "—"], ["TUE", "—"], ["WED", "—"], ["THU", "—"], ["FRI", "—"]]);
+  });
+
+  it("a mid-week start labels from that day too", async () => {
+    const { view, root } = setup([note("2026-10-08", "## Today\n- [x] a")], { weekStartsOn: 3 });
+    await view.renderProductivity(root);
+    expect(weekdays(root).map((w) => [w[2], w[1]])).toEqual([["WED", "—"], ["THU", "100%"], ["FRI", "—"], ["SAT", "—"], ["SUN", "—"], ["MON", "—"], ["TUE", "—"]]);
   });
 
   it("rounds the weekday percentage", async () => {

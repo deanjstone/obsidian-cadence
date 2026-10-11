@@ -318,21 +318,27 @@ export function partnersReport(
 const ACTIVITY_ACCENTS = ['sky', 'mint', 'warn', 'rose'];
 
 export interface ActivityReport {
-  /** The total, then one card per type in first-seen order (case-sensitive; 'unspecified' for none). */
+  /** The total, then one card per type in first-seen order (in any case; 'unspecified' for none or blank). */
   stats: StatCard[];
   /** The 8 weeks up to the current one, oldest first, from `weekStartsOn`. */
   weeks: Array<{ start: Date; end: Date; count: number; label: string }>;
   bars: ReportBar[];
   /** The top 8 `with` values by activity count; blank ones are skipped. */
   topContacts: DashCardRow[];
-  /** The 10 latest by `when`, newest first (newestFirst); undated and unreadable last. */
+  /** The 10 latest by `when`, newest first (newestFirst); undated and unreadable last. A blank
+      type or `with` shows as `—`, as in top contacts. */
   recent: DashCardRow[];
+}
+
+/* A value to show, or `—` when it is missing or blank. */
+function orDash(value: unknown): string {
+  return value == null || String(value).trim() === '' ? '—' : (value as string);
 }
 
 export function activityReport(activities: Entity[], def: EntityDef, now: Date, weekStartsOn?: number): ActivityReport {
   const counts = new Map<string, number>();
   activities.forEach((e) => {
-    const t = String(entityValue(e, 'type', def) || 'unspecified');
+    const t = String(entityValue(e, 'type', def) ?? '').trim().toLowerCase() || 'unspecified';
     counts.set(t, (counts.get(t) || 0) + 1);
   });
   const stats: StatCard[] = [{ label: 'TOTAL', value: activities.length, sub: 'all activities', accent: 'emerald' }];
@@ -375,9 +381,9 @@ export function activityReport(activities: Entity[], def: EntityDef, now: Date, 
       .map((e) => ({
         title: entityTitle(e, 'subject', def),
         metaParts: [
-          { text: (entityValue(e, 'type', def) as string) || '—' },
+          { text: orDash(entityValue(e, 'type', def)) },
           { text: ' · ' },
-          { text: (entityValue(e, 'with', def) as string) || '—', entityKey: 'contact' },
+          { text: orDash(entityValue(e, 'with', def)), entityKey: 'contact' },
           { text: ` · ${fmtValue(entityValue(e, 'when', def), 'date')}` },
         ],
         file: e.file,
@@ -386,6 +392,7 @@ export function activityReport(activities: Entity[], def: EntityDef, now: Date, 
 }
 
 const WEEKDAY_ACCENTS = ['emerald', 'mint', 'sky', 'warn', 'rose', 'mint', 'sky'];
+const WEEKDAY_LABELS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
 
 export type ProductivitySettings = Pick<DailyNoteSettings, 'tasksHeading' | 'journalHeading'> & { weekStartsOn?: number };
 
@@ -405,7 +412,9 @@ export interface ProductivityReport {
   journalChars: number;
   /** Days of the last 30 with a note. */
   activeDays: number;
-  /** Days back from today, today included, with a note and a done task or journal text. */
+  /** Consecutive days, back from today, with a note and a done task or journal text. Today counts
+      once it is active; until then the streak runs back from yesterday, so a day not yet started
+      never breaks it. */
   streak: number;
   /** Done over all tasks in the last 30 days, as a whole percent. */
   completion: number;
@@ -428,7 +437,7 @@ export function productivityReport(notes: Map<string, string>, now: Date, settin
   let activeDays = 0;
   let streak = 0, streakBroken = false;
   const perDay: Array<{ date: Date; open: number; done: number; jChars: number; hasNote: boolean }> = [];
-  for (const d of days) {
+  days.forEach((d, i) => {
     const c = notes.get(ymd(d));
     let open = 0, done = 0, jChars = 0, hasNote = false;
     if (c !== undefined) {
@@ -442,9 +451,9 @@ export function productivityReport(notes: Map<string, string>, now: Date, settin
     if (hasNote) activeDays++;
     if (!streakBroken) {
       if (hasNote && (done > 0 || jChars > 0)) streak++;
-      else streakBroken = true;
+      else if (i > 0) streakBroken = true;
     }
-  }
+  });
   const completion = totalOpen + totalDone === 0 ? 0 : Math.round((totalDone / (totalOpen + totalDone)) * 100);
 
   const last14 = perDay.slice(0, 14).reverse();
@@ -469,7 +478,7 @@ export function productivityReport(notes: Map<string, string>, now: Date, settin
   }
   const maxWeek = Math.max(1, ...weeks.map((w) => w.done));
 
-  const wsOn = settings.weekStartsOn!;
+  const wsOn = settings.weekStartsOn ?? 1;
   const dayBuckets = Array.from({ length: 7 }, () => ({ done: 0, open: 0 }));
   perDay.forEach((p) => {
     // p.date.getDay() returns 0 (Sun) .. 6 (Sat). Re-index based on weekStartsOn.
@@ -477,9 +486,7 @@ export function productivityReport(notes: Map<string, string>, now: Date, settin
     dayBuckets[idx].done += p.done;
     dayBuckets[idx].open += p.open;
   });
-  const dayLabels = wsOn === 1
-    ? ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN']
-    : ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+  const dayLabels = WEEKDAY_LABELS.map((_, i) => WEEKDAY_LABELS[(wsOn + i) % 7]);
 
   return {
     totalOpen, totalDone, journalChars: totalJournalChars, activeDays, streak, completion,

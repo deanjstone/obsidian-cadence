@@ -74,10 +74,10 @@ describe("renderReportActivity: layout and stats", () => {
     ]);
   });
 
-  it("QUIRK: types are counted case-sensitively, so 'call' and 'Call' are two cards with the same label", async () => {
-    const { view, root } = setup([activity("X", { type: "call" }), activity("Y", { type: "Call" })]);
+  it("types are counted in any case, so 'call' and 'Call' are one CALL card; a blank type is unspecified", async () => {
+    const { view, root } = setup([activity("X", { type: "call" }), activity("Y", { type: "Call" }), activity("Z", { type: " " })]);
     await view.renderReportActivity(root);
-    expect(stats(root).slice(1)).toEqual([["sky", "CALL", "1"], ["mint", "CALL", "1"]]);
+    expect(stats(root).slice(1)).toEqual([["sky", "CALL", "2"], ["mint", "UNSPECIFIED", "1"]]);
   });
 
   it("shows only the total with no activities", async () => {
@@ -166,7 +166,7 @@ describe("renderReportActivity: contacts and recent", () => {
       file: file(n),
     });
     expect(rows).toEqual([
-      row("Next week", "Call", "  ", "2026-10-12", "A8"),
+      row("Next week", "Call", "—", "2026-10-12", "A8"),
       row("Late call", "Call", "Jane", "2026-10-11T23:00", "A2"),
       row("Kickoff", "Call", "[[Jane]]", "2026-10-06", "A1"),
       row("Follow-up", "Email", "[[Jane]]", "2026-09-30", "A3"),

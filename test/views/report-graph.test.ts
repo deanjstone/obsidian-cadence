@@ -33,7 +33,7 @@ class FakeResizeObserver {
   }
 }
 
-function setup(files: MockFileSpec[] = [], opts: { links?: Any; random?: number[]; dpr?: number } = {}) {
+function setup(files: MockFileSpec[] = [], opts: { links?: Any; random?: number[]; dpr?: number; theme?: Record<string, string> } = {}) {
   const made = makeAppView({ files });
   made.view.mode = "reports.graph";
   made.app.metadataCache.resolvedLinks = "links" in opts ? opts.links : {};
@@ -46,10 +46,16 @@ function setup(files: MockFileSpec[] = [], opts: { links?: Any; random?: number[
   FakeResizeObserver.made = [];
   vi.stubGlobal("ResizeObserver", FakeResizeObserver);
   vi.stubGlobal("devicePixelRatio", opts.dpr ?? 2);
+  /* The theme's custom properties, as getComputedStyle reports them on the
+     graph card. None by default, so every colour takes its fallback. */
+  const theme: Record<string, string> = { ...opts.theme };
+  vi.stubGlobal("getComputedStyle", (el: FakeElement) => ({
+    getPropertyValue: (name: string) => (el.localName === "div" && el.classes.includes("cad-home-card") ? theme[name] ?? "" : ""),
+  }));
   const root = new FakeElement("div");
   const opened = vi.spyOn(made.view, "openEntityDetail").mockResolvedValue(undefined);
   const file = (path: string) => made.app.vault.getAbstractFileByPath(path);
-  return { ...made, root, frames, raf, opened, file };
+  return { ...made, root, frames, raf, opened, file, theme };
 }
 
 async function rendered(files: MockFileSpec[] = [], opts: Parameters<typeof setup>[1] = {}) {
@@ -114,12 +120,71 @@ describe("renderReportGraph: layout", () => {
     expect(frame()[0]).toEqual(["clearRect", 0, 0, 1000, 500]);
   });
 
-  it("queues one frame on render; each frame queues the next while the canvas is connected", async () => {
-    const { raf, frame } = await rendered();
+  it("queues one frame on render; an empty graph is settled after it and queues nothing more", async () => {
+    const { raf, frames, frame } = await rendered();
     expect(raf).toHaveBeenCalledTimes(1);
     frame();
+    expect(frames).toEqual([]);
+    expect(raf).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps animating while the nodes move, then settles near the centre and stops redrawing", async () => {
+    const { frames, frame } = await rendered([note("Cadence/Contacts/A.md")], { random: [0, 0] });
+    let count = 0;
+    let last: unknown[] = [];
+    while (frames.length && count < 5000) {
+      last = ops(frame(), "arc")[0];
+      count++;
+    }
+    expect(frames).toEqual([]);
+    expect(count).toBeGreaterThan(10);
+    expect(count).toBeLessThan(5000);
+    expect(Math.hypot((last[1] as number) - 400, (last[2] as number) - 200)).toBeLessThan(5);
+  });
+
+  it("once settled, a pointer move, press, release, leave, wheel step or resize draws one more frame", async () => {
+    const { canvas, frames, frame } = await rendered();
     frame();
-    expect(raf).toHaveBeenCalledTimes(3);
+    const redraws = (act: () => void) => {
+      act();
+      act();
+      const queued = frames.length;
+      for (let i = 0; frames.length && i < 100; i++) frame();
+      return frames.length ? Infinity : queued;
+    };
+    expect(redraws(() => canvas.trigger("mousemove", pointer(5, 5)))).toBe(1);
+    expect(redraws(() => canvas.trigger("mousedown", pointer(5, 5)))).toBe(1);
+    expect(redraws(() => canvas.trigger("mouseup", pointer(5, 5)))).toBe(1);
+    expect(redraws(() => canvas.trigger("mouseleave"))).toBe(1);
+    expect(redraws(() => canvas.trigger("wheel", { ...pointer(5, 5), deltaY: 10 }))).toBe(1);
+    canvas.clientWidth = 900;
+    canvas.clientHeight = 300;
+    expect(redraws(() => FakeResizeObserver.made[0].callback())).toBe(1);
+  });
+
+  it("a resize after the canvas leaves the document disconnects the observer and draws nothing", async () => {
+    const { canvas, frames, frame } = await rendered();
+    frame();
+    canvas.isConnected = false;
+    canvas.clientWidth = 900;
+    FakeResizeObserver.made[0].callback();
+    expect(FakeResizeObserver.made[0].disconnected).toBe(1);
+    expect(frames).toEqual([]);
+  });
+
+  it("starts the nodes spread over the canvas's laid-out size", async () => {
+    const createEl = FakeElement.prototype.createEl;
+    vi.spyOn(FakeElement.prototype, "createEl").mockImplementation(function (this: FakeElement, ...args: Any[]) {
+      const el = createEl.apply(this, args as Any);
+      if (args[0] === "canvas") Object.assign(el, { clientWidth: 1600, clientHeight: 800 });
+      return el;
+    });
+    const { canvas, frame } = await rendered([note("Cadence/Contacts/A.md")], { random: [1, 1] });
+    expect([canvas.width, canvas.height]).toEqual([3200, 1600]);
+    const [arc] = ops(frame(), "arc");
+    // Starts at (1300, 700), pulled toward (800, 400) at 0.0012.
+    expect(arc[1]).toBeCloseTo(1300 - 500 * 0.0012, 10);
+    expect(arc[2]).toBeCloseTo(700 - 300 * 0.0012, 10);
   });
 
   it("a frame after the canvas leaves the document disconnects the observer, draws nothing and queues nothing", async () => {
@@ -145,8 +210,8 @@ describe("renderReportGraph: nodes and edges", () => {
     const fills = drawn.filter((o, i) => o[0] === "fillStyle=" && drawn[i + 1]?.[0] === "fill").map((o) => o[1]);
     expect(ops(drawn, "arc").map((o) => o[3])).toEqual([5, 7, 5, 5, 6.5, 5, 5, 5, 5]);
     expect(fills).toEqual([
-      "var(--graph-node-resolved, #f59e0b)", "#0ea5e9", "#ec4899", "#10b981", "#8b5cf6", "#64748b", "#a855f7",
-      "var(--graph-node, #94a3b8)", "var(--graph-node, #94a3b8)",
+      "#f59e0b", "#0ea5e9", "#ec4899", "#10b981", "#8b5cf6", "#64748b", "#a855f7",
+      "#14b8a6", "#94a3b8",
     ]);
     expect(ops(drawn, "fillText").map((o) => o[1])).toEqual(["Jane", "Acme", "Beta", "Deal", "Proj", "Call", "Lead", "Reg", "Loose"]);
   });
@@ -192,15 +257,15 @@ describe("renderReportGraph: nodes and edges", () => {
     expect(drawn).toEqual([
       ["clearRect", 0, 0, 800, 400],
       ["save"], ["translate", 0, 0], ["scale", 1, 1],
-      ["lineWidth=", 0.8], ["strokeStyle=", "var(--graph-line, var(--border-color, rgba(255, 255, 255, 0.08)))"],
+      ["lineWidth=", 0.8], ["strokeStyle=", "rgba(255, 255, 255, 0.08)"],
       ["beginPath"], ["moveTo", a[1], a[2]], ["lineTo", b[1], b[2]], ["stroke"],
-      ["beginPath"], a, ["fillStyle=", "var(--graph-node-resolved, #f59e0b)"], ["fill"],
-      ["strokeStyle=", "var(--background-secondary)"], ["lineWidth=", 1.2], ["stroke"],
+      ["beginPath"], a, ["fillStyle=", "#f59e0b"], ["fill"],
+      ["strokeStyle=", "#202020"], ["lineWidth=", 1.2], ["stroke"],
       ["beginPath"], b, ["fillStyle=", "#0ea5e9"], ["fill"],
-      ["strokeStyle=", "var(--background-secondary)"], ["lineWidth=", 1.2], ["stroke"],
-      ["fillStyle=", "var(--text-muted)"], ["font=", "8.5px var(--font-interface, sans-serif)"], ["textAlign=", "center"],
+      ["strokeStyle=", "#202020"], ["lineWidth=", 1.2], ["stroke"],
+      ["fillStyle=", "#999999"], ["font=", "8.5px sans-serif"], ["textAlign=", "center"],
       ["fillText", "A", a[1], (a[2] as number) + 5 + 12],
-      ["fillStyle=", "var(--text-muted)"], ["font=", "8.5px var(--font-interface, sans-serif)"], ["textAlign=", "center"],
+      ["fillStyle=", "#999999"], ["font=", "8.5px sans-serif"], ["textAlign=", "center"],
       ["fillText", "B", b[1], (b[2] as number) + 7 + 12],
       ["restore"],
     ]);
@@ -270,10 +335,10 @@ describe("renderReportGraph: pointer", () => {
     expect(canvas.style.cursor).toBe("pointer");
     const drawn = frame();
     expect(drawn.slice(drawn.findIndex((o) => o[0] === "fill") + 1, drawn.findIndex((o) => o[0] === "stroke", drawn.findIndex((o) => o[0] === "fill")) + 1)).toEqual([
-      ["strokeStyle=", "var(--text-normal, #ffffff)"], ["lineWidth=", 2], ["stroke"],
+      ["strokeStyle=", "#ffffff"], ["lineWidth=", 2], ["stroke"],
     ]);
     expect(drawn.filter((o) => o[0] === "fillStyle=" || o[0] === "font=").slice(-2)).toEqual([
-      ["fillStyle=", "var(--text-normal)"], ["font=", "bold 9.5px var(--font-interface, sans-serif)"],
+      ["fillStyle=", "#ffffff"], ["font=", "bold 9.5px sans-serif"],
     ]);
     canvas.trigger("mousemove", pointer(400 + 13.1, 225));
     expect([tooltip.style.display, canvas.style.cursor]).toEqual(["none", "default"]);
@@ -286,8 +351,8 @@ describe("renderReportGraph: pointer", () => {
     expect([tooltip.text, tooltip.style.left, tooltip.style.top]).toEqual(["COMPANY: Acme", "412px", "237px"]);
   });
 
-  it("a click (down and up within 4px) on a hovered node opens it as its type; a non-entity note opens as 'note'", async () => {
-    const { canvas, opened, file } = await rendered([JANE, LOOSE], { random: [0, 0, 1, 1] });
+  it("a click (down and up within 4px) on a hovered node opens it as its type; a loose note opens as a markdown note", async () => {
+    const { canvas, opened, file, app } = await rendered([JANE, LOOSE], { random: [0, 0, 1, 1] });
     canvas.trigger("mousemove", pointer(150, 100));
     canvas.trigger("mousedown", pointer(150, 100));
     canvas.trigger("mousemove", pointer(153, 100));
@@ -295,7 +360,22 @@ describe("renderReportGraph: pointer", () => {
     canvas.trigger("mousemove", pointer(650, 350));
     canvas.trigger("mousedown", pointer(650, 350));
     canvas.trigger("mouseup", pointer(650, 350));
-    expect(opened.mock.calls).toEqual([["contact", file("Cadence/Contacts/Jane.md")], ["note", file("Cadence/Loose.md")]]);
+    expect(opened.mock.calls).toEqual([["contact", file("Cadence/Contacts/Jane.md")]]);
+    expect(app.workspace.openedLinks).toEqual([["Cadence/Loose.md", "", false]]);
+  });
+
+  it("a registration, commission, certification or sequence opens as its own entity", async () => {
+    const files = ["Registrations/R", "Commissions/C", "Certifications/Z", "Sequences/S"].map((p) => note(`Cadence/${p}.md`));
+    const { canvas, opened, file } = await rendered(files, { random: [0, 0, 1, 1, 0, 1, 1, 0] });
+    for (const [x, y] of [[150, 100], [650, 350], [150, 350], [650, 100]]) {
+      canvas.trigger("mousemove", pointer(x, y));
+      canvas.trigger("mousedown", pointer(x, y));
+      canvas.trigger("mouseup", pointer(x, y));
+    }
+    expect(opened.mock.calls).toEqual([
+      ["registration", file("Cadence/Registrations/R.md")], ["commission", file("Cadence/Commissions/C.md")],
+      ["certification", file("Cadence/Certifications/Z.md")], ["sequence", file("Cadence/Sequences/S.md")],
+    ]);
   });
 
   it("a pointer that moves more than 4px between press and release opens nothing", async () => {
@@ -307,10 +387,50 @@ describe("renderReportGraph: pointer", () => {
     expect(opened).not.toHaveBeenCalled();
   });
 
-  it("QUIRK: a press and release with no mousemove opens nothing, since only mousemove sets the hovered node", async () => {
-    const { canvas, opened } = await rendered([JANE], { random: [0.5, 0.5] });
+  it("a press and release with no mousemove opens the pressed node", async () => {
+    const { canvas, opened, file } = await rendered([JANE], { random: [0.5, 0.5] });
     canvas.trigger("mousedown", pointer(400, 225));
     canvas.trigger("mouseup", pointer(400, 225));
+    expect(opened.mock.calls).toEqual([["contact", file("Cadence/Contacts/Jane.md")]]);
+  });
+
+  it("a release with no press on the canvas opens nothing, even over a hovered node", async () => {
+    const { canvas, opened } = await rendered([JANE], { random: [0.5, 0.5] });
+    canvas.trigger("mousemove", pointer(400, 225));
+    canvas.trigger("mouseup", pointer(400, 225));
+    expect(opened).not.toHaveBeenCalled();
+  });
+
+  it("a tap opens the tapped node, and claims the touch so no mouse events follow", async () => {
+    const { canvas, opened, file } = await rendered([JANE], { random: [0.5, 0.5] });
+    const start = canvas.trigger("touchstart", { touches: [pointer(400, 225)] });
+    const end = canvas.trigger("touchend", { touches: [], changedTouches: [pointer(401, 226)] });
+    expect([start.defaultPrevented, end.defaultPrevented]).toEqual([true, true]);
+    expect(opened.mock.calls).toEqual([["contact", file("Cadence/Contacts/Jane.md")]]);
+  });
+
+  it("a touch that moves more than 4px drags the node and opens nothing; a touch on empty space pans", async () => {
+    const { canvas, opened, frame } = await rendered([JANE], { random: [0.5, 0.5] });
+    canvas.trigger("touchstart", { touches: [pointer(400, 225)] });
+    const move = canvas.trigger("touchmove", { touches: [pointer(300, 150)] });
+    expect(move.defaultPrevented).toBe(true);
+    const [held] = ops(frame(), "arc");
+    expect([held[1], held[2]]).toEqual([300, 150]);
+    canvas.trigger("touchend", { touches: [], changedTouches: [pointer(300, 150)] });
+    expect(opened).not.toHaveBeenCalled();
+    canvas.trigger("touchstart", { touches: [pointer(10, 10)] });
+    canvas.trigger("touchmove", { touches: [pointer(40, 30)] });
+    expect(frame().slice(1, 4)).toEqual([["save"], ["translate", 30, 20], ["scale", 1, 1]]);
+    canvas.trigger("touchend", { touches: [], changedTouches: [pointer(40, 30)] });
+    expect(opened).not.toHaveBeenCalled();
+  });
+
+  it("a second finger is left to the browser and ends the drag", async () => {
+    const { canvas, opened } = await rendered([JANE], { random: [0.5, 0.5] });
+    canvas.trigger("touchstart", { touches: [pointer(400, 225)] });
+    const second = canvas.trigger("touchstart", { touches: [pointer(400, 225), pointer(500, 300)] });
+    expect(second.defaultPrevented).toBe(false);
+    canvas.trigger("touchend", { touches: [pointer(500, 300)], changedTouches: [pointer(400, 225)] });
     expect(opened).not.toHaveBeenCalled();
   });
 
@@ -389,6 +509,49 @@ describe("renderReportGraph: pointer", () => {
     expect(drawn.filter((o) => o[0] === "lineWidth=").map((o) => o[1])).toEqual([0.2, 0.3]);
     const [arc] = ops(drawn, "arc");
     expect(ops(drawn, "fillText")[0][3]).toBe((arc[2] as number) + 5 + 3);
-    expect(drawn.find((o) => o[0] === "font=")).toEqual(["font=", "2.125px var(--font-interface, sans-serif)"]);
+    expect(drawn.find((o) => o[0] === "font=")).toEqual(["font=", "2.125px sans-serif"]);
+  });
+});
+
+describe("renderReportGraph: theme colours", () => {
+  const THEME = {
+    "--graph-node-resolved": "rgb(200, 100, 0)", "--graph-node": " #00aa00 ", "--graph-line": "rgb(9, 9, 9)",
+    "--background-secondary": "#111111", "--text-normal": "#eeeeee", "--text-muted": "#777777", "--font-interface": "Inter, sans-serif",
+  };
+  const JANE = note("Cadence/Contacts/Jane.md");
+  const LOOSE = note("Cadence/Loose.md");
+  const links = { "Cadence/Contacts/Jane.md": { "Cadence/Loose.md": 1 } };
+  const styles = (drawn: unknown[][]) => drawn.filter((o) => ["fillStyle=", "strokeStyle=", "font="].includes(o[0] as string));
+
+  it("draws in the theme's colours and font, resolved through getComputedStyle, never a var() string", async () => {
+    const { canvas, frame } = await rendered([JANE, LOOSE], { links, theme: THEME, random: [0, 0, 1, 1] });
+    canvas.trigger("mousemove", pointer(150, 100));
+    const drawn = frame();
+    expect(styles(drawn).filter((o) => String(o[1]).includes("var("))).toEqual([]);
+    expect(styles(drawn)).toEqual([
+      ["strokeStyle=", "rgb(9, 9, 9)"],
+      ["fillStyle=", "rgb(200, 100, 0)"], ["strokeStyle=", "#eeeeee"],
+      ["fillStyle=", "#00aa00"], ["strokeStyle=", "#111111"],
+      ["fillStyle=", "#eeeeee"], ["font=", "bold 9.5px Inter, sans-serif"],
+      ["fillStyle=", "#777777"], ["font=", "8.5px Inter, sans-serif"],
+    ]);
+  });
+
+  it("re-resolves the colours when the theme changes, and draws a frame with them", async () => {
+    const { view, theme, frames, frame } = await rendered([LOOSE], { theme: THEME });
+    for (let i = 0; frames.length && i < 1000; i++) frame();
+    const cssChange = (view as Any).registeredEvents.find((r: Any) => r.name === "css-change");
+    theme["--graph-node"] = "#123456";
+    cssChange.callback();
+    expect(frames).toHaveLength(1);
+    expect(styles(frame()).find((o) => o[0] === "fillStyle=")).toEqual(["fillStyle=", "#123456"]);
+  });
+
+  it("stops listening for theme changes once the canvas leaves the document", async () => {
+    const { view, app, canvas, frame } = await rendered([LOOSE]);
+    const cssChange = (view as Any).registeredEvents.find((r: Any) => r.name === "css-change");
+    canvas.isConnected = false;
+    frame();
+    expect(app.workspace.offrefs).toEqual([cssChange]);
   });
 });

@@ -9320,15 +9320,7 @@ async function renderProjectsView(view, root) {
 }
 
 // src/views/report-graph.ts
-var TYPE_BY_FOLDER = [
-  ["Cadence/Contacts/", "contact"],
-  ["Cadence/Companies/", "company"],
-  ["Cadence/Partners/", "partner"],
-  ["Cadence/Pipeline/", "deal"],
-  ["Cadence/Projects/", "project"],
-  ["Cadence/Activities/", "activity"],
-  ["Cadence/Leads/", "lead"]
-];
+var TYPE_BY_FOLDER = Object.entries(ENTITIES).map(([key, def]) => [`${def.folder}/`, key]);
 function graphNodeType(path) {
   for (const [folder, type] of TYPE_BY_FOLDER) if (path.startsWith(folder)) return type;
   return "note";
@@ -9351,13 +9343,38 @@ var GRAPH_TYPE_COLORS = {
   // slate gray
   lead: "#a855f7",
   // purple
+  registration: "#14b8a6",
+  // teal
+  commission: "#eab308",
+  // amber
+  certification: "#6366f1",
+  // indigo
+  sequence: "#84cc16",
+  // lime
   note: "var(--graph-node, #94a3b8)"
   // gray
 };
 function graphNodeColor(type) {
   return GRAPH_TYPE_COLORS[type] || GRAPH_TYPE_COLORS.note;
 }
-function buildEntityGraph(files, resolvedLinks, random = Math.random) {
+var GRAPH_THEME = {
+  line: "var(--graph-line, var(--border-color, rgba(255, 255, 255, 0.08)))",
+  ring: "var(--background-secondary, #202020)",
+  hover: "var(--text-normal, #ffffff)",
+  label: "var(--text-muted, #999999)",
+  font: "var(--font-interface, sans-serif)"
+};
+function resolveCssVar(value, lookup, depth = 0) {
+  const trimmed = value.trim();
+  const match = /^var\(\s*(--[\w-]+)\s*(?:,([\s\S]*))?\)$/.exec(trimmed);
+  if (!match) return trimmed;
+  if (depth > 8) return "";
+  const own = lookup(match[1]).trim();
+  const resolved = own ? resolveCssVar(own, lookup, depth + 1) : "";
+  if (resolved) return resolved;
+  return match[2] === void 0 ? "" : resolveCssVar(match[2], lookup, depth + 1);
+}
+function buildEntityGraph(files, resolvedLinks, random = Math.random, size = { width: 800, height: 400 }) {
   const nodes = [];
   const nodeMap = /* @__PURE__ */ new Map();
   files.filter((f) => f.path.startsWith("Cadence/")).forEach((file) => {
@@ -9367,8 +9384,8 @@ function buildEntityGraph(files, resolvedLinks, random = Math.random) {
       name: file.basename,
       type,
       file,
-      x: random() * 500 + 150,
-      y: random() * 250 + 100,
+      x: random() * size.width * 0.625 + size.width * 0.1875,
+      y: random() * size.height * 0.625 + size.height * 0.25,
       vx: 0,
       vy: 0,
       radius: graphNodeRadius(type)
@@ -9449,6 +9466,11 @@ function layoutGraph(graph, size, pinned = null) {
     n.vy *= 0.92;
   });
 }
+var SETTLE_SPEED = 0.01;
+function graphSettled(nodes, pinned = null) {
+  if (pinned) return false;
+  return nodes.every((n) => Math.hypot(n.vx, n.vy) < SETTLE_SPEED);
+}
 function toGraphPoint(screen, transform) {
   return {
     x: (screen.x - transform.x) / transform.k,
@@ -9509,13 +9531,18 @@ async function renderReportGraph(view, root) {
   tooltip.style.display = "none";
   tooltip.style.zIndex = "100";
   tooltip.style.boxShadow = "var(--shadow-s)";
-  const { nodes, links } = buildEntityGraph(view.app.vault.getMarkdownFiles(), view.app.metadataCache.resolvedLinks || {});
   let width = canvas.clientWidth || 800;
   let height = canvas.clientHeight || 400;
   canvas.width = width * window.devicePixelRatio;
   canvas.height = height * window.devicePixelRatio;
   const ctx = canvas.getContext("2d");
   ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+  const { nodes, links } = buildEntityGraph(
+    view.app.vault.getMarkdownFiles(),
+    view.app.metadataCache.resolvedLinks || {},
+    Math.random,
+    { width, height }
+  );
   let transform = { x: 0, y: 0, k: 1 };
   let isPanning = false;
   let panStart = { x: 0, y: 0 };
@@ -9524,6 +9551,10 @@ async function renderReportGraph(view, root) {
   let dragStartPos = { x: 0, y: 0 };
   let hasMovedSinceDown = false;
   const resizeObserver = new ResizeObserver(() => {
+    if (!canvas.isConnected) {
+      stop();
+      return;
+    }
     if (!canvas.clientWidth) return;
     width = canvas.clientWidth;
     height = canvas.clientHeight;
@@ -9531,8 +9562,41 @@ async function renderReportGraph(view, root) {
     canvas.height = height * window.devicePixelRatio;
     ctx.resetTransform();
     ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+    requestDraw();
   });
   resizeObserver.observe(canvas);
+  let frameQueued = false;
+  const requestDraw = () => {
+    if (frameQueued) return;
+    frameQueued = true;
+    requestAnimationFrame(step);
+  };
+  const stop = () => {
+    resizeObserver.disconnect();
+    view.app.workspace.offref(cssChange);
+  };
+  let palette = null;
+  const resolvePalette = () => {
+    const style = getComputedStyle(graphCard);
+    const themed = (value) => resolveCssVar(value, (name) => style.getPropertyValue(name));
+    const nodeColors = /* @__PURE__ */ new Map();
+    return {
+      line: themed(GRAPH_THEME.line),
+      ring: themed(GRAPH_THEME.ring),
+      hover: themed(GRAPH_THEME.hover),
+      label: themed(GRAPH_THEME.label),
+      font: themed(GRAPH_THEME.font),
+      node: (type) => {
+        if (!nodeColors.has(type)) nodeColors.set(type, themed(graphNodeColor(type)));
+        return nodeColors.get(type);
+      }
+    };
+  };
+  const cssChange = view.app.workspace.on("css-change", () => {
+    palette = null;
+    requestDraw();
+  });
+  view.registerEvent(cssChange);
   const getMousePos = (e) => {
     const rect = canvas.getBoundingClientRect();
     return {
@@ -9541,7 +9605,12 @@ async function renderReportGraph(view, root) {
     };
   };
   const getCanvasPos = (e) => toGraphPoint(getMousePos(e), transform);
-  canvas.addEventListener("mousedown", (e) => {
+  const openNode = (node) => {
+    if (node.type === "note") view.openEntityDetailFromFile(node.file);
+    else view.openEntityDetail(node.type, node.file);
+  };
+  const press = (e) => {
+    requestDraw();
     dragStartPos = { x: e.clientX, y: e.clientY };
     hasMovedSinceDown = false;
     const canvasPos = getCanvasPos(e);
@@ -9553,8 +9622,9 @@ async function renderReportGraph(view, root) {
       panStart = { x: e.clientX - transform.x, y: e.clientY - transform.y };
       canvas.style.cursor = "grabbing";
     }
-  });
-  canvas.addEventListener("mousemove", (e) => {
+  };
+  const move = (e) => {
+    requestDraw();
     const dist = Math.hypot(e.clientX - dragStartPos.x, e.clientY - dragStartPos.y);
     if (dist > 4) {
       hasMovedSinceDown = true;
@@ -9584,39 +9654,67 @@ async function renderReportGraph(view, root) {
       canvas.style.cursor = isPanning ? "grabbing" : "default";
       tooltip.style.display = "none";
     }
-  });
-  canvas.addEventListener("mouseup", (e) => {
+  };
+  const release = () => {
+    requestDraw();
+    const pressed = draggedNode;
     isPanning = false;
-    canvas.style.cursor = hoveredNode ? "pointer" : "default";
-    if (!hasMovedSinceDown && hoveredNode) {
-      view.openEntityDetail(hoveredNode.type, hoveredNode.file);
-    }
     draggedNode = null;
-  });
-  canvas.addEventListener("mouseleave", () => {
+    canvas.style.cursor = hoveredNode ? "pointer" : "default";
+    if (!hasMovedSinceDown && pressed) openNode(pressed);
+  };
+  const leave = () => {
+    requestDraw();
     draggedNode = null;
     isPanning = false;
     hoveredNode = null;
     tooltip.style.display = "none";
     canvas.style.cursor = "default";
-  });
+  };
+  canvas.addEventListener("mousedown", (e) => press(e));
+  canvas.addEventListener("mousemove", (e) => move(e));
+  canvas.addEventListener("mouseup", () => release());
+  canvas.addEventListener("mouseleave", () => leave());
+  canvas.addEventListener("touchstart", (e) => {
+    if (e.touches.length !== 1) {
+      leave();
+      return;
+    }
+    e.preventDefault();
+    press(e.touches[0]);
+  }, { passive: false });
+  canvas.addEventListener("touchmove", (e) => {
+    if (e.touches.length !== 1 || !draggedNode && !isPanning) return;
+    e.preventDefault();
+    move(e.touches[0]);
+  }, { passive: false });
+  canvas.addEventListener("touchend", (e) => {
+    if (!draggedNode && !isPanning) return;
+    e.preventDefault();
+    release();
+    leave();
+  }, { passive: false });
+  canvas.addEventListener("touchcancel", () => leave());
   canvas.addEventListener("wheel", (e) => {
     e.preventDefault();
     const mouse = getMousePos(e);
     transform = zoomAt(transform, mouse, e.deltaY);
+    requestDraw();
   });
   const step = () => {
+    frameQueued = false;
     if (!canvas.isConnected) {
-      resizeObserver.disconnect();
+      stop();
       return;
     }
     layoutGraph({ nodes, links }, { width, height }, draggedNode);
+    const colors = palette ??= resolvePalette();
     ctx.clearRect(0, 0, width, height);
     ctx.save();
     ctx.translate(transform.x, transform.y);
     ctx.scale(transform.k, transform.k);
     ctx.lineWidth = 0.8 / transform.k;
-    ctx.strokeStyle = "var(--graph-line, var(--border-color, rgba(255, 255, 255, 0.08)))";
+    ctx.strokeStyle = colors.line;
     links.forEach((l) => {
       ctx.beginPath();
       ctx.moveTo(l.source.x, l.source.y);
@@ -9626,28 +9724,28 @@ async function renderReportGraph(view, root) {
     nodes.forEach((n) => {
       ctx.beginPath();
       ctx.arc(n.x, n.y, n.radius, 0, Math.PI * 2);
-      ctx.fillStyle = graphNodeColor(n.type);
+      ctx.fillStyle = colors.node(n.type);
       ctx.fill();
       if (n === hoveredNode) {
-        ctx.strokeStyle = "var(--text-normal, #ffffff)";
+        ctx.strokeStyle = colors.hover;
         ctx.lineWidth = 2 / transform.k;
         ctx.stroke();
       } else {
-        ctx.strokeStyle = "var(--background-secondary)";
+        ctx.strokeStyle = colors.ring;
         ctx.lineWidth = 1.2 / transform.k;
         ctx.stroke();
       }
     });
     nodes.forEach((n) => {
-      ctx.fillStyle = n === hoveredNode ? "var(--text-normal)" : "var(--text-muted)";
-      ctx.font = n === hoveredNode ? `bold ${9.5 / transform.k}px var(--font-interface, sans-serif)` : `${8.5 / transform.k}px var(--font-interface, sans-serif)`;
+      ctx.fillStyle = n === hoveredNode ? colors.hover : colors.label;
+      ctx.font = n === hoveredNode ? `bold ${9.5 / transform.k}px ${colors.font}` : `${8.5 / transform.k}px ${colors.font}`;
       ctx.textAlign = "center";
       ctx.fillText(n.name, n.x, n.y + n.radius + 12 / transform.k);
     });
     ctx.restore();
-    requestAnimationFrame(step);
+    if (!graphSettled(nodes, draggedNode)) requestDraw();
   };
-  requestAnimationFrame(step);
+  requestDraw();
 }
 
 // src/views/reports.ts
@@ -9848,10 +9946,13 @@ function partnersReport(deals, partners, certs, now, defs = { deal: ENTITIES.dea
   };
 }
 var ACTIVITY_ACCENTS = ["sky", "mint", "warn", "rose"];
+function orDash(value) {
+  return value == null || String(value).trim() === "" ? "\u2014" : value;
+}
 function activityReport(activities, def, now, weekStartsOn) {
   const counts = /* @__PURE__ */ new Map();
   activities.forEach((e) => {
-    const t = String(entityValue(e, "type", def) || "unspecified");
+    const t = String(entityValue(e, "type", def) ?? "").trim().toLowerCase() || "unspecified";
     counts.set(t, (counts.get(t) || 0) + 1);
   });
   const stats = [{ label: "TOTAL", value: activities.length, sub: "all activities", accent: "emerald" }];
@@ -9886,9 +9987,9 @@ function activityReport(activities, def, now, weekStartsOn) {
     recent: newestFirst(activities, (e) => entityValue(e, "when", def)).slice(0, 10).map((e) => ({
       title: entityTitle(e, "subject", def),
       metaParts: [
-        { text: entityValue(e, "type", def) || "\u2014" },
+        { text: orDash(entityValue(e, "type", def)) },
         { text: " \xB7 " },
-        { text: entityValue(e, "with", def) || "\u2014", entityKey: "contact" },
+        { text: orDash(entityValue(e, "with", def)), entityKey: "contact" },
         { text: ` \xB7 ${fmtValue(entityValue(e, "when", def), "date")}` }
       ],
       file: e.file
@@ -9896,6 +9997,7 @@ function activityReport(activities, def, now, weekStartsOn) {
   };
 }
 var WEEKDAY_ACCENTS = ["emerald", "mint", "sky", "warn", "rose", "mint", "sky"];
+var WEEKDAY_LABELS = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
 function productivityDates(now, weekStartsOn) {
   const today = startOfDay(now);
   const first = addDays(startOfWeek(today, weekStartsOn), -11 * 7);
@@ -9910,7 +10012,7 @@ function productivityReport(notes, now, settings) {
   let activeDays = 0;
   let streak = 0, streakBroken = false;
   const perDay = [];
-  for (const d of days) {
+  days.forEach((d, i) => {
     const c = notes.get(ymd(d));
     let open = 0, done = 0, jChars = 0, hasNote = false;
     if (c !== void 0) {
@@ -9926,9 +10028,9 @@ function productivityReport(notes, now, settings) {
     if (hasNote) activeDays++;
     if (!streakBroken) {
       if (hasNote && (done > 0 || jChars > 0)) streak++;
-      else streakBroken = true;
+      else if (i > 0) streakBroken = true;
     }
-  }
+  });
   const completion = totalOpen + totalDone === 0 ? 0 : Math.round(totalDone / (totalOpen + totalDone) * 100);
   const last14 = perDay.slice(0, 14).reverse();
   const max = Math.max(1, ...last14.map((p) => p.done));
@@ -9950,14 +10052,14 @@ function productivityReport(notes, now, settings) {
     weeks.push({ done: wd, open: wo, label: ws.toLocaleDateString(void 0, { month: "short", day: "numeric" }) });
   }
   const maxWeek = Math.max(1, ...weeks.map((w) => w.done));
-  const wsOn = settings.weekStartsOn;
+  const wsOn = settings.weekStartsOn ?? 1;
   const dayBuckets = Array.from({ length: 7 }, () => ({ done: 0, open: 0 }));
   perDay.forEach((p) => {
     const idx = (p.date.getDay() - wsOn + 7) % 7;
     dayBuckets[idx].done += p.done;
     dayBuckets[idx].open += p.open;
   });
-  const dayLabels = wsOn === 1 ? ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"] : ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
+  const dayLabels = WEEKDAY_LABELS.map((_, i) => WEEKDAY_LABELS[(wsOn + i) % 7]);
   return {
     totalOpen,
     totalDone,

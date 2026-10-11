@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { TFile } from "obsidian";
 import {
-  GRAPH_TYPE_COLORS, buildEntityGraph, graphNodeColor, graphNodeRadius, graphNodeType, graphTooltip, layoutGraph, nodeAt,
+  GRAPH_TYPE_COLORS, buildEntityGraph, graphNodeColor, graphSettled, resolveCssVar, graphNodeRadius, graphNodeType, graphTooltip, layoutGraph, nodeAt,
   toGraphPoint, zoomAt, type GraphNode,
 } from "../../src/views/report-graph";
 
@@ -25,14 +25,16 @@ const seq = (...values: number[]) => {
 const SIZE = { width: 800, height: 400 };
 
 describe("graphNodeType, graphNodeRadius, graphNodeColor, graphTooltip", () => {
-  it("types a note by its Cadence folder, else 'note'", () => {
+  it("types a note by its entity's folder, every entity included, else 'note'", () => {
     const paths = [
       "Cadence/Contacts/a.md", "Cadence/Companies/a.md", "Cadence/Partners/a.md", "Cadence/Pipeline/a.md",
       "Cadence/Projects/sub/a.md", "Cadence/Activities/a.md", "Cadence/Leads/a.md", "Cadence/Registrations/a.md",
-      "Cadence/Certifications/a.md", "Cadence/ContactsOld/a.md", "Cadence/a.md", "Other/Contacts/a.md",
+      "Cadence/Commissions/a.md", "Cadence/Certifications/a.md", "Cadence/Sequences/a.md",
+      "Cadence/ContactsOld/a.md", "Cadence/a.md", "Other/Contacts/a.md",
     ];
     expect(paths.map(graphNodeType)).toEqual([
-      "contact", "company", "partner", "deal", "project", "activity", "lead", "note", "note", "note", "note", "note",
+      "contact", "company", "partner", "deal", "project", "activity", "lead", "registration", "commission",
+      "certification", "sequence", "note", "note", "note",
     ]);
   });
 
@@ -44,7 +46,11 @@ describe("graphNodeType, graphNodeRadius, graphNodeColor, graphTooltip", () => {
     expect(graphNodeColor("deal")).toBe("#10b981");
     expect(graphNodeColor("contact")).toBe("var(--graph-node-resolved, #f59e0b)");
     expect(graphNodeColor("bogus" as Any)).toBe(GRAPH_TYPE_COLORS.note);
-    expect(Object.keys(GRAPH_TYPE_COLORS)).toEqual(["contact", "company", "partner", "deal", "project", "activity", "lead", "note"]);
+    expect(Object.keys(GRAPH_TYPE_COLORS)).toEqual([
+      "contact", "company", "partner", "deal", "project", "activity", "lead",
+      "registration", "commission", "certification", "sequence", "note",
+    ]);
+    expect(new Set(Object.values(GRAPH_TYPE_COLORS)).size).toBe(12);
   });
 
   it("labels the tooltip TYPE: name", () => {
@@ -66,6 +72,14 @@ describe("buildEntityGraph", () => {
   it("draws from Math.random by default", () => {
     vi.spyOn(Math, "random").mockReturnValue(0.5);
     expect(buildEntityGraph([file("Cadence/a.md")], {}).nodes.map((n) => [n.x, n.y])).toEqual([[400, 225]]);
+  });
+
+  it("spreads the start positions over the canvas size: 3/16–13/16 across and 1/4–7/8 down (150–650 × 100–350 at 800×400)", () => {
+    const files = [file("Cadence/a.md"), file("Cadence/b.md")];
+    const { nodes } = buildEntityGraph(files, {}, seq(0, 0, 1, 1), { width: 1600, height: 800 });
+    expect(nodes.map((n) => [n.x, n.y])).toEqual([[300, 200], [1300, 700]]);
+    const small = buildEntityGraph(files, {}, seq(0, 0, 1, 1), { width: 320, height: 240 });
+    expect(small.nodes.map((n) => [n.x, n.y])).toEqual([[60, 60], [260, 210]]);
   });
 
   it("links resolved targets that are graph nodes, in link order, both ways and to itself; others are dropped", () => {
@@ -145,6 +159,36 @@ describe("layoutGraph", () => {
     const n = node("n", 400, 200);
     layoutGraph({ nodes: [n], links: [] }, { width: 1000, height: 400 });
     expect(n.x).toBe(400 + 100 * 0.0003);
+  });
+});
+
+describe("resolveCssVar", () => {
+  const theme: Record<string, string> = { "--a": "rgb(1, 2, 3)", "--alias": "var(--a)", "--loop": "var(--loop)" };
+  const lookup = (name: string) => theme[name] ?? "";
+
+  it("resolves a var() to the property's value, else its fallback, nested fallbacks included", () => {
+    expect(resolveCssVar("var(--a, #fff)", lookup)).toBe("rgb(1, 2, 3)");
+    expect(resolveCssVar("var(--missing, #fff)", lookup)).toBe("#fff");
+    expect(resolveCssVar("var(--missing, var(--also-missing, rgba(255, 255, 255, 0.08)))", lookup)).toBe("rgba(255, 255, 255, 0.08)");
+    expect(resolveCssVar("var(--missing, var(--a, red))", lookup)).toBe("rgb(1, 2, 3)");
+    expect(resolveCssVar(" var( --alias ) ", lookup)).toBe("rgb(1, 2, 3)");
+  });
+
+  it("passes a concrete value through, and is '' when nothing resolves", () => {
+    expect(resolveCssVar("#10b981", lookup)).toBe("#10b981");
+    expect(resolveCssVar(" sans-serif ", lookup)).toBe("sans-serif");
+    expect(resolveCssVar("var(--missing)", lookup)).toBe("");
+    expect(resolveCssVar("var(--loop)", lookup)).toBe("");
+  });
+});
+
+describe("graphSettled", () => {
+  it("is settled when every node moves under 0.01px a frame, and never while a node is pinned", () => {
+    expect(graphSettled([])).toBe(true);
+    expect(graphSettled([node("a", 0, 0, { vx: 0.006, vy: -0.0079 })])).toBe(true);
+    expect(graphSettled([node("a", 0, 0), node("b", 0, 0, { vx: 0.006, vy: 0.008 })])).toBe(false);
+    const held = node("h", 0, 0);
+    expect(graphSettled([held], held)).toBe(false);
   });
 });
 

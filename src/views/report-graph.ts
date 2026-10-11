@@ -1,4 +1,6 @@
 import type { TFile } from 'obsidian';
+import { ENTITIES } from '../constants/entities';
+import type { CoreEntityKey } from '../types/entities';
 import type { AppViewHost } from './host';
 
 /* The relationship graph (reports.graph): a canvas force layout over every
@@ -6,7 +8,7 @@ import type { AppViewHost } from './host';
    between two of them. The graph, the layout step, hit testing and zoom are
    pure seams; the canvas drawing and the pointer wiring are manual-QA only. */
 
-export type GraphNodeType = 'contact' | 'company' | 'partner' | 'deal' | 'project' | 'activity' | 'lead' | 'note';
+export type GraphNodeType = CoreEntityKey | 'note';
 
 /* A note on the graph. The layout moves x and y in place. */
 export interface GraphNode {
@@ -40,23 +42,21 @@ export interface GraphPoint {
   y: number;
 }
 
+/* A pointer's viewport position: a MouseEvent or a Touch. */
+export interface ClientPoint {
+  clientX: number;
+  clientY: number;
+}
+
 /* The pan offset (screen px) and zoom factor. */
 export interface GraphTransform extends GraphPoint {
   k: number;
 }
 
-const TYPE_BY_FOLDER: Array<[string, GraphNodeType]> = [
-  ['Cadence/Contacts/', 'contact'],
-  ['Cadence/Companies/', 'company'],
-  ['Cadence/Partners/', 'partner'],
-  ['Cadence/Pipeline/', 'deal'],
-  ['Cadence/Projects/', 'project'],
-  ['Cadence/Activities/', 'activity'],
-  ['Cadence/Leads/', 'lead'],
-];
+const TYPE_BY_FOLDER = Object.entries(ENTITIES).map(([key, def]) => [`${def.folder}/`, key as CoreEntityKey] as const);
 
-/* A note's node type, by folder. Every other note (registrations,
-   commissions, certifications, sequences, loose notes) is a 'note'. */
+/* A note's node type: the entity whose folder holds it, else (a loose
+   note under Cadence/) a 'note'. */
 export function graphNodeType(path: string): GraphNodeType {
   for (const [folder, type] of TYPE_BY_FOLDER) if (path.startsWith(folder)) return type;
   return 'note';
@@ -75,6 +75,10 @@ export const GRAPH_TYPE_COLORS: Record<GraphNodeType, string> = {
   project: '#8b5cf6',  // violet purple
   activity: '#64748b', // slate gray
   lead: '#a855f7',     // purple
+  registration: '#14b8a6', // teal
+  commission: '#eab308',   // amber
+  certification: '#6366f1', // indigo
+  sequence: '#84cc16',     // lime
   note: 'var(--graph-node, #94a3b8)'      // gray
 };
 
@@ -82,12 +86,41 @@ export function graphNodeColor(type: GraphNodeType): string {
   return GRAPH_TYPE_COLORS[type] || GRAPH_TYPE_COLORS.note;
 }
 
+/* The theme references the canvas draws with. A 2D canvas ignores a
+   `var(--…)` colour or font, so each is resolved (resolveCssVar) before
+   it is drawn. */
+const GRAPH_THEME = {
+  line: 'var(--graph-line, var(--border-color, rgba(255, 255, 255, 0.08)))',
+  ring: 'var(--background-secondary, #202020)',
+  hover: 'var(--text-normal, #ffffff)',
+  label: 'var(--text-muted, #999999)',
+  font: 'var(--font-interface, sans-serif)',
+};
+
+/* `value` with every `var(--name[, fallback])` resolved: the property's
+   value from `lookup` (its computed value, '' when unset), else the
+   fallback, resolved the same way. A concrete value passes through
+   trimmed; '' when nothing resolves. */
+export function resolveCssVar(value: string, lookup: (name: string) => string, depth = 0): string {
+  const trimmed = value.trim();
+  const match = /^var\(\s*(--[\w-]+)\s*(?:,([\s\S]*))?\)$/.exec(trimmed);
+  if (!match) return trimmed;
+  if (depth > 8) return '';
+  const own = lookup(match[1]).trim();
+  const resolved = own ? resolveCssVar(own, lookup, depth + 1) : '';
+  if (resolved) return resolved;
+  return match[2] === undefined ? '' : resolveCssVar(match[2], lookup, depth + 1);
+}
+
 /* One node per markdown note under Cadence/, in file order, each starting
-   at a random point in 150–650 × 100–350 (x drawn before y). One edge per
+   at a random point spread over the canvas: 3/16–13/16 of its width and
+   1/4–7/8 of its height (150–650 × 100–350 at the default 800×400; x
+   drawn before y). One edge per
    resolved link from one graph note to another, in the source's link
    order: a self-link is an edge, and links both ways are two. */
 export function buildEntityGraph(
   files: TFile[], resolvedLinks: Record<string, Record<string, number>>, random: () => number = Math.random,
+  size: { width: number; height: number } = { width: 800, height: 400 },
 ): EntityGraph {
   const nodes: GraphNode[] = [];
   const nodeMap = new Map<string, GraphNode>();
@@ -98,8 +131,8 @@ export function buildEntityGraph(
       name: file.basename,
       type,
       file,
-      x: random() * 500 + 150,
-      y: random() * 250 + 100,
+      x: random() * size.width * 0.625 + size.width * 0.1875,
+      y: random() * size.height * 0.625 + size.height * 0.25,
       vx: 0,
       vy: 0,
       radius: graphNodeRadius(type),
@@ -187,6 +220,17 @@ export function layoutGraph(graph: EntityGraph, size: { width: number; height: n
   });
 }
 
+/* Below this speed (px a frame) a node is at rest. */
+const SETTLE_SPEED = 0.01;
+
+/* Whether the layout has come to rest: every node moves under
+   SETTLE_SPEED px a frame. Never while a node is pinned (dragged), which
+   the pointer is still moving. */
+export function graphSettled(nodes: GraphNode[], pinned: GraphNode | null = null): boolean {
+  if (pinned) return false;
+  return nodes.every((n) => Math.hypot(n.vx, n.vy) < SETTLE_SPEED);
+}
+
 /* A screen point (relative to the canvas) in graph space. */
 export function toGraphPoint(screen: GraphPoint, transform: GraphTransform): GraphPoint {
   return {
@@ -264,15 +308,17 @@ export async function renderReportGraph(view: AppViewHost, root: HTMLElement): P
   tooltip.style.zIndex = '100';
   tooltip.style.boxShadow = 'var(--shadow-s)';
 
-  // Gather Nodes & Links
-  const { nodes, links } = buildEntityGraph(view.app.vault.getMarkdownFiles(), view.app.metadataCache.resolvedLinks || {});
-
   let width = canvas.clientWidth || 800;
   let height = canvas.clientHeight || 400;
   canvas.width = width * window.devicePixelRatio;
   canvas.height = height * window.devicePixelRatio;
   const ctx = canvas.getContext('2d')!;
   ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+
+  // Gather Nodes & Links, spread over the canvas
+  const { nodes, links } = buildEntityGraph(
+    view.app.vault.getMarkdownFiles(), view.app.metadataCache.resolvedLinks || {}, Math.random, { width, height },
+  );
 
   // Zoom & Pan state
   let transform: GraphTransform = { x: 0, y: 0, k: 1 };
@@ -285,6 +331,10 @@ export async function renderReportGraph(view: AppViewHost, root: HTMLElement): P
 
   // Resize handling
   const resizeObserver = new ResizeObserver(() => {
+    if (!canvas.isConnected) {
+      stop();
+      return;
+    }
     if (!canvas.clientWidth) return;
     width = canvas.clientWidth;
     height = canvas.clientHeight;
@@ -292,11 +342,51 @@ export async function renderReportGraph(view: AppViewHost, root: HTMLElement): P
     canvas.height = height * window.devicePixelRatio;
     ctx.resetTransform();
     ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+    requestDraw();
   });
   resizeObserver.observe(canvas);
 
+  /* Frames run only while something changes: the layout moving, or the
+     pointer, the zoom or the size. Once the layout settles, the loop stops
+     until the next change asks for a frame. */
+  let frameQueued = false;
+  const requestDraw = () => {
+    if (frameQueued) return;
+    frameQueued = true;
+    requestAnimationFrame(step);
+  };
+  const stop = () => {
+    resizeObserver.disconnect();
+    view.app.workspace.offref(cssChange);
+  };
+
+  /* The theme's colours and font, resolved against the graph card on the
+     first frame and again after every theme change. */
+  let palette: ReturnType<typeof resolvePalette> | null = null;
+  const resolvePalette = () => {
+    const style = getComputedStyle(graphCard);
+    const themed = (value: string) => resolveCssVar(value, (name) => style.getPropertyValue(name));
+    const nodeColors = new Map<GraphNodeType, string>();
+    return {
+      line: themed(GRAPH_THEME.line),
+      ring: themed(GRAPH_THEME.ring),
+      hover: themed(GRAPH_THEME.hover),
+      label: themed(GRAPH_THEME.label),
+      font: themed(GRAPH_THEME.font),
+      node: (type: GraphNodeType): string => {
+        if (!nodeColors.has(type)) nodeColors.set(type, themed(graphNodeColor(type)));
+        return nodeColors.get(type)!;
+      },
+    };
+  };
+  const cssChange = view.app.workspace.on('css-change', () => {
+    palette = null;
+    requestDraw();
+  });
+  view.registerEvent(cssChange);
+
   // Coordinate conversions
-  const getMousePos = (e: MouseEvent) => {
+  const getMousePos = (e: ClientPoint) => {
     const rect = canvas.getBoundingClientRect();
     return {
       x: e.clientX - rect.left,
@@ -304,10 +394,19 @@ export async function renderReportGraph(view: AppViewHost, root: HTMLElement): P
     };
   };
 
-  const getCanvasPos = (e: MouseEvent) => toGraphPoint(getMousePos(e), transform);
+  const getCanvasPos = (e: ClientPoint) => toGraphPoint(getMousePos(e), transform);
 
-  // Interaction Events
-  canvas.addEventListener('mousedown', (e) => {
+  // An entity opens its detail; a loose note opens as markdown.
+  const openNode = (node: GraphNode) => {
+    if (node.type === 'note') view.openEntityDetailFromFile(node.file);
+    else view.openEntityDetail(node.type, node.file);
+  };
+
+  /* A press, move and release, shared by the mouse and a single touch. The
+     pressed node is held from the press, so a click needs no mousemove
+     first: a release within 4px of the press opens it. */
+  const press = (e: ClientPoint) => {
+    requestDraw();
     dragStartPos = { x: e.clientX, y: e.clientY };
     hasMovedSinceDown = false;
 
@@ -321,9 +420,10 @@ export async function renderReportGraph(view: AppViewHost, root: HTMLElement): P
       panStart = { x: e.clientX - transform.x, y: e.clientY - transform.y };
       canvas.style.cursor = 'grabbing';
     }
-  });
+  };
 
-  canvas.addEventListener('mousemove', (e) => {
+  const move = (e: ClientPoint) => {
+    requestDraw();
     const dist = Math.hypot(e.clientX - dragStartPos.x, e.clientY - dragStartPos.y);
     if (dist > 4) {
       hasMovedSinceDown = true;
@@ -358,26 +458,56 @@ export async function renderReportGraph(view: AppViewHost, root: HTMLElement): P
       canvas.style.cursor = isPanning ? 'grabbing' : 'default';
       tooltip.style.display = 'none';
     }
-  });
+  };
 
-  canvas.addEventListener('mouseup', (e) => {
+  const release = () => {
+    requestDraw();
+    const pressed = draggedNode;
     isPanning = false;
+    draggedNode = null;
     canvas.style.cursor = hoveredNode ? 'pointer' : 'default';
 
-    if (!hasMovedSinceDown && hoveredNode) {
-      view.openEntityDetail(hoveredNode.type, hoveredNode.file);
-    }
+    if (!hasMovedSinceDown && pressed) openNode(pressed);
+  };
 
-    draggedNode = null;
-  });
-
-  canvas.addEventListener('mouseleave', () => {
+  const leave = () => {
+    requestDraw();
     draggedNode = null;
     isPanning = false;
     hoveredNode = null;
     tooltip.style.display = 'none';
     canvas.style.cursor = 'default';
-  });
+  };
+
+  // Interaction Events
+  canvas.addEventListener('mousedown', (e) => press(e));
+  canvas.addEventListener('mousemove', (e) => move(e));
+  canvas.addEventListener('mouseup', () => release());
+  canvas.addEventListener('mouseleave', () => leave());
+
+  /* One finger drags, pans and taps like the mouse, and claims the touch
+     (no scroll, no emulated mouse events). A second finger is left to the
+     browser and drops the drag. */
+  canvas.addEventListener('touchstart', (e) => {
+    if (e.touches.length !== 1) {
+      leave();
+      return;
+    }
+    e.preventDefault();
+    press(e.touches[0]);
+  }, { passive: false });
+  canvas.addEventListener('touchmove', (e) => {
+    if (e.touches.length !== 1 || (!draggedNode && !isPanning)) return;
+    e.preventDefault();
+    move(e.touches[0]);
+  }, { passive: false });
+  canvas.addEventListener('touchend', (e) => {
+    if (!draggedNode && !isPanning) return;
+    e.preventDefault();
+    release();
+    leave();
+  }, { passive: false });
+  canvas.addEventListener('touchcancel', () => leave());
 
   // Elegant scroll wheel zoom centered at mouse position
   canvas.addEventListener('wheel', (e) => {
@@ -385,17 +515,21 @@ export async function renderReportGraph(view: AppViewHost, root: HTMLElement): P
     const mouse = getMousePos(e);
 
     transform = zoomAt(transform, mouse, e.deltaY);
+    requestDraw();
   });
 
   // Physics Engine
   const step = () => {
+    frameQueued = false;
     if (!canvas.isConnected) {
-      resizeObserver.disconnect();
+      stop();
       return;
     }
 
     // 1–3. Repulsion, link attraction, gravity, then move
     layoutGraph({ nodes, links }, { width, height }, draggedNode);
+
+    const colors = palette ??= resolvePalette();
 
     // 4. Render
     ctx.clearRect(0, 0, width, height);
@@ -406,7 +540,7 @@ export async function renderReportGraph(view: AppViewHost, root: HTMLElement): P
 
     // Draw links
     ctx.lineWidth = 0.8 / transform.k;
-    ctx.strokeStyle = 'var(--graph-line, var(--border-color, rgba(255, 255, 255, 0.08)))';
+    ctx.strokeStyle = colors.line;
     links.forEach((l) => {
       ctx.beginPath();
       ctx.moveTo(l.source.x, l.source.y);
@@ -418,16 +552,16 @@ export async function renderReportGraph(view: AppViewHost, root: HTMLElement): P
     nodes.forEach((n) => {
       ctx.beginPath();
       ctx.arc(n.x, n.y, n.radius, 0, Math.PI * 2);
-      ctx.fillStyle = graphNodeColor(n.type);
+      ctx.fillStyle = colors.node(n.type);
       ctx.fill();
 
       // Highlight ring if hovered
       if (n === hoveredNode) {
-        ctx.strokeStyle = 'var(--text-normal, #ffffff)';
+        ctx.strokeStyle = colors.hover;
         ctx.lineWidth = 2 / transform.k;
         ctx.stroke();
       } else {
-        ctx.strokeStyle = 'var(--background-secondary)';
+        ctx.strokeStyle = colors.ring;
         ctx.lineWidth = 1.2 / transform.k;
         ctx.stroke();
       }
@@ -435,16 +569,16 @@ export async function renderReportGraph(view: AppViewHost, root: HTMLElement): P
 
     // Draw elegant labels under nodes
     nodes.forEach((n) => {
-      ctx.fillStyle = n === hoveredNode ? 'var(--text-normal)' : 'var(--text-muted)';
-      ctx.font = n === hoveredNode ? `bold ${9.5 / transform.k}px var(--font-interface, sans-serif)` : `${8.5 / transform.k}px var(--font-interface, sans-serif)`;
+      ctx.fillStyle = n === hoveredNode ? colors.hover : colors.label;
+      ctx.font = n === hoveredNode ? `bold ${9.5 / transform.k}px ${colors.font}` : `${8.5 / transform.k}px ${colors.font}`;
       ctx.textAlign = 'center';
       ctx.fillText(n.name, n.x, n.y + n.radius + 12 / transform.k);
     });
 
     ctx.restore();
 
-    requestAnimationFrame(step);
+    if (!graphSettled(nodes, draggedNode)) requestDraw();
   };
 
-  requestAnimationFrame(step);
+  requestDraw();
 }
