@@ -1,8 +1,10 @@
 import { Notice } from 'obsidian';
 import { ENTITIES } from '../constants/entities';
+import { CadencePromptModal } from '../modals/prompt';
 import { CORE_ENTITY_KEYS } from '../plugin/settings';
 import type { EntityDef, EntityField } from '../types/entities';
 import type { CustomPage, SettingTabSettings } from '../types/settings';
+import { guessSingular } from '../utils/format';
 import type { SettingTabHost } from './host';
 
 /* ─────────── Custom Navigation Pages ───────────
@@ -92,17 +94,13 @@ export function customPageRows(customPages: CustomPage[], entities: Record<strin
   }));
 }
 
-/* A page label → its singular and the entity key it registers:
-   "Products" in CRM → crm_product. Flagged quirk: any trailing s or S is
-   dropped, so "Status" → statu. */
-export function customPageEntityKey(label: string, sectionId: string): { singular: string; entityKey: string } {
-  let singular = label;
-  if (singular.endsWith('s') && singular.length > 1) {
-    singular = singular.substring(0, singular.length - 1);
-  } else if (singular.endsWith('S') && singular.length > 1) {
-    singular = singular.substring(0, singular.length - 1);
-  }
-  return { singular, entityKey: sectionId + '_' + singular.toLowerCase().replace(/\s+/g, '_') };
+/* A page label and its singular → the singular and the entity key it
+   registers: "Products" in CRM → crm_product. A blank or missing singular
+   falls back to the guess from the label (guessSingular). The key is derived
+   once, when the page is added; loading reads the saved key as it is. */
+export function customPageEntityKey(label: string, sectionId: string, singular?: string): { singular: string; entityKey: string } {
+  const chosen = (singular || '').trim() || guessSingular(label);
+  return { singular: chosen, entityKey: sectionId + '_' + chosen.toLowerCase().replace(/\s+/g, '_') };
 }
 
 /* The entity's display label: capitalised, unless it is all upper case. */
@@ -115,6 +113,8 @@ export interface CustomPageForm {
   sectionId: string;
   layout: string;
   icon: string;
+  /** The entity's singular, as answered in the prompt; guessed when absent. */
+  singular?: string;
 }
 
 /* Adds a page from the form, in place: the schema (an existing one for the
@@ -131,7 +131,7 @@ export function addCustomPage(
   const val = (form.label || '').trim();
   if (!val) return { notice: 'Please enter a page label.' };
 
-  const { singular, entityKey } = customPageEntityKey(val, form.sectionId);
+  const { singular, entityKey } = customPageEntityKey(val, form.sectionId, form.singular);
 
   const existing = (settings.customPages || []).find(page => page.entityKey === entityKey);
   if (existing) return { notice: `A page for this entity already exists: "${existing.label}".` };
@@ -165,7 +165,8 @@ export function addCustomPage(
     icon: form.icon || 'file-text',
     entityKey: entityKey,
     defaultLayout: form.layout,
-    sectionId: form.sectionId
+    sectionId: form.sectionId,
+    singular,
   };
 
   const pages = settings.customPages || [];
@@ -296,13 +297,8 @@ export function renderCustomPagesSettings(tab: SettingTabHost, containerEl: HTML
     addBtn.style.padding = '6px 12px';
     addBtn.style.height = 'auto';
 
-    addBtn.addEventListener('click', async () => {
-      const result = addCustomPage(tab.plugin.settings, ENTITIES, {
-        label: labelInput.value,
-        sectionId: sectionSelect.value,
-        layout: layoutSelect.value,
-        icon: iconSelect.value,
-      }, Date.now());
+    const addPage = async (form: CustomPageForm) => {
+      const result = addCustomPage(tab.plugin.settings, ENTITIES, form, Date.now());
       if (!result.page) {
         new Notice(result.notice);
         return;
@@ -312,6 +308,30 @@ export function renderCustomPagesSettings(tab: SettingTabHost, containerEl: HTML
       tab.plugin.refreshOpenViews();
       new Notice(result.notice);
       tab.display();
+    };
+
+    // The singular names the entity and its key, so it is asked for, pre-filled with a guess.
+    addBtn.addEventListener('click', () => {
+      const form: CustomPageForm = {
+        label: labelInput.value,
+        sectionId: sectionSelect.value,
+        layout: layoutSelect.value,
+        icon: iconSelect.value,
+      };
+      const label = (form.label || '').trim();
+      if (!label) {
+        void addPage(form);
+        return;
+      }
+      new CadencePromptModal(tab.app, {
+        title: `Singular name for "${label}"`,
+        placeholder: 'e.g. Product',
+        defaultValue: guessSingular(label),
+        cta: 'Add Page',
+        onSubmit: (singular) => {
+          if (singular) void addPage({ ...form, singular });
+        },
+      }).open();
     });
   };
 

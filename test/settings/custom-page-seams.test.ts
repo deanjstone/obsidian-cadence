@@ -57,13 +57,19 @@ describe("customPageRows", () => {
 });
 
 describe("customPageEntityKey and customEntityLabel", () => {
-  it("drops one trailing s or S and joins words with underscores", () => {
+  it("guesses the singular and joins words with underscores", () => {
     expect(customPageEntityKey("Products", "crm")).toEqual({ singular: "Product", entityKey: "crm_product" });
     expect(customPageEntityKey("VIP Contacts", "prm")).toEqual({ singular: "VIP Contact", entityKey: "prm_vip_contact" });
     expect(customPageEntityKey("CPIS", "x")).toEqual({ singular: "CPI", entityKey: "x_cpi" });
-    expect(customPageEntityKey("Glass", "x").singular).toBe("Glas");
+    expect(customPageEntityKey("Glass", "x").singular).toBe("Glass");
     expect(customPageEntityKey("s", "x")).toEqual({ singular: "s", entityKey: "x_s" });
     expect(customPageEntityKey("a\tb  c", "x").entityKey).toBe("x_a_b_c");
+  });
+
+  it("keys a page by the singular it is given, trimmed, over the guess", () => {
+    expect(customPageEntityKey("People", "crm", " Person ")).toEqual({ singular: "Person", entityKey: "crm_person" });
+    expect(customPageEntityKey("Status", "crm")).toEqual({ singular: "Status", entityKey: "crm_status" });
+    expect(customPageEntityKey("Products", "crm", "  ")).toEqual({ singular: "Product", entityKey: "crm_product" });
   });
 
   it("capitalises unless the label is already all upper case", () => {
@@ -85,7 +91,7 @@ describe("addCustomPage", () => {
     const entities: Record<string, EntityDef> = {};
     const result = addCustomPage(s, entities, { label: " Tools ", sectionId: "workflow", layout: "cards", icon: "" }, 42);
     const fields = [{ key: "name", label: "Name", primary: true, type: "text" }, { key: "type", label: "Type", type: "text" }];
-    const added = { id: "custom.42", label: "Tools", icon: "file-text", entityKey: "workflow_tool", defaultLayout: "cards", sectionId: "workflow" };
+    const added = { id: "custom.42", label: "Tools", icon: "file-text", entityKey: "workflow_tool", defaultLayout: "cards", sectionId: "workflow", singular: "Tool" };
     expect(result).toEqual({ notice: 'Page "Tools" added successfully.', page: added });
     expect(s.customPages).toEqual([added]);
     expect(s.customEntities).toEqual({ workflow_tool: fields });
@@ -105,6 +111,22 @@ describe("addCustomPage", () => {
     expect(entities.crm_tool.fields).toBe(schema);
     expect(entities.crm_tool.label).toBe("Tool");
     expect(s.pageLayouts).toEqual({ a: "table", "custom.7": "table" });
+  });
+
+  it("registers the singular it is given, and saves it on the page", () => {
+    const s = settings();
+    const entities: Record<string, EntityDef> = {};
+    const result = addCustomPage(s, entities, { label: "People", sectionId: "crm", layout: "table", icon: "", singular: "person" }, 3);
+    expect(result.page).toMatchObject({ label: "People", entityKey: "crm_person", singular: "person" });
+    expect(entities.crm_person).toMatchObject({ folder: "Cadence/People", label: "Person", plural: "People" });
+  });
+
+  it("keeps a label ending in s whole when that is the singular: Status is crm_status", () => {
+    const s = settings();
+    const entities: Record<string, EntityDef> = {};
+    addCustomPage(s, entities, { label: "Status", sectionId: "crm", layout: "table", icon: "" }, 4);
+    expect(s.customPages![0]).toMatchObject({ entityKey: "crm_status", singular: "Status" });
+    expect(entities.crm_status.label).toBe("Status");
   });
 });
 

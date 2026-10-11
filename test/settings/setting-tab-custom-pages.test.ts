@@ -3,6 +3,7 @@ import { Notice, type FakeElement } from "../mocks/obsidian";
 import { buttonByText, optionTexts, optionValues } from "../helpers/dom";
 import { makeSettingTab, restoreEntities, snapshotEntities } from "../helpers/setting-tab";
 import { ENTITIES } from "../../src/constants/entities";
+import { CadencePromptModal } from "../../src/modals/prompt";
 
 /* Characterization tests for the Custom Navigation Pages section of
    CadenceSettingTab.display(): the page table, deleting a page (which also
@@ -15,9 +16,20 @@ import { ENTITIES } from "../../src/constants/entities";
 type Any = any;
 
 let entities: Record<string, Any>;
+/* Adding a page asks for its singular. Each prompt opened is recorded, and
+   answered at once: with `answer` when set (null cancels), else with the
+   guess it is pre-filled with. */
+let prompts: Any[];
+let answer: string | null | undefined;
 beforeEach(() => {
   Notice.messages.length = 0;
   entities = snapshotEntities();
+  prompts = [];
+  answer = undefined;
+  vi.spyOn(CadencePromptModal.prototype, "open").mockImplementation(function (this: Any) {
+    prompts.push(this);
+    this.onSubmit?.(answer === undefined ? this.defaultValue : answer);
+  });
 });
 afterEach(() => {
   restoreEntities(entities);
@@ -209,7 +221,7 @@ describe("Custom Navigation Pages: add form", () => {
       { key: "type", label: "Type", type: "text" },
     ];
     expect(plugin.settings.customPages).toEqual([
-      { id: "custom.1700000000000", label: "Products", icon: "wallet", entityKey: "crm_product", defaultLayout: "kanban", sectionId: "crm" },
+      { id: "custom.1700000000000", label: "Products", icon: "wallet", entityKey: "crm_product", defaultLayout: "kanban", sectionId: "crm", singular: "Product" },
     ]);
     expect(plugin.settings.customEntities.crm_product).toEqual(fields);
     expect(ENTITIES.crm_product).toEqual({ folder: "Cadence/Products", label: "Product", plural: "Products", fields, columns: ["name"] });
@@ -226,7 +238,7 @@ describe("Custom Navigation Pages: add form", () => {
     f.add.trigger("click");
     await vi.waitFor(() => expect(calls).toEqual(["save", "refresh", "display"]));
     expect(plugin.settings.customPages).toEqual([
-      { id: "custom.5", label: "VIP Contacts", icon: "file-text", entityKey: "planner_vip_contact", defaultLayout: "table", sectionId: "planner" },
+      { id: "custom.5", label: "VIP Contacts", icon: "file-text", entityKey: "planner_vip_contact", defaultLayout: "table", sectionId: "planner", singular: "VIP Contact" },
     ]);
     expect(plugin.settings.pageLayouts).toEqual({ "custom.5": "table" });
     expect(ENTITIES.planner_vip_contact.label).toBe("VIP Contact");
@@ -251,8 +263,8 @@ describe("Custom Navigation Pages: add form", () => {
     }
   });
 
-  it("QUIRK: any trailing s is treated as a plural ('Status' → statu, 'Class' → Clas)", async () => {
-    for (const [label, key, entityLabel] of [["Status", "crm_statu", "Statu"], ["Class", "crm_clas", "Clas"]]) {
+  it("keeps a label ending in s whole when that is the singular ('Status' → status, 'Class' → class)", async () => {
+    for (const [label, key, entityLabel] of [["Status", "crm_status", "Status"], ["Class", "crm_class", "Class"]]) {
       const { section, calls } = shown();
       const f = form(section);
       f.label.value = label;
@@ -273,6 +285,52 @@ describe("Custom Navigation Pages: add form", () => {
     await vi.waitFor(() => expect(calls).toContain("display"));
     expect(plugin.settings.customEntities.prm_product).toBe(existing);
     expect(ENTITIES.prm_product.fields).toBe(existing);
+  });
+
+  it("asks for the singular, pre-filled with a guess, before adding anything", async () => {
+    const { section } = shown();
+    const f = form(section);
+    f.label.value = " Categories ";
+    f.add.trigger("click");
+    expect(prompts).toHaveLength(1);
+    expect([prompts[0].title, prompts[0].defaultValue, prompts[0].placeholder, prompts[0].cta]).toEqual([
+      'Singular name for "Categories"', "Category", "e.g. Product", "Add Page",
+    ]);
+  });
+
+  it("registers the singular typed into the prompt: People → person", async () => {
+    answer = "Person";
+    const { section, plugin, calls } = shown();
+    const f = form(section);
+    f.label.value = "People";
+    f.section.value = "crm";
+    f.add.trigger("click");
+    await vi.waitFor(() => expect(calls).toEqual(["save", "refresh", "display"]));
+    expect(plugin.settings.customPages[0]).toMatchObject({ label: "People", entityKey: "crm_person", singular: "Person" });
+    expect(ENTITIES.crm_person).toMatchObject({ folder: "Cadence/People", label: "Person", plural: "People" });
+  });
+
+  it("adds nothing when the prompt is cancelled", async () => {
+    answer = null;
+    const { section, plugin, calls } = shown();
+    const f = form(section);
+    f.label.value = "Products";
+    f.add.trigger("click");
+    await Promise.resolve();
+    expect(prompts).toHaveLength(1);
+    expect(calls).toEqual([]);
+    expect(Notice.messages).toEqual([]);
+    expect(plugin.settings.customPages).toEqual([]);
+    expect(ENTITIES).not.toHaveProperty("planner_product");
+  });
+
+  it("refuses a blank label without asking for a singular", async () => {
+    const { section } = shown();
+    const f = form(section);
+    f.label.value = "  ";
+    f.add.trigger("click");
+    await Promise.resolve();
+    expect(prompts).toEqual([]);
   });
 
   it("refuses the same label twice, with a notice, rather than a second page on the same entity", async () => {

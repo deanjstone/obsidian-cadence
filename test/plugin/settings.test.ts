@@ -175,12 +175,24 @@ describe("loadSettings: custom entities into ENTITIES", () => {
     expect([ENTITIES.s.label, ENTITIES.s.plural, ENTITIES.s.folder]).toEqual(["S", "S", "Cadence/S"]);
   });
 
-  it("QUIRK: any trailing s is a plural (Bus → Bu)", async () => {
+  it("keeps a singular that ends in s whole (Bus stays Bus)", async () => {
     await loaded({
       customEntities: { bus: [field("name")] },
       customPages: [{ id: "a", label: "Bus", sectionId: "crm", entityKey: "bus" }],
     });
-    expect(ENTITIES.bus.label).toBe("Bu");
+    expect(ENTITIES.bus.label).toBe("Bus");
+  });
+
+  it("still loads a saved entity under the key the old rule gave it (crm_statu), and never rewrites the key", async () => {
+    const statu = [field("name"), field("colour")];
+    const page = { id: "a", label: "Status", sectionId: "crm", entityKey: "crm_statu", defaultLayout: "table" };
+    const { plugin } = await loaded({ customEntities: { crm_statu: statu }, customPages: [page] });
+    expect(ENTITIES.crm_statu).toMatchObject({ folder: "Cadence/Status", label: "Status", plural: "Status", columns: ["name"] });
+    expect(ENTITIES.crm_statu.fields).toBe(plugin.settings.customEntities.crm_statu);
+    expect(plugin.settings.customEntities.crm_statu.map((f: Any) => f.key)).toEqual(["name", "colour", "type"]);
+    expect(plugin.settings.customPages).toEqual([page]);
+    expect(ENTITIES).not.toHaveProperty("crm_status");
+    expect(plugin.settings.customEntities).not.toHaveProperty("crm_status");
   });
 
   it("uses name as the column of a custom entity with no fields", async () => {
