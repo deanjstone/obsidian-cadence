@@ -61,7 +61,7 @@ export async function renderTemplatesDashboard(view: AppViewHost, root: HTMLElem
     badge.style.padding = '3px 8px';
 
     card.createDiv({
-      text: `Target Folder: ${view.plugin.settings.dailyNoteFolder || 'daily'}/`,
+      text: view.plugin.settings.dailyNoteFolder ? `Target Folder: ${view.plugin.settings.dailyNoteFolder}/` : 'Target Folder: vault root',
       attr: { style: 'font-size: 0.8em; font-family: monospace; color: var(--text-muted); background: var(--background-secondary); padding: 4px 8px; border-radius: 4px; margin-bottom: 12px; border: 1px solid var(--background-modifier-border);' }
 });
 

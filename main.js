@@ -4744,7 +4744,10 @@ function renderEntityTable(view, parent, entityKey, filteredList, columns) {
 }
 function getEntityFiles(view, entityKey) {
   if (entityKey === "daily") {
-    const folderPath = view.plugin.settings.dailyNoteFolder || "daily";
+    const folderPath = (view.plugin.settings.dailyNoteFolder || "").replace(/\/$/, "");
+    if (!folderPath) {
+      return view.app.vault.getMarkdownFiles().filter((f) => /^\d{4}-\d{2}-\d{2}\.md$/.test(f.path));
+    }
     const folder = view.app.vault.getAbstractFileByPath(folderPath);
     if (!folder || !folder.children) return [];
     const out = [];
@@ -10481,7 +10484,7 @@ async function renderTemplatesDashboard(view, root) {
     badge.style.fontSize = "0.7em";
     badge.style.padding = "3px 8px";
     card.createDiv({
-      text: `Target Folder: ${view.plugin.settings.dailyNoteFolder || "daily"}/`,
+      text: view.plugin.settings.dailyNoteFolder ? `Target Folder: ${view.plugin.settings.dailyNoteFolder}/` : "Target Folder: vault root",
       attr: { style: "font-size: 0.8em; font-family: monospace; color: var(--text-muted); background: var(--background-secondary); padding: 4px 8px; border-radius: 4px; margin-bottom: 12px; border: 1px solid var(--background-modifier-border);" }
     });
     const desc = card.createDiv({ text: `Defines properties and sections layout for each new daily note created in the planner.`, attr: { style: "font-size: 0.85em; color: var(--text-muted); margin-bottom: 18px; flex: 1; line-height: 1.4;" } });

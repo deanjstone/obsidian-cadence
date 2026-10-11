@@ -94,10 +94,10 @@ describe("renderTemplatesDashboard: the Daily Note tile", () => {
     expect(card.children[2].text).toBe("Defines properties and sections layout for each new daily note created in the planner.");
   });
 
-  it("falls back to daily/ when the daily folder setting is blank", async () => {
+  it("names the vault root when the daily folder setting is blank, where daily notes are written", async () => {
     const { view, root } = setup([], { dailyNoteFolder: "" });
     await view.renderTemplatesDashboard(root);
-    expect(tile(root, "daily").children[1].text).toBe("Target Folder: daily/");
+    expect(tile(root, "daily").children[1].text).toBe("Target Folder: vault root");
   });
 
   it("without a template: a Default badge and one primary Enable Custom button", async () => {
