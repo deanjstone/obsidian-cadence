@@ -314,7 +314,7 @@ describe("renderCompanyDetail: meta row", () => {
     });
   });
 
-  it("a select cell writes the scalar value on change, and empty deletes", async () => {
+  it("a select cell writes on change: stage as a one-item list, others as a scalar, empty deletes", async () => {
     await withFields([{ key: "stage", label: "Stage", type: "enum", options: ["A", "B"] }], async () => {
       const { root, render, fm } = setup([{ ...ACME, frontmatter: { stage: ["B"] } }]);
       await render();
@@ -323,8 +323,8 @@ describe("renderCompanyDetail: meta row", () => {
       sel.value = "A";
       sel.trigger("change");
       await flush();
-      // QUIRK: stage is a one-item list on the generic form, a scalar here.
-      expect(fm(ACME.path)?.stage).toBe("A");
+      // Stage is a one-item list here too, as on the generic form and the template.
+      expect(fm(ACME.path)?.stage).toEqual(["A"]);
       expect(badge(root).text).toBe("Saved");
       sel.value = "";
       sel.trigger("change");

@@ -112,9 +112,11 @@ export function kanbanColumnMeta(items: Entity[], def: EntityDef): string {
 }
 
 /** What a drop writes to the group-by field: a list for multitext, tags and
-    isList fields, a `[[link]]` when the field has a link suggestion source. */
+    isList fields and for `stage` (a one-item list, as the detail form and the
+    template write it, #50), a `[[link]]` when the field has a link suggestion
+    source. */
 export function kanbanDropValue(fDef: EntityField | undefined, stage: string): string | string[] {
-  const isList = fDef && (fDef.type === 'multitext' || fDef.type === 'tags' || fDef.isList === true);
+  const isList = fDef && (fDef.type === 'multitext' || fDef.type === 'tags' || fDef.isList === true || fDef.key === 'stage');
   const isLink = fDef && fDef.suggestionSource && fDef.suggestionSource !== 'none' && fDef.suggestionSource !== 'tags' && fDef.suggestionSource !== 'history';
   if (isList) {
     return isLink ? [`[[${stage}]]`] : [stage];

@@ -245,14 +245,14 @@ describe("renderEntityList: kanban layout", () => {
     expect(col.classes).toEqual(["cad-kanban-col"]);
   });
 
-  it("QUIRK: dropping on the deal board writes a scalar stage, though deal notes store stage as a list", async () => {
+  it("dropping on the deal board writes stage as a one-item list, as deal notes store it", async () => {
     const { view, root, fm } = setup(DEALS);
     await view.renderEntityList(root, "deal");
     const col = column(root, "Won");
     col.addClass("drag-over");
     col.children[1].trigger("drop", { dataTransfer: dataTransfer({ "text/cadence-entity": ACME.path, "text/cadence-stage": "Proposal" }) });
     await flush();
-    expect(fm(ACME.path)!.stage).toBe("Won");
+    expect(fm(ACME.path)!.stage).toEqual(["Won"]);
     expect(col.classes).toEqual(["cad-kanban-col"]);
     expect(Notice.messages).toEqual(["Moved to Won"]);
   });

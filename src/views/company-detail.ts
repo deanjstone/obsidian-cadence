@@ -4,7 +4,7 @@ import { CadenceConfirmModal } from '../modals/confirm';
 import { createEntity, listEntities } from '../utils/entities';
 import {
   COMPANY_LIST_KEYS, applyFieldEdit, autoCreatesNote, chipAdd, chipConfig, chipCreation, chipLinkTarget, chipValues, chipWriteValue,
-  dateInputValue, enumCurrent, filterSuggestions, findNoteByName, folderNoteNames, historyValues, metaControl, metaInputType,
+  coerceFieldEdit, dateInputValue, enumCurrent, filterSuggestions, findNoteByName, folderNoteNames, historyValues, metaControl, metaInputType,
   metaInputValue, splitSectionColumns,
 } from '../utils/field-edit';
 import { parseH2Sections } from '../utils/parsing';
@@ -316,7 +316,7 @@ export async function renderCompanyDetail(view: AppViewHost, root: HTMLElement, 
         if (enumCurrent(current) === opt) o.selected = true;
       });
       const commit = async () => {
-        const val = sel.value || null;
+        const val = coerceFieldEdit(def, key, sel.value);
         await view.app.fileManager.processFrontMatter(file, (frontmatter) => applyFieldEdit(frontmatter, key, val));
         flashSaved();
       };
