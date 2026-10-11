@@ -143,6 +143,11 @@ export function kpiCards(data: ChartDatum[]): Array<{ accent: string; percent: n
   }));
 }
 
+/* The sum of the counts. Every style shows the empty state at 0 (#59). */
+function chartTotal(data: ChartDatum[]): number {
+  return data.reduce((sum, item) => sum + item.count, 0);
+}
+
 export function drawChart(view: AppViewHost, parent: HTMLElement, style: ChartStyle | string, data: ChartDatum[]): void {
   if (style === 'donut') view._drawDonutChart(parent, data);
   else if (style === 'bar') view._drawBarChart(parent, data);
@@ -155,7 +160,9 @@ export function drawChartEmpty(view: AppViewHost, parent: HTMLElement): void {
   el.style.cssText = 'text-align: center; padding: 16px;';
 }
 
-export function drawDonutChart(view: AppViewHost, parent: HTMLElement, data: ChartDatum[]): void {
+/* A zero-count item has no arc, so it gets no segment or legend row. */
+export function drawDonutChart(view: AppViewHost, parent: HTMLElement, allData: ChartDatum[]): void {
+  const data = allData.filter((item) => item.count > 0);
   const { total, r, circ, segments } = donutGeometry(data);
   if (total === 0) return view._drawChartEmpty(parent);
 
@@ -206,8 +213,7 @@ export function drawDonutChart(view: AppViewHost, parent: HTMLElement, data: Cha
 }
 
 export function drawBarChart(view: AppViewHost, parent: HTMLElement, data: ChartDatum[]): void {
-  const total = data.reduce((sum, item) => sum + item.count, 0);
-  if (total === 0) return view._drawChartEmpty(parent);
+  if (chartTotal(data) === 0) return view._drawChartEmpty(parent);
 
   const rows = barRows(data);
 
@@ -236,7 +242,7 @@ export function drawBarChart(view: AppViewHost, parent: HTMLElement, data: Chart
 }
 
 export function drawKpiGrid(view: AppViewHost, parent: HTMLElement, data: ChartDatum[]): void {
-  if (data.length === 0) return view._drawChartEmpty(parent);
+  if (chartTotal(data) === 0) return view._drawChartEmpty(parent);
   const cards = kpiCards(data);
 
   const grid = parent.createDiv({ cls: 'cad-stat-grid' });
@@ -259,7 +265,7 @@ export function drawKpiGrid(view: AppViewHost, parent: HTMLElement, data: ChartD
 }
 
 export function drawSimpleList(view: AppViewHost, parent: HTMLElement, data: ChartDatum[]): void {
-  if (data.length === 0) return view._drawChartEmpty(parent);
+  if (chartTotal(data) === 0) return view._drawChartEmpty(parent);
 
   const list = parent.createDiv({ cls: 'cad-simple-list' });
   list.style.cssText = 'display: flex; flex-direction: column; gap: 6px; padding: 8px 0;';

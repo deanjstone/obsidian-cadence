@@ -4537,6 +4537,9 @@ function kpiCards(data) {
     percent: total === 0 ? 0 : Math.round(item.count / total * 100)
   }));
 }
+function chartTotal(data) {
+  return data.reduce((sum, item) => sum + item.count, 0);
+}
 function drawChart(view, parent, style, data) {
   if (style === "donut") view._drawDonutChart(parent, data);
   else if (style === "bar") view._drawBarChart(parent, data);
@@ -4547,7 +4550,8 @@ function drawChartEmpty(view, parent) {
   const el = parent.createDiv({ cls: "cad-empty", text: "No data" });
   el.style.cssText = "text-align: center; padding: 16px;";
 }
-function drawDonutChart(view, parent, data) {
+function drawDonutChart(view, parent, allData) {
+  const data = allData.filter((item) => item.count > 0);
   const { total, r, circ, segments } = donutGeometry(data);
   if (total === 0) return view._drawChartEmpty(parent);
   const container = parent.createDiv({ cls: "cad-donut-chart-container" });
@@ -4593,8 +4597,7 @@ function drawDonutChart(view, parent, data) {
   });
 }
 function drawBarChart(view, parent, data) {
-  const total = data.reduce((sum, item) => sum + item.count, 0);
-  if (total === 0) return view._drawChartEmpty(parent);
+  if (chartTotal(data) === 0) return view._drawChartEmpty(parent);
   const rows = barRows(data);
   const bars = parent.createDiv({ cls: "cad-stage-bars" });
   bars.style.cssText = "padding: 12px 0; display: flex; flex-direction: column; gap: 8px;";
@@ -4615,7 +4618,7 @@ function drawBarChart(view, parent, data) {
   });
 }
 function drawKpiGrid(view, parent, data) {
-  if (data.length === 0) return view._drawChartEmpty(parent);
+  if (chartTotal(data) === 0) return view._drawChartEmpty(parent);
   const cards = kpiCards(data);
   const grid = parent.createDiv({ cls: "cad-stat-grid" });
   grid.style.cssText = "grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; padding: 12px 0; margin: 0;";
@@ -4632,7 +4635,7 @@ function drawKpiGrid(view, parent, data) {
   });
 }
 function drawSimpleList(view, parent, data) {
-  if (data.length === 0) return view._drawChartEmpty(parent);
+  if (chartTotal(data) === 0) return view._drawChartEmpty(parent);
   const list = parent.createDiv({ cls: "cad-simple-list" });
   list.style.cssText = "display: flex; flex-direction: column; gap: 6px; padding: 8px 0;";
   data.forEach((item) => {
