@@ -450,8 +450,8 @@ export function planEntityLinks(
       if (extras[key]) {
         const rawVal = extras[key];
         const parts = Array.isArray(rawVal) ? rawVal.map(String) : String(rawVal).split(',');
-        // QUIRK (kept): brackets are stripped before trimming, so " [[Bob]]" becomes "[[Bob".
-        const names = parts.map(n => n.replace(/^\[\[|\]\]$/g, '').trim()).filter(Boolean);
+        // Trim before stripping the brackets, so " [[Bob]]" is "Bob" (#45).
+        const names = parts.map(n => n.trim().replace(/^\[\[|\]\]$/g, '').trim()).filter(Boolean);
         extras[key] = names.map(n => `[[${n}]]`);
 
         // An entity:<key> source names the entity <key>, not a folder called entity:<key> (#45).

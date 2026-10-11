@@ -43,9 +43,9 @@ describe("planEntityLinks", () => {
     expect(links).toEqual([{ name: "Initech", creationSource: "folder:cadence/companies//", label: "Company" }]);
   });
 
-  it("QUIRK: strips brackets before trimming, so ' [[Bob]]' stays '[[Bob'", () => {
+  it("trims before stripping brackets, so ' [[Bob]]' is 'Bob'", () => {
     const { extras, links } = planEntityLinks(ENTITIES.deal, {}, { contact: "Ann, [[Bob]]" });
-    expect(extras.contact).toEqual(["[[Ann]]", "[[[[Bob]]"]);
-    expect(links.map((l) => l.name)).toEqual(["Ann", "[[Bob"]);
+    expect(extras.contact).toEqual(["[[Ann]]", "[[Bob]]"]);
+    expect(links.map((l) => l.name)).toEqual(["Ann", "Bob"]);
   });
 });

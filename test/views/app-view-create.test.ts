@@ -116,12 +116,11 @@ describe("CadenceAppView _createEntityFromPrompt", () => {
     expect(render).toHaveBeenCalledTimes(1);
   });
 
-  it("QUIRK: a comma-separated link with a space before [[ keeps its brackets and auto-creates [[Name", async () => {
+  it("a comma-separated link with a space before [[ links the existing note and creates no [[Name", async () => {
     const { app, fm } = await submit("deal", { name: "D", values: { contact: "Ann, [[Bob]]" } }, { files: [{ path: "Cadence/Contacts/Bob.md" }] });
-    // Brackets are stripped before the space is trimmed, so " [[Bob]]" becomes "[[Bob".
-    expect(app.vault.created).toEqual(["Cadence/Pipeline/D.md", "Cadence/Contacts/Ann.md", "Cadence/Contacts/[[Bob.md"]);
-    expect(Notice.messages.slice(0, 2)).toEqual(["Created new Contact: Ann", "Created new Contact: [[Bob"]);
-    expect(fm("Cadence/Pipeline/D.md")!.contact).toEqual(["[[Ann]]", "[[[[Bob]]"]);
+    expect(app.vault.created).toEqual(["Cadence/Pipeline/D.md", "Cadence/Contacts/Ann.md"]);
+    expect(Notice.messages.slice(0, 2)).toEqual(["Created new Contact: Ann", "Created Deal: D\nSaved to Cadence/Pipeline/D.md"]);
+    expect(fm("Cadence/Pipeline/D.md")!.contact).toEqual(["[[Ann]]", "[[Bob]]"]);
   });
 
   it("uses a default for a field the modal left out, and links only fields with an entity or folder source", async () => {
