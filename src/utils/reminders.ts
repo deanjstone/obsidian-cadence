@@ -5,6 +5,14 @@ export function reminderId(): string { return 'rem_' + Math.random().toString(36
 
 export function isRepeating(repeat?: string): boolean { return repeat === 'daily' || repeat === 'weekly'; }
 
+/** A reminder's repeat badge: `↻ daily` or `↻ weekly`, the two repeats the
+    engine runs (isRepeating). Any other value never repeats, so it has no
+    badge, on Home or in the Inbox (#55). */
+export function repeatLabel(repeat: string | null | undefined): string | null {
+  if (!repeat || !isRepeating(repeat)) return null;
+  return `↻ ${repeat}`;
+}
+
 export function nextRepeat(when: DateInput | null | undefined, repeat?: string): Date | null {
   if (!when) return null;
   const d = when instanceof Date ? when : new Date(when);

@@ -1715,6 +1715,10 @@ function reminderId() {
 function isRepeating(repeat) {
   return repeat === "daily" || repeat === "weekly";
 }
+function repeatLabel(repeat) {
+  if (!repeat || !isRepeating(repeat)) return null;
+  return `\u21BB ${repeat}`;
+}
 function nextRepeat(when, repeat) {
   if (!when) return null;
   const d = when instanceof Date ? when : new Date(when);
@@ -7235,7 +7239,8 @@ function selectInboxCard(allReminders, now) {
 function inboxRowMeta(r, projectName) {
   const metaBits = [];
   if (r.project) metaBits.push(`\u{1F4C1} ${projectName(r.project) || "project"}`);
-  if (r.repeat && r.repeat !== "none") metaBits.push(r.repeat === "daily" ? "\u21BB daily" : "\u21BB weekly");
+  const repeat = repeatLabel(r.repeat);
+  if (repeat) metaBits.push(repeat);
   if (r.notes) {
     const firstLine = String(r.notes).split("\n").find((l) => l.trim()) || "";
     if (firstLine) metaBits.push(`\u{1F4DD} ${firstLine.length > 60 ? firstLine.slice(0, 57) + "\u2026" : firstLine}`);
@@ -7746,10 +7751,6 @@ async function renderProjectTasksSection(view, root) {
       row.addEventListener("click", () => view.openEntityDetail("project", g.file));
     });
   });
-}
-function repeatLabel(repeat) {
-  if (!repeat || repeat === "none") return null;
-  return repeat === "daily" ? "\u21BB daily" : "\u21BB weekly";
 }
 function notesPreview(notes) {
   if (!notes) return "";

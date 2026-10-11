@@ -9,7 +9,7 @@ import {
 } from '../utils/entities';
 import { fmtValue, pctBand } from '../utils/format';
 import { parseLinkValues, parseSections } from '../utils/parsing';
-import { reminderTimeStr } from '../utils/reminders';
+import { reminderTimeStr, repeatLabel } from '../utils/reminders';
 import { listTaskNotesTasks, toggleTaskNotesTask } from '../utils/tasknotes';
 import type { Entity, ProjectMeta, TaskNotesTask } from '../types/entities';
 import type { Reminder } from '../types/reminders';
@@ -410,7 +410,8 @@ export function selectInboxCard(allReminders: Reminder[] | undefined, now: Date)
 export function inboxRowMeta(r: Reminder, projectName: (path: string) => string | null): string[] {
   const metaBits: string[] = [];
   if (r.project) metaBits.push(`📁 ${projectName(r.project) || 'project'}`);
-  if (r.repeat && r.repeat !== 'none') metaBits.push(r.repeat === 'daily' ? '↻ daily' : '↻ weekly');
+  const repeat = repeatLabel(r.repeat);
+  if (repeat) metaBits.push(repeat);
   if (r.notes) {
     const firstLine = String(r.notes).split('\n').find((l) => l.trim()) || '';
     if (firstLine) metaBits.push(`📝 ${firstLine.length > 60 ? firstLine.slice(0, 57) + '…' : firstLine}`);

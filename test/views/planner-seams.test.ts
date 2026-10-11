@@ -95,9 +95,9 @@ describe("Inbox row seams", () => {
     expect(projectTasksHeading(5, 2)).toBe("PROJECT TASKS · 5 open across 2 projects");
   });
 
-  it("repeatLabel: none, daily, and everything else weekly", () => {
+  it("repeatLabel: daily and weekly; anything else never repeats and has no label", () => {
     expect([null, undefined, "", "none", "daily", "weekly", "monthly"].map((r) => repeatLabel(r))).toEqual([
-      null, null, null, null, "↻ daily", "↻ weekly", "↻ weekly",
+      null, null, null, null, "↻ daily", "↻ weekly", null,
     ]);
   });
 

@@ -201,10 +201,11 @@ describe("inboxRowMeta", () => {
     ]);
   });
 
-  it("falls back to 'project', reads any other repeat as weekly, and skips blank notes", () => {
+  it("falls back to 'project', shows no repeat for one that never repeats, and skips blank notes", () => {
     expect(inboxRowMeta(reminder("r", null, { project: "gone.md", repeat: "monthly", notes: "  \n " }), name)).toEqual([
-      "📁 project", "↻ weekly",
+      "📁 project",
     ]);
+    expect(inboxRowMeta(reminder("r", null, { repeat: "weekly" }), name)).toEqual(["↻ weekly"]);
     expect(inboxRowMeta(reminder("r", null), name)).toEqual([]);
   });
 });

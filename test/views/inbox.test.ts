@@ -224,14 +224,14 @@ describe("_renderInboxRow", () => {
     expect(opened.map((m) => m.reminder)).toEqual([r]);
   });
 
-  it("labels the repeat; QUIRK: any repeat but none or daily reads weekly", () => {
+  it("labels a daily or weekly repeat; any other value never repeats and shows none", () => {
     const { view } = setup();
     const repeat = (value: string) =>
       row(view, reminder("a", "2026-10-10T15:00:00Z", { repeat: value })).left.querySelectorAll(".cad-inbox-repeat").map((s) => s.text);
     expect(repeat("none")).toEqual([]);
     expect(repeat("daily")).toEqual(["↻ daily"]);
     expect(repeat("weekly")).toEqual(["↻ weekly"]);
-    expect(repeat("monthly")).toEqual(["↻ weekly"]);
+    expect(repeat("monthly")).toEqual([]);
     expect(repeat("")).toEqual([]);
   });
 

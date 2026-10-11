@@ -3,7 +3,7 @@ import { CadenceConfirmModal } from '../modals/confirm';
 import { CadenceReminderEditModal } from '../modals/reminder-edit';
 import { listEntityFiles, projectNameFromPath } from '../utils/entities';
 import { parseH2Sections, parseTasksList } from '../utils/parsing';
-import { findProjectTaskReminder, reminderBucket, reminderTimeStr } from '../utils/reminders';
+import { findProjectTaskReminder, reminderBucket, reminderTimeStr, repeatLabel } from '../utils/reminders';
 import type { Reminder, ReminderBucket } from '../types/reminders';
 import type { TaskItem } from '../utils/parsing';
 import type { AppViewHost } from './host';
@@ -163,11 +163,8 @@ export async function renderProjectTasksSection(view: AppViewHost, root: HTMLEle
   });
 }
 
-/** The repeat badge for a scheduled item; any repeat but none or daily reads weekly. */
-export function repeatLabel(repeat: string | null | undefined): string | null {
-  if (!repeat || repeat === 'none') return null;
-  return repeat === 'daily' ? '↻ daily' : '↻ weekly';
-}
+/* Moved to src/utils/reminders.ts, where Home shares it. */
+export { repeatLabel } from '../utils/reminders';
 
 /** The first non-blank notes line, cut to 117 characters plus '…' past 120. */
 export function notesPreview(notes: string | null | undefined): string {

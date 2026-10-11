@@ -214,15 +214,15 @@ describe("_homeInboxCard", () => {
     expect(rowTexts(card(parent).body)).toEqual([
       ["unscheduled", "A", `📁 Website relaunch  ·  ↻ daily  ·  📝 ${"n".repeat(57)}…`],
       ["unscheduled", "B", "📁 Old plan  ·  ↻ weekly  ·  📝 short"],
-      ["unscheduled", "C", "↻ weekly"],
+      ["unscheduled", "C"],
       ["unscheduled", "D", `📝 ${"n".repeat(60)}`],
     ]);
   });
 
-  it("QUIRK: any repeat other than none or daily reads as weekly", async () => {
+  it("shows no repeat for a value other than daily or weekly, which never repeats", async () => {
     const { view, parent } = setup([], { reminders: [reminder("C", null, { repeat: "monthly" })] });
     await view._homeInboxCard(parent);
-    expect(rowTexts(card(parent).body)).toEqual([["unscheduled", "C", "↻ weekly"]]);
+    expect(rowTexts(card(parent).body)).toEqual([["unscheduled", "C"]]);
   });
 
   it("opens the reminder editor on the reminder object itself when a row is clicked", async () => {
