@@ -90,7 +90,7 @@ describe("renderPRMAnalytics: layout and stats", () => {
       ["sky", "PARTNERS", "5", "on the books"],
       ["mint", "SOURCED DEALS", "8", cur(4520)],
       ["emerald", "PARTNER REVENUE", cur(4020), "5 won"],
-      ["warn", "PARTNER SHARE", "47%", "of total pipeline value"],
+      ["warn", "PARTNER SHARE", "47%", "of total deal value"],
     ]);
   });
 
@@ -101,7 +101,7 @@ describe("renderPRMAnalytics: layout and stats", () => {
       ["sky", "PARTNERS", "0", "on the books"],
       ["mint", "SOURCED DEALS", "0", cur(0)],
       ["emerald", "PARTNER REVENUE", cur(0), "0 won"],
-      ["warn", "PARTNER SHARE", "0%", "of total pipeline value"],
+      ["warn", "PARTNER SHARE", "0%", "of total deal value"],
     ]);
     expect(root.children.map((c) => c.classes)).toEqual([["cad-page-header"], ["cad-stat-grid"], ["cad-dash-cols"], [], ["cad-dash-cols"]]);
   });
@@ -190,35 +190,36 @@ describe("renderPRMAnalytics: funnel and conversion", () => {
     ]);
   });
 
-  it("shows won over sourced as a progress bar banded by pctBand", async () => {
+  it("shows won over closed partner deals as a progress bar banded by pctBand, leaving open deals out", async () => {
     const { view, root } = setup(ALL);
     await view.renderPRMAnalytics(root);
     const card = convCard(root);
-    expect(card.children[0].children[0].text).toBe("CONVERSION · sourced → won");
+    expect(card.children[0].children[0].text).toBe("CONVERSION · closed → won");
     const body = card.children[1];
     expect([body.classes, body.style.padding]).toEqual([["cad-dash-card-body"], "20px 16px"]);
     const wrap = body.children[0];
-    expect([wrap.classes, wrap.dataset.pctBand]).toEqual([["cad-proj-progress-wrap"], pctBand(63)]);
+    // Closed: D1, D2, D3, D6 and D9 won, D5 lost. D4 and D10 are open.
+    expect([wrap.classes, wrap.dataset.pctBand]).toEqual([["cad-proj-progress-wrap"], pctBand(83)]);
     expect(wrap.children[0].children.map((s) => [s.classes, s.text])).toEqual([
-      [[], "5/8 sourced deals won"],
-      [["cad-proj-progress-pct"], "63%"],
+      [[], "5/6 closed partner deals won"],
+      [["cad-proj-progress-pct"], "83%"],
     ]);
-    expect(wrap.children[1].children[0].style.width).toBe("63%");
+    expect(wrap.children[1].children[0].style.width).toBe("83%");
   });
 
-  it("rounds the conversion, and shows 0% with nothing sourced", async () => {
-    const files = [deal("A", { stage: "Won", partner: "X" }), deal("B", { partner: "X" }), deal("C", { partner: "X" })];
+  it("rounds the conversion, and shows 0% with nothing closed", async () => {
+    const files = [deal("A", { stage: "Won", partner: "X" }), deal("B", { stage: "Lost", partner: "X" }), deal("C", { stage: "Lost", partner: "X" }), deal("D", { partner: "X" })];
     const { view, root } = setup(files);
     await view.renderPRMAnalytics(root);
     expect(convCard(root).children[1].children[0].children[0].children[1].text).toBe("33%");
-    const twoOfThree = setup([deal("A", { stage: "Won", partner: "X" }), deal("B", { stage: "Won", partner: "X" }), deal("C", { partner: "X" })]);
+    const twoOfThree = setup([deal("A", { stage: "Won", partner: "X" }), deal("B", { stage: "Won", partner: "X" }), deal("C", { stage: "Lost", partner: "X" })]);
     await twoOfThree.view.renderPRMAnalytics(twoOfThree.root);
     expect(convCard(twoOfThree.root).children[1].children[0].children[0].children[1].text).toBe("67%");
-    const empty = setup([]);
+    const empty = setup([deal("A", { stage: "Lead", partner: "X" })]);
     await empty.view.renderPRMAnalytics(empty.root);
     const wrap = convCard(empty.root).children[1].children[0];
     expect([wrap.dataset.pctBand, wrap.children[0].children[0].text, wrap.children[1].children[0].style.width]).toEqual([
-      pctBand(0), "0/0 sourced deals won", "0%",
+      pctBand(0), "0/0 closed partner deals won", "0%",
     ]);
   });
 });

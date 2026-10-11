@@ -32,7 +32,7 @@ describe("prmAnalytics", () => {
         { label: "PARTNERS", value: 3, sub: "on the books", accent: "sky" },
         { label: "SOURCED DEALS", value: 4, sub: cur(475), accent: "mint" },
         { label: "PARTNER REVENUE", value: cur(400), sub: "2 won", accent: "emerald" },
-        { label: "PARTNER SHARE", value: "32%", sub: "of total pipeline value", accent: "warn" },
+        { label: "PARTNER SHARE", value: "32%", sub: "of total deal value", accent: "warn" },
       ],
       tiers: [
         { label: "GOLD", value: "1", accent: "warn", sub: cur(100) },
@@ -49,7 +49,7 @@ describe("prmAnalytics", () => {
         { label: "WON", value: "2", sub: cur(400), accent: "emerald" },
         { label: "LOST", value: "1", sub: cur(50), accent: "rose" },
       ],
-      conversion: { won: 2, sourced: 4, pct: 50, band: pctBand(50) },
+      conversion: { won: 2, closed: 3, pct: 67, band: pctBand(67) },
     });
   });
 
@@ -57,7 +57,7 @@ describe("prmAnalytics", () => {
     const empty = prmAnalytics([], []);
     expect(empty.stats.map((s) => s.value)).toEqual([0, 0, cur(0), "0%"]);
     expect([empty.tiers, empty.topPartners]).toEqual([[], []]);
-    expect(empty.conversion).toEqual({ won: 0, sourced: 0, pct: 0, band: pctBand(0) });
+    expect(empty.conversion).toEqual({ won: 0, closed: 0, pct: 0, band: pctBand(0) });
   });
 
   it("sorts tiers by count, keeping first-seen order on ties, with sky for a tier off the accent list", () => {

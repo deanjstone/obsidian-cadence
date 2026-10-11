@@ -7966,14 +7966,15 @@ function prmAnalytics(partners, deals, defs = { partner: ENTITIES.partner, deal:
       tierValueMap.set(tier, (tierValueMap.get(tier) || 0) + dealValue(d, dealDef));
     });
   });
-  const conv = partnerSourced.length === 0 ? 0 : Math.round(partnerWon.length / partnerSourced.length * 100);
+  const closed = partnerWon.length + sourcedLost.length;
+  const conv = closed === 0 ? 0 : Math.round(partnerWon.length / closed * 100);
   const currency = (value) => fmtValue(value, "currency");
   return {
     stats: [
       { label: "PARTNERS", value: partners.length, sub: "on the books", accent: "sky" },
       { label: "SOURCED DEALS", value: partnerSourced.length, sub: currency(sourcedValue), accent: "mint" },
       { label: "PARTNER REVENUE", value: currency(wonValue), sub: `${partnerWon.length} won`, accent: "emerald" },
-      { label: "PARTNER SHARE", value: `${sharePct}%`, sub: "of total pipeline value", accent: "warn" }
+      { label: "PARTNER SHARE", value: `${sharePct}%`, sub: "of total deal value", accent: "warn" }
     ],
     tiers: [...tierMap.entries()].sort((a, b) => b[1] - a[1]).map(([tier, count]) => {
       const value = tierValueMap.get(tier) || 0;
@@ -7986,7 +7987,7 @@ function prmAnalytics(partners, deals, defs = { partner: ENTITIES.partner, deal:
       { label: "WON", value: String(partnerWon.length), sub: currency(wonValue), accent: "emerald" },
       { label: "LOST", value: String(sourcedLost.length), sub: currency(lostValue), accent: "rose" }
     ],
-    conversion: { won: partnerWon.length, sourced: partnerSourced.length, pct: conv, band: pctBand(conv) }
+    conversion: { won: partnerWon.length, closed, pct: conv, band: pctBand(conv) }
   };
 }
 function isTeamMember(entity, def = ENTITIES.contact) {
@@ -8038,15 +8039,15 @@ async function renderPRMAnalytics(view, root) {
   const funnelCard = right.createDiv({ cls: "cad-dash-card" });
   funnelCard.createDiv({ cls: "cad-dash-card-head" }).createDiv({ cls: "cad-dash-card-title", text: "PARTNER FUNNEL" });
   drawMiniStats(funnelCard.createDiv({ cls: "cad-dash-card-body cad-mini-stat-row" }), report.funnel);
-  const { won, sourced, pct: conv, band } = report.conversion;
+  const { won, closed, pct: conv, band } = report.conversion;
   const convCard = right.createDiv({ cls: "cad-dash-card" });
-  convCard.createDiv({ cls: "cad-dash-card-head" }).createDiv({ cls: "cad-dash-card-title", text: `CONVERSION \xB7 sourced \u2192 won` });
+  convCard.createDiv({ cls: "cad-dash-card-head" }).createDiv({ cls: "cad-dash-card-title", text: `CONVERSION \xB7 closed \u2192 won` });
   const convBody = convCard.createDiv({ cls: "cad-dash-card-body" });
   convBody.style.padding = "20px 16px";
   const convWrap = convBody.createDiv({ cls: "cad-proj-progress-wrap" });
   convWrap.dataset.pctBand = band;
   const convLabel = convWrap.createDiv({ cls: "cad-proj-progress-label" });
-  convLabel.createSpan({ text: `${won}/${sourced} sourced deals won` });
+  convLabel.createSpan({ text: `${won}/${closed} closed partner deals won` });
   convLabel.createSpan({ cls: "cad-proj-progress-pct", text: `${conv}%` });
   const convBar = convWrap.createDiv({ cls: "cad-proj-progress-bar" });
   const convFill = convBar.createDiv({ cls: "cad-proj-progress-fill" });
