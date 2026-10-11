@@ -392,7 +392,7 @@ describe("Custom Entity Properties: type", () => {
     expect(optionTexts(t.type)).toEqual(["Text", "Select (Enum)"]);
   });
 
-  it("changes the type, migrating this entity's notes and every other entity sharing the key, then redraws", async () => {
+  it("changes the type, migrating only this entity's notes, then redraws", async () => {
     addVendor([{ key: "region", label: "Region" }]);
     const files = [
       { path: "Cadence/Vendors/V.md", frontmatter: { region: "EU, APAC" } },
@@ -404,27 +404,26 @@ describe("Custom Entity Properties: type", () => {
     r.type.trigger("change");
     await vi.waitFor(() => expect(made.calls).toEqual(["save", "register", "refresh"]));
     expect(ENTITIES.crm_vendor.fields[2].type).toBe("multitext");
-    expect(ENTITIES.partner.fields[4]).toEqual({ key: "region", label: "Region", type: "multitext" });
+    expect(ENTITIES.partner.fields[4]).toEqual({ key: "region", label: "Region" });
     const fm = (path: string) => made.app.metadataCache.getFileCache(made.app.vault.getAbstractFileByPath(path) as Any)?.frontmatter;
-    expect([fm("Cadence/Vendors/V.md"), fm("Cadence/Partners/P.md")]).toEqual([{ region: ["EU", "APAC"] }, { region: ["US"] }]);
-    expect(Notice.messages).toEqual([
-      'Migrated 1 files for field "region" to type "multitext".',
-      'Migrated 1 files for field "region" to type "multitext".',
-    ]);
+    expect([fm("Cadence/Vendors/V.md"), fm("Cadence/Partners/P.md")]).toEqual([{ region: ["EU", "APAC"] }, { region: "US" }]);
+    expect(Notice.messages).toEqual(['Migrated 1 files for field "region" to type "multitext".']);
     expect(row(made.editor(), "region").type.value).toBe("multitext");
   });
 
-  it("QUIRK: other entities migrate from this field's old type, not their own", async () => {
+  it("other entities' same-key fields keep their type, and their notes are not migrated", async () => {
     addVendor([{ key: "steps", label: "Steps", type: "text" }]);
-    const files = [{ path: "Cadence/Sequences/S.md", frontmatter: { steps: 3 } }];
+    const files = [{ path: "Cadence/Sequences/S.md", frontmatter: { steps: "3 steps" } }];
     const made = shown({ files, entity: "crm_vendor" });
     const r = row(made.editor(), "steps");
-    r.type.value = "text";
-    r.type.value = "number";
+    r.type.value = "date";
     r.type.trigger("change");
     await vi.waitFor(() => expect(made.calls).toHaveLength(3));
-    expect(ENTITIES.sequence.fields[2].type).toBe("number");
-    expect(Notice.messages).toEqual(['Migrated 1 files for field "steps" to type "number".']);
+    expect(ENTITIES.crm_vendor.fields[2].type).toBe("date");
+    expect(ENTITIES.sequence.fields[2]).toEqual({ key: "steps", label: "Steps", type: "number" });
+    const fm = made.app.metadataCache.getFileCache(made.app.vault.getAbstractFileByPath("Cadence/Sequences/S.md") as Any)?.frontmatter;
+    expect(fm).toEqual({ steps: "3 steps" });
+    expect(Notice.messages).toEqual([]);
   });
 
   it("changes an unlocked `type` field without touching other entities' type fields", async () => {

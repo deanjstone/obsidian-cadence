@@ -89,35 +89,6 @@ export function snapshotCustomEntities(settings: SettingTabSettings, entities: R
   }
 }
 
-/* Give `target` the label, type, options (copied) and suggestion source of
-   `source`, deleting what `source` lacks. */
-export function copyPropertyShape(target: EntityField, source: EntityField): void {
-  target.label = source.label;
-  target.type = source.type;
-  if (source.options) {
-    target.options = JSON.parse(JSON.stringify(source.options));
-  } else {
-    delete target.options;
-  }
-  if (source.suggestionSource) {
-    target.suggestionSource = source.suggestionSource;
-  } else {
-    delete target.suggestionSource;
-  }
-}
-
-/* Every other entity's field with the same key takes this field's shape.
-   `type` fields are never synced. Flagged quirk: so relabelling the
-   project's status also overwrites every other status field's options. */
-export function syncSharedProperties(entities: Record<string, EntityDef>, sourceField: EntityField): void {
-  if (sourceField.key === 'type') return; // Do NOT sync 'type' properties across entities!
-  for (const ent of Object.values(entities)) {
-    ent.fields.forEach(f => {
-      if (f.key === sourceField.key && f !== sourceField) copyPropertyShape(f, sourceField);
-    });
-  }
-}
-
 /* The key input's suggestions: every entity's field keys, then the keys of
    the given notes' frontmatter (except Obsidian's `position`), in first-seen
    order. The tab passes up to 200 notes. */
@@ -335,21 +306,8 @@ export function applyPropertyEdit(entities: Record<string, EntityDef>, entityKey
       const { field } = edit;
       const oldType = field.type || 'text';
       const newType = edit.value;
-      // Migrate current selected entity files
       migrations.push({ kind: 'type', entityKey, fieldKey: field.key, oldType, newType });
-      // Migrate files and update types for any other entity sharing this key
-      if (field.key !== 'type') {
-        for (const [ek, ent] of Object.entries(entities)) {
-          if (ek === entityKey) continue;
-          const targetField = ent.fields.find(f => f.key === field.key);
-          if (targetField) {
-            migrations.push({ kind: 'type', entityKey: ek, fieldKey: field.key, oldType, newType });
-            targetField.type = newType;
-          }
-        }
-      }
       field.type = newType;
-      syncSharedProperties(entities, field);
       return { ok: true, migrations, rerender: true };
     }
     case 'remove': {

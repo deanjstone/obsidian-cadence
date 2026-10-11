@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from "vitest";
 import { createMockApp, SuggestModal, TFile } from "../mocks/obsidian";
 import {
   applyPropertyEdit,
-  copyPropertyShape,
   entityPickerLabel,
   entityPickerOptions,
   fieldKeySuggestions,
@@ -21,14 +20,13 @@ import {
   sanitizeFieldKey,
   snapshotCustomEntities,
   sourceState,
-  syncSharedProperties,
   vaultFolderPaths,
 } from "../../src/settings/entity-properties";
 import type { EntityDef, EntityField } from "../../src/types/entities";
 import type { SettingTabSettings } from "../../src/types/settings";
 
 /* Direct tests for the property-editor seams over a plain registry: locks,
-   syncing, the key/type/label/options/source/lock/remove/add/move edits
+   the snapshot, the key/type/label/options/source/lock/remove/add/move edits
    and the migrations they return, the cell helpers, and the named folder
    picker. */
 
@@ -99,7 +97,7 @@ describe("locks", () => {
   });
 });
 
-describe("snapshot and sync", () => {
+describe("snapshot", () => {
   it("copies every entity's fields deeply into customEntities", () => {
     const s = settings();
     const r = registry();
@@ -108,25 +106,6 @@ describe("snapshot and sync", () => {
     expect(s.customEntities!.partner).toEqual(r.partner.fields);
     expect(s.customEntities!.partner[1]).not.toBe(r.partner.fields[1]);
     expect(s.customEntities!.partner[1].options).not.toBe(r.partner.fields[1].options);
-  });
-
-  it("copies label, type, options and source, deleting what the source lacks", () => {
-    const target: EntityField = { key: "a", label: "Old", type: "enum", options: ["o"], suggestionSource: "tags", locked: true };
-    copyPropertyShape(target, { key: "b", label: "New" });
-    expect(target).toEqual({ key: "a", label: "New", type: undefined, locked: true });
-    const options = ["p"];
-    copyPropertyShape(target, { key: "b", label: "L", type: "enum", options, suggestionSource: "none" });
-    expect(target).toMatchObject({ type: "enum", options: ["p"], suggestionSource: "none" });
-    expect(target.options).not.toBe(options);
-  });
-
-  it("syncs every other same-key field but never a type field", () => {
-    const r = registry();
-    syncSharedProperties(r, r.vendor.fields[2]);
-    expect(r.partner.fields[1]).toEqual({ key: "region", label: "Region", type: undefined });
-    expect(r.deal.fields[2]).toEqual({ key: "region", label: "Region", type: undefined });
-    syncSharedProperties(r, r.vendor.fields[1]);
-    expect(r.partner.fields[2].label).toBe("Kind");
   });
 });
 
@@ -276,19 +255,17 @@ describe("applyPropertyEdit", () => {
     expect(field.key).toBe("remarks");
   });
 
-  it("changes a type here and in every entity sharing the key, migrating each from this field's old type", () => {
+  it("changes a type in this entity only, migrating from its own old type", () => {
     const r = registry();
+    const others = structuredClone([r.partner, r.deal]);
     const field = r.vendor.fields[2];
     expect(applyPropertyEdit(r, "vendor", { kind: "type", field, value: "date" })).toEqual({
       ok: true,
-      migrations: [
-        { kind: "type", entityKey: "vendor", fieldKey: "region", oldType: "text", newType: "date" },
-        { kind: "type", entityKey: "partner", fieldKey: "region", oldType: "text", newType: "date" },
-        { kind: "type", entityKey: "deal", fieldKey: "region", oldType: "text", newType: "date" },
-      ],
+      migrations: [{ kind: "type", entityKey: "vendor", fieldKey: "region", oldType: "text", newType: "date" }],
       rerender: true,
     });
-    expect([field.type, r.partner.fields[1].type, r.deal.fields[2].type]).toEqual(["date", "date", "date"]);
+    expect(field).toEqual({ key: "region", label: "Region", type: "date" });
+    expect([r.partner, r.deal]).toEqual(others);
   });
 
   it("changes a type field's type alone", () => {
