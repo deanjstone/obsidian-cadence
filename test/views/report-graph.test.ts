@@ -33,7 +33,7 @@ class FakeResizeObserver {
   }
 }
 
-function setup(files: MockFileSpec[] = [], opts: { links?: Any; random?: number[]; dpr?: number } = {}) {
+function setup(files: MockFileSpec[] = [], opts: { links?: Any; random?: number[]; dpr?: number; theme?: Record<string, string> } = {}) {
   const made = makeAppView({ files });
   made.view.mode = "reports.graph";
   made.app.metadataCache.resolvedLinks = "links" in opts ? opts.links : {};
@@ -46,10 +46,16 @@ function setup(files: MockFileSpec[] = [], opts: { links?: Any; random?: number[
   FakeResizeObserver.made = [];
   vi.stubGlobal("ResizeObserver", FakeResizeObserver);
   vi.stubGlobal("devicePixelRatio", opts.dpr ?? 2);
+  /* The theme's custom properties, as getComputedStyle reports them on the
+     graph card. None by default, so every colour takes its fallback. */
+  const theme: Record<string, string> = { ...opts.theme };
+  vi.stubGlobal("getComputedStyle", (el: FakeElement) => ({
+    getPropertyValue: (name: string) => (el.localName === "div" && el.classes.includes("cad-home-card") ? theme[name] ?? "" : ""),
+  }));
   const root = new FakeElement("div");
   const opened = vi.spyOn(made.view, "openEntityDetail").mockResolvedValue(undefined);
   const file = (path: string) => made.app.vault.getAbstractFileByPath(path);
-  return { ...made, root, frames, raf, opened, file };
+  return { ...made, root, frames, raf, opened, file, theme };
 }
 
 async function rendered(files: MockFileSpec[] = [], opts: Parameters<typeof setup>[1] = {}) {
@@ -204,8 +210,8 @@ describe("renderReportGraph: nodes and edges", () => {
     const fills = drawn.filter((o, i) => o[0] === "fillStyle=" && drawn[i + 1]?.[0] === "fill").map((o) => o[1]);
     expect(ops(drawn, "arc").map((o) => o[3])).toEqual([5, 7, 5, 5, 6.5, 5, 5, 5, 5]);
     expect(fills).toEqual([
-      "var(--graph-node-resolved, #f59e0b)", "#0ea5e9", "#ec4899", "#10b981", "#8b5cf6", "#64748b", "#a855f7",
-      "#14b8a6", "var(--graph-node, #94a3b8)",
+      "#f59e0b", "#0ea5e9", "#ec4899", "#10b981", "#8b5cf6", "#64748b", "#a855f7",
+      "#14b8a6", "#94a3b8",
     ]);
     expect(ops(drawn, "fillText").map((o) => o[1])).toEqual(["Jane", "Acme", "Beta", "Deal", "Proj", "Call", "Lead", "Reg", "Loose"]);
   });
@@ -251,15 +257,15 @@ describe("renderReportGraph: nodes and edges", () => {
     expect(drawn).toEqual([
       ["clearRect", 0, 0, 800, 400],
       ["save"], ["translate", 0, 0], ["scale", 1, 1],
-      ["lineWidth=", 0.8], ["strokeStyle=", "var(--graph-line, var(--border-color, rgba(255, 255, 255, 0.08)))"],
+      ["lineWidth=", 0.8], ["strokeStyle=", "rgba(255, 255, 255, 0.08)"],
       ["beginPath"], ["moveTo", a[1], a[2]], ["lineTo", b[1], b[2]], ["stroke"],
-      ["beginPath"], a, ["fillStyle=", "var(--graph-node-resolved, #f59e0b)"], ["fill"],
-      ["strokeStyle=", "var(--background-secondary)"], ["lineWidth=", 1.2], ["stroke"],
+      ["beginPath"], a, ["fillStyle=", "#f59e0b"], ["fill"],
+      ["strokeStyle=", "#202020"], ["lineWidth=", 1.2], ["stroke"],
       ["beginPath"], b, ["fillStyle=", "#0ea5e9"], ["fill"],
-      ["strokeStyle=", "var(--background-secondary)"], ["lineWidth=", 1.2], ["stroke"],
-      ["fillStyle=", "var(--text-muted)"], ["font=", "8.5px var(--font-interface, sans-serif)"], ["textAlign=", "center"],
+      ["strokeStyle=", "#202020"], ["lineWidth=", 1.2], ["stroke"],
+      ["fillStyle=", "#999999"], ["font=", "8.5px sans-serif"], ["textAlign=", "center"],
       ["fillText", "A", a[1], (a[2] as number) + 5 + 12],
-      ["fillStyle=", "var(--text-muted)"], ["font=", "8.5px var(--font-interface, sans-serif)"], ["textAlign=", "center"],
+      ["fillStyle=", "#999999"], ["font=", "8.5px sans-serif"], ["textAlign=", "center"],
       ["fillText", "B", b[1], (b[2] as number) + 7 + 12],
       ["restore"],
     ]);
@@ -329,10 +335,10 @@ describe("renderReportGraph: pointer", () => {
     expect(canvas.style.cursor).toBe("pointer");
     const drawn = frame();
     expect(drawn.slice(drawn.findIndex((o) => o[0] === "fill") + 1, drawn.findIndex((o) => o[0] === "stroke", drawn.findIndex((o) => o[0] === "fill")) + 1)).toEqual([
-      ["strokeStyle=", "var(--text-normal, #ffffff)"], ["lineWidth=", 2], ["stroke"],
+      ["strokeStyle=", "#ffffff"], ["lineWidth=", 2], ["stroke"],
     ]);
     expect(drawn.filter((o) => o[0] === "fillStyle=" || o[0] === "font=").slice(-2)).toEqual([
-      ["fillStyle=", "var(--text-normal)"], ["font=", "bold 9.5px var(--font-interface, sans-serif)"],
+      ["fillStyle=", "#ffffff"], ["font=", "bold 9.5px sans-serif"],
     ]);
     canvas.trigger("mousemove", pointer(400 + 13.1, 225));
     expect([tooltip.style.display, canvas.style.cursor]).toEqual(["none", "default"]);
@@ -503,6 +509,49 @@ describe("renderReportGraph: pointer", () => {
     expect(drawn.filter((o) => o[0] === "lineWidth=").map((o) => o[1])).toEqual([0.2, 0.3]);
     const [arc] = ops(drawn, "arc");
     expect(ops(drawn, "fillText")[0][3]).toBe((arc[2] as number) + 5 + 3);
-    expect(drawn.find((o) => o[0] === "font=")).toEqual(["font=", "2.125px var(--font-interface, sans-serif)"]);
+    expect(drawn.find((o) => o[0] === "font=")).toEqual(["font=", "2.125px sans-serif"]);
+  });
+});
+
+describe("renderReportGraph: theme colours", () => {
+  const THEME = {
+    "--graph-node-resolved": "rgb(200, 100, 0)", "--graph-node": " #00aa00 ", "--graph-line": "rgb(9, 9, 9)",
+    "--background-secondary": "#111111", "--text-normal": "#eeeeee", "--text-muted": "#777777", "--font-interface": "Inter, sans-serif",
+  };
+  const JANE = note("Cadence/Contacts/Jane.md");
+  const LOOSE = note("Cadence/Loose.md");
+  const links = { "Cadence/Contacts/Jane.md": { "Cadence/Loose.md": 1 } };
+  const styles = (drawn: unknown[][]) => drawn.filter((o) => ["fillStyle=", "strokeStyle=", "font="].includes(o[0] as string));
+
+  it("draws in the theme's colours and font, resolved through getComputedStyle, never a var() string", async () => {
+    const { canvas, frame } = await rendered([JANE, LOOSE], { links, theme: THEME, random: [0, 0, 1, 1] });
+    canvas.trigger("mousemove", pointer(150, 100));
+    const drawn = frame();
+    expect(styles(drawn).filter((o) => String(o[1]).includes("var("))).toEqual([]);
+    expect(styles(drawn)).toEqual([
+      ["strokeStyle=", "rgb(9, 9, 9)"],
+      ["fillStyle=", "rgb(200, 100, 0)"], ["strokeStyle=", "#eeeeee"],
+      ["fillStyle=", "#00aa00"], ["strokeStyle=", "#111111"],
+      ["fillStyle=", "#eeeeee"], ["font=", "bold 9.5px Inter, sans-serif"],
+      ["fillStyle=", "#777777"], ["font=", "8.5px Inter, sans-serif"],
+    ]);
+  });
+
+  it("re-resolves the colours when the theme changes, and draws a frame with them", async () => {
+    const { view, theme, frames, frame } = await rendered([LOOSE], { theme: THEME });
+    for (let i = 0; frames.length && i < 1000; i++) frame();
+    const cssChange = (view as Any).registeredEvents.find((r: Any) => r.name === "css-change");
+    theme["--graph-node"] = "#123456";
+    cssChange.callback();
+    expect(frames).toHaveLength(1);
+    expect(styles(frame()).find((o) => o[0] === "fillStyle=")).toEqual(["fillStyle=", "#123456"]);
+  });
+
+  it("stops listening for theme changes once the canvas leaves the document", async () => {
+    const { view, app, canvas, frame } = await rendered([LOOSE]);
+    const cssChange = (view as Any).registeredEvents.find((r: Any) => r.name === "css-change");
+    canvas.isConnected = false;
+    frame();
+    expect(app.workspace.offrefs).toEqual([cssChange]);
   });
 });

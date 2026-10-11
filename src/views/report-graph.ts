@@ -86,6 +86,32 @@ export function graphNodeColor(type: GraphNodeType): string {
   return GRAPH_TYPE_COLORS[type] || GRAPH_TYPE_COLORS.note;
 }
 
+/* The theme references the canvas draws with. A 2D canvas ignores a
+   `var(--…)` colour or font, so each is resolved (resolveCssVar) before
+   it is drawn. */
+const GRAPH_THEME = {
+  line: 'var(--graph-line, var(--border-color, rgba(255, 255, 255, 0.08)))',
+  ring: 'var(--background-secondary, #202020)',
+  hover: 'var(--text-normal, #ffffff)',
+  label: 'var(--text-muted, #999999)',
+  font: 'var(--font-interface, sans-serif)',
+};
+
+/* `value` with every `var(--name[, fallback])` resolved: the property's
+   value from `lookup` (its computed value, '' when unset), else the
+   fallback, resolved the same way. A concrete value passes through
+   trimmed; '' when nothing resolves. */
+export function resolveCssVar(value: string, lookup: (name: string) => string, depth = 0): string {
+  const trimmed = value.trim();
+  const match = /^var\(\s*(--[\w-]+)\s*(?:,([\s\S]*))?\)$/.exec(trimmed);
+  if (!match) return trimmed;
+  if (depth > 8) return '';
+  const own = lookup(match[1]).trim();
+  const resolved = own ? resolveCssVar(own, lookup, depth + 1) : '';
+  if (resolved) return resolved;
+  return match[2] === undefined ? '' : resolveCssVar(match[2], lookup, depth + 1);
+}
+
 /* One node per markdown note under Cadence/, in file order, each starting
    at a random point spread over the canvas: 3/16–13/16 of its width and
    1/4–7/8 of its height (150–650 × 100–350 at the default 800×400; x
@@ -331,7 +357,33 @@ export async function renderReportGraph(view: AppViewHost, root: HTMLElement): P
   };
   const stop = () => {
     resizeObserver.disconnect();
+    view.app.workspace.offref(cssChange);
   };
+
+  /* The theme's colours and font, resolved against the graph card on the
+     first frame and again after every theme change. */
+  let palette: ReturnType<typeof resolvePalette> | null = null;
+  const resolvePalette = () => {
+    const style = getComputedStyle(graphCard);
+    const themed = (value: string) => resolveCssVar(value, (name) => style.getPropertyValue(name));
+    const nodeColors = new Map<GraphNodeType, string>();
+    return {
+      line: themed(GRAPH_THEME.line),
+      ring: themed(GRAPH_THEME.ring),
+      hover: themed(GRAPH_THEME.hover),
+      label: themed(GRAPH_THEME.label),
+      font: themed(GRAPH_THEME.font),
+      node: (type: GraphNodeType): string => {
+        if (!nodeColors.has(type)) nodeColors.set(type, themed(graphNodeColor(type)));
+        return nodeColors.get(type)!;
+      },
+    };
+  };
+  const cssChange = view.app.workspace.on('css-change', () => {
+    palette = null;
+    requestDraw();
+  });
+  view.registerEvent(cssChange);
 
   // Coordinate conversions
   const getMousePos = (e: ClientPoint) => {
@@ -477,6 +529,8 @@ export async function renderReportGraph(view: AppViewHost, root: HTMLElement): P
     // 1–3. Repulsion, link attraction, gravity, then move
     layoutGraph({ nodes, links }, { width, height }, draggedNode);
 
+    const colors = palette ??= resolvePalette();
+
     // 4. Render
     ctx.clearRect(0, 0, width, height);
 
@@ -486,7 +540,7 @@ export async function renderReportGraph(view: AppViewHost, root: HTMLElement): P
 
     // Draw links
     ctx.lineWidth = 0.8 / transform.k;
-    ctx.strokeStyle = 'var(--graph-line, var(--border-color, rgba(255, 255, 255, 0.08)))';
+    ctx.strokeStyle = colors.line;
     links.forEach((l) => {
       ctx.beginPath();
       ctx.moveTo(l.source.x, l.source.y);
@@ -498,16 +552,16 @@ export async function renderReportGraph(view: AppViewHost, root: HTMLElement): P
     nodes.forEach((n) => {
       ctx.beginPath();
       ctx.arc(n.x, n.y, n.radius, 0, Math.PI * 2);
-      ctx.fillStyle = graphNodeColor(n.type);
+      ctx.fillStyle = colors.node(n.type);
       ctx.fill();
 
       // Highlight ring if hovered
       if (n === hoveredNode) {
-        ctx.strokeStyle = 'var(--text-normal, #ffffff)';
+        ctx.strokeStyle = colors.hover;
         ctx.lineWidth = 2 / transform.k;
         ctx.stroke();
       } else {
-        ctx.strokeStyle = 'var(--background-secondary)';
+        ctx.strokeStyle = colors.ring;
         ctx.lineWidth = 1.2 / transform.k;
         ctx.stroke();
       }
@@ -515,8 +569,8 @@ export async function renderReportGraph(view: AppViewHost, root: HTMLElement): P
 
     // Draw elegant labels under nodes
     nodes.forEach((n) => {
-      ctx.fillStyle = n === hoveredNode ? 'var(--text-normal)' : 'var(--text-muted)';
-      ctx.font = n === hoveredNode ? `bold ${9.5 / transform.k}px var(--font-interface, sans-serif)` : `${8.5 / transform.k}px var(--font-interface, sans-serif)`;
+      ctx.fillStyle = n === hoveredNode ? colors.hover : colors.label;
+      ctx.font = n === hoveredNode ? `bold ${9.5 / transform.k}px ${colors.font}` : `${8.5 / transform.k}px ${colors.font}`;
       ctx.textAlign = 'center';
       ctx.fillText(n.name, n.x, n.y + n.radius + 12 / transform.k);
     });

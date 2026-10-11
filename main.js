@@ -9357,6 +9357,23 @@ var GRAPH_TYPE_COLORS = {
 function graphNodeColor(type) {
   return GRAPH_TYPE_COLORS[type] || GRAPH_TYPE_COLORS.note;
 }
+var GRAPH_THEME = {
+  line: "var(--graph-line, var(--border-color, rgba(255, 255, 255, 0.08)))",
+  ring: "var(--background-secondary, #202020)",
+  hover: "var(--text-normal, #ffffff)",
+  label: "var(--text-muted, #999999)",
+  font: "var(--font-interface, sans-serif)"
+};
+function resolveCssVar(value, lookup, depth = 0) {
+  const trimmed = value.trim();
+  const match = /^var\(\s*(--[\w-]+)\s*(?:,([\s\S]*))?\)$/.exec(trimmed);
+  if (!match) return trimmed;
+  if (depth > 8) return "";
+  const own = lookup(match[1]).trim();
+  const resolved = own ? resolveCssVar(own, lookup, depth + 1) : "";
+  if (resolved) return resolved;
+  return match[2] === void 0 ? "" : resolveCssVar(match[2], lookup, depth + 1);
+}
 function buildEntityGraph(files, resolvedLinks, random = Math.random, size = { width: 800, height: 400 }) {
   const nodes = [];
   const nodeMap = /* @__PURE__ */ new Map();
@@ -9556,7 +9573,30 @@ async function renderReportGraph(view, root) {
   };
   const stop = () => {
     resizeObserver.disconnect();
+    view.app.workspace.offref(cssChange);
   };
+  let palette = null;
+  const resolvePalette = () => {
+    const style = getComputedStyle(graphCard);
+    const themed = (value) => resolveCssVar(value, (name) => style.getPropertyValue(name));
+    const nodeColors = /* @__PURE__ */ new Map();
+    return {
+      line: themed(GRAPH_THEME.line),
+      ring: themed(GRAPH_THEME.ring),
+      hover: themed(GRAPH_THEME.hover),
+      label: themed(GRAPH_THEME.label),
+      font: themed(GRAPH_THEME.font),
+      node: (type) => {
+        if (!nodeColors.has(type)) nodeColors.set(type, themed(graphNodeColor(type)));
+        return nodeColors.get(type);
+      }
+    };
+  };
+  const cssChange = view.app.workspace.on("css-change", () => {
+    palette = null;
+    requestDraw();
+  });
+  view.registerEvent(cssChange);
   const getMousePos = (e) => {
     const rect = canvas.getBoundingClientRect();
     return {
@@ -9668,12 +9708,13 @@ async function renderReportGraph(view, root) {
       return;
     }
     layoutGraph({ nodes, links }, { width, height }, draggedNode);
+    const colors = palette ??= resolvePalette();
     ctx.clearRect(0, 0, width, height);
     ctx.save();
     ctx.translate(transform.x, transform.y);
     ctx.scale(transform.k, transform.k);
     ctx.lineWidth = 0.8 / transform.k;
-    ctx.strokeStyle = "var(--graph-line, var(--border-color, rgba(255, 255, 255, 0.08)))";
+    ctx.strokeStyle = colors.line;
     links.forEach((l) => {
       ctx.beginPath();
       ctx.moveTo(l.source.x, l.source.y);
@@ -9683,21 +9724,21 @@ async function renderReportGraph(view, root) {
     nodes.forEach((n) => {
       ctx.beginPath();
       ctx.arc(n.x, n.y, n.radius, 0, Math.PI * 2);
-      ctx.fillStyle = graphNodeColor(n.type);
+      ctx.fillStyle = colors.node(n.type);
       ctx.fill();
       if (n === hoveredNode) {
-        ctx.strokeStyle = "var(--text-normal, #ffffff)";
+        ctx.strokeStyle = colors.hover;
         ctx.lineWidth = 2 / transform.k;
         ctx.stroke();
       } else {
-        ctx.strokeStyle = "var(--background-secondary)";
+        ctx.strokeStyle = colors.ring;
         ctx.lineWidth = 1.2 / transform.k;
         ctx.stroke();
       }
     });
     nodes.forEach((n) => {
-      ctx.fillStyle = n === hoveredNode ? "var(--text-normal)" : "var(--text-muted)";
-      ctx.font = n === hoveredNode ? `bold ${9.5 / transform.k}px var(--font-interface, sans-serif)` : `${8.5 / transform.k}px var(--font-interface, sans-serif)`;
+      ctx.fillStyle = n === hoveredNode ? colors.hover : colors.label;
+      ctx.font = n === hoveredNode ? `bold ${9.5 / transform.k}px ${colors.font}` : `${8.5 / transform.k}px ${colors.font}`;
       ctx.textAlign = "center";
       ctx.fillText(n.name, n.x, n.y + n.radius + 12 / transform.k);
     });

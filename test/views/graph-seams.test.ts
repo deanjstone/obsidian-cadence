@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { TFile } from "obsidian";
 import {
-  GRAPH_TYPE_COLORS, buildEntityGraph, graphNodeColor, graphSettled, graphNodeRadius, graphNodeType, graphTooltip, layoutGraph, nodeAt,
+  GRAPH_TYPE_COLORS, buildEntityGraph, graphNodeColor, graphSettled, resolveCssVar, graphNodeRadius, graphNodeType, graphTooltip, layoutGraph, nodeAt,
   toGraphPoint, zoomAt, type GraphNode,
 } from "../../src/views/report-graph";
 
@@ -159,6 +159,26 @@ describe("layoutGraph", () => {
     const n = node("n", 400, 200);
     layoutGraph({ nodes: [n], links: [] }, { width: 1000, height: 400 });
     expect(n.x).toBe(400 + 100 * 0.0003);
+  });
+});
+
+describe("resolveCssVar", () => {
+  const theme: Record<string, string> = { "--a": "rgb(1, 2, 3)", "--alias": "var(--a)", "--loop": "var(--loop)" };
+  const lookup = (name: string) => theme[name] ?? "";
+
+  it("resolves a var() to the property's value, else its fallback, nested fallbacks included", () => {
+    expect(resolveCssVar("var(--a, #fff)", lookup)).toBe("rgb(1, 2, 3)");
+    expect(resolveCssVar("var(--missing, #fff)", lookup)).toBe("#fff");
+    expect(resolveCssVar("var(--missing, var(--also-missing, rgba(255, 255, 255, 0.08)))", lookup)).toBe("rgba(255, 255, 255, 0.08)");
+    expect(resolveCssVar("var(--missing, var(--a, red))", lookup)).toBe("rgb(1, 2, 3)");
+    expect(resolveCssVar(" var( --alias ) ", lookup)).toBe("rgb(1, 2, 3)");
+  });
+
+  it("passes a concrete value through, and is '' when nothing resolves", () => {
+    expect(resolveCssVar("#10b981", lookup)).toBe("#10b981");
+    expect(resolveCssVar(" sans-serif ", lookup)).toBe("sans-serif");
+    expect(resolveCssVar("var(--missing)", lookup)).toBe("");
+    expect(resolveCssVar("var(--loop)", lookup)).toBe("");
   });
 });
 
