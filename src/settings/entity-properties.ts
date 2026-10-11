@@ -599,9 +599,13 @@ export function renderEntityPropertiesSettings(tab: SettingTabHost, containerEl:
           placeholder: 'Option A, Option B...',
           cls: 'cad-prop-input'
         });
-        inputOptions.addEventListener('change', async () => {
-          await commit(edit({ kind: 'options', field, value: inputOptions.value }));
-        });
+        if (permLocked) {
+          inputOptions.disabled = true;
+        } else {
+          inputOptions.addEventListener('change', async () => {
+            await commit(edit({ kind: 'options', field, value: inputOptions.value }));
+          });
+        }
       } else if (optionsKind === 'source') {
         // Source selector: static options + folder picker
         const sourceWrap = tdOptions.createDiv({ cls: 'cad-source-wrap' });
@@ -669,7 +673,9 @@ export function renderEntityPropertiesSettings(tab: SettingTabHost, containerEl:
           folderPickerWrap.style.display = show ? 'flex' : 'none';
           if (!show) {
             _folderPath = '';
-            folderBadgeEl.setText(folderBadge('').text);
+            const cleared = folderBadge('');
+            folderBadgeEl.setText(cleared.text);
+            folderBadgeEl.style.color = cleared.color;
             await saveSugSource();
           }
         });

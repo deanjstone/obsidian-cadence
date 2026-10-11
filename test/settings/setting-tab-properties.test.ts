@@ -468,14 +468,17 @@ describe("Custom Entity Properties: options and source", () => {
     expect(ENTITIES.crm_vendor.fields[2].options).toEqual(["Gold", "Silver"]);
   });
 
-  it("lets a permanently locked enum's options be edited", async () => {
+  it("shows a permanently locked enum's options read-only (the project's status, the deal's stage)", async () => {
     const { editor, calls } = shown();
     const input = cell(editor(), "status").children[0];
-    expect(input.disabled).toBe(false);
+    expect([input.disabled, input.value]).toEqual([true, "active, on_hold, backlog, done, cancelled"]);
     input.value = "open, closed";
     input.trigger("change");
-    await vi.waitFor(() => expect(calls).toHaveLength(3));
-    expect(ENTITIES.project.fields[1].options).toEqual(["open", "closed"]);
+    await Promise.resolve();
+    expect(calls).toEqual([]);
+    expect(ENTITIES.project.fields[1].options).toEqual(["active", "on_hold", "backlog", "done", "cancelled"]);
+    expect(cell(shown({ entity: "deal" }).editor(), "stage").children[0].disabled).toBe(true);
+    expect(cell(shown({ entity: "partner" }).editor(), "status").children[0].disabled).toBe(false);
   });
 
   it("offers suggestion sources for list and tag fields, selecting the field's source", () => {
@@ -545,6 +548,19 @@ describe("Custom Entity Properties: options and source", () => {
     await Promise.resolve();
     expect(wrap.style.display).toBe("flex");
     expect(calls).toHaveLength(3);
+  });
+
+  it("switching to a fixed source resets the badge's colour as well as its text", async () => {
+    addVendor([{ key: "refs", label: "Refs", type: "multitext", suggestionSource: "folder:Cadence/Contacts" }]);
+    const { editor, calls } = shown({ entity: "crm_vendor" });
+    const c = cell(editor(), "refs");
+    const badge = c.findAll("span")[0];
+    expect(badge.style.color).toBe("var(--text-normal)");
+    const select = c.findAll("select")[0];
+    select.value = "none";
+    select.trigger("change");
+    await vi.waitFor(() => expect(calls).toHaveLength(3));
+    expect([badge.text, badge.style.color]).toEqual(["Aucun dossier", "var(--text-faint)"]);
   });
 
   it("opens a folder picker over the notes' folders and saves the chosen folder", async () => {
