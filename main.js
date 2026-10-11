@@ -7991,7 +7991,7 @@ async function renderTeam(view, root) {
 // src/views/project-detail.ts
 var import_obsidian23 = require("obsidian");
 function projectDetailTitle(fm, basename) {
-  return fm.name || basename;
+  return fm.name != null && fm.name !== "" ? fm.name : basename;
 }
 var PROJECT_STATUS_FALLBACK = ["active", "on_hold", "backlog", "done", "cancelled"];
 var PROJECT_PRIORITY_FALLBACK = ["low", "medium", "high"];

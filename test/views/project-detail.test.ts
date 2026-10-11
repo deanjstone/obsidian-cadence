@@ -117,10 +117,13 @@ describe("renderProjectDetail: header", () => {
     ]);
   });
 
-  it("titles with name, else the basename (a falsy name included)", async () => {
+  it("titles with name unless it is missing or empty, else the basename (a name of 0 is kept)", async () => {
     const { root, render } = setup([{ path: "Cadence/Projects/Zero.md", frontmatter: { name: 0 } }]);
     await render("Cadence/Projects/Zero.md");
-    expect(crumbs(root)[1]).toBe("Zero");
+    expect(crumbs(root)[1]).toBe("0");
+    const empty = setup([{ path: "Cadence/Projects/Empty.md", frontmatter: { name: "" } }]);
+    await empty.render("Cadence/Projects/Empty.md");
+    expect(crumbs(empty.root)[1]).toBe("Empty");
     const bare = setup([{ path: "Cadence/Projects/Bare.md" }]);
     await bare.render("Cadence/Projects/Bare.md");
     expect(crumbs(bare.root)[1]).toBe("Bare");
