@@ -85,7 +85,7 @@ export class CadenceCaptureModal extends Modal {
   declare defaultRepeat: string;
   declare _submitted: boolean;
 
-  constructor(app: App, opts: CaptureModalOptions) {
+  constructor(app: App, opts: CaptureModalOptions = {}) {
     super(app);
     this.onSubmit = opts.onSubmit;
     this.defaultText = opts.defaultText || '';
@@ -194,8 +194,7 @@ export class CadenceCaptureModal extends Modal {
       }
       this._submitted = true;
       this.close();
-      // Throws when constructed without onSubmit (flagged, not fixed).
-      this.onSubmit!(result);
+      this.onSubmit?.(result);
     };
     ok.addEventListener('click', submit);
     textInput.addEventListener('keydown', (e) => {
