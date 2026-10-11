@@ -4,6 +4,8 @@ import { flush, makeAppView } from "../helpers/app-view";
 import { ENTITIES } from "../../src/constants/entities";
 import { fmtValue } from "../../src/utils/format";
 import type { EntityDef } from "../../src/types/entities";
+import { applyPropertyEdit } from "../../src/settings/entity-properties";
+import { restoreEntities, snapshotEntities } from "../helpers/setting-tab";
 
 /* Characterization tests for the kanban: getEntityKanbanParams (which field
    groups the columns, and which columns) and the kanban layout of
@@ -385,6 +387,49 @@ describe("renderEntityList: kanban layout", () => {
       await flush();
       expect(fm(V.path)![groupBy]).toEqual(written);
     });
+  });
+});
+
+describe("kanban: deal stages customised in Properties (#73)", () => {
+  let saved: Record<string, Any>;
+  beforeEach(() => {
+    saved = snapshotEntities();
+  });
+  afterEach(() => {
+    restoreEntities(saved);
+  });
+
+  /* The stage options as the Properties editor saves them. */
+  function editStages(value: string) {
+    const field = ENTITIES.deal.fields.find((f) => f.key === "stage")!;
+    expect(applyPropertyEdit(ENTITIES, "deal", { kind: "options", field, value }).ok).toBe(true);
+  }
+
+  it("an added stage gets a column, and deals at a renamed stage keep a column of their own", async () => {
+    editStages("Discovery, Lead, Qualified, Demo, Negotiation, Won, Lost");
+    const { view, root } = setup(DEALS);
+    await view.renderEntityList(root, "deal");
+    expect(columns(root).map((c) => c.dataset.stage)).toEqual(["Discovery", "Lead", "Qualified", "Demo", "Negotiation", "Won", "Lost", "Proposal", "Archived"]);
+    expect(cardTitles(column(root, "Proposal"))).toEqual(["Acme renewal", "Globex"]);
+    expect(cardTitles(column(root, "Discovery"))).toEqual([]);
+  });
+
+  it("a drop on a customised stage writes it as a one-item list, and a drop on Won still writes `closed` (#54)", async () => {
+    vi.useFakeTimers({ toFake: ["Date"], now: new Date(2026, 9, 11, 10) });
+    try {
+      editStages("Lead, Demo, Won, Lost");
+      const { view, root, fm } = setup(DEALS);
+      await view.renderEntityList(root, "deal");
+      column(root, "Demo").children[1].trigger("drop", { dataTransfer: dataTransfer({ "text/cadence-entity": ACME.path, "text/cadence-stage": "Proposal" }) });
+      await flush();
+      expect(fm(ACME.path)!.stage).toEqual(["Demo"]);
+      expect(fm(ACME.path)).not.toHaveProperty("closed");
+      column(root, "Won").children[1].trigger("drop", { dataTransfer: dataTransfer({ "text/cadence-entity": GLOBEX.path, "text/cadence-stage": "proposal" }) });
+      await flush();
+      expect(fm(GLOBEX.path)).toMatchObject({ stage: ["Won"], closed: "2026-10-11" });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
