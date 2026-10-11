@@ -99,12 +99,12 @@ describe("_drawDonutChart", () => {
     expect(strokes).toEqual([...COLORS, COLORS[0]]);
   });
 
-  it("QUIRK: draws a zero-length segment and a 0% legend row for zero-count items", () => {
+  it("draws no segment and no legend row for a zero-count item", () => {
     const { view, parent } = setup();
     view._drawDonutChart(parent, [{ label: "A", count: 2 }, { label: "B", count: 0 }]);
     const segments = byClass(parent, "cad-donut-segment");
-    expect(segments[1].attrs["stroke-dasharray"]).toBe(`0 ${CIRC}`);
-    expect(byClass(parent, "cad-donut-legend-count").map((c) => c.text)).toEqual(["2 (100%)", "0 (0%)"]);
+    expect(segments.map((s) => s.attrs["stroke-dasharray"])).toEqual([`${CIRC} ${CIRC}`]);
+    expect(byClass(parent, "cad-donut-legend-count").map((c) => c.text)).toEqual(["2 (100%)"]);
   });
 });
 
@@ -155,10 +155,10 @@ describe("_drawKpiGrid", () => {
     expect(cards[1].children[2].text).toBe("10% of total");
   });
 
-  it("QUIRK: unlike donut and bar, all-zero counts still render cards, at 0% of total", () => {
+  it("like donut and bar, shows the empty state when every count is 0", () => {
     const { view, parent } = setup();
     view._drawKpiGrid(parent, [{ label: "a", count: 0 }]);
-    expect(byClass(parent, "cad-stat-sub").map((c) => c.text)).toEqual(["0% of total"]);
+    expect(isEmptyState(parent)).toBe(true);
   });
 });
 
@@ -166,6 +166,12 @@ describe("_drawSimpleList", () => {
   it("shows the empty state when there are no items", () => {
     const { view, parent } = setup();
     view._drawSimpleList(parent, []);
+    expect(isEmptyState(parent)).toBe(true);
+  });
+
+  it("like donut and bar, shows the empty state when every count is 0", () => {
+    const { view, parent } = setup();
+    view._drawSimpleList(parent, [{ label: "a", count: 0 }, { label: "b", count: 0 }]);
     expect(isEmptyState(parent)).toBe(true);
   });
 

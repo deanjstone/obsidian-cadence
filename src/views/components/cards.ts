@@ -14,8 +14,10 @@ export interface DashCardRow {
   title?: string;
   /** When set, the title is rendered as links to this entity. */
   titleEntityKey?: string | null;
-  /** Used only when metaParts is absent. */
+  /** Shown first, before any metaParts. */
   meta?: string;
+  /** Joined by ' · ' (a part already starting or ending with '·' carries
+      its own), with blank parts skipped. */
   metaParts?: DashMetaPart[];
   /** When set, clicking the row opens the file's detail form. PRM's top
       partners pass null for a partner value that names no partner. */
@@ -58,11 +60,15 @@ export function dashCardSection(view: AppViewHost, parent: HTMLElement, title: s
 
     const metaDiv = row.createDiv({ cls: 'cad-dash-row-meta' });
     if (r.metaParts) {
-      r.metaParts.forEach((part) => {
+      const parts = [{ text: r.meta }, ...r.metaParts].filter((part) => String(part.text ?? '').trim() !== '');
+      parts.forEach((part, index) => {
+        if (index > 0 && !String(parts[index - 1].text).trimEnd().endsWith('·') && !String(part.text).trimStart().startsWith('·')) {
+          metaDiv.createSpan({ text: ' · ' });
+        }
         if (part.entityKey) {
           view._renderEntityLinks(metaDiv, part.text, part.entityKey);
         } else {
-          metaDiv.createSpan({ text: part.text || '' });
+          metaDiv.createSpan({ text: part.text });
         }
       });
     } else {

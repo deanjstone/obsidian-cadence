@@ -18,13 +18,13 @@ export function renderEntityLinks(view: AppViewHost, parent: HTMLElement, val: u
   items.forEach((item, idx) => {
     if (idx > 0) parent.createSpan({ text: ', ' });
 
+    /* A folder: target that names no entity's folder links a plain note
+       (#59), not a `cad-folder:…-link` class. */
     let resolvedKey = targetEntityKey;
     if (targetEntityKey && targetEntityKey.startsWith('folder:')) {
       const folderPath = targetEntityKey.slice('folder:'.length).replace(/\/+$/, '').toLowerCase();
       const matchedKey = Object.keys(ENTITIES).find(k => ENTITIES[k].folder.replace(/\/+$/, '').toLowerCase() === folderPath);
-      if (matchedKey) {
-        resolvedKey = matchedKey;
-      }
+      resolvedKey = matchedKey || 'note';
     }
 
     const link = parent.createEl('a', { text: item.display, cls: `cad-${resolvedKey}-link` });
@@ -104,7 +104,7 @@ export function renderEntityTable(view: AppViewHost, parent: HTMLElement, entity
         } else if (f.key === 'related') {
           view._renderEntityLinks(td, val, 'project');
         } else if (f.key === 'stage' && val) {
-          const span = td.createSpan({ cls: `cad-pill cad-pill-${(val as string).toLowerCase()}`, text: formatted });
+          const span = td.createSpan({ cls: `cad-pill cad-pill-${String(val).trim().toLowerCase().replace(/\s+/g, '-')}`, text: formatted });
           span.style.fontSize = '10px';
           span.style.padding = '2px 6px';
         } else {

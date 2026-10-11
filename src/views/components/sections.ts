@@ -6,7 +6,7 @@ import { fmtValue, pctBand } from '../../utils/format';
 import { parseHeaderKey, parseLinkValues, parseMilestones, parseTasksList } from '../../utils/parsing';
 import { isTasksSectionKey } from '../../utils/task-lines';
 import type { AppViewHost } from '../host';
-import { sectionChartData } from './charts';
+import { chartStyleOf, sectionChartData } from './charts';
 
 /* The detail-form sections shared by the entity, company and project
    detail forms, the templates and Today: markdown text cards, cross
@@ -25,14 +25,13 @@ export interface ProjectTextSectionDef {
   placeholder?: string;
 }
 
-/* True when a frontmatter link value names `name`: a single value or a
-   list, compared without wiki-link brackets, surrounding spaces or case.
-   A comma-separated string is one value, so it matches only as a whole. */
+/* True when a frontmatter link value names `name`: each link it holds,
+   parsed as every other link field is (parseLinkValues: a list, the
+   links in a string, else a string split on commas; brackets and any
+   `|alias` removed), compared without surrounding spaces or case. */
 export function linksTo(val: unknown, name: string): boolean {
-  if (val == null) return false;
   const cleanName = name.trim().toLowerCase();
-  const arr = Array.isArray(val) ? val : [val];
-  return arr.some(v => String(v).replace(/^\[\[|\]\]$/g, '').trim().toLowerCase() === cleanName);
+  return parseLinkValues(val).some(link => link.target.toLowerCase() === cleanName);
 }
 
 /* A cross section's targets: the entities whose linkField names the
@@ -41,6 +40,21 @@ export function crossSectionRows(
   entities: Entity[], linkField: string, parentName: string, frontmatterOf: (entity: Entity) => Frontmatter,
 ): Entity[] {
   return entities.filter(e => linksTo(frontmatterOf(e)[linkField], parentName));
+}
+
+/** The views a #cross- heading's switcher offers. */
+export const CROSS_VIEW_TYPES = ['table', 'kanban', 'tile'];
+
+/* True when a tile field has something to show: an empty list, or one of
+   blank items, is as empty as a blank value (#59). */
+function isFilled(val: unknown): boolean {
+  if (Array.isArray(val)) return val.some(v => v != null && String(v).trim() !== '');
+  return val != null && val !== '';
+}
+
+/* A cross section's view, with an unknown one drawn as a table (#59). */
+function crossViewType(viewType: string): string {
+  return CROSS_VIEW_TYPES.includes(viewType) ? viewType : 'table';
 }
 
 /* Reads an entity's frontmatter fresh from the metadata cache, as each
@@ -55,14 +69,16 @@ function frontmatterReader(view: AppViewHost): (entity: Entity) => Frontmatter {
 /** Which renderer an H2 section gets, from its heading. */
 export type DynamicH2Kind =
   | { kind: 'tasks' | 'milestones' | 'text'; cleanLabel: string }
-  /** A #cross- or #chart- tag with the wrong number of parts: renders nothing. */
+  /** A #cross- or #chart- tag with the wrong number of parts: renders as a text section. */
   | { kind: 'malformed'; cleanLabel: string }
   | { kind: 'cross'; cleanLabel: string; targetEntity: string; linkField: string; viewType: string }
   | { kind: 'chart'; cleanLabel: string; targetEntity: string; linkField: string; groupField: string; chartStyle: string };
 
 /* Classify an H2 heading key (`Label #tag`). A #tasks/#milestones tag or
-   label wins first. `#cross-{entity}-{linkField}-{view}` needs exactly
-   three parts. `#chart-{entity}-{linkField}-{groupField}-{style}` needs at
+   label wins first. `#cross-{entity}-{linkField}-{view}` needs at least
+   three parts: the entity is the first and the view the last, so a link
+   field may hold dashes, but then the view must be one the switcher
+   offers. `#chart-{entity}-{linkField}-{groupField}-{style}` needs at
    least four, and the style keeps any further dashes. Every other heading
    is a text section. */
 export function dynamicH2Kind(rawKey: string): DynamicH2Kind {
@@ -72,9 +88,9 @@ export function dynamicH2Kind(rawKey: string): DynamicH2Kind {
   if (tag === '#milestones' || cleanLower === 'milestones') return { kind: 'milestones', cleanLabel };
   if (tag.startsWith('#cross-')) {
     const crossParts = tag.slice('#cross-'.length).split('-');
-    if (crossParts.length !== 3) return { kind: 'malformed', cleanLabel };
-    const [targetEntity, linkField, viewType] = crossParts;
-    return { kind: 'cross', cleanLabel, targetEntity, linkField, viewType };
+    const viewType = crossParts[crossParts.length - 1];
+    if (crossParts.length < 3 || (crossParts.length > 3 && !CROSS_VIEW_TYPES.includes(viewType))) return { kind: 'malformed', cleanLabel };
+    return { kind: 'cross', cleanLabel, targetEntity: crossParts[0], linkField: crossParts.slice(1, -1).join('-'), viewType };
   }
   if (tag.startsWith('#chart-')) {
     const chartParts = tag.slice('#chart-'.length).split('-');
@@ -105,33 +121,38 @@ export function renderMarkdownTextCard(view: AppViewHost, parent: HTMLElement, f
   // Preview container
   const previewDiv = body.createDiv({ cls: 'markdown-preview-view', attr: { style: 'padding: 0; min-height: 30px;' } });
 
-  // Render the initial markdown preview
-  const renderPreview = () => {
+  /* Render the markdown preview with MarkdownRenderer.render. It is async,
+     so a rejection is awaited and falls back to the raw text, like a
+     synchronous throw (#59). Blank content shows the placeholder. */
+  const renderPreview = async () => {
     previewDiv.empty();
     const rawText = initialValue || '';
-    try {
-      MarkdownRenderer.renderMarkdown(rawText, previewDiv, file.path, view as unknown as Component);
-
-      // Find all standard Obsidian [[...]] internal links and bind open handlers!
-      previewDiv.querySelectorAll('a.internal-link').forEach(a => {
-        const href = a.getAttribute('data-href') || a.getAttribute('href');
-        if (href) {
-          a.addEventListener('click', (ev) => {
-            ev.preventDefault();
-            ev.stopPropagation();
-            view.app.workspace.openLinkText(href, file.path, false);
-          });
-        }
-      });
-    } catch (e) {
-      previewDiv.setText(rawText);
-    }
-    // Add subtle placeholder if empty
     if (!rawText.trim()) {
-      const ph = previewDiv.createDiv({ text: placeholder || 'Empty section.', attr: { style: 'color: var(--text-faint); font-style: italic; font-size: 0.9em; padding: 4px 0;' } });
+      previewDiv.createDiv({ text: placeholder || 'Empty section.', attr: { style: 'color: var(--text-faint); font-style: italic; font-size: 0.9em; padding: 4px 0;' } });
+      return;
     }
+    try {
+      await MarkdownRenderer.render(view.app, rawText, previewDiv, file.path, view as unknown as Component);
+    } catch (error) {
+      console.warn('Cadence: markdown render failed, showing the raw text', error);
+      previewDiv.empty();
+      previewDiv.setText(rawText);
+      return;
+    }
+
+    // Find all standard Obsidian [[...]] internal links and bind open handlers!
+    previewDiv.querySelectorAll('a.internal-link').forEach(a => {
+      const href = a.getAttribute('data-href') || a.getAttribute('href');
+      if (href) {
+        a.addEventListener('click', (ev) => {
+          ev.preventDefault();
+          ev.stopPropagation();
+          view.app.workspace.openLinkText(href, file.path, false);
+        });
+      }
+    });
   };
-  renderPreview();
+  void renderPreview();
 }
 
 export function renderProjectTextSection(view: AppViewHost, parent: HTMLElement, file: TFile, sections: Record<string, string>, def: ProjectTextSectionDef, flashSaved?: FlashSaved): void {
@@ -145,9 +166,10 @@ export function renderGenericTextSection(view: AppViewHost, parent: HTMLElement,
   view._renderMarkdownTextCard(parent, file, key, cleanLabel.toUpperCase(), initial, `Content for ${cleanLabel}...`, flashSaved);
 }
 
-export function renderSingleCrossSection(view: AppViewHost, parent: HTMLElement, targetEntity: EntityKey, linkField: string, viewType: string, parentName: string, preFilteredList: Entity[] | null = null): void {
+export function renderSingleCrossSection(view: AppViewHost, parent: HTMLElement, targetEntity: EntityKey, linkField: string, requestedViewType: string, parentName: string, preFilteredList: Entity[] | null = null): void {
   const def = ENTITIES[targetEntity];
   if (!def) return;
+  const viewType = crossViewType(requestedViewType);
 
   const filteredList = preFilteredList || crossSectionRows(listEntities(view.app, targetEntity), linkField, parentName, frontmatterReader(view));
 
@@ -232,7 +254,7 @@ export function renderSingleCrossSection(view: AppViewHost, parent: HTMLElement,
         def.fields.forEach(f => {
           if (f.key !== primaryField.key && (!statusField || f.key !== statusField.key) && count < 4) {
             const val = entityValue(e, f.key, def);
-            if (val != null && val !== '') {
+            if (isFilled(val)) {
               count++;
               const fieldDiv = metaRow.createDiv();
               fieldDiv.style.marginBottom = '2px';
@@ -427,10 +449,11 @@ export function renderCrossSections(view: AppViewHost, parent: HTMLElement, pare
       return;
     }
 
-    if (config.viewType === 'table') {
+    const viewType = crossViewType(config.viewType);
+    if (viewType === 'table') {
       const columns = def.columns || [def.fields[0].key];
       view._renderEntityTable(secWrap, config.targetEntity, filteredList, columns);
-    } else if (config.viewType === 'tile') {
+    } else if (viewType === 'tile') {
       const grid = secWrap.createDiv({ attr: { style: 'display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-top: 12px;' } });
       filteredList.forEach(e => {
         const card = grid.createDiv({ cls: 'cad-proj-card', attr: { style: 'cursor: pointer; padding: 16px; background: var(--background-secondary); border: 1px solid var(--border-color); border-radius: 6px;' } });
@@ -440,12 +463,12 @@ export function renderCrossSections(view: AppViewHost, parent: HTMLElement, pare
         const meta = card.createDiv({ attr: { style: 'font-size: 0.85em; color: var(--text-muted); display: flex; flex-direction: column; gap: 4px;' } });
         def.fields.slice(1, 4).forEach(f => {
           const val = entityValue(e, f.key, def);
-          if (val != null && val !== '') {
+          if (isFilled(val)) {
             meta.createDiv({ text: `${f.label}: ${fmtValue(val, f.type)}` });
           }
         });
       });
-    } else if (config.viewType === 'kanban') {
+    } else if (viewType === 'kanban') {
       const kanbanWrap = secWrap.createDiv({ attr: { style: 'display: flex; gap: 16px; overflow-x: auto; padding-bottom: 8px; margin-top: 12px;' } });
       const groupField = def.fields.find(f => f.key === 'stage' || f.key === 'status' || f.key === 'type' || f.type === 'enum') || def.fields[1];
       const columns = groupField.options || ['To Do', 'In Progress', 'Done'];
@@ -475,9 +498,16 @@ export function renderCrossSections(view: AppViewHost, parent: HTMLElement, pare
   });
 }
 
+/* Renders an H2 section by its heading. A malformed #cross-/#chart- tag,
+   or one naming an unknown entity, renders as a text section, so its
+   content still shows (#59, owner decision). */
 export function renderDynamicH2Section(view: AppViewHost, parent: HTMLElement, file: TFile, sections: Record<string, string>, rawKey: string, flashSaved?: FlashSaved): void {
   const h2 = dynamicH2Kind(rawKey);
   const { cleanLabel } = h2;
+  if (h2.kind === 'malformed' || ((h2.kind === 'cross' || h2.kind === 'chart') && !ENTITIES[h2.targetEntity])) {
+    view._renderGenericTextSection(parent, file, sections, rawKey, flashSaved);
+    return;
+  }
 
   if (h2.kind === 'tasks') {
     const taskList = parseTasksList(sections[rawKey] || '');
@@ -488,91 +518,88 @@ export function renderDynamicH2Section(view: AppViewHost, parent: HTMLElement, f
   } else if (h2.kind === 'cross') {
     const { targetEntity, linkField, viewType } = h2;
     const def = ENTITIES[targetEntity];
-    if (def) {
-      const parentName = file.basename;
-      const filteredList = crossSectionRows(listEntities(view.app, targetEntity), linkField, parentName, frontmatterReader(view));
+    const parentName = file.basename;
+    const filteredList = crossSectionRows(listEntities(view.app, targetEntity), linkField, parentName, frontmatterReader(view));
 
-      const card = parent.createDiv({ cls: 'cad-pd-card' });
-      card.style.gridColumn = '1 / -1';
-      const head = card.createDiv({ cls: 'cad-pd-card-head' });
-      head.createDiv({ cls: 'cad-pd-card-title', text: `${cleanLabel.toUpperCase()} · ${filteredList.length}` });
+    const card = parent.createDiv({ cls: 'cad-pd-card' });
+    card.style.gridColumn = '1 / -1';
+    const head = card.createDiv({ cls: 'cad-pd-card-head' });
+    head.createDiv({ cls: 'cad-pd-card-title', text: `${cleanLabel.toUpperCase()} · ${filteredList.length}` });
 
-      const addBtn = head.createEl('button', { cls: 'cad-btn cad-btn-sm', text: `+ Add ${def.label}` });
-      addBtn.addEventListener('click', () => {
-        view._createEntityFromPrompt(targetEntity, { [linkField]: `[[${parentName}]]` });
-      });
+    const addBtn = head.createEl('button', { cls: 'cad-btn cad-btn-sm', text: `+ Add ${def.label}` });
+    addBtn.addEventListener('click', () => {
+      view._createEntityFromPrompt(targetEntity, { [linkField]: `[[${parentName}]]` });
+    });
 
-      // View switcher: table / kanban / tile — saved back to the entity note
-      const viewSwitch = head.createDiv({ attr: { style: 'display: flex; gap: 3px; margin-left: 8px;' } });
-      const viewOptions = [
-        { v: 'table', icon: 'layout-list', title: 'Table View' },
-        { v: 'kanban', icon: 'kanban', title: 'Kanban Board' },
-        { v: 'tile', icon: 'layout-grid', title: 'Tile Grid' }
-      ];
-      viewOptions.forEach(({ v, icon, title }) => {
-        const vBtn = viewSwitch.createEl('button', {attr: { style: `padding: 4px 6px; display: inline-flex; align-items: center; justify-content: center; border-radius: 4px; cursor: pointer; border: 1px solid var(--border-color); background: ${v === viewType ? 'var(--interactive-accent)' : 'transparent'}; color: ${v === viewType ? 'var(--text-on-accent)' : 'var(--text-muted)'};` }});
-        vBtn.title = title;
-        try { setIcon(vBtn, icon); } catch (_) { }
+    // View switcher: table / kanban / tile — saved back to the entity note
+    const viewSwitch = head.createDiv({ attr: { style: 'display: flex; gap: 3px; margin-left: 8px;' } });
+    const viewOptions = [
+      { v: 'table', icon: 'layout-list', title: 'Table View' },
+      { v: 'kanban', icon: 'kanban', title: 'Kanban Board' },
+      { v: 'tile', icon: 'layout-grid', title: 'Tile Grid' }
+    ];
+    viewOptions.forEach(({ v, icon, title }) => {
+      const vBtn = viewSwitch.createEl('button', {attr: { style: `padding: 4px 6px; display: inline-flex; align-items: center; justify-content: center; border-radius: 4px; cursor: pointer; border: 1px solid var(--border-color); background: ${v === viewType ? 'var(--interactive-accent)' : 'transparent'}; color: ${v === viewType ? 'var(--text-on-accent)' : 'var(--text-muted)'};` }});
+      vBtn.title = title;
+      try { setIcon(vBtn, icon); } catch (_) { }
 
-        if (v !== viewType) {
-          vBtn.addEventListener('click', async () => {
-            const newTag = `#cross-${targetEntity}-${linkField}-${v}`;
-            const curContent = await view.app.vault.read(file);
-            const escaped = rawKey.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            const newContent = curContent.replace(
-              new RegExp(`^(## ${escaped})$`, 'm'),
-              `## ${cleanLabel} ${newTag}`
-            );
-            await view.app.vault.modify(file, newContent);
-            view.render();
-          });
-        }
-      });
+      if (v !== viewType) {
+        vBtn.addEventListener('click', async () => {
+          const newTag = `#cross-${targetEntity}-${linkField}-${v}`;
+          const curContent = await view.app.vault.read(file);
+          const escaped = rawKey.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const newContent = curContent.replace(
+            new RegExp(`^(## ${escaped})$`, 'm'),
+            `## ${cleanLabel} ${newTag}`
+          );
+          await view.app.vault.modify(file, newContent);
+          view.render();
+        });
+      }
+    });
 
-      const body = card.createDiv({ attr: { style: 'padding: 12px;' } });
-      view._renderSingleCrossSection(body, targetEntity, linkField, viewType, parentName, filteredList);
-    }
+    const body = card.createDiv({ attr: { style: 'padding: 12px;' } });
+    view._renderSingleCrossSection(body, targetEntity, linkField, viewType, parentName, filteredList);
   } else if (h2.kind === 'chart') {
-    const { targetEntity, linkField, groupField, chartStyle } = h2;
+    const { targetEntity, linkField, groupField } = h2;
+    const chartStyle = chartStyleOf(h2.chartStyle);
     const def = ENTITIES[targetEntity];
-    if (def) {
-      const parentName = file.basename;
-      const filteredList = crossSectionRows(listEntities(view.app, targetEntity), linkField, parentName, frontmatterReader(view));
+    const parentName = file.basename;
+    const filteredList = crossSectionRows(listEntities(view.app, targetEntity), linkField, parentName, frontmatterReader(view));
 
-      const chartData = sectionChartData(filteredList, groupField, frontmatterReader(view));
+    const chartData = sectionChartData(filteredList, groupField, def);
 
-      const card = parent.createDiv({ cls: 'cad-pd-card' });
-      card.style.gridColumn = '1 / -1';
-      const head = card.createDiv({ cls: 'cad-pd-card-head' });
-      head.createDiv({ cls: 'cad-pd-card-title', text: `${cleanLabel.toUpperCase()} · ${filteredList.length} ${def.plural}` });
+    const card = parent.createDiv({ cls: 'cad-pd-card' });
+    card.style.gridColumn = '1 / -1';
+    const head = card.createDiv({ cls: 'cad-pd-card-head' });
+    head.createDiv({ cls: 'cad-pd-card-title', text: `${cleanLabel.toUpperCase()} · ${filteredList.length} ${def.plural}` });
 
-      // Chart style switcher — saved back to the entity note
-      const styleSwitch = head.createDiv({ attr: { style: 'display: flex; gap: 3px; margin-left: 8px;' } });
-      [{ v: 'donut', icon: '🍩' }, { v: 'bar', icon: '📊' }, { v: 'kpi', icon: '🗃️' }, { v: 'list', icon: '📋' }].forEach(({ v, icon }) => {
-        const sBtn = styleSwitch.createEl('button', {
-          text: icon,
-          attr: { style: `padding: 1px 5px; font-size: 0.85em; border-radius: 3px; cursor: pointer; border: 1px solid var(--border-color); background: ${v === chartStyle ? 'var(--interactive-accent)' : 'transparent'}; opacity: ${v === chartStyle ? '1' : '0.55'};` }
+    // Chart style switcher — saved back to the entity note
+    const styleSwitch = head.createDiv({ attr: { style: 'display: flex; gap: 3px; margin-left: 8px;' } });
+    [{ v: 'donut', icon: '🍩' }, { v: 'bar', icon: '📊' }, { v: 'kpi', icon: '🗃️' }, { v: 'list', icon: '📋' }].forEach(({ v, icon }) => {
+      const sBtn = styleSwitch.createEl('button', {
+        text: icon,
+        attr: { style: `padding: 1px 5px; font-size: 0.85em; border-radius: 3px; cursor: pointer; border: 1px solid var(--border-color); background: ${v === chartStyle ? 'var(--interactive-accent)' : 'transparent'}; opacity: ${v === chartStyle ? '1' : '0.55'};` }
 });
-        sBtn.title = v;
-        if (v !== chartStyle) {
-          sBtn.addEventListener('click', async () => {
-            const newTag = `#chart-${targetEntity}-${linkField}-${groupField}-${v}`;
-            const curContent = await view.app.vault.read(file);
-            const escaped = rawKey.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            const newContent = curContent.replace(
-              new RegExp(`^(## ${escaped})$`, 'm'),
-              `## ${cleanLabel} ${newTag}`
-            );
-            await view.app.vault.modify(file, newContent);
-            view.render();
-          });
-        }
-      });
+      sBtn.title = v;
+      if (v !== chartStyle) {
+        sBtn.addEventListener('click', async () => {
+          const newTag = `#chart-${targetEntity}-${linkField}-${groupField}-${v}`;
+          const curContent = await view.app.vault.read(file);
+          const escaped = rawKey.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const newContent = curContent.replace(
+            new RegExp(`^(## ${escaped})$`, 'm'),
+            `## ${cleanLabel} ${newTag}`
+          );
+          await view.app.vault.modify(file, newContent);
+          view.render();
+        });
+      }
+    });
 
-      const body = card.createDiv({ cls: 'cad-dash-card-body', attr: { style: 'flex: 1; min-height: 180px; display: flex; flex-direction: column; justify-content: center; padding: 14px;' } });
-      view._drawChart(body.createDiv(), chartStyle, chartData);
-    }
-  } else if (h2.kind === 'text') {
+    const body = card.createDiv({ cls: 'cad-dash-card-body', attr: { style: 'flex: 1; min-height: 180px; display: flex; flex-direction: column; justify-content: center; padding: 14px;' } });
+    view._drawChart(body.createDiv(), chartStyle, chartData);
+  } else {
     view._renderGenericTextSection(parent, file, sections, rawKey, flashSaved);
   }
 }

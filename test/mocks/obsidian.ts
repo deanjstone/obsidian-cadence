@@ -955,9 +955,10 @@ export function setIcon(el: unknown, icon: string) {
   if (el instanceof FakeElement) el.icon = icon;
 }
 
-/* Renders nothing; spy on renderMarkdown to fake its output. */
+/* Renders nothing; spy on render (or renderMarkdown) to fake its output. */
 export const MarkdownRenderer = {
-  render: async () => {},
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  render: async (_app: unknown, _markdown: string, _el: HTMLElement, _sourcePath: string, _component: unknown) => {},
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   renderMarkdown: async (_markdown: string, _el: HTMLElement, _sourcePath: string, _component: unknown) => {},
 };

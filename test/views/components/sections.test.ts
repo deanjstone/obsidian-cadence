@@ -3,6 +3,9 @@ import { FakeElement, MarkdownRenderer, Notice, Platform, TFile, type MockFileSp
 import { flush, makeAppView } from "../../helpers/app-view";
 import { companyAcme, contactJane, dealAcme } from "../../fixtures/vault";
 import { ENTITIES } from "../../../src/constants/entities";
+import { listEntities } from "../../../src/utils/entities";
+import { fmtValue } from "../../../src/utils/format";
+import { chartData } from "../../../src/views/components/charts";
 
 /* Characterization tests for the detail-form sections shared by the
    entity, company and project detail forms, the templates and Today:
@@ -51,13 +54,15 @@ describe("_renderMarkdownTextCard", () => {
     expect(app.workspace.openedLinks).toEqual([["Cadence/Projects/Site.md", "", "split"]]);
   });
 
-  it("renders the value as markdown into a preview, with the view as the component", () => {
-    const { view, parent } = setup();
-    const md = vi.spyOn(MarkdownRenderer, "renderMarkdown");
+  it("renders the value as markdown into a preview with MarkdownRenderer.render, the view as the component", () => {
+    const { view, parent, app } = setup();
+    const md = vi.spyOn(MarkdownRenderer, "render");
+    const deprecated = vi.spyOn(MarkdownRenderer, "renderMarkdown");
     const file = new TFile("a.md");
     view._renderMarkdownTextCard(parent, file, "k", "L", "**hi**", "ph");
     const preview = byClass(parent, "markdown-preview-view")[0];
-    expect(md.mock.calls).toEqual([["**hi**", preview, "a.md", view]]);
+    expect(md.mock.calls).toEqual([[app, "**hi**", preview, "a.md", view]]);
+    expect(deprecated).not.toHaveBeenCalled();
     expect(preview.children).toEqual([]);
   });
 
@@ -68,9 +73,9 @@ describe("_renderMarkdownTextCard", () => {
     expect(preview.children.map((c) => c.text)).toEqual([shown]);
   });
 
-  it("binds rendered internal links to open in place, by data-href then href", () => {
+  it("binds rendered internal links to open in place, by data-href then href", async () => {
     const { view, parent, app } = setup();
-    vi.spyOn(MarkdownRenderer, "renderMarkdown").mockImplementation(async (_md, el) => {
+    vi.spyOn(MarkdownRenderer, "render").mockImplementation(async (_app, _md, el) => {
       const target = el as unknown as FakeElement;
       target.createEl("a", { cls: "internal-link", attr: { "data-href": "Jane Doe", href: "x" } });
       target.createEl("a", { cls: "internal-link", attr: { href: "Bob" } });
@@ -78,19 +83,41 @@ describe("_renderMarkdownTextCard", () => {
       target.createEl("a", { cls: "external-link", attr: { href: "https://x" } });
     });
     view._renderMarkdownTextCard(parent, new TFile("n.md"), "k", "L", "text");
+    await flush();
     const links = byClass(parent, "markdown-preview-view")[0].children;
     const events = links.map((a) => a.trigger("click"));
     expect(events.map((e) => [e.defaultPrevented, e.propagationStopped])).toEqual([[true, true], [true, true], [false, false], [false, false]]);
     expect(app.workspace.openedLinks).toEqual([["Jane Doe", "n.md", false], ["Bob", "n.md", false]]);
   });
 
-  it("falls back to the raw text when the renderer throws synchronously", () => {
+  it("falls back to the raw text when the renderer throws synchronously", async () => {
     const { view, parent } = setup();
-    vi.spyOn(MarkdownRenderer, "renderMarkdown").mockImplementation(() => {
+    vi.spyOn(MarkdownRenderer, "render").mockImplementation(() => {
       throw new Error("boom");
     });
     view._renderMarkdownTextCard(parent, new TFile("n.md"), "k", "L", "raw *md*");
+    await flush();
     expect(byClass(parent, "markdown-preview-view")[0].text).toBe("raw *md*");
+  });
+
+  it("falls back to the raw text when the renderer rejects, with no unhandled rejection", async () => {
+    const { view, parent } = setup();
+    const unhandled = vi.fn();
+    process.on("unhandledRejection", unhandled);
+    try {
+      vi.spyOn(MarkdownRenderer, "render").mockImplementation(async (_app, _md, el) => {
+        (el as unknown as FakeElement).createDiv({ text: "partial" });
+        throw new Error("boom");
+      });
+      view._renderMarkdownTextCard(parent, new TFile("n.md"), "k", "L", "raw *md*");
+      await flush();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      const preview = byClass(parent, "markdown-preview-view")[0];
+      expect([preview.text, preview.children]).toEqual(["raw *md*", []]);
+      expect(unhandled).not.toHaveBeenCalled();
+    } finally {
+      process.off("unhandledRejection", unhandled);
+    }
   });
 });
 
@@ -146,17 +173,23 @@ describe("_renderSingleCrossSection", () => {
     expect(table.mock.calls).toEqual([[parent.children[1], "deal", pre, ENTITIES.deal.columns]]);
   });
 
-  it("QUIRK: a comma-separated link string does not match; only a single link or a list does", () => {
+  it("a comma-separated link string matches each of its links, as other link fields parse it", () => {
     const deal: MockFileSpec = { path: "Cadence/Pipeline/Two.md", frontmatter: { type: "deal", company: "[[Initech]], [[Acme Corp]]" } };
-    const { view, parent } = setup([deal]);
+    const plain: MockFileSpec = { path: "Cadence/Pipeline/Three.md", frontmatter: { type: "deal", company: "Initech, acme corp" } };
+    const { view, parent } = setup([deal, plain]);
+    const table = vi.spyOn(view, "_renderEntityTable").mockImplementation(() => {});
     view._renderSingleCrossSection(parent, "deal", "company", "table", "Acme Corp");
-    expect(parent.children[0].children.map((c) => c.text)).toEqual(["No linked items found."]);
+    expect((table.mock.calls[0][2] as Array<{ basename: string }>).map((e) => e.basename).sort()).toEqual(["Three", "Two"]);
   });
 
-  it("QUIRK: an unknown view type renders only the empty wrapper", () => {
+  it("an unknown view type renders as a table", () => {
     const { view, parent } = setup(files);
+    const table = vi.spyOn(view, "_renderEntityTable").mockImplementation(() => {});
     view._renderSingleCrossSection(parent, "deal", "company", "list", "Acme Corp");
-    expect(parent.children.map((c) => c.children.length)).toEqual([0]);
+    expect(table).toHaveBeenCalledTimes(1);
+    const [wrap, entity, list, columns] = table.mock.calls[0];
+    expect([wrap, entity, columns]).toEqual([parent.children[0], "deal", ENTITIES.deal.columns]);
+    expect((list as Array<{ basename: string }>).map((e) => e.basename).sort()).toEqual(["Acme renewal", "Globex deal"]);
   });
 
   it("tiles projects with status/priority pills, owner, due and milestone progress loaded asynchronously", async () => {
@@ -190,7 +223,7 @@ describe("_renderSingleCrossSection", () => {
     expect(opened.mock.calls).toEqual([["project", file(project.path)]]);
   });
 
-  it("tiles other entities with up to four other fields, links clickable; QUIRK: an empty list counts as filled", () => {
+  it("tiles other entities with up to four other filled fields, links clickable; an empty list is not filled", () => {
     const { view, parent, opened, file } = setup([companyAcme, contactJane]);
     view._renderSingleCrossSection(parent, "contact", "company", "tile", "Acme Corp");
     const [card] = byClass(parent, "cad-proj-card");
@@ -199,11 +232,11 @@ describe("_renderSingleCrossSection", () => {
     const fields = byClass(card, "cad-proj-meta")[0].children;
     expect(fields.map((f) => f.children.map((c) => [c.localName, c.text]))).toEqual([
       [["span", "Email: "], ["span", "jane@acme.test"]],
-      [["span", "Phone: "], ["span", ""]],
       [["span", "Company: "], ["a", "Acme Corp"]],
       [["span", "Role: "], ["span", "CTO"]],
+      [["span", "Last contact: "], ["span", fmtValue("2026-09-30", "date")]],
     ]);
-    const companyLink = fields[2].children[1];
+    const companyLink = fields[1].children[1];
     const event = companyLink.trigger("click");
     expect([event.defaultPrevented, event.propagationStopped]).toEqual([true, true]);
     expect(opened.mock.calls).toEqual([["company", file(companyAcme.path)]]);
@@ -366,6 +399,20 @@ describe("_renderCrossSections", () => {
     expect(opened.mock.calls).toEqual([["deal", file(dealGlobex.path)]]);
   });
 
+  it("tiles skip an empty list, and an unknown view type renders as a table", () => {
+    const { view, parent } = setup([companyAcme, contactJane], {
+      crossSections: [
+        { id: "t", parentEntity: "company", targetEntity: "contact", linkField: "company", viewType: "tile" },
+        { id: "l", parentEntity: "company", targetEntity: "contact", linkField: "company", viewType: "list" },
+      ],
+    });
+    const table = vi.spyOn(view, "_renderEntityTable").mockImplementation(() => {});
+    view._renderCrossSections(parent, "company", "Acme Corp");
+    const [card] = byClass(parent, "cad-proj-card");
+    expect(card.children[1].children.map((m) => m.text)).toEqual(["Email: jane@acme.test", "Company: [[Acme Corp]]"]);
+    expect(table.mock.calls.map((c) => [c[0], c[1], (c[2] as unknown[]).length, c[3]])).toEqual([[parent.children[1], "contact", 1, ENTITIES.contact.columns]]);
+  });
+
   it("boards the linked targets into enum columns, with a French empty column", () => {
     const { view, parent, opened, file } = setup(files, { crossSections: [config("kanban")] });
     view._renderCrossSections(parent, "company", "Acme Corp");
@@ -412,15 +459,27 @@ describe("_renderDynamicH2Section", () => {
   });
 
   it.each([["Deals #cross-deal-company"], ["Deals #cross-deal-company-table-x"], ["Deals #cross-nope-company-table"], ["C #chart-deal-company-stage"], ["C #chart-nope-company-stage-donut"]])(
-    "QUIRK: a malformed or unknown-entity %s renders nothing at all",
+    "a malformed or unknown-entity %s falls back to a text card (owner decision)",
     (rawKey) => {
       const { view, parent, file } = setup(files);
       const generic = vi.spyOn(view, "_renderGenericTextSection");
-      view._renderDynamicH2Section(parent, file(companyAcme.path), {}, rawKey);
-      expect(parent.children).toEqual([]);
-      expect(generic).not.toHaveBeenCalled();
+      const card = vi.spyOn(view, "_renderMarkdownTextCard");
+      const sections = { [rawKey]: "\nkept text\n" };
+      view._renderDynamicH2Section(parent, file(companyAcme.path), sections, rawKey);
+      expect(generic.mock.calls).toEqual([[parent, file(companyAcme.path), sections, rawKey, undefined]]);
+      expect(card.mock.calls[0].slice(2, 5)).toEqual([rawKey, rawKey.split(" #")[0].toUpperCase(), "kept text"]);
+      expect(byClass(parent, "cad-pd-card")).toHaveLength(1);
     },
   );
+
+  it("reads a dashed link field in a #cross- heading, when its last part is a view", () => {
+    const deal: MockFileSpec = { path: "Cadence/Pipeline/Close.md", frontmatter: { type: "deal", "close-by": "[[Acme Corp]]" } };
+    const { view, parent, file } = setup([companyAcme, deal]);
+    const single = vi.spyOn(view, "_renderSingleCrossSection").mockImplementation(() => {});
+    view._renderDynamicH2Section(parent, file(companyAcme.path), {}, "Closers #cross-deal-close-by-table");
+    expect(byClass(parent, "cad-pd-card-title")[0].text).toBe("CLOSERS · 1");
+    expect(single.mock.calls[0].slice(1, 5)).toEqual(["deal", "close-by", "table", "Acme Corp"]);
+  });
 
   it("renders a #cross- section as a full-width card counting the linked targets", () => {
     const { view, parent, file } = setup(files);
@@ -463,7 +522,22 @@ describe("_renderDynamicH2Section", () => {
     expect(rendered).toHaveBeenCalledTimes(1);
   });
 
-  it("renders a #chart- section counting the linked targets' raw group field, most frequent first", () => {
+  it("counts a #chart- section as a dashboard widget counts (chartData): through entityValue, blank list items skipped", () => {
+    const untitled: MockFileSpec = { path: "Cadence/Pipeline/Untitled.md", frontmatter: { type: "deal", company: "Acme Corp", owner: ["[[Sam Lee]]", " "] } };
+    const { view, parent, file, app } = setup([...files, untitled]);
+    const chart = vi.spyOn(view, "_drawChart").mockImplementation(() => {});
+    view._renderDynamicH2Section(parent, file(companyAcme.path), {}, "By title #chart-deal-company-title-list");
+    view._renderDynamicH2Section(parent, file(companyAcme.path), {}, "By owner #chart-deal-company-owner-list");
+    const linked = listEntities(app as never, "deal").filter((e) => e.basename !== "Other");
+    expect(chart.mock.calls.map((c) => c[2])).toEqual([
+      chartData(linked, { groupBy: "title" }, ENTITIES.deal),
+      chartData(linked, { groupBy: "owner" }, ENTITIES.deal),
+    ]);
+    expect(chart.mock.calls[0][2]).toContainEqual({ label: "Untitled", count: 1 });
+    expect(chart.mock.calls[1][2]).toEqual([{ label: "Sam Lee", count: 3 }]);
+  });
+
+  it("renders a #chart- section counting the linked targets' group field, most frequent first", () => {
     const extra: MockFileSpec = { path: "Cadence/Pipeline/Z.md", frontmatter: { type: "deal", company: "Acme Corp", stage: ["[[Won]]", ""], owner: null } };
     const { view, parent, file } = setup([...files, extra]);
     const chart = vi.spyOn(view, "_drawChart").mockImplementation(() => {});
@@ -471,17 +545,18 @@ describe("_renderDynamicH2Section", () => {
     view._renderDynamicH2Section(parent, file(companyAcme.path), {}, "By owner #chart-deal-company-owner-bar");
     expect(parent.children[0].children[0].children[0].text).toBe("BY STAGE · 3 Deals");
     expect(chart.mock.calls.map((c) => [c[1], c[2]])).toEqual([
-      ["donut", [{ label: "Won", count: 2 }, { label: "Proposal", count: 1 }, { label: "Unspecified", count: 1 }]],
+      ["donut", [{ label: "Won", count: 2 }, { label: "Proposal", count: 1 }]],
       ["bar", [{ label: "Sam Lee", count: 2 }, { label: "Unspecified", count: 1 }]],
     ]);
     expect(chart.mock.calls[0][0]).toBe(parent.children[0].children[1].children[0]);
   });
 
-  it("QUIRK: keeps the dashes of a multi-part chart style", () => {
+  it("draws a dashed multi-part chart style as its style, and marks it in the switcher", () => {
     const { view, parent, file } = setup(files);
     const chart = vi.spyOn(view, "_drawChart").mockImplementation(() => {});
     view._renderDynamicH2Section(parent, file(companyAcme.path), {}, "S #chart-deal-company-stage-big-donut");
-    expect(chart.mock.calls[0][1]).toBe("big-donut");
+    expect(chart.mock.calls[0][1]).toBe("donut");
+    expect(parent.findAll("button").map((b) => String(b.attrs.style).includes("opacity: 1;"))).toEqual([true, false, false, false]);
   });
 
   it("switches the chart style by rewriting the heading's tag, then re-renders", async () => {

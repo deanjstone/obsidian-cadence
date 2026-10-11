@@ -1,4 +1,4 @@
-import type { Entity, EntityDef, Frontmatter } from '../../types/entities';
+import type { Entity, EntityDef } from '../../types/entities';
 import type { ChartStyle, WidgetConfig } from '../../types/modals';
 import type { AppViewSettings } from '../../types/settings';
 import { entityValue } from '../../utils/entities';
@@ -63,6 +63,15 @@ export const WIDGET_STYLE_OPTIONS: ReadonlyArray<{ value: ChartStyle; label: str
   { value: 'list', label: '📋 List' },
 ];
 
+/* The style a #chart- heading draws: a known style as it is, a dashed
+   multi-part one (`big-donut`) as its last known part, and anything else
+   as given (drawChart draws an unknown style as a list) (#59). */
+export function chartStyleOf(style: string): string {
+  const known = WIDGET_STYLE_OPTIONS.map((option): string => option.value);
+  if (known.includes(style)) return style;
+  return style.split('-').reverse().find((part) => known.includes(part)) ?? style;
+}
+
 /* A dashboard's widgets: the user's list from settings. There are no
    default widgets, so a missing list is empty. */
 export function dashboardWidgets(settings: Pick<AppViewSettings, DashboardWidgetsKey>, key: DashboardWidgetsKey): WidgetConfig[] {
@@ -80,23 +89,11 @@ export function removeWidget(widgets: WidgetConfig[] | undefined, id: string): W
   return (widgets || []).filter(item => item.id !== id);
 }
 
-/* A #chart- H2 section's data: entities counted by the raw frontmatter
-   value of groupField (no entityValue fallbacks). Unlike chartData, a
-   blank list item counts as 'Unspecified', and an empty list counts
-   nothing. */
-export function sectionChartData(
-  entities: Entity[], groupField: string, frontmatterOf: (entity: Entity) => Frontmatter,
-): ChartDatum[] {
-  const counts: Record<string, number> = {};
-  entities.forEach(e => {
-    const val = frontmatterOf(e)[groupField];
-    const vals = Array.isArray(val) ? val : [val == null ? '' : val];
-    vals.forEach(v => {
-      const label = String(v).replace(/^\[\[|\]\]$/g, '').trim() || 'Unspecified';
-      counts[label] = (counts[label] || 0) + 1;
-    });
-  });
-  return toChartData(counts);
+/* A #chart- H2 section's data: its entities counted by groupField
+   exactly as a dashboard widget counts them (chartData), so a heading
+   and a widget on the same field agree (#59). */
+export function sectionChartData(entities: Entity[], groupField: string, def: EntityDef): ChartDatum[] {
+  return chartData(entities, { groupBy: groupField }, def);
 }
 
 export interface DonutSegment {
@@ -155,6 +152,11 @@ export function kpiCards(data: ChartDatum[]): Array<{ accent: string; percent: n
   }));
 }
 
+/* The sum of the counts. Every style shows the empty state at 0 (#59). */
+function chartTotal(data: ChartDatum[]): number {
+  return data.reduce((sum, item) => sum + item.count, 0);
+}
+
 export function drawChart(view: AppViewHost, parent: HTMLElement, style: ChartStyle | string, data: ChartDatum[]): void {
   if (style === 'donut') view._drawDonutChart(parent, data);
   else if (style === 'bar') view._drawBarChart(parent, data);
@@ -167,7 +169,9 @@ export function drawChartEmpty(view: AppViewHost, parent: HTMLElement): void {
   el.style.cssText = 'text-align: center; padding: 16px;';
 }
 
-export function drawDonutChart(view: AppViewHost, parent: HTMLElement, data: ChartDatum[]): void {
+/* A zero-count item has no arc, so it gets no segment or legend row. */
+export function drawDonutChart(view: AppViewHost, parent: HTMLElement, allData: ChartDatum[]): void {
+  const data = allData.filter((item) => item.count > 0);
   const { total, r, circ, segments } = donutGeometry(data);
   if (total === 0) return view._drawChartEmpty(parent);
 
@@ -218,8 +222,7 @@ export function drawDonutChart(view: AppViewHost, parent: HTMLElement, data: Cha
 }
 
 export function drawBarChart(view: AppViewHost, parent: HTMLElement, data: ChartDatum[]): void {
-  const total = data.reduce((sum, item) => sum + item.count, 0);
-  if (total === 0) return view._drawChartEmpty(parent);
+  if (chartTotal(data) === 0) return view._drawChartEmpty(parent);
 
   const rows = barRows(data);
 
@@ -248,7 +251,7 @@ export function drawBarChart(view: AppViewHost, parent: HTMLElement, data: Chart
 }
 
 export function drawKpiGrid(view: AppViewHost, parent: HTMLElement, data: ChartDatum[]): void {
-  if (data.length === 0) return view._drawChartEmpty(parent);
+  if (chartTotal(data) === 0) return view._drawChartEmpty(parent);
   const cards = kpiCards(data);
 
   const grid = parent.createDiv({ cls: 'cad-stat-grid' });
@@ -271,7 +274,7 @@ export function drawKpiGrid(view: AppViewHost, parent: HTMLElement, data: ChartD
 }
 
 export function drawSimpleList(view: AppViewHost, parent: HTMLElement, data: ChartDatum[]): void {
-  if (data.length === 0) return view._drawChartEmpty(parent);
+  if (chartTotal(data) === 0) return view._drawChartEmpty(parent);
 
   const list = parent.createDiv({ cls: 'cad-simple-list' });
   list.style.cssText = 'display: flex; flex-direction: column; gap: 6px; padding: 8px 0;';

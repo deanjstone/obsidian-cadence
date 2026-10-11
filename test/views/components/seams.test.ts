@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ENTITIES } from "../../../src/constants/entities";
 import type { Entity, Frontmatter } from "../../../src/types/entities";
-import { CHART_COLORS, barRows, chartData, donutGeometry, kpiCards, sectionChartData } from "../../../src/views/components/charts";
+import { CHART_COLORS, barRows, chartData, chartStyleOf, donutGeometry, kpiCards, sectionChartData } from "../../../src/views/components/charts";
 import { crossSectionRows, dynamicH2Kind, linksTo } from "../../../src/views/components/sections";
 
 /* Direct tests for the pure parts of the shared view components. The
@@ -37,27 +37,30 @@ describe("chartData (dashboard widgets)", () => {
 });
 
 describe("sectionChartData (#chart- headings)", () => {
-  const frontmatterOf = (e: Entity) => e.frontmatter;
-
-  it("counts the raw frontmatter value: blank list items and null count as Unspecified, an empty list counts nothing", () => {
+  it("counts as chartData does: list items once each, blank items skipped, a blank scalar as Unspecified", () => {
     const deals = [
-      entity("a", { stage: ["[[Won]]", ""] }),
-      entity("b", { stage: [] }),
-      entity("c", { stage: null }),
+      entity("a", { owner: ["[[Won]]", ""] }),
+      entity("b", { owner: [] }),
+      entity("c", { owner: null }),
       entity("d", {}),
     ];
-    expect(sectionChartData(deals, "stage", frontmatterOf)).toEqual([{ label: "Unspecified", count: 3 }, { label: "Won", count: 1 }]);
+    expect(sectionChartData(deals, "owner", ENTITIES.deal)).toEqual([{ label: "Unspecified", count: 2 }, { label: "Won", count: 1 }]);
+    expect(sectionChartData(deals, "owner", ENTITIES.deal)).toEqual(chartData(deals, { groupBy: "owner" }, ENTITIES.deal));
   });
 
-  it("does not fall back to the basename for the primary field, unlike chartData", () => {
+  it("falls back to the basename for the primary field, as chartData does", () => {
     const deals = [entity("x", {})];
-    expect(sectionChartData(deals, "title", frontmatterOf)).toEqual([{ label: "Unspecified", count: 1 }]);
-    expect(chartData(deals, { groupBy: "title" }, ENTITIES.deal)).toEqual([{ label: "x", count: 1 }]);
+    expect(sectionChartData(deals, "title", ENTITIES.deal)).toEqual([{ label: "x", count: 1 }]);
   });
 
-  it("reads frontmatter through the given lookup", () => {
-    const lookup = () => ({ tier: "Gold" });
-    expect(sectionChartData([entity("p", { tier: "Silver" })], "tier", lookup)).toEqual([{ label: "Gold", count: 1 }]);
+  it("reads through entityValue, so a stage list counts its first item", () => {
+    expect(sectionChartData([entity("p", { stage: ["Won", "Lost"] })], "stage", ENTITIES.deal)).toEqual([{ label: "Won", count: 1 }]);
+  });
+});
+
+describe("chartStyleOf", () => {
+  it.each([["donut", "donut"], ["kpi", "kpi"], ["big-donut", "donut"], ["bar-big", "bar"], ["pie", "pie"]])("draws %j as %j", (style, expected) => {
+    expect(chartStyleOf(style)).toBe(expected);
   });
 });
 
@@ -107,8 +110,10 @@ describe("linksTo", () => {
     ["[[Acme Corp]]", true],
     ["  acme corp ", true],
     [["[[Initech]]", "[[ACME CORP]]"], true],
-    ["[[Acme Corp|Acme]]", false],
-    ["[[Initech]], [[Acme Corp]]", false],
+    ["[[Acme Corp|Acme]]", true],
+    ["[[Initech]], [[Acme Corp]]", true],
+    ["Initech, Acme Corp", true],
+    ["[[Acme Corp Ltd]]", false],
     [null, false],
     [undefined, false],
     [[], false],
@@ -139,7 +144,8 @@ describe("dynamicH2Kind", () => {
     ["Deals #cross-deal-company-kanban", { kind: "cross", cleanLabel: "Deals", targetEntity: "deal", linkField: "company", viewType: "kanban" }],
     ["X #cross-nope-a-b", { kind: "cross", cleanLabel: "X", targetEntity: "nope", linkField: "a", viewType: "b" }],
     ["Deals #cross-deal-company", { kind: "malformed", cleanLabel: "Deals" }],
-    ["Deals #cross-deal-close-by-table", { kind: "malformed", cleanLabel: "Deals" }],
+    ["Deals #cross-deal-close-by-table", { kind: "cross", cleanLabel: "Deals", targetEntity: "deal", linkField: "close-by", viewType: "table" }],
+    ["Deals #cross-deal-company-table-x", { kind: "malformed", cleanLabel: "Deals" }],
     ["By stage #chart-deal-company-stage-donut", {
       kind: "chart", cleanLabel: "By stage", targetEntity: "deal", linkField: "company", groupField: "stage", chartStyle: "donut",
     }],
