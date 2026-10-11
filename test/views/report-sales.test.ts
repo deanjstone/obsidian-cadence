@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { FakeElement, type MockFileSpec } from "../mocks/obsidian";
 import { makeAppView } from "../helpers/app-view";
+import { withTimezone, ZONES } from "../helpers/timezone";
 import { fmtValue } from "../../src/utils/format";
 
 /* Characterization tests for the Sales report, renderReportSales: the four
@@ -132,10 +133,31 @@ describe("renderReportSales: revenue by month", () => {
     ]);
   });
 
-  it("QUIRK: a won deal with no file stat, or an mtime of 0, is in no month", async () => {
-    const { view, root } = setup([W4, deal("Zero", { stage: "Won", value: 5 }, 0)], Date.UTC(1970, 2, 1));
+  it("dates a win by its `closed` date, else its file mtime; one with neither (no stat, or an mtime of 0) is in no month", async () => {
+    const closed = deal("Closed", { stage: "Won", value: 7, closed: "1970-01-15" });
+    const { view, root } = setup([W4, deal("Zero", { stage: "Won", value: 5 }, 0), closed], Date.UTC(1970, 2, 1));
     await view.renderReportSales(root);
-    expect(bars(root).map((b) => b[3]).at(-3)).toEqual(`Jan — ${cur(0)} · 0 deals`);
+    expect(bars(root).map((b) => b[3]).at(-3)).toEqual(`Jan — ${cur(7)} · 1 deals`);
+  });
+
+  it("an edit doesn't move a win with a `closed` date, in any zone", async () => {
+    for (const tz of ZONES) {
+      await withTimezone(tz, async () => {
+        const { view, root } = setup([deal("Edited", { stage: ["Won"], value: 10, closed: "2026-08-01" }, Date.UTC(2026, 9, 5))]);
+        await view.renderReportSales(root);
+        expect(bars(root).map((b) => [b[0], b[3]]).slice(3)).toEqual([
+          ["Aug", `Aug — ${cur(10)} · 1 deals`], ["Sep", `Sep — ${cur(0)} · 0 deals`], ["Oct", `Oct — ${cur(0)} · 0 deals`],
+        ]);
+        vi.useRealTimers();
+        vi.restoreAllMocks();
+      });
+    }
+  });
+
+  it("falls back to the file mtime for an unreadable `closed` value", async () => {
+    const { view, root } = setup([deal("Odd", { stage: "Won", value: 3, closed: "someday" }, Date.UTC(2026, 9, 2))]);
+    await view.renderReportSales(root);
+    expect(bars(root).at(-1)![3]).toBe(`Oct — ${cur(3)} · 1 deals`);
   });
 });
 

@@ -3,7 +3,7 @@ import { ENTITIES } from '../constants/entities';
 import type { Entity, EntityDef } from '../types/entities';
 import type { DailyNoteSettings } from '../types/settings';
 import { addDays, dailyNotePath, parseYmd, startOfDay, startOfWeek, ymd } from '../utils/dates';
-import { crmSummary, dealOutcome, dealValue, dealsByStage, stageConfidence, sumValues } from '../utils/deals';
+import { crmSummary, dealClosedAt, dealOutcome, dealValue, dealsByStage, stageConfidence, sumValues } from '../utils/deals';
 import { entityValue, getDealStages, listEntities } from '../utils/entities';
 import { fmtValue } from '../utils/format';
 import { parseSections } from '../utils/parsing';
@@ -150,7 +150,8 @@ export interface SalesReport {
   captureRate: number;
   stats: StatCard[];
   /** Revenue per calendar month for the 6 months up to `now`, oldest first,
-      dated by each won deal's file mtime. A deal with no stat (or mtime 0) is in none. */
+      dated by each won deal's close date (dealClosedAt: `closed`, else the
+      file mtime). A deal with neither is in none. */
   months: Array<{ date: Date; label: string; revenue: number; count: number }>;
   bars: ReportBar[];
   /** The 6 largest wins. */
@@ -170,9 +171,8 @@ export function salesReport(deals: Entity[], def: EntityDef, now: Date): SalesRe
     months.push({ date: d, label: d.toLocaleDateString(undefined, { month: 'short' }), revenue: 0, count: 0 });
   }
   won.forEach((e) => {
-    const t = e.file && e.file.stat ? e.file.stat.mtime : null;
-    if (!t) return;
-    const d = new Date(t);
+    const d = dealClosedAt(e, def);
+    if (!d) return;
     const idx = months.findIndex((m) => m.date.getFullYear() === d.getFullYear() && m.date.getMonth() === d.getMonth());
     if (idx >= 0) { months[idx].revenue += dealValue(e, def); months[idx].count++; }
   });
@@ -575,7 +575,7 @@ export async function renderReportSales(view: AppViewHost, root: HTMLElement): P
   view._renderPageHeader(root, 'Sales report', 'Closed-won and lost · performance over time');
   drawStats(root, report.stats);
 
-  /* Revenue by month (last 6 months, by file mtime as close proxy) */
+  /* Revenue by month (last 6 months, by close date) */
   root.createDiv({ cls: 'cad-section-label-lg', text: 'REVENUE — LAST 6 MONTHS' });
   drawBars(root.createDiv({ cls: 'cad-bar-chart cad-bar-chart-tall' }), report.bars);
 

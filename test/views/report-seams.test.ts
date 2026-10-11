@@ -4,7 +4,7 @@ import { ENTITIES } from "../../src/constants/entities";
 import {
   activityReport, partnersReport, pipelineReport, productivityDates, productivityReport, reportBar, salesReport,
 } from "../../src/views/reports";
-import { crmSummary, dealValue, sumValues } from "../../src/utils/deals";
+import { closedPatch, crmSummary, dealClosedAt, dealValue, sumValues } from "../../src/utils/deals";
 import * as crm from "../../src/views/crm-dashboard";
 import { DEAL_STAGES } from "../../src/constants/entities";
 import { ymd } from "../../src/utils/dates";
@@ -53,6 +53,21 @@ describe("src/utils/deals", () => {
 
   it("sums deal values, blank and non-numeric as 0", () => {
     expect(sumValues([entity("a", { value: 5 }), entity("b", { value: "7" }), entity("c", { value: "x" }), entity("d", {})], deal)).toBe(12);
+  });
+
+  it("closedPatch writes today's date only when a stage write closes the deal or flips its outcome", () => {
+    const now = new Date(2026, 9, 11, 23, 30);
+    expect([
+      closedPatch(["Proposal"], ["Won"], now), closedPatch(undefined, "closed-lost", now), closedPatch(["Won"], ["Lost"], now),
+      closedPatch("won", ["Won"], now), closedPatch(["Won"], ["Lead"], now), closedPatch("Lead", null, now),
+    ]).toEqual([{ closed: "2026-10-11" }, { closed: "2026-10-11" }, { closed: "2026-10-11" }, {}, {}, {}]);
+  });
+
+  it("dealClosedAt reads `closed` as a local date, else the file mtime, else null", () => {
+    expect(ymd(dealClosedAt(entity("a", { closed: "2026-08-01" }, NOW), deal)!)).toBe("2026-08-01");
+    expect(dealClosedAt(entity("b", { closed: "2026-08-01T10:00:00Z" }), deal)!.getTime()).toBe(Date.UTC(2026, 7, 1, 10));
+    expect(dealClosedAt(entity("c", { closed: "soon" }, NOW), deal)!.getTime()).toBe(NOW);
+    expect([dealClosedAt(entity("d", {}), deal), dealClosedAt(entity("e", {}, 0), deal)]).toEqual([null, null]);
   });
 });
 

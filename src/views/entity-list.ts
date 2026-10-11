@@ -1,6 +1,7 @@
 import { Notice, Platform, TFile, setIcon } from 'obsidian';
 import { ENTITIES } from '../constants/entities';
 import { CadenceImportModal } from '../modals/import-modal';
+import { closedPatch } from '../utils/deals';
 import { entityValue, getFieldSuggestionSource, listEntities, readProjectMeta } from '../utils/entities';
 import { fmtValue, pctBand } from '../utils/format';
 import { parseLinkValues } from '../utils/parsing';
@@ -512,7 +513,9 @@ export async function renderEntityList(
           if (!file || !(file instanceof TFile)) return;
           try {
             await view.app.fileManager.processFrontMatter(file, (fm) => {
+              const before = fm[groupBy];
               fm[groupBy] = kanbanDropValue(def.fields.find(fd => fd.key === groupBy), stage);
+              if (entityKey === 'deal' && groupBy === 'stage') Object.assign(fm, closedPatch(before, fm[groupBy], new Date()));
             });
             new Notice(`Moved to ${stage}`);
           } catch (e) {

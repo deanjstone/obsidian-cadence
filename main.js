@@ -5296,6 +5296,20 @@ function dealStage(entity, def) {
 function dealOutcome(entity, def) {
   return stageOutcome(dealStage(entity, def));
 }
+function closedPatch(before, after, now) {
+  const first = (v) => Array.isArray(v) ? v[0] : v;
+  const outcome = stageOutcome(first(after));
+  return outcome !== "open" && outcome !== stageOutcome(first(before)) ? { closed: ymd(now) } : {};
+}
+function dealClosedAt(entity, def) {
+  const closed = entityValue(entity, "closed", def);
+  if (closed) {
+    const d = parseYmd(closed) ?? new Date(closed);
+    if (!isNaN(d.getTime())) return d;
+  }
+  const mtime = entity.file && entity.file.stat ? entity.file.stat.mtime : 0;
+  return mtime ? new Date(mtime) : null;
+}
 function dealValue(entity, def) {
   return Number(entityValue(entity, "value", def)) || 0;
 }
@@ -5629,7 +5643,11 @@ async function renderEntityDetail(view, root, entityKey, file) {
   const writeField = async (key, raw) => {
     try {
       const value = coerceFieldEdit(def, key, raw);
-      await view.app.fileManager.processFrontMatter(file, (frontmatter) => applyFieldEdit(frontmatter, key, value));
+      await view.app.fileManager.processFrontMatter(file, (frontmatter) => {
+        const before = frontmatter[key];
+        applyFieldEdit(frontmatter, key, value);
+        if (entityKey === "deal" && key === "stage") Object.assign(frontmatter, closedPatch(before, frontmatter[key], /* @__PURE__ */ new Date()));
+      });
       flashSaved();
     } catch (e) {
       new import_obsidian17.Notice(`Save failed: ${e.message}`);
@@ -6503,7 +6521,9 @@ async function renderEntityList(view, root, entityKey, opts = {}) {
           if (!file || !(file instanceof import_obsidian19.TFile)) return;
           try {
             await view.app.fileManager.processFrontMatter(file, (fm) => {
+              const before = fm[groupBy];
               fm[groupBy] = kanbanDropValue(def.fields.find((fd) => fd.key === groupBy), stage);
+              if (entityKey === "deal" && groupBy === "stage") Object.assign(fm, closedPatch(before, fm[groupBy], /* @__PURE__ */ new Date()));
             });
             new import_obsidian19.Notice(`Moved to ${stage}`);
           } catch (e) {
@@ -7086,7 +7106,8 @@ function computeBriefing(data, now) {
   const winCutoff = nowMs - 7 * 864e5;
   const recentWins = deals.filter((e) => {
     if (dealOutcome(e, dealDef) !== "won") return false;
-    return e.file && e.file.stat && e.file.stat.mtime >= winCutoff;
+    const closedAt = dealClosedAt(e, dealDef);
+    return !!closedAt && closedAt.getTime() >= winCutoff;
   });
   if (recentWins.length) {
     const value = recentWins.reduce((s, e) => s + (Number(entityValue(e, "value", dealDef)) || 0), 0);
@@ -9637,9 +9658,8 @@ function salesReport(deals, def, now) {
     months.push({ date: d, label: d.toLocaleDateString(void 0, { month: "short" }), revenue: 0, count: 0 });
   }
   won.forEach((e) => {
-    const t = e.file && e.file.stat ? e.file.stat.mtime : null;
-    if (!t) return;
-    const d = new Date(t);
+    const d = dealClosedAt(e, def);
+    if (!d) return;
     const idx = months.findIndex((m) => m.date.getFullYear() === d.getFullYear() && m.date.getMonth() === d.getMonth());
     if (idx >= 0) {
       months[idx].revenue += dealValue(e, def);

@@ -134,6 +134,18 @@ describe("computeBriefing: deal outcomes", () => {
     expect(out.map((i) => i.text)).toEqual(["1 deal won this week · $10"]);
   });
 
+  it("dates a recent win by its `closed` date, falling back to the file mtime, so an edit doesn't make an old win recent", () => {
+    const out = computeBriefing({
+      ...empty,
+      deals: [
+        deal("Old", { stage: "Won", value: 1, closed: "2026-09-01" }, NOW.getTime()),
+        deal("New", { stage: "Won", value: 10, closed: "2026-10-09" }, NOW.getTime() - 4 * week),
+        deal("Mtime", { stage: "Won", value: 100 }, NOW.getTime()),
+      ],
+    }, NOW);
+    expect(out.map((i) => i.text)).toEqual(["2 deals won this week · $110"]);
+  });
+
   it("leaves lower-case 'won' and 'lost' deals out of closing this week and the stale-contact check", () => {
     const out = computeBriefing({
       ...empty,

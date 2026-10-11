@@ -1,4 +1,5 @@
-import type { Entity, EntityDef } from '../types/entities';
+import type { Entity, EntityDef, Frontmatter } from '../types/entities';
+import { parseYmd, ymd } from './dates';
 import { entityValue } from './entities';
 
 /* Deal totals shared by the CRM dashboard, Home, PRM analytics and the
@@ -28,6 +29,30 @@ export function dealStage(entity: Entity, def: EntityDef): string {
 
 export function dealOutcome(entity: Entity, def: EntityDef): DealOutcome {
   return stageOutcome(dealStage(entity, def));
+}
+
+/** The frontmatter a deal's stage write adds, given its stage `before` and
+    `after` (a one-item list reads as its item): `closed: <today>` when the
+    deal moves to Won or Lost from any other outcome, so its close date is
+    when it closed, not its last edit (#54). Anything else adds nothing, so a
+    reopened deal keeps its old date until it closes again. */
+export function closedPatch(before: unknown, after: unknown, now: Date): Frontmatter {
+  const first = (v: unknown) => (Array.isArray(v) ? v[0] : v);
+  const outcome = stageOutcome(first(after));
+  return outcome !== 'open' && outcome !== stageOutcome(first(before)) ? { closed: ymd(now) } : {};
+}
+
+/** When a deal closed: its `closed` date (a bare YYYY-MM-DD as local
+    midnight, or any date Date reads), else its file mtime for deals that
+    predate `closed`, else null (no stat, or an mtime of 0). */
+export function dealClosedAt(entity: Entity, def: EntityDef): Date | null {
+  const closed = entityValue(entity, 'closed', def);
+  if (closed) {
+    const d = parseYmd(closed) ?? new Date(closed as string);
+    if (!isNaN(d.getTime())) return d;
+  }
+  const mtime = entity.file && entity.file.stat ? entity.file.stat.mtime : 0;
+  return mtime ? new Date(mtime) : null;
 }
 
 /* A deal's value as a number; blank or non-numeric is 0. */

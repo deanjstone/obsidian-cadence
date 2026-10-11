@@ -3,7 +3,7 @@ import { ENTITIES } from '../constants/entities';
 import { CadenceReminderEditModal } from '../modals/reminder-edit';
 import { addDays, dailyNotePath, greeting, startOfDay, startOfWeek, ymd } from '../utils/dates';
 import { ensureDailyNote } from '../utils/daily-notes';
-import { dealOutcome } from '../utils/deals';
+import { dealClosedAt, dealOutcome } from '../utils/deals';
 import {
   entityValue, listEntities, listEntityFiles, projectNameFromPath, readEntity, readProjectMeta,
 } from '../utils/entities';
@@ -295,11 +295,12 @@ export function computeBriefing(data: BriefingData, now: Date): BriefingEntry[] 
     });
   }
 
-  /* 7. Recent wins (deals moved to Won in last 7 days) */
+  /* 7. Recent wins (deals closed as Won in the last 7 days, by dealClosedAt) */
   const winCutoff = nowMs - 7 * 86400000;
   const recentWins = deals.filter((e) => {
     if (dealOutcome(e, dealDef) !== 'won') return false;
-    return e.file && e.file.stat && e.file.stat.mtime >= winCutoff;
+    const closedAt = dealClosedAt(e, dealDef);
+    return !!closedAt && closedAt.getTime() >= winCutoff;
   });
   if (recentWins.length) {
     const value = recentWins.reduce((s, e) => s + (Number(entityValue(e, 'value', dealDef)) || 0), 0);
