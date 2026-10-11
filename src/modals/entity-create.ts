@@ -7,7 +7,7 @@ import type { EntityCreateResult } from '../types/modals';
 
 export interface EntityCreateOptions {
   /** Called with the new entity, or null when closed without submitting.
-      Typed optional: without it, closing is quiet but submitting throws. */
+      Optional: without it, closing and submitting are both quiet. */
   onSubmit?: (result: EntityCreateResult | null) => void;
   /** Field key → pre-filled value (stringified into the input). */
   defaults?: Record<string, unknown>;
@@ -73,14 +73,17 @@ export function defaultEnumValue(f: EntityField): string | undefined {
     domain/industry/role/tags keys become plain lists; numbers and currency
     are parsed (unparseable ones dropped); everything else stays a string.
     Empty values and empty lists are left out. The primary value is trimmed
-    for `name` but kept as typed in `values` (flagged, not fixed). */
+    in both `name` and `values` (#60). */
 export function buildEntityCreateValues(def: EntityDef, inputs: EntityCreateInput[]): EntityCreateResult | null {
   const values: Record<string, unknown> = {};
   let primaryValue = null as string | null;
   inputs.forEach((input, idx) => {
     const { key, type } = input;
     let raw: string | string[] | number | null = input.value;
-    if (idx === 0) primaryValue = (raw || '').trim();
+    if (idx === 0) {
+      primaryValue = (raw || '').trim();
+      raw = primaryValue;
+    }
     if (raw === '' || raw == null) return;
 
     const f = def.fields.find(fd => fd.key === key);
@@ -187,7 +190,7 @@ export class CadenceEntityCreateModal extends Modal {
   declare defaults: Record<string, unknown>;
   declare _submitted: boolean;
 
-  constructor(app: App, entityKey: EntityKey, opts: EntityCreateOptions) {
+  constructor(app: App, entityKey: EntityKey, opts: EntityCreateOptions = {}) {
     super(app);
     this.entityKey = entityKey;
     this.def = ENTITIES[entityKey];
@@ -207,9 +210,11 @@ export class CadenceEntityCreateModal extends Modal {
     const form = contentEl.createDiv({ cls: 'cad-create-form' });
     const inputs: Array<HTMLInputElement | HTMLSelectElement> = [];
 
-    this.def.fields.forEach((f, idx) => {
+    this.def.fields.forEach((f) => {
       if (f.key === 'type' && f.type !== 'enum') return;
-      const isPrimary = idx === 0;
+      // The first field shown is the primary one, even when a skipped
+      // `type` field comes before it (#60).
+      const isPrimary = inputs.length === 0;
       const row = form.createDiv({ cls: 'cad-create-row' });
       const label = row.createDiv({ cls: 'cad-create-label' });
       label.setText(f.label.toUpperCase() + (isPrimary ? ' *' : ''));
@@ -304,7 +309,13 @@ export class CadenceEntityCreateModal extends Modal {
       input.dataset.fieldType = fieldType;
       if (isPrimary) input.required = true;
       if (this.defaults && this.defaults[f.key] != null) {
-        input.value = String(this.defaults[f.key]);
+        const value = String(this.defaults[f.key]);
+        // A caller default outside an enum's options is offered after them
+        // and selected, never blanked (#60, as #78's pills do).
+        if (fieldType === 'enum' && !(f.options || []).includes(value) && value !== '') {
+          input.createEl('option', { value, text: value });
+        }
+        input.value = value;
       }
       inputs.push(input);
     });
@@ -330,7 +341,7 @@ export class CadenceEntityCreateModal extends Modal {
       }
       this._submitted = true;
       this.close();
-      this.onSubmit!(result);
+      this.onSubmit?.(result);
     };
     submitBtn.addEventListener('click', submit);
 

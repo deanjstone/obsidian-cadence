@@ -45,10 +45,10 @@ describe("buildEntityCreateValues", () => {
     expect(buildEntityCreateValues(ENTITIES.contact, [])).toBeNull();
   });
 
-  it("trims the name but keeps the primary value as typed", () => {
+  it("trims the name and the primary value alike", () => {
     expect(buildEntityCreateValues(ENTITIES.contact, [{ key: "name", type: "text", value: " Jane " }])).toEqual({
       name: "Jane",
-      values: { name: " Jane " },
+      values: { name: "Jane" },
     });
   });
 
