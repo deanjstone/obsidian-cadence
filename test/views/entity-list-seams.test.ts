@@ -259,17 +259,29 @@ describe("kanban seams", () => {
     ["deal", deal, undefined, "stage"],
     ["activity", activity, undefined, "type"],
     ["partner", partner, undefined, "tier"],
-    ["contact", contact, undefined, "status"],
-    ["certification", certification, undefined, "status"],
+    ["contact", contact, undefined, "company"],
+    ["certification", certification, undefined, "partner"],
+    ["deal", deal, "nope", "stage"],
+    ["deal", deal, "value", "stage"],
+    ["partner", partner, "owner", "owner"],
     ["deal", deal, "owner", "owner"],
     ["deal", deal, "", "stage"],
   ])("kanbanGroupBy(%s, saved %j) → %s", (key, def, saved, groupBy) => {
     expect(kanbanGroupBy(key as string, def as EntityDef, saved as string | undefined)).toBe(groupBy);
   });
 
-  it("QUIRK: activities group by type even when another enum or text field comes first", () => {
+  it("activities group by their first enum or text field, like any entity; only deals keep stage", () => {
     const def: EntityDef = { ...activity, fields: [activity.fields[0], { key: "mood", label: "Mood", type: "text" }, ...activity.fields.slice(1)] };
-    expect([kanbanGroupBy("activity", def, undefined), kanbanGroupBy("other", def, undefined)]).toEqual(["type", "mood"]);
+    expect([kanbanGroupBy("activity", def, undefined), kanbanGroupBy("other", def, undefined)]).toEqual(["mood", "mood"]);
+    const dealDef: EntityDef = { ...deal, fields: [deal.fields[0], { key: "mood", label: "Mood", type: "text" }, ...deal.fields.slice(1)] };
+    expect(kanbanGroupBy("deal", dealDef, undefined)).toBe("stage");
+  });
+
+  it("kanbanGroupBy is '' when no field qualifies, and the board is one (no group) column", () => {
+    const def: EntityDef = { folder: "V", label: "V", plural: "Vs", columns: [], fields: [{ key: "name", label: "N", primary: true }, { key: "x", label: "X" }] };
+    expect(kanbanGroupBy("v", def, "x")).toBe("");
+    const list = [entity("a", { x: "1" }), entity("b", {})];
+    expect(kanbanGroups(list, "", [], def).map((c) => [c.stage, names(c.items), c.blank])).toEqual([["(no group)", ["a", "b"], true]]);
   });
 
   it("kanbanOptions returns the field's options, or [] for none or a missing field", () => {
@@ -281,17 +293,18 @@ describe("kanban seams", () => {
   it("distinctGroups flattens, comma-splits, unwraps and de-duplicates in first-seen order", () => {
     const list = [entity("a", { owner: ["[[Sam]]", " Kim "] }), entity("b", { owner: "[[Kim]], Lee, " }), entity("c", {})];
     expect(distinctGroups(list, "owner", deal)).toEqual(["Sam", "Kim", "Lee"]);
-    expect(distinctGroups([], "owner", deal)).toEqual(["To Do", "In Progress", "Done"]);
+    expect(distinctGroups([], "owner", deal)).toEqual([]);
   });
 
   it("QUIRK: a link containing a comma is split", () => {
     expect(distinctGroups([entity("a", { owner: "[[Smith, J]]" })], "owner", deal)).toEqual(["Smith", "J"]);
   });
 
-  it("kanbanGroupByFields keeps typed non-primary enum/text/multitext/tags fields", () => {
-    expect(keys(kanbanGroupByFields(deal))).toEqual(["stage"]);
-    expect(keys(kanbanGroupByFields(contact))).toEqual(["tags"]);
-    expect(keys(kanbanGroupByFields(certification))).toEqual([]);
+  it("kanbanGroupByFields keeps typed non-primary enum/text/multitext/tags fields and relation fields", () => {
+    expect(keys(kanbanGroupByFields(deal))).toEqual(["stage", "company", "contact", "owner"]);
+    expect(keys(kanbanGroupByFields(contact))).toEqual(["company", "tags"]);
+    expect(keys(kanbanGroupByFields(certification))).toEqual(["partner"]);
+    expect(keys(kanbanGroupByFields({ ...certification, fields: [{ key: "lead", label: "", suggestionSource: "folder:Cadence/Contacts" }, { key: "h", label: "", suggestionSource: "history" }] }))).toEqual(["lead"]);
   });
 
   it("inKanbanGroup matches case-insensitively, unwrapped, any array item", () => {
@@ -338,6 +351,9 @@ describe("kanban seams", () => {
     [{ key: "s", label: "", suggestionSource: "folder:X" }, "[[Won]]"],
     [{ key: "s", label: "", suggestionSource: "tags" }, "Won"],
     [{ key: "stage", label: "", type: "enum" }, ["Won"]],
+    [{ key: "owner", label: "" }, "[[Won]]"],
+    [{ key: "company", label: "", isList: true }, ["[[Won]]"]],
+    [{ key: "role", label: "", isList: true }, ["Won"]],
   ])("kanbanDropValue(%j) → %j", (field, value) => {
     expect(kanbanDropValue(field, "Won")).toEqual(value);
   });

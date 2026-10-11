@@ -6021,15 +6021,15 @@ var import_obsidian18 = require("obsidian");
 function unwrapLink(value) {
   return String(value).replace(/^\[\[|\]\]$/g, "").trim();
 }
+function isRelationField(f) {
+  return !["none", "tags", "history"].includes(getFieldSuggestionSource(f));
+}
 function kanbanGroupBy(entityKey, def, saved) {
-  let groupBy = saved;
-  if (!groupBy) {
-    const fallbackField = def.fields.find((field) => !field.primary && ["enum", "text"].includes(field.type));
-    groupBy = fallbackField ? fallbackField.key : "status";
-    if (entityKey === "deal") groupBy = "stage";
-    else if (entityKey === "activity") groupBy = "type";
-  }
-  return groupBy;
+  const offered = kanbanGroupByFields(def);
+  if (saved && offered.some((f) => f.key === saved)) return saved;
+  if (entityKey === "deal" && offered.some((f) => f.key === "stage")) return "stage";
+  const typed = offered.find((f) => f.type === "enum" || f.type === "text");
+  return (typed || offered[0])?.key ?? "";
 }
 function kanbanOptions(def, groupBy) {
   const f = def.fields.find((field) => field.key === groupBy);
@@ -6047,19 +6047,18 @@ function distinctGroups(entities, groupBy, def) {
       });
     }
   });
-  const groups = Array.from(uniqueVals);
-  return groups.length ? groups : ["To Do", "In Progress", "Done"];
+  return Array.from(uniqueVals);
 }
 function getEntityKanbanParams(view, entityKey) {
   const def = ENTITIES[entityKey];
   if (!def) return { groupBy: "status", groups: ["Active", "Done"] };
   const groupBy = kanbanGroupBy(entityKey, def, view.plugin.settings.pageKanbanGroupBy?.[entityKey]);
   let groups = kanbanOptions(def, groupBy);
-  if (!groups.length) groups = distinctGroups(listEntities(view.app, entityKey), groupBy, def);
+  if (groupBy && !groups.length) groups = distinctGroups(listEntities(view.app, entityKey), groupBy, def);
   return { groupBy, groups };
 }
 function kanbanGroupByFields(def) {
-  return def.fields.filter((field) => !field.primary && ["enum", "text", "multitext", "tags"].includes(field.type));
+  return def.fields.filter((field) => !field.primary && (["enum", "text", "multitext", "tags"].includes(field.type) || isRelationField(field)));
 }
 function kanbanValues(val) {
   if (val == null || val === "") return [];
@@ -6072,9 +6071,9 @@ function kanbanGroups(list, groupBy, groups, def) {
     if (!byValue.has(c.stage.toLowerCase())) byValue.set(c.stage.toLowerCase(), c);
   });
   const field = def.fields.find((f) => f.key === groupBy);
-  const blank = { stage: `(no ${(field ? field.label : groupBy).toLowerCase()})`, items: [], blank: true };
+  const blank = { stage: `(no ${(field ? field.label : groupBy || "group").toLowerCase()})`, items: [], blank: true };
   list.forEach((e) => {
-    const values = kanbanValues(entityValue(e, groupBy, def));
+    const values = groupBy ? kanbanValues(entityValue(e, groupBy, def)) : [];
     if (!values.length) {
       blank.items.push(e);
       return;
@@ -6103,7 +6102,7 @@ function kanbanColumnMeta(items, def) {
 }
 function kanbanDropValue(fDef, stage) {
   const isList = fDef && (fDef.type === "multitext" || fDef.type === "tags" || fDef.isList === true || fDef.key === "stage");
-  const isLink = fDef && fDef.suggestionSource && fDef.suggestionSource !== "none" && fDef.suggestionSource !== "tags" && fDef.suggestionSource !== "history";
+  const isLink = fDef && isRelationField(fDef);
   if (isList) {
     return isLink ? [`[[${stage}]]`] : [stage];
   }
