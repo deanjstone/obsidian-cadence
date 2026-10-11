@@ -4775,13 +4775,20 @@ function linksTo(val, name) {
 function crossSectionRows(entities, linkField, parentName, frontmatterOf) {
   return entities.filter((e) => linksTo(frontmatterOf(e)[linkField], parentName));
 }
+var CROSS_VIEW_TYPES = ["table", "kanban", "tile"];
+function isFilled(val) {
+  if (Array.isArray(val)) return val.some((v) => v != null && String(v).trim() !== "");
+  return val != null && val !== "";
+}
+function crossViewType(viewType) {
+  return CROSS_VIEW_TYPES.includes(viewType) ? viewType : "table";
+}
 function frontmatterReader(view) {
   return (e) => {
     const cache = view.app.metadataCache.getFileCache(e.file);
     return cache && cache.frontmatter || {};
   };
 }
-var CROSS_VIEW_TYPES = ["table", "kanban", "tile"];
 function dynamicH2Kind(rawKey) {
   const { cleanLabel, tag } = parseHeaderKey(rawKey);
   const cleanLower = cleanLabel.toLowerCase();
@@ -4856,9 +4863,10 @@ function renderGenericTextSection(view, parent, file, sections, key, flashSaved)
   const initial = (sections[key] || "").replace(/^\s+|\s+$/g, "");
   view._renderMarkdownTextCard(parent, file, key, cleanLabel.toUpperCase(), initial, `Content for ${cleanLabel}...`, flashSaved);
 }
-function renderSingleCrossSection(view, parent, targetEntity, linkField, viewType, parentName, preFilteredList = null) {
+function renderSingleCrossSection(view, parent, targetEntity, linkField, requestedViewType, parentName, preFilteredList = null) {
   const def = ENTITIES[targetEntity];
   if (!def) return;
+  const viewType = crossViewType(requestedViewType);
   const filteredList = preFilteredList || crossSectionRows(listEntities(view.app, targetEntity), linkField, parentName, frontmatterReader(view));
   const secWrap = parent.createDiv({ attr: { style: "margin-top: 12px; margin-bottom: 12px;" } });
   if (filteredList.length === 0) {
@@ -4932,7 +4940,7 @@ function renderSingleCrossSection(view, parent, targetEntity, linkField, viewTyp
         def.fields.forEach((f) => {
           if (f.key !== primaryField2.key && (!statusField || f.key !== statusField.key) && count < 4) {
             const val = entityValue(e, f.key, def);
-            if (val != null && val !== "") {
+            if (isFilled(val)) {
               count++;
               const fieldDiv = metaRow.createDiv();
               fieldDiv.style.marginBottom = "2px";
@@ -5106,10 +5114,11 @@ function renderCrossSections(view, parent, parentEntity, parentName) {
       secWrap.createDiv({ cls: "cad-empty", text: "Aucun \xE9l\xE9ment li\xE9 trouv\xE9." });
       return;
     }
-    if (config.viewType === "table") {
+    const viewType = crossViewType(config.viewType);
+    if (viewType === "table") {
       const columns = def.columns || [def.fields[0].key];
       view._renderEntityTable(secWrap, config.targetEntity, filteredList, columns);
-    } else if (config.viewType === "tile") {
+    } else if (viewType === "tile") {
       const grid = secWrap.createDiv({ attr: { style: "display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-top: 12px;" } });
       filteredList.forEach((e) => {
         const card = grid.createDiv({ cls: "cad-proj-card", attr: { style: "cursor: pointer; padding: 16px; background: var(--background-secondary); border: 1px solid var(--border-color); border-radius: 6px;" } });
@@ -5118,12 +5127,12 @@ function renderCrossSections(view, parent, parentEntity, parentName) {
         const meta = card.createDiv({ attr: { style: "font-size: 0.85em; color: var(--text-muted); display: flex; flex-direction: column; gap: 4px;" } });
         def.fields.slice(1, 4).forEach((f) => {
           const val = entityValue(e, f.key, def);
-          if (val != null && val !== "") {
+          if (isFilled(val)) {
             meta.createDiv({ text: `${f.label}: ${fmtValue(val, f.type)}` });
           }
         });
       });
-    } else if (config.viewType === "kanban") {
+    } else if (viewType === "kanban") {
       const kanbanWrap = secWrap.createDiv({ attr: { style: "display: flex; gap: 16px; overflow-x: auto; padding-bottom: 8px; margin-top: 12px;" } });
       const groupField = def.fields.find((f) => f.key === "stage" || f.key === "status" || f.key === "type" || f.type === "enum") || def.fields[1];
       const columns = groupField.options || ["To Do", "In Progress", "Done"];

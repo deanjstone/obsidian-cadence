@@ -42,6 +42,21 @@ export function crossSectionRows(
   return entities.filter(e => linksTo(frontmatterOf(e)[linkField], parentName));
 }
 
+/** The views a #cross- heading's switcher offers. */
+export const CROSS_VIEW_TYPES = ['table', 'kanban', 'tile'];
+
+/* True when a tile field has something to show: an empty list, or one of
+   blank items, is as empty as a blank value (#59). */
+function isFilled(val: unknown): boolean {
+  if (Array.isArray(val)) return val.some(v => v != null && String(v).trim() !== '');
+  return val != null && val !== '';
+}
+
+/* A cross section's view, with an unknown one drawn as a table (#59). */
+function crossViewType(viewType: string): string {
+  return CROSS_VIEW_TYPES.includes(viewType) ? viewType : 'table';
+}
+
 /* Reads an entity's frontmatter fresh from the metadata cache, as each
    cross-section filter did inline. */
 function frontmatterReader(view: AppViewHost): (entity: Entity) => Frontmatter {
@@ -58,9 +73,6 @@ export type DynamicH2Kind =
   | { kind: 'malformed'; cleanLabel: string }
   | { kind: 'cross'; cleanLabel: string; targetEntity: string; linkField: string; viewType: string }
   | { kind: 'chart'; cleanLabel: string; targetEntity: string; linkField: string; groupField: string; chartStyle: string };
-
-/** The views a #cross- heading's switcher offers. */
-export const CROSS_VIEW_TYPES = ['table', 'kanban', 'tile'];
 
 /* Classify an H2 heading key (`Label #tag`). A #tasks/#milestones tag or
    label wins first. `#cross-{entity}-{linkField}-{view}` needs at least
@@ -149,9 +161,10 @@ export function renderGenericTextSection(view: AppViewHost, parent: HTMLElement,
   view._renderMarkdownTextCard(parent, file, key, cleanLabel.toUpperCase(), initial, `Content for ${cleanLabel}...`, flashSaved);
 }
 
-export function renderSingleCrossSection(view: AppViewHost, parent: HTMLElement, targetEntity: EntityKey, linkField: string, viewType: string, parentName: string, preFilteredList: Entity[] | null = null): void {
+export function renderSingleCrossSection(view: AppViewHost, parent: HTMLElement, targetEntity: EntityKey, linkField: string, requestedViewType: string, parentName: string, preFilteredList: Entity[] | null = null): void {
   const def = ENTITIES[targetEntity];
   if (!def) return;
+  const viewType = crossViewType(requestedViewType);
 
   const filteredList = preFilteredList || crossSectionRows(listEntities(view.app, targetEntity), linkField, parentName, frontmatterReader(view));
 
@@ -236,7 +249,7 @@ export function renderSingleCrossSection(view: AppViewHost, parent: HTMLElement,
         def.fields.forEach(f => {
           if (f.key !== primaryField.key && (!statusField || f.key !== statusField.key) && count < 4) {
             const val = entityValue(e, f.key, def);
-            if (val != null && val !== '') {
+            if (isFilled(val)) {
               count++;
               const fieldDiv = metaRow.createDiv();
               fieldDiv.style.marginBottom = '2px';
@@ -431,10 +444,11 @@ export function renderCrossSections(view: AppViewHost, parent: HTMLElement, pare
       return;
     }
 
-    if (config.viewType === 'table') {
+    const viewType = crossViewType(config.viewType);
+    if (viewType === 'table') {
       const columns = def.columns || [def.fields[0].key];
       view._renderEntityTable(secWrap, config.targetEntity, filteredList, columns);
-    } else if (config.viewType === 'tile') {
+    } else if (viewType === 'tile') {
       const grid = secWrap.createDiv({ attr: { style: 'display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-top: 12px;' } });
       filteredList.forEach(e => {
         const card = grid.createDiv({ cls: 'cad-proj-card', attr: { style: 'cursor: pointer; padding: 16px; background: var(--background-secondary); border: 1px solid var(--border-color); border-radius: 6px;' } });
@@ -444,12 +458,12 @@ export function renderCrossSections(view: AppViewHost, parent: HTMLElement, pare
         const meta = card.createDiv({ attr: { style: 'font-size: 0.85em; color: var(--text-muted); display: flex; flex-direction: column; gap: 4px;' } });
         def.fields.slice(1, 4).forEach(f => {
           const val = entityValue(e, f.key, def);
-          if (val != null && val !== '') {
+          if (isFilled(val)) {
             meta.createDiv({ text: `${f.label}: ${fmtValue(val, f.type)}` });
           }
         });
       });
-    } else if (config.viewType === 'kanban') {
+    } else if (viewType === 'kanban') {
       const kanbanWrap = secWrap.createDiv({ attr: { style: 'display: flex; gap: 16px; overflow-x: auto; padding-bottom: 8px; margin-top: 12px;' } });
       const groupField = def.fields.find(f => f.key === 'stage' || f.key === 'status' || f.key === 'type' || f.type === 'enum') || def.fields[1];
       const columns = groupField.options || ['To Do', 'In Progress', 'Done'];

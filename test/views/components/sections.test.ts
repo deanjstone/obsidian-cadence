@@ -4,6 +4,7 @@ import { flush, makeAppView } from "../../helpers/app-view";
 import { companyAcme, contactJane, dealAcme } from "../../fixtures/vault";
 import { ENTITIES } from "../../../src/constants/entities";
 import { listEntities } from "../../../src/utils/entities";
+import { fmtValue } from "../../../src/utils/format";
 import { chartData } from "../../../src/views/components/charts";
 
 /* Characterization tests for the detail-form sections shared by the
@@ -157,10 +158,14 @@ describe("_renderSingleCrossSection", () => {
     expect((table.mock.calls[0][2] as Array<{ basename: string }>).map((e) => e.basename).sort()).toEqual(["Three", "Two"]);
   });
 
-  it("QUIRK: an unknown view type renders only the empty wrapper", () => {
+  it("an unknown view type renders as a table", () => {
     const { view, parent } = setup(files);
+    const table = vi.spyOn(view, "_renderEntityTable").mockImplementation(() => {});
     view._renderSingleCrossSection(parent, "deal", "company", "list", "Acme Corp");
-    expect(parent.children.map((c) => c.children.length)).toEqual([0]);
+    expect(table).toHaveBeenCalledTimes(1);
+    const [wrap, entity, list, columns] = table.mock.calls[0];
+    expect([wrap, entity, columns]).toEqual([parent.children[0], "deal", ENTITIES.deal.columns]);
+    expect((list as Array<{ basename: string }>).map((e) => e.basename).sort()).toEqual(["Acme renewal", "Globex deal"]);
   });
 
   it("tiles projects with status/priority pills, owner, due and milestone progress loaded asynchronously", async () => {
@@ -194,7 +199,7 @@ describe("_renderSingleCrossSection", () => {
     expect(opened.mock.calls).toEqual([["project", file(project.path)]]);
   });
 
-  it("tiles other entities with up to four other fields, links clickable; QUIRK: an empty list counts as filled", () => {
+  it("tiles other entities with up to four other filled fields, links clickable; an empty list is not filled", () => {
     const { view, parent, opened, file } = setup([companyAcme, contactJane]);
     view._renderSingleCrossSection(parent, "contact", "company", "tile", "Acme Corp");
     const [card] = byClass(parent, "cad-proj-card");
@@ -203,11 +208,11 @@ describe("_renderSingleCrossSection", () => {
     const fields = byClass(card, "cad-proj-meta")[0].children;
     expect(fields.map((f) => f.children.map((c) => [c.localName, c.text]))).toEqual([
       [["span", "Email: "], ["span", "jane@acme.test"]],
-      [["span", "Phone: "], ["span", ""]],
       [["span", "Company: "], ["a", "Acme Corp"]],
       [["span", "Role: "], ["span", "CTO"]],
+      [["span", "Last contact: "], ["span", fmtValue("2026-09-30", "date")]],
     ]);
-    const companyLink = fields[2].children[1];
+    const companyLink = fields[1].children[1];
     const event = companyLink.trigger("click");
     expect([event.defaultPrevented, event.propagationStopped]).toEqual([true, true]);
     expect(opened.mock.calls).toEqual([["company", file(companyAcme.path)]]);
@@ -368,6 +373,20 @@ describe("_renderCrossSections", () => {
     ]);
     cards[1].trigger("click");
     expect(opened.mock.calls).toEqual([["deal", file(dealGlobex.path)]]);
+  });
+
+  it("tiles skip an empty list, and an unknown view type renders as a table", () => {
+    const { view, parent } = setup([companyAcme, contactJane], {
+      crossSections: [
+        { id: "t", parentEntity: "company", targetEntity: "contact", linkField: "company", viewType: "tile" },
+        { id: "l", parentEntity: "company", targetEntity: "contact", linkField: "company", viewType: "list" },
+      ],
+    });
+    const table = vi.spyOn(view, "_renderEntityTable").mockImplementation(() => {});
+    view._renderCrossSections(parent, "company", "Acme Corp");
+    const [card] = byClass(parent, "cad-proj-card");
+    expect(card.children[1].children.map((m) => m.text)).toEqual(["Email: jane@acme.test", "Company: [[Acme Corp]]"]);
+    expect(table.mock.calls.map((c) => [c[0], c[1], (c[2] as unknown[]).length, c[3]])).toEqual([[parent.children[1], "contact", 1, ENTITIES.contact.columns]]);
   });
 
   it("boards the linked targets into enum columns, with a French empty column", () => {
