@@ -172,18 +172,20 @@ export class CadencePlugin extends Plugin implements PluginHost, AppViewPlugin, 
       defaultRepeat: prefill && prefill.repeat ? prefill.repeat : 'none',
       onSubmit: async (result) => {
         if (!result) return;
+        // An unreadable time captures to the Inbox, and the notice says so (#52).
+        const whenDate = result.when ? new Date(result.when) : null;
+        const unreadable = whenDate !== null && isNaN(whenDate.getTime());
+        const when = whenDate && !unreadable ? result.when : null;
         await this.addReminder({
           text: result.text,
-          when: result.when,
-          repeat: result.repeat || 'none',
+          when,
+          repeat: when ? result.repeat || 'none' : 'none',
         });
 
         // Also append to the relevant daily note's tasks section.
         // - Scheduled today / unscheduled → today's note
         // - Scheduled future date → that day's note
-        const targetDate = result.when ? new Date(result.when) : new Date();
-        let noteDate = new Date();
-        if (!isNaN(targetDate.getTime())) noteDate = targetDate;
+        const noteDate = when ? (whenDate as Date) : new Date();
         let dailyNoteAppended = false;
         try {
           const file = await ensureDailyNote(this.app, this.settings, noteDate);
@@ -196,10 +198,13 @@ export class CadencePlugin extends Plugin implements PluginHost, AppViewPlugin, 
         } catch (_) { /* non-fatal — reminder is still saved */ }
 
         const noteLabel = sameDay(noteDate, new Date()) ? "today's note" : `${ymd(noteDate)} note`;
-        if (result.when) {
-          new Notice(`Reminder set · ${reminderTimeStr(result.when)}${dailyNoteAppended ? ` · added to ${noteLabel}` : ''}`);
+        const appended = dailyNoteAppended ? ` · added to ${noteLabel}` : '';
+        if (when) {
+          new Notice(`Reminder set · ${reminderTimeStr(when)}${appended}`);
+        } else if (unreadable) {
+          new Notice(`Captured to Inbox (couldn't read the time "${result.when}")${appended}`);
         } else {
-          new Notice(`Captured to Inbox${dailyNoteAppended ? ` · added to ${noteLabel}` : ''}`);
+          new Notice(`Captured to Inbox${appended}`);
         }
       },
     }).open();
