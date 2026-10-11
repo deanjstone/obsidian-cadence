@@ -332,13 +332,14 @@ describe("openQuickCapture", () => {
     expect(Notice.messages).toEqual(["Reminder set · Thu 10:00 AM · added to 2026-03-12 note"]);
   });
 
-  it("QUIRK: an invalid when falls back to today's note but still notices as a reminder", async () => {
+  it("an invalid when captures to the Inbox and today's note, and the notice says the time was unreadable", async () => {
     const { app, plugin } = await makeLoadedPlugin();
     const opened = captureModals();
     plugin.openQuickCapture();
-    await opened[0].onSubmit({ text: "Odd", when: "not a date" });
+    await opened[0].onSubmit({ text: "Odd", when: "not a date", repeat: "daily" });
     expect(app.vault.created).toContain("daily/2026-03-10.md");
-    expect(Notice.messages).toEqual(["Reminder set ·  · added to today's note"]);
+    expect(plugin.settings.reminders).toMatchObject([{ text: "Odd", when: null, repeat: "none" }]);
+    expect(Notice.messages).toEqual(['Captured to Inbox (couldn\'t read the time "not a date") · added to today\'s note']);
   });
 
   it("appends after the existing tasks in the tasks section", async () => {

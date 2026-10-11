@@ -3,6 +3,7 @@ import { createMockApp, Notice, type App, type FakeElement } from "../mocks/obsi
 import { buttonByText, contentOf, optionValues } from "../helpers/dom";
 import { projectWebsite } from "../fixtures/vault";
 import { CadenceReminderEditModal } from "../../src/modals/reminder-edit";
+import { CadenceConfirmModal } from "../../src/modals/confirm";
 
 /* Characterization tests for the reminder edit modal: new vs edit rendering,
    the project field, and the fields handed to plugin.addReminder /
@@ -23,6 +24,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 function fakePlugin() {
@@ -138,16 +140,26 @@ describe("CadenceReminderEditModal", () => {
     expect(projectField.findAll("a")[0].text).toBe("📁 Gone");
   });
 
-  it("removes the project on the caller's reminder object, even if then cancelled (flagged)", () => {
+  it("removes the project only in the modal, so Cancel leaves the caller's reminder linked", () => {
     const reminder = { ...existing(), project: projectWebsite.path };
     const { content, projectField, plugin } = openEdit(reminder);
     buttonByText(projectField, "Remove").trigger("click");
-    expect(reminder.project).toBeNull();
+    expect(reminder.project).toBe(projectWebsite.path);
     expect(projectField.findAll("a")).toHaveLength(0);
     expect(projectField.findAll("button").map((b) => b.text)).toEqual(["📁 Link to project"]);
     buttonByText(content, "Cancel").trigger("click");
-    expect(reminder.project).toBeNull();
+    expect(reminder).toEqual({ ...existing(), project: projectWebsite.path });
     expect(plugin.updateReminder).not.toHaveBeenCalled();
+  });
+
+  it("saves a removed project as project: null, still without touching the caller's object", async () => {
+    const reminder = { ...existing(), project: projectWebsite.path };
+    const { content, projectField, plugin } = openEdit(reminder);
+    buttonByText(projectField, "Remove").trigger("click");
+    buttonByText(content, "Save").trigger("click");
+    await flush();
+    expect(plugin.updateReminder.mock.calls[0][1]).toMatchObject({ project: null });
+    expect(reminder.project).toBe(projectWebsite.path);
   });
 
   it("opens the project in the Cadence view from the chip, closing the modal", () => {
@@ -163,15 +175,18 @@ describe("CadenceReminderEditModal", () => {
     expect(plugin.updateReminder).not.toHaveBeenCalled();
   });
 
-  it("closes from the chip with no Cadence view open, and does nothing for a missing file", () => {
+  it("opens the project note from the chip when no Cadence view is open, and says so for a missing file", () => {
     const linked = openEdit({ ...existing(), project: projectWebsite.path });
     linked.projectField.findAll("a")[0].trigger("click");
     expect(linked.content.children).toHaveLength(0);
+    expect(app.workspace.openedLinks).toEqual([[projectWebsite.path, "", false]]);
 
     const missing = openEdit({ ...existing(), project: "Cadence/Projects/Gone.md" });
     missing.projectField.findAll("a")[0].trigger("click");
     expect(missing.modal._submitted).toBe(false);
     expect(missing.content.children.length).toBeGreaterThan(0);
+    expect(Notice.messages).toEqual(["Project note not found: Cadence/Projects/Gone.md"]);
+    expect(app.workspace.openedLinks).toHaveLength(1);
   });
 
   it("does not save a blank text, and refocuses the input", async () => {
@@ -213,7 +228,7 @@ describe("CadenceReminderEditModal", () => {
     });
   });
 
-  it("unschedules a cleared time, resetting notified even if it was already unscheduled", async () => {
+  it("unschedules a cleared time, resetting notified only if it was scheduled", async () => {
     const cleared = openEdit();
     cleared.dateInput.value = "";
     buttonByText(cleared.content, "Save").trigger("click");
@@ -223,17 +238,26 @@ describe("CadenceReminderEditModal", () => {
     const inbox = openEdit({ ...existing(), when: null });
     buttonByText(inbox.content, "Save").trigger("click");
     await flush();
-    expect(inbox.plugin.updateReminder.mock.calls[0][1]).toMatchObject({ when: null, notified: false });
+    expect(inbox.plugin.updateReminder.mock.calls[0][1]).toMatchObject({ when: null });
+    expect(inbox.plugin.updateReminder.mock.calls[0][1]).not.toHaveProperty("notified");
   });
 
-  it("omits when and notified for an unparseable time, keeping the old one (flagged)", async () => {
-    const { content, dateInput, plugin } = openEdit();
-    dateInput.value = "garbage";
-    buttonByText(content, "Save").trigger("click");
-    await flush();
-    const patch = plugin.updateReminder.mock.calls[0][1] as Record<string, unknown>;
-    expect("when" in patch).toBe(false);
-    expect("notified" in patch).toBe(false);
+  it("won't save an unparseable time: it notices, keeps the modal open, and the reminder keeps its old time", async () => {
+    for (const [value, badInput] of [["garbage", false], ["", true]] as const) {
+      Notice.messages.length = 0;
+      const reminder = existing();
+      const { content, dateInput, plugin, modal } = openEdit(reminder);
+      dateInput.value = value;
+      if (badInput) (dateInput as Any).validity = { badInput: true };
+      buttonByText(content, "Save").trigger("click");
+      await flush();
+      expect(plugin.updateReminder).not.toHaveBeenCalled();
+      expect(Notice.messages).toEqual(["Couldn't read that time, so nothing was saved. Fix it, or Clear it to unschedule."]);
+      expect(dateInput.focusCount).toBe(1);
+      expect(modal._submitted).toBe(false);
+      expect(content.children.length).toBeGreaterThan(0);
+      expect(reminder).toEqual(existing());
+    }
   });
 
   it("creates a new reminder with a 'Reminder set' notice, or 'Captured to Inbox' when unscheduled", async () => {
@@ -251,7 +275,8 @@ describe("CadenceReminderEditModal", () => {
     inbox.textInput.value = "Someday";
     buttonByText(inbox.content, "Create reminder").trigger("click");
     await flush();
-    expect(inbox.plugin.addReminder.mock.calls[0][0]).toMatchObject({ when: null, notified: false });
+    expect(inbox.plugin.addReminder.mock.calls[0][0]).toMatchObject({ when: null });
+    expect(inbox.plugin.addReminder.mock.calls[0][0]).not.toHaveProperty("notified");
 
     expect(Notice.messages).toHaveLength(2);
     expect(Notice.messages[0]).toMatch(/^Reminder set · \S/);
@@ -269,8 +294,8 @@ describe("CadenceReminderEditModal", () => {
     expect(notesArea.trigger("keydown", { key: "Enter", ctrlKey: true }).defaultPrevented).toBe(true);
     expect(textInput.trigger("keydown", { key: "Enter" }).defaultPrevented).toBe(true);
     await flush();
-    // Each keypress submits independently; closing does not stop later ones.
-    expect(plugin.updateReminder).toHaveBeenCalledTimes(3);
+    // The first submit wins; later keypresses don't save again.
+    expect(plugin.updateReminder).toHaveBeenCalledTimes(1);
   });
 
   it("closes without saving on Escape, Cancel or close()", () => {
@@ -289,20 +314,26 @@ describe("CadenceReminderEditModal", () => {
     }
   });
 
-  it("deletes through window.confirm (flagged), and only when confirmed", async () => {
-    const confirm = vi.fn(() => false);
+  it("deletes through CadenceConfirmModal, not window.confirm, and only when confirmed", async () => {
+    const confirm = vi.fn(() => true);
     vi.stubGlobal("confirm", confirm);
+    const open = vi.spyOn(CadenceConfirmModal.prototype, "open").mockImplementation(() => {});
     const declined = openEdit();
     buttonByText(declined.content, "Delete").trigger("click");
     await flush();
-    expect(confirm).toHaveBeenCalledWith("Delete this reminder?");
+    const asked = open.mock.contexts[0] as Any;
+    expect([asked.title, asked.message, asked.confirmLabel]).toEqual(["Delete reminder", "Delete this reminder?", "Delete"]);
+    asked.close();
+    await flush();
     expect(declined.plugin.deleteReminder).not.toHaveBeenCalled();
     expect(declined.content.children.length).toBeGreaterThan(0);
 
-    confirm.mockReturnValue(true);
     const accepted = openEdit();
     buttonByText(accepted.content, "Delete").trigger("click");
     await flush();
+    (open.mock.contexts[1] as Any).onConfirm();
+    await flush();
+    expect(confirm).not.toHaveBeenCalled();
     expect(accepted.plugin.deleteReminder.mock.calls).toEqual([["r1"]]);
     expect(accepted.modal._submitted).toBe(true);
     expect(accepted.content.children).toHaveLength(0);

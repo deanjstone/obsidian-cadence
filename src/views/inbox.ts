@@ -1,4 +1,5 @@
 import { TFile } from 'obsidian';
+import { CadenceConfirmModal } from '../modals/confirm';
 import { CadenceReminderEditModal } from '../modals/reminder-edit';
 import { listEntityFiles, projectNameFromPath } from '../utils/entities';
 import { parseH2Sections, parseTasksList } from '../utils/parsing';
@@ -259,9 +260,12 @@ export function renderInboxRow(view: AppViewHost, parent: HTMLElement, r: Remind
       await view.plugin.completeReminder(r.id);
       if (r.text) await view._propagateTaskComplete(r.text, true, { kind: 'reminder', id: r.id });
     },
-    delete: () => {
-      if (confirm('Delete this reminder?')) view.plugin.deleteReminder(r.id);
-    },
+    delete: () => new CadenceConfirmModal(view.app, {
+      title: 'Delete reminder',
+      message: 'Delete this reminder?',
+      confirmLabel: 'Delete',
+      onConfirm: () => view.plugin.deleteReminder(r.id),
+    }).open(),
   };
   inboxRowActions(!!r.when).forEach(({ action, label, title }) => {
     const b = mk(label, title, handlers[action]);
