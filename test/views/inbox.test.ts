@@ -79,7 +79,7 @@ describe("_inboxOverdueCount", () => {
 });
 
 describe("renderInbox", () => {
-  it("shows the empty state, with no project-tasks section, for inbox zero", async () => {
+  it("shows the empty state for inbox zero, then the project-tasks section", async () => {
     const { view, parent } = setup([projectWebsite], { reminders: [reminder("a", null, { done: true })] });
     const section = vi.spyOn(view, "_renderProjectTasksSection");
     await view.renderInbox(parent);
@@ -91,7 +91,16 @@ describe("renderInbox", () => {
       ["cad-empty-state-title", "Inbox zero"],
       ["cad-empty-state-desc", "Capture anything with + Quick capture above (or Cmd+Shift+I). Add a time and Cadence will remind you."],
     ]);
-    expect(section).not.toHaveBeenCalled();
+    expect(section.mock.calls).toEqual([[parent]]);
+  });
+
+  it("at inbox zero, still lists PROJECT TASKS when projects have open tasks", async () => {
+    const { view, parent } = setup([
+      { path: "Cadence/Projects/Site.md", frontmatter: { type: "project", name: "Site" }, body: "\n## Tasks\n- [ ] Write copy\n- [x] Brief\n" },
+    ]);
+    await view.renderInbox(parent);
+    expect(parent.children.slice(1).map((c) => c.classes[0])).toEqual(["cad-empty-state", "cad-section-label-lg", "cad-pt-wrap"]);
+    expect(parent.querySelectorAll(".cad-section-label-lg")[0].text).toBe("PROJECT TASKS · 1 open across 1 project");
   });
 
   it("wires + Quick capture to the plugin", async () => {

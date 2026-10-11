@@ -7666,7 +7666,6 @@ async function renderInbox(view, root) {
     const empty = root.createDiv({ cls: "cad-empty-state" });
     empty.createDiv({ cls: "cad-empty-state-title", text: "Inbox zero" });
     empty.createDiv({ cls: "cad-empty-state-desc", text: "Capture anything with + Quick capture above (or Cmd+Shift+I). Add a time and Cadence will remind you." });
-    return;
   }
   inbox.sections.forEach(({ key, label, items }) => {
     root.createDiv({ cls: "cad-section-label-lg", text: label });

@@ -72,7 +72,6 @@ export async function renderInbox(view: AppViewHost, root: HTMLElement): Promise
     const empty = root.createDiv({ cls: 'cad-empty-state' });
     empty.createDiv({ cls: 'cad-empty-state-title', text: 'Inbox zero' });
     empty.createDiv({ cls: 'cad-empty-state-desc', text: 'Capture anything with + Quick capture above (or Cmd+Shift+I). Add a time and Cadence will remind you.' });
-    return;
   }
 
   inbox.sections.forEach(({ key, label, items }) => {
@@ -81,7 +80,8 @@ export async function renderInbox(view: AppViewHost, root: HTMLElement): Promise
     items.forEach((r) => view._renderInboxRow(list, r, key));
   });
 
-  /* ── PROJECT TASKS — every open `- [ ]` from every project's ## Tasks ── */
+  /* ── PROJECT TASKS — every open `- [ ]` from every project's ## Tasks,
+     at inbox zero too (owner decision, #55) ── */
   await view._renderProjectTasksSection(root);
 }
 
