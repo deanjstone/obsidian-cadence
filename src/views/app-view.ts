@@ -283,7 +283,7 @@ export async function renderAppView(view: AppViewHost): Promise<void> {
       }
     });
 
-    const content = body.createDiv({ cls: 'cad-app-content' });
+    let content = body.createDiv({ cls: 'cad-app-content' });
 
     // Detail view trumps the normal surface routing
     if (view.detailFile && view.detailEntityKey) {
@@ -305,6 +305,9 @@ export async function renderAppView(view: AppViewHost): Promise<void> {
           console.error("Cadence: Failed to render detail view", e);
           view.detailFile = null;
           view.detailEntityKey = null;
+          // Drop the form's partial output and classes; the surface gets a clean element.
+          content.remove();
+          content = body.createDiv({ cls: 'cad-app-content' });
         }
       }
     }

@@ -316,10 +316,11 @@ describe("CadenceAppView render: detail form", () => {
     expect(surfaceCalls(spies)).toEqual([["renderHome"], ["renderHome"]]);
   });
 
-  it("logs and falls back to the surface when the detail form throws, rendering into the same content", async () => {
+  it("logs and falls back to the surface when the detail form throws, clearing its partial output", async () => {
     const { view, app, spies, root } = await rendered({ files });
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     spies.renderEntityDetail.mockImplementation(async (content: FakeElement) => {
+      content.addClass("cadence-detail");
       content.createDiv({ text: "half-built" });
       throw new Error("boom");
     });
@@ -329,8 +330,11 @@ describe("CadenceAppView render: detail form", () => {
     expect(error).toHaveBeenCalledWith("Cadence: Failed to render detail view", expect.any(Error));
     expect(view.detailFile).toBeNull();
     expect(spies.renderHome).toHaveBeenCalledTimes(2);
-    // The partial detail output stays above the surface.
-    expect(one(root, "div", "cad-app-content").children.map((c) => c.text)).toEqual(["half-built"]);
+    // The partial detail output is cleared, so the surface renders into a clean content element.
+    const content = one(root, "div", "cad-app-content");
+    expect(content.children).toHaveLength(0);
+    expect(content.classes).toEqual(["cad-app-content"]);
+    expect(spies.renderHome.mock.calls[1][0]).toBe(content);
     error.mockRestore();
   });
 });
