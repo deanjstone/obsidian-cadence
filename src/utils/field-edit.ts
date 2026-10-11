@@ -64,6 +64,13 @@ export function enumCurrent(current: unknown): string {
   return Array.isArray(current) ? String(current[0] || '') : String(current || '');
 }
 
+/** A select's options: the field's options, then a stored value that is not
+    one of them, so the select shows (and keeps) what the note holds (#50,
+    #89). An empty stored value adds nothing. */
+export function withStoredOption(options: string[], stored: string): string[] {
+  return stored === '' || options.includes(stored) ? options : [...options, stored];
+}
+
 /** True when a field edits as chips: tags, multitext, any suggestion source,
     or a text or email list (contact phone and email), which a plain input
     would write back as a scalar (#50). */

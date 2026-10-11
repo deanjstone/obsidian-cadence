@@ -3,7 +3,7 @@ import { ENTITIES } from '../constants/entities';
 import { CadenceConfirmModal } from '../modals/confirm';
 import {
   COMPANY_LIST_KEYS, applyFieldEdit, coerceFieldEdit, dateInputValue, enumCurrent, metaControl, metaInputType,
-  metaInputValue, splitSectionColumns,
+  metaInputValue, splitSectionColumns, withStoredOption,
 } from '../utils/field-edit';
 import { parseH2Sections } from '../utils/parsing';
 import type { EntityDef, EntityField, Frontmatter } from '../types/entities';
@@ -117,9 +117,10 @@ export async function renderCompanyDetail(view: AppViewHost, root: HTMLElement, 
       sel.style.outline = 'none';
       sel.style.width = '100%';
       sel.createEl('option', { value: '', text: '—' });
-      (f.options || []).forEach((opt) => {
+      const stored = enumCurrent(current);
+      withStoredOption(f.options || [], stored).forEach((opt) => {
         const o = sel.createEl('option', { value: opt, text: opt });
-        if (enumCurrent(current) === opt) o.selected = true;
+        if (stored === opt) o.selected = true;
       });
       const commit = async () => {
         await writeField(key, coerceFieldEdit(def, key, sel.value));

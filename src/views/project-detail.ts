@@ -7,7 +7,7 @@ import type { Reminder } from '../types/reminders';
 import { parseYmd, ymd } from '../utils/dates';
 import { getEnumOptions, readProjectMeta } from '../utils/entities';
 import {
-  COMPANY_LIST_KEYS, dateInputValue, enumCurrent, metaControl, metaInputType, metaInputValue, splitSectionColumns,
+  COMPANY_LIST_KEYS, dateInputValue, enumCurrent, metaControl, metaInputType, metaInputValue, splitSectionColumns, withStoredOption,
 } from '../utils/field-edit';
 import { pctBand, type PctBand } from '../utils/format';
 import {
@@ -54,11 +54,9 @@ export interface ProjectPill {
   current: string;
 }
 
-/* The options, plus the stored value when the note has one outside them. */
-function withStored(options: string[], stored: unknown): string[] {
-  if (stored == null || stored === '') return options;
-  const value = String(stored);
-  return options.includes(value) ? options : [...options, value];
+/* A stored pill value as text, '' when the note has none. */
+function storedText(stored: unknown): string {
+  return stored == null ? '' : String(stored);
 }
 
 /** The hero's two selects. Status defaults to active and priority to
@@ -67,8 +65,8 @@ export function projectPills(fm: Frontmatter, statusOptions: string[], priorityO
   const status = String(fm.status || 'active');
   const priority = String(fm.priority || '');
   return [
-    { key: 'status', cls: 'cad-pill cad-pill-' + status.toLowerCase().replace(/\s+/g, '-'), options: withStored(statusOptions, fm.status), current: status },
-    { key: 'priority', cls: 'cad-pill cad-pill-prio-' + (priority || 'medium').toLowerCase(), options: withStored(priorityOptions, fm.priority), current: priority || 'medium' },
+    { key: 'status', cls: 'cad-pill cad-pill-' + status.toLowerCase().replace(/\s+/g, '-'), options: withStoredOption(statusOptions, storedText(fm.status)), current: status },
+    { key: 'priority', cls: 'cad-pill cad-pill-prio-' + (priority || 'medium').toLowerCase(), options: withStoredOption(priorityOptions, storedText(fm.priority)), current: priority || 'medium' },
   ];
 }
 
@@ -383,9 +381,10 @@ export async function renderProjectDetail(view: AppViewHost, root: HTMLElement, 
       sel.style.outline = 'none';
       sel.style.width = '100%';
       sel.createEl('option', { value: '', text: '—' });
-      (f.options || []).forEach((opt) => {
+      const stored = enumCurrent(current);
+      withStoredOption(f.options || [], stored).forEach((opt) => {
         const o = sel.createEl('option', { value: opt, text: opt });
-        if (enumCurrent(current) === opt) o.selected = true;
+        if (stored === opt) o.selected = true;
       });
       const commit = async () => {
         const val = sel.value || null;
