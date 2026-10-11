@@ -268,12 +268,26 @@ describe("_homeTodayCard (daily notes)", () => {
     expect(c.body.children.map((e) => [e.classes[0], e.text])).toEqual([["cad-empty", "No tasks yet — add one with + Task above."]]);
   });
 
-  it("QUIRK: creates today's note when missing and lists its blank task", async () => {
+  it("doesn't create today's note when it is missing, and shows the empty state", async () => {
     const { view, parent, app } = setup();
     await view._homeTodayCard(parent);
-    expect(app.vault.created).toEqual(["daily/2026-10-10.md"]);
-    expect(card(parent).title).toBe("TODAY — 1 open · 0 done");
-    expect(card(parent).body.children[0].children[1].text).toBe("");
+    expect(app.vault.created).toEqual([]);
+    expect(card(parent).title).toBe("TODAY — 0 open · 0 done");
+    expect(card(parent).body.children.map((e) => [e.classes[0], e.text])).toEqual([["cad-empty", "No tasks yet — add one with + Task above."]]);
+  });
+
+  it("skips the template's blank task line, and a tick still hits the task its row showed", async () => {
+    const { view, parent, app, file } = setup([today("## Today\n- [ ] \n- [ ] a\n")]);
+    vi.spyOn(view, "_propagateTaskComplete").mockResolvedValue(undefined);
+    await view._homeTodayCard(parent);
+    const c = card(parent);
+    expect(c.title).toBe("TODAY — 1 open · 0 done");
+    expect(c.body.children.map((r) => r.children[1].text)).toEqual(["a"]);
+    const cb = c.body.children[0].children[0];
+    cb.checked = true;
+    cb.trigger("change");
+    await flush();
+    expect(await app.vault.read(file("daily/2026-10-10.md") as never)).toBe("## Today\n- [ ] \n- [x] a\n");
   });
 
   it("ticks a task in the note, propagates the completion, and re-renders, editing only that line", async () => {
@@ -418,6 +432,12 @@ describe("_homeWeekCard", () => {
       [undefined, "2 of 3 tasks completed"], ["cad-proj-progress-pct", "67%"],
     ]);
     expect(wrap.children[1].children[0].style.width).toBe("67%");
+  });
+
+  it("doesn't count a daily note's blank `- [ ] ` line", async () => {
+    const { view, parent } = setup([{ path: "daily/2026-10-05.md", body: "## Today\n- [ ] \n- [x] a\n" }]);
+    await view._homeWeekCard(parent);
+    expect(card(parent).title).toBe("THIS WEEK — 1/1 done");
   });
 
   it("shows 0% in the rose band with nothing logged", async () => {

@@ -159,6 +159,20 @@ describe("renderPlannerPane", () => {
     expect(dayHead(days(parent)[0])[2]).toBe("no note");
   });
 
+  it("doesn't count or list a daily note's blank `- [ ] ` line, and a tick still hits its row's task", async () => {
+    const { view, parent, read } = setup([daily("2026-10-05", "- [ ] \n- [ ] Real")]);
+    await view.renderPlannerPane(parent);
+    expect(parent.querySelectorAll(".cad-pl-stat-value").map((v) => v.text)).toEqual(["1", "0", "1"]);
+    const mon = days(parent)[0];
+    expect(dayHead(mon)).toEqual(["MON", "5", "1 open · 0 done"]);
+    expect(dayTasks(mon)).toEqual([[["cad-pl-task"], ["", "Real"]]]);
+    const cb = mon.children[1].children[0].children[0];
+    cb.checked = true;
+    cb.trigger("change");
+    await flush();
+    expect(await read("daily/2026-10-05.md")).toBe("## Today\n- [ ] \n- [x] Real\n## Journal\n");
+  });
+
   it("reads tasks only under the tasks heading", async () => {
     const { view, parent } = setup([{ path: "daily/2026-10-05.md", body: "- [ ] stray\n## Today\n- [ ] in\n## Other\n- [ ] out\n" }]);
     await view.renderPlannerPane(parent);
@@ -245,11 +259,11 @@ describe("togglePlannerTask", () => {
     expect(app.vault.modified).toEqual([]);
   });
 
-  it("writes but skips propagation for a blank task", async () => {
+  it("a blank task line is no row, so there is nothing to tick", async () => {
     const { view, parent, propagate, app } = setup([daily("2026-10-05", "- [ ] ")]);
-    const mon = await dayData(view, parent, 0);
-    await view.togglePlannerTask(mon, 0, true);
-    expect(app.vault.modified).toEqual(["daily/2026-10-05.md"]);
+    expect(await dayData(view, parent, 0)).toBeUndefined();
+    expect(days(parent)[0].children[1].children.map((e) => [e.classes[0], e.text])).toEqual([["cad-empty", "—"]]);
+    expect(app.vault.modified).toEqual([]);
     expect(propagate).not.toHaveBeenCalled();
   });
 

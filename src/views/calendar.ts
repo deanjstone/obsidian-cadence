@@ -2,7 +2,7 @@ import { TFile } from 'obsidian';
 import { addDays, dailyNotePath, sameDay, startOfDay, weekDates, ymd } from '../utils/dates';
 import { ensureDailyNote } from '../utils/daily-notes';
 import { parseSections } from '../utils/parsing';
-import { countTaskLines, taskLineRef, taskLineRows, taskNotesToday } from '../utils/task-lines';
+import { countTaskLines, taskLineRef, taskLineRows, taskNotesToday, withoutBlankTasks } from '../utils/task-lines';
 import { listTaskNotesTasks, toggleTaskNotesTask } from '../utils/tasknotes';
 import type { TAbstractFile } from 'obsidian';
 import type { TaskNotesTask } from '../types/entities';
@@ -110,7 +110,7 @@ export async function renderPlannerPane(view: AppViewHost, root: HTMLElement): P
       }
       const content = await view.app.vault.read(file);
       const parsed = parseSections(content, settings);
-      return { date: d, path, exists: true, file, tasks: parsed.tasks };
+      return { date: d, path, exists: true, file, tasks: withoutBlankTasks(parsed.tasks) };
     }));
   }
 

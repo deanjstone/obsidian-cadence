@@ -1,9 +1,9 @@
 import { Notice, TFile } from 'obsidian';
-import { dateInfo, greeting, ymd } from '../utils/dates';
-import { ensureDailyNote } from '../utils/daily-notes';
+import { dailyNotePath, dateInfo, greeting, ymd } from '../utils/dates';
+import { ensureDailyNote, findDailyNote } from '../utils/daily-notes';
 import { projectNameFromPath } from '../utils/entities';
 import { parseH2Sections, parseHeaderKey, parseLinkValues, parseSections } from '../utils/parsing';
-import { appendDailyTask, countTaskLines, replaceJournal, taskLineRef, taskLineRows, taskNotesToday } from '../utils/task-lines';
+import { appendDailyTask, countTaskLines, replaceJournal, taskLineRef, taskLineRows, taskNotesToday, withoutBlankTasks } from '../utils/task-lines';
 import { appendTaskNotesTask, listTaskNotesTasks, toggleTaskNotesTask } from '../utils/tasknotes';
 import type { AppViewHost } from './host';
 
@@ -79,8 +79,10 @@ export function journalRows(value: string): number {
 /* ── Today pane ─────────────────────────── */
 export async function renderTodayPane(view: AppViewHost, root: HTMLElement): Promise<void> {
   root.addClass('cadence-today');
-  view.todayFile = await ensureDailyNote(view.app, view.plugin.settings);
-  const fileContent = await view.app.vault.read(view.todayFile);
+  /* Opening Today reads the note but never creates it; the first write does
+     (todayNote, #55). Until then the day reads clear with an empty journal. */
+  view.todayFile = findDailyNote(view.app, view.plugin.settings);
+  const fileContent = view.todayFile ? await view.app.vault.read(view.todayFile) : '';
   view.todayParsed = parseSections(fileContent, view.plugin.settings);
 
   let tasksList: string[] = [];
@@ -89,7 +91,7 @@ export async function renderTodayPane(view: AppViewHost, root: HTMLElement): Pro
     view.todayTaskNotes = today.tasks;
     tasksList = today.lines;
   } else {
-    tasksList = view.todayParsed.tasks;
+    tasksList = withoutBlankTasks(view.todayParsed.tasks);
   }
 
   const info = dateInfo();
@@ -112,7 +114,7 @@ export async function renderTodayPane(view: AppViewHost, root: HTMLElement): Pro
   if (!tasksList.length) {
     taskSection.createDiv({ cls: 'cad-empty', text: 'No tasks in today\'s note yet.' });
   } else {
-    const dailyPath = view.todayFile.path;
+    const dailyPath = view.todayFile?.path ?? dailyNotePath(view.plugin.settings);
     taskLineRows(tasksList).forEach(({ checked, text }, idx) => {
       const row = taskSection.createDiv({ cls: 'cad-task-row' + (checked ? ' done' : '') });
       const cb = row.createEl('input', { type: 'checkbox' });
@@ -220,8 +222,9 @@ export async function renderTodayPane(view: AppViewHost, root: HTMLElement): Pro
   const link = footer.createEl('a', { text: 'Open today\'s daily note →' });
   link.style.color = 'var(--cad-emerald-deep)';
   link.style.cursor = 'pointer';
-  link.addEventListener('click', () => {
-    view.app.workspace.openLinkText(view.todayFile!.path, '', false);
+  link.addEventListener('click', async () => {
+    const file = view.todayFile ?? await todayNote(view);
+    view.app.workspace.openLinkText(file.path, '', false);
   });
 }
 
@@ -233,8 +236,8 @@ export async function toggleTodayTask(view: AppViewHost, idx: number, checked: b
       await view._propagateTaskComplete(taskObj.title, checked, { kind: 'tasknotes', file: taskObj.file });
     }
   } else {
-    const ref = view.todayParsed ? taskLineRef(view.todayParsed.tasks, idx) : null;
-    if (ref) await view._tickDailyNoteTask(view.todayFile!, ref, checked, new Date());
+    const ref = view.todayParsed ? taskLineRef(withoutBlankTasks(view.todayParsed.tasks), idx) : null;
+    if (ref && view.todayFile) await view._tickDailyNoteTask(view.todayFile, ref, checked, new Date());
   }
   view.render();
 }
@@ -243,13 +246,22 @@ export async function appendTodayTask(view: AppViewHost, text: string): Promise<
   if (view.plugin.settings.taskManagementSystem === 'tasknotes') {
     await appendTaskNotesTask(view.app, text, new Date());
   } else {
-    const content = await view.app.vault.read(view.todayFile!);
-    await view.app.vault.modify(view.todayFile!, appendDailyTask(content, view.plugin.settings, text));
+    const file = await todayNote(view);
+    const content = await view.app.vault.read(file);
+    await view.app.vault.modify(file, appendDailyTask(content, view.plugin.settings, text));
   }
   view.render();
 }
 
 export async function saveTodayJournal(view: AppViewHost, body: string | null | undefined): Promise<void> {
-  const content = await view.app.vault.read(view.todayFile!);
-  await view.app.vault.modify(view.todayFile!, replaceJournal(content, view.plugin.settings, body));
+  const file = await todayNote(view);
+  const content = await view.app.vault.read(file);
+  await view.app.vault.modify(file, replaceJournal(content, view.plugin.settings, body));
+}
+
+/* The note Today writes to: the one it rendered, else today's, created now
+   on this first write (#55) and kept on the view for the next one. */
+async function todayNote(view: AppViewHost): Promise<TFile> {
+  if (!view.todayFile) view.todayFile = await ensureDailyNote(view.app, view.plugin.settings);
+  return view.todayFile;
 }

@@ -2,7 +2,7 @@ import { Platform, TFile } from 'obsidian';
 import { ENTITIES } from '../constants/entities';
 import { CadenceReminderEditModal } from '../modals/reminder-edit';
 import { addDays, dailyNotePath, greeting, newestFirst, startOfDay, startOfWeek, ymd } from '../utils/dates';
-import { ensureDailyNote } from '../utils/daily-notes';
+import { findDailyNote } from '../utils/daily-notes';
 import { dealClosedAt, dealOutcome } from '../utils/deals';
 import {
   entityValue, listEntities, listEntityFiles, projectNameFromPath, readEntity, readProjectMeta,
@@ -14,7 +14,7 @@ import { listTaskNotesTasks, toggleTaskNotesTask } from '../utils/tasknotes';
 import type { Entity, ProjectMeta, TaskNotesTask } from '../types/entities';
 import type { Reminder } from '../types/reminders';
 import type { Milestone } from '../utils/parsing';
-import { countTaskLines, taskLineRef, taskLineRows, taskNotesToday } from '../utils/task-lines';
+import { countTaskLines, taskLineRef, taskLineRows, taskNotesToday, withoutBlankTasks } from '../utils/task-lines';
 import type { AppViewHost } from './host';
 
 /* Moved to src/utils/task-lines.ts, where Today and the Calendar share them. */
@@ -329,10 +329,13 @@ export async function loadBriefing(view: AppViewHost): Promise<BriefingItem[]> {
       const allTaskNotes = listTaskNotesTasks(view.app);
       openTasks = allTaskNotes.filter(t => t.scheduled === todayYmd && !t.done).length;
     } else {
-      const file = await ensureDailyNote(view.app, settings);
-      const content = await view.app.vault.read(file);
-      const parsed = parseSections(content, settings);
-      openTasks = countTaskLines(parsed.tasks).open;
+      const file = findDailyNote(view.app, settings);
+      if (file) {
+        const parsed = parseSections(await view.app.vault.read(file), settings);
+        openTasks = countTaskLines(withoutBlankTasks(parsed.tasks)).open;
+      } else {
+        openTasks = 0;
+      }
     }
   } catch (_) { }
 
@@ -448,10 +451,8 @@ export async function homeTodayCard(view: AppViewHost, parent: HTMLElement): Pro
     todayTaskNotes = today.tasks;
     tasksList = today.lines;
   } else {
-    file = await ensureDailyNote(view.app, settings);
-    const content = await view.app.vault.read(file);
-    const parsed = parseSections(content, settings);
-    tasksList = parsed.tasks;
+    file = findDailyNote(view.app, settings);
+    if (file) tasksList = withoutBlankTasks(parseSections(await view.app.vault.read(file), settings).tasks);
   }
 
   const { title, rows } = selectTodayCard(tasksList);
@@ -575,7 +576,7 @@ export async function homeWeekCard(view: AppViewHost, parent: HTMLElement): Prom
       if (f && f instanceof TFile) {
         const c = await view.app.vault.read(f);
         const p = parseSections(c, settings);
-        const counts = countTaskLines(p.tasks);
+        const counts = countTaskLines(withoutBlankTasks(p.tasks));
         open += counts.open;
         done += counts.done;
       }

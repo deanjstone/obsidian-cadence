@@ -68,10 +68,17 @@ describe("_computeBriefing: open tasks today", () => {
     expect(await setup([daily("## Today\n- [x] a\n")]).view._computeBriefing()).toEqual([]);
   });
 
-  it("QUIRK: creates today's note when missing, and its blank `- [ ] ` line counts as one open task", async () => {
+  it("doesn't create today's note when it is missing, and finds no open task", async () => {
     const { view, app } = setup();
-    expect(shape(await view._computeBriefing())).toEqual([["🎯", "emerald", "1 open task on today's note"]]);
-    expect(app.vault.created).toEqual(["daily/2026-10-10.md"]);
+    expect(await view._computeBriefing()).toEqual([]);
+    expect(app.vault.created).toEqual([]);
+  });
+
+  it("doesn't count the template's blank `- [ ] ` line as an open task", async () => {
+    expect(await setup([daily("## Today\n- [ ] \n")]).view._computeBriefing()).toEqual([]);
+    expect(shape(await setup([daily("## Today\n- [ ] \n- [ ] a\n")]).view._computeBriefing())).toEqual([
+      ["🎯", "emerald", "1 open task on today's note"],
+    ]);
   });
 
   it("counts TaskNotes tasks scheduled today that are not done", async () => {

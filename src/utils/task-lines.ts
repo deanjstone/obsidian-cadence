@@ -133,6 +133,15 @@ export function countTaskLines(lines: string[]): { open: number; done: number } 
   return { open, done };
 }
 
+/** The lines minus each bare checklist line (`- [ ] ` with no text, the
+    daily template's placeholder), which is not a task (#55). Home, Today
+    and the Calendar count and list only these. A tick still finds its task
+    by TaskRef in the full note, where a bare line never matches a task's
+    text. */
+export function withoutBlankTasks(lines: string[]): string[] {
+  return lines.filter((line) => taskLineState(line) === null || line.replace(TASK_PREFIX, '').trim() !== '');
+}
+
 /** One row per checklist line: its box state and its text (untrimmed). */
 export function taskLineRows(lines: string[]): Array<{ checked: boolean; text: string }> {
   return lines.map((rawLine) => ({

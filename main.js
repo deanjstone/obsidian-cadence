@@ -3157,6 +3157,10 @@ function renderCloudSyncSettings(tab, containerEl) {
 
 // src/utils/daily-notes.ts
 var import_obsidian9 = require("obsidian");
+function findDailyNote(app, settings, date = /* @__PURE__ */ new Date()) {
+  const file = app.vault.getAbstractFileByPath(dailyNotePath(settings, date));
+  return file instanceof import_obsidian9.TFile ? file : null;
+}
 async function ensureDailyNote(app, settings, date = /* @__PURE__ */ new Date()) {
   const path = dailyNotePath(settings, date);
   let file = app.vault.getAbstractFileByPath(path);
@@ -3781,6 +3785,9 @@ function countTaskLines(lines) {
   });
   return { open, done };
 }
+function withoutBlankTasks(lines) {
+  return lines.filter((line) => taskLineState(line) === null || line.replace(TASK_PREFIX, "").trim() !== "");
+}
 function taskLineRows(lines) {
   return lines.map((rawLine) => ({
     checked: taskLineState(rawLine) === "done",
@@ -3968,7 +3975,7 @@ async function renderPlannerPane(view, root) {
       }
       const content = await view.app.vault.read(file);
       const parsed = parseSections(content, settings);
-      return { date: d, path, exists: true, file, tasks: parsed.tasks };
+      return { date: d, path, exists: true, file, tasks: withoutBlankTasks(parsed.tasks) };
     }));
   }
   const week = plannerWeek(dayData, today);
@@ -7167,10 +7174,13 @@ async function loadBriefing(view) {
       const allTaskNotes = listTaskNotesTasks(view.app);
       openTasks = allTaskNotes.filter((t) => t.scheduled === todayYmd && !t.done).length;
     } else {
-      const file = await ensureDailyNote(view.app, settings);
-      const content = await view.app.vault.read(file);
-      const parsed = parseSections(content, settings);
-      openTasks = countTaskLines(parsed.tasks).open;
+      const file = findDailyNote(view.app, settings);
+      if (file) {
+        const parsed = parseSections(await view.app.vault.read(file), settings);
+        openTasks = countTaskLines(withoutBlankTasks(parsed.tasks)).open;
+      } else {
+        openTasks = 0;
+      }
     }
   } catch (_) {
   }
@@ -7270,10 +7280,8 @@ async function homeTodayCard(view, parent) {
     todayTaskNotes = today.tasks;
     tasksList = today.lines;
   } else {
-    file = await ensureDailyNote(view.app, settings);
-    const content = await view.app.vault.read(file);
-    const parsed = parseSections(content, settings);
-    tasksList = parsed.tasks;
+    file = findDailyNote(view.app, settings);
+    if (file) tasksList = withoutBlankTasks(parseSections(await view.app.vault.read(file), settings).tasks);
   }
   const { title, rows } = selectTodayCard(tasksList);
   const body = view._homeCard(parent, title, (head) => {
@@ -7383,7 +7391,7 @@ async function homeWeekCard(view, parent) {
       if (f && f instanceof import_obsidian21.TFile) {
         const c = await view.app.vault.read(f);
         const p = parseSections(c, settings);
-        const counts = countTaskLines(p.tasks);
+        const counts = countTaskLines(withoutBlankTasks(p.tasks));
         open += counts.open;
         done += counts.done;
       }
@@ -10993,8 +11001,8 @@ function journalRows(value) {
 }
 async function renderTodayPane(view, root) {
   root.addClass("cadence-today");
-  view.todayFile = await ensureDailyNote(view.app, view.plugin.settings);
-  const fileContent = await view.app.vault.read(view.todayFile);
+  view.todayFile = findDailyNote(view.app, view.plugin.settings);
+  const fileContent = view.todayFile ? await view.app.vault.read(view.todayFile) : "";
   view.todayParsed = parseSections(fileContent, view.plugin.settings);
   let tasksList = [];
   if (view.plugin.settings.taskManagementSystem === "tasknotes") {
@@ -11002,7 +11010,7 @@ async function renderTodayPane(view, root) {
     view.todayTaskNotes = today.tasks;
     tasksList = today.lines;
   } else {
-    tasksList = view.todayParsed.tasks;
+    tasksList = withoutBlankTasks(view.todayParsed.tasks);
   }
   const info = dateInfo();
   root.createDiv({ cls: "cad-eyebrow", text: info.weekday.toUpperCase() });
@@ -11020,7 +11028,7 @@ async function renderTodayPane(view, root) {
   if (!tasksList.length) {
     taskSection.createDiv({ cls: "cad-empty", text: "No tasks in today's note yet." });
   } else {
-    const dailyPath = view.todayFile.path;
+    const dailyPath = view.todayFile?.path ?? dailyNotePath(view.plugin.settings);
     taskLineRows(tasksList).forEach(({ checked, text }, idx) => {
       const row = taskSection.createDiv({ cls: "cad-task-row" + (checked ? " done" : "") });
       const cb = row.createEl("input", { type: "checkbox" });
@@ -11115,8 +11123,9 @@ async function renderTodayPane(view, root) {
   const link = footer.createEl("a", { text: "Open today's daily note \u2192" });
   link.style.color = "var(--cad-emerald-deep)";
   link.style.cursor = "pointer";
-  link.addEventListener("click", () => {
-    view.app.workspace.openLinkText(view.todayFile.path, "", false);
+  link.addEventListener("click", async () => {
+    const file = view.todayFile ?? await todayNote(view);
+    view.app.workspace.openLinkText(file.path, "", false);
   });
 }
 async function toggleTodayTask(view, idx, checked) {
@@ -11127,8 +11136,8 @@ async function toggleTodayTask(view, idx, checked) {
       await view._propagateTaskComplete(taskObj.title, checked, { kind: "tasknotes", file: taskObj.file });
     }
   } else {
-    const ref = view.todayParsed ? taskLineRef(view.todayParsed.tasks, idx) : null;
-    if (ref) await view._tickDailyNoteTask(view.todayFile, ref, checked, /* @__PURE__ */ new Date());
+    const ref = view.todayParsed ? taskLineRef(withoutBlankTasks(view.todayParsed.tasks), idx) : null;
+    if (ref && view.todayFile) await view._tickDailyNoteTask(view.todayFile, ref, checked, /* @__PURE__ */ new Date());
   }
   view.render();
 }
@@ -11136,14 +11145,20 @@ async function appendTodayTask(view, text) {
   if (view.plugin.settings.taskManagementSystem === "tasknotes") {
     await appendTaskNotesTask(view.app, text, /* @__PURE__ */ new Date());
   } else {
-    const content = await view.app.vault.read(view.todayFile);
-    await view.app.vault.modify(view.todayFile, appendDailyTask(content, view.plugin.settings, text));
+    const file = await todayNote(view);
+    const content = await view.app.vault.read(file);
+    await view.app.vault.modify(file, appendDailyTask(content, view.plugin.settings, text));
   }
   view.render();
 }
 async function saveTodayJournal(view, body) {
-  const content = await view.app.vault.read(view.todayFile);
-  await view.app.vault.modify(view.todayFile, replaceJournal(content, view.plugin.settings, body));
+  const file = await todayNote(view);
+  const content = await view.app.vault.read(file);
+  await view.app.vault.modify(file, replaceJournal(content, view.plugin.settings, body));
+}
+async function todayNote(view) {
+  if (!view.todayFile) view.todayFile = await ensureDailyNote(view.app, view.plugin.settings);
+  return view.todayFile;
 }
 
 // src/views/app-view.ts
