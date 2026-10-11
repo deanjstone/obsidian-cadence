@@ -46,13 +46,20 @@ describe("buildReminderPatch", () => {
       repeat: "none",
       project: null,
       when: null,
-      notified: false,
     });
   });
 
-  it("omits when and notified for an unparseable time (flagged)", () => {
-    const patch = buildReminderPatch(form({ datetimeValue: "garbage" }), reminder)!;
-    expect(Object.keys(patch)).toEqual(["text", "notes", "repeat", "project"]);
+  it("resets notified when a blank time unschedules a scheduled reminder, not an unscheduled one", () => {
+    expect(buildReminderPatch(form({ datetimeValue: "" }), reminder)).toMatchObject({ when: null, notified: false });
+    expect(buildReminderPatch(form({ datetimeValue: "" }), { ...reminder, when: null, notified: true })).not.toHaveProperty("notified");
+  });
+
+  it("refuses an unparseable time with 'bad-time', so nothing is saved", () => {
+    expect(buildReminderPatch(form({ datetimeValue: "garbage" }), reminder)).toBe("bad-time");
+  });
+
+  it("refuses a half-typed time (blank value, badInput) instead of unscheduling", () => {
+    expect(buildReminderPatch(form({ datetimeValue: "", badInput: true }), reminder)).toBe("bad-time");
   });
 });
 

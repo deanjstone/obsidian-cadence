@@ -84,22 +84,31 @@ describe("CadenceReminderEditModal project picker", () => {
     expect(el.text).toBe("📁  Website relaunch");
   });
 
-  it("links the chosen project on the caller's reminder and re-renders the field as a chip", () => {
+  it("links the chosen project in the modal only, re-rendering the field as a chip; Cancel leaves the caller's reminder alone", () => {
     app = createMockApp([projectWebsite, projectTagged]);
-    const { projectField, reminder } = openModal();
+    const { projectField, reminder, content } = openModal();
     buttonByText(projectField, "📁 Link to project").trigger("click");
     opened[0].onChooseSuggestion(opened[0].projs[1]);
-    expect(reminder.project).toBe(projectTagged.path);
+    expect(reminder.project).toBeNull();
     expect(projectField.findAll("a").map((a) => a.text)).toEqual(["📁 Ops cleanup"]);
+    buttonByText(content, "Cancel").trigger("click");
+    expect(reminder).toEqual({ id: "r1", text: "Call", project: null });
   });
 
-  it("opens the same picker from Change on a linked project", () => {
+  it("opens the same picker from Change on a linked project, and saves the choice on Save", async () => {
     app = createMockApp([projectWebsite, projectTagged]);
-    const { projectField, reminder } = openModal({ id: "r1", text: "Call", project: projectWebsite.path });
+    const updateReminder = vi.fn(async () => {});
+    const modal: Any = new CadenceReminderEditModal(app, { updateReminder } as Any, { id: "r1", text: "Call", project: projectWebsite.path });
+    modal.open();
+    const content = contentOf(modal);
+    const projectField = content.findAll("div").find((d) => d.classes.includes("cad-rem-project-field")) as FakeElement;
     buttonByText(projectField, "Change").trigger("click");
     expect(opened).toHaveLength(1);
     opened[0].onChooseSuggestion(opened[0].projs[1]);
-    expect(reminder.project).toBe(projectTagged.path);
+    expect(modal.reminder.project).toBe(projectWebsite.path);
     expect(projectField.findAll("a").map((a) => a.text)).toEqual(["📁 Ops cleanup"]);
+    buttonByText(content, "Save").trigger("click");
+    await Promise.resolve();
+    expect(updateReminder.mock.calls).toEqual([["r1", expect.objectContaining({ project: projectTagged.path })]]);
   });
 });

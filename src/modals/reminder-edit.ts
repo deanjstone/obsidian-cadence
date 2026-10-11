@@ -2,6 +2,7 @@ import { Modal, Notice, SuggestModal, TFile, type App } from 'obsidian';
 import { VIEW_TYPE_CADENCE_APP } from '../constants/nav';
 import { fromLocalDatetimeValue, toLocalDatetimeValue } from '../utils/dates';
 import { listEntityFiles, projectNameFromPath } from '../utils/entities';
+import { CadenceConfirmModal } from './confirm';
 import { reminderTimeStr } from '../utils/reminders';
 import type { ReminderPatch } from '../types/modals';
 import type { Reminder } from '../types/reminders';
@@ -30,31 +31,34 @@ export interface ReminderForm {
   repeat: string;
   /** The datetime-local input's value (local time, no zone). */
   datetimeValue: string;
+  /** The input's `validity.badInput`: a half-typed time reads as ''. */
+  badInput?: boolean;
 }
 
-/** The fields saved through addReminder / updateReminder, or null when the
-    trimmed text is blank. A blank time unschedules and resets `notified`;
-    a changed time resets `notified`; an unparseable time omits both, so an
-    update keeps the old time (flagged, not fixed). */
-export function buildReminderPatch(form: ReminderForm, reminder: Partial<Reminder>): ReminderPatch | null {
+export const BAD_TIME_MESSAGE = "Couldn't read that time, so nothing was saved. Fix it, or Clear it to unschedule.";
+
+/** The fields saved through addReminder / updateReminder, null when the
+    trimmed text is blank, or 'bad-time' when the time can't be read, so
+    nothing is saved and the reminder keeps its old time (#52). A blank time
+    unschedules. `notified` resets only when the time changes. */
+export function buildReminderPatch(form: ReminderForm, reminder: Partial<Reminder>): ReminderPatch | 'bad-time' | null {
   const text = form.text.trim();
   if (!text) return null;
+  let when: string | null = null;
+  if (form.badInput) return 'bad-time';
+  if (form.datetimeValue) {
+    const d = fromLocalDatetimeValue(form.datetimeValue);
+    if (!d || isNaN(d.getTime())) return 'bad-time';
+    when = d.toISOString();
+  }
   const fields: ReminderPatch = {
     text,
     notes: form.notes,
     repeat: form.repeat || 'none',
     project: reminder.project || null,
+    when,
   };
-  if (form.datetimeValue) {
-    const d = fromLocalDatetimeValue(form.datetimeValue);
-    if (d && !isNaN(d.getTime())) {
-      fields.when = d.toISOString();
-      if (fields.when !== reminder.when) fields.notified = false;
-    }
-  } else {
-    fields.when = null;
-    fields.notified = false;
-  }
+  if (when !== (reminder.when || null)) fields.notified = false;
   return fields;
 }
 
@@ -92,17 +96,24 @@ interface ProjectDetailHost {
 /* ─────────── Reminder edit modal (text/when/repeat/notes/delete) ─────────── */
 export class CadenceReminderEditModal extends Modal {
   declare plugin: ReminderStore;
-  /** The caller's reminder object. The project field mutates it in place. */
+  /** The caller's reminder object, often the live settings entry. Never
+      written: edits stay in the modal until saved through the plugin. */
   declare reminder: Partial<Reminder>;
+  /** The project link as edited in the modal (Remove, the picker). */
+  declare project: string | null;
   declare isNew: boolean;
   declare _submitted: boolean;
+  /** A save or delete is running, so another can't start. */
+  declare _busy: boolean;
 
   constructor(app: App, plugin: ReminderStore, reminder: Partial<Reminder>, opts?: ReminderEditOptions) {
     super(app);
     this.plugin = plugin;
     this.reminder = reminder;
+    this.project = reminder.project || null;
     this.isNew = (opts && opts.isNew) || false;
     this._submitted = false;
+    this._busy = false;
   }
 
   onOpen() {
@@ -154,19 +165,24 @@ export class CadenceReminderEditModal extends Modal {
     const projectField = projectRow.createDiv({ cls: 'cad-rem-project-field' });
     const renderProjectField = () => {
       projectField.empty();
-      if (this.reminder.project) {
-        const chip = projectField.createEl('a', { cls: 'cad-rem-project-chip', text: '📁 ' + (projectNameFromPath(this.app, this.reminder.project) || 'Project') });
+      if (this.project) {
+        const projectPath = this.project;
+        const chip = projectField.createEl('a', { cls: 'cad-rem-project-chip', text: '📁 ' + (projectNameFromPath(this.app, projectPath) || 'Project') });
         chip.title = 'Open project (closes this modal)';
         chip.addEventListener('click', (e) => {
           e.preventDefault();
-          const file = this.app.vault.getAbstractFileByPath(this.reminder.project!);
-          if (file && file instanceof TFile) {
-            this._submitted = true;
-            this.close();
-            const leaf = this.app.workspace.getLeavesOfType(VIEW_TYPE_CADENCE_APP)[0] as { view?: ProjectDetailHost } | undefined;
-            if (leaf && leaf.view && typeof leaf.view.openEntityDetail === 'function') {
-              leaf.view.openEntityDetail('project', file);
-            }
+          const file = this.app.vault.getAbstractFileByPath(projectPath);
+          if (!(file instanceof TFile)) {
+            new Notice(`Project note not found: ${projectPath}`);
+            return;
+          }
+          this._submitted = true;
+          this.close();
+          const leaf = this.app.workspace.getLeavesOfType(VIEW_TYPE_CADENCE_APP)[0] as { view?: ProjectDetailHost } | undefined;
+          if (leaf && leaf.view && typeof leaf.view.openEntityDetail === 'function') {
+            leaf.view.openEntityDetail('project', file);
+          } else {
+            this.app.workspace.openLinkText(file.path, '', false);
           }
         });
         const changeBtn = projectField.createEl('button', { cls: 'cad-btn cad-btn-sm', text: 'Change' });
@@ -175,7 +191,7 @@ export class CadenceReminderEditModal extends Modal {
         const removeBtn = projectField.createEl('button', { cls: 'cad-btn cad-btn-sm cad-btn-danger', text: 'Remove' });
         removeBtn.type = 'button';
         removeBtn.addEventListener('click', () => {
-          this.reminder.project = null;
+          this.project = null;
           renderProjectField();
         });
       } else {
@@ -203,12 +219,24 @@ export class CadenceReminderEditModal extends Modal {
       const del = actions.createEl('button', { cls: 'cad-btn cad-btn-danger', text: 'Delete' });
       del.type = 'button';
       del.style.marginRight = 'auto';
-      del.addEventListener('click', async () => {
-        // Flagged, not fixed: native window.confirm, not CadenceConfirmModal.
-        if (!confirm('Delete this reminder?')) return;
-        await this.plugin.deleteReminder(this.reminder.id!);
-        this._submitted = true;
-        this.close();
+      del.addEventListener('click', () => {
+        if (this._busy) return;
+        new CadenceConfirmModal(this.app, {
+          title: 'Delete reminder',
+          message: 'Delete this reminder?',
+          confirmLabel: 'Delete',
+          onConfirm: async () => {
+            if (this._busy) return;
+            this._busy = true;
+            try {
+              await this.plugin.deleteReminder(this.reminder.id!);
+            } finally {
+              this._busy = false;
+            }
+            this._submitted = true;
+            this.close();
+          },
+        }).open();
       });
     }
     const cancel = actions.createEl('button', { cls: 'cad-btn', text: 'Cancel' });
@@ -218,20 +246,32 @@ export class CadenceReminderEditModal extends Modal {
     save.type = 'button';
 
     const submit = async () => {
+      if (this._busy || this._submitted) return;
       const fields = buildReminderPatch({
         text: textInput.value,
         notes: notesArea.value,
         repeat: repeatSel.value,
         datetimeValue: dateInput.value,
-      }, this.reminder);
+        badInput: dateInput.validity?.badInput,
+      }, { ...this.reminder, project: this.project });
       if (!fields) { textInput.focus(); return; }
-      if (this.isNew) {
-        await this.plugin.addReminder(fields);
-        new Notice(fields.when
-          ? `Reminder set · ${reminderTimeStr(fields.when)}`
-          : 'Captured to Inbox');
-      } else {
-        await this.plugin.updateReminder(this.reminder.id!, fields);
+      if (fields === 'bad-time') {
+        new Notice(BAD_TIME_MESSAGE);
+        dateInput.focus();
+        return;
+      }
+      this._busy = true;
+      try {
+        if (this.isNew) {
+          await this.plugin.addReminder(fields);
+          new Notice(fields.when
+            ? `Reminder set · ${reminderTimeStr(fields.when)}`
+            : 'Captured to Inbox');
+        } else {
+          await this.plugin.updateReminder(this.reminder.id!, fields);
+        }
+      } finally {
+        this._busy = false;
       }
       this._submitted = true;
       this.close();
@@ -262,9 +302,8 @@ export class CadenceReminderEditModal extends Modal {
     }
     // Names are never null here: every path came from the vault.
     const projects = projectFiles.map((f) => ({ file: f, name: projectNameFromPath(this.app, f.path) }));
-    const reminder = this.reminder;
     const picker = new ReminderProjectSuggestModal(this.app, projects as ReminderProjectChoice[], (item) => {
-      reminder.project = item.file.path;
+      this.project = item.file.path;
       rerender();
     });
     picker.open();

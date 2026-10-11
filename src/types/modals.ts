@@ -45,8 +45,8 @@ export interface CaptureResult {
 }
 
 /* Fields the reminder edit modal hands to addReminder / updateReminder.
-   `when` and `notified` are omitted when the time input is unparseable or
-   (for `notified`) unchanged. */
+   `notified` is omitted when the time is unchanged; an unparseable time
+   saves nothing (#52). */
 export interface ReminderPatch {
   text: string;
   notes: string;
