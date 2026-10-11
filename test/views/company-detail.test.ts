@@ -105,10 +105,10 @@ describe("renderCompanyDetail: header", () => {
     ]);
   });
 
-  it("titles with name, else the basename (a falsy name included)", async () => {
+  it("titles with name, else the basename; a name of 0 is kept, as on the generic form", async () => {
     const { root, render } = setup([{ path: "Cadence/Companies/Zero.md", frontmatter: { name: 0 } }]);
     await render("Cadence/Companies/Zero.md");
-    expect(crumbs(root)[1]).toBe("Zero");
+    expect(crumbs(root)[1]).toBe("0");
     const bare = setup([{ path: "Cadence/Companies/Bare.md" }]);
     await bare.render("Cadence/Companies/Bare.md");
     expect(crumbs(bare.root)[1]).toBe("Bare");
@@ -198,7 +198,7 @@ describe("renderCompanyDetail: meta row", () => {
     await render();
     await enter(chipInput(root, "OWNER"), "Ann");
     await enter(chipInput(root, "DOMAIN"), "acme.dev");
-    // QUIRK: industry was a scalar; a list field writes it back as a list.
+    // Industry is a list field, so a scalar is written back as the list it is everywhere else.
     await enter(chipInput(root, "INDUSTRY"), "Retail");
     expect(fm(ACME.path)?.owner).toEqual(["[[Sam Lee]]", "[[Ann]]"]);
     expect(fm(ACME.path)?.domain).toEqual(["acme.test", "[[acme.io]]", "acme.dev"]);
@@ -298,10 +298,10 @@ describe("renderCompanyDetail: meta row", () => {
         type(control(root, "FOUNDED"), "2000-01-01", "blur");
         await flush();
         expect(fm(ACME.path)).toEqual({ name: "Acme Corp", employees: 12, founded: "2000-01-01" });
-        // QUIRK: clearing a number writes 0, as on the generic form.
+        // Clearing a number deletes the key, as on the generic form.
         type(control(root, "EMPLOYEES"), "", "blur");
         await flush();
-        expect(fm(ACME.path)?.employees).toBe(0);
+        expect(fm(ACME.path)).not.toHaveProperty("employees");
       },
     );
   });
@@ -314,7 +314,7 @@ describe("renderCompanyDetail: meta row", () => {
     });
   });
 
-  it("a select cell writes the scalar value on change, and empty deletes", async () => {
+  it("a select cell writes on change: stage as a one-item list, others as a scalar, empty deletes", async () => {
     await withFields([{ key: "stage", label: "Stage", type: "enum", options: ["A", "B"] }], async () => {
       const { root, render, fm } = setup([{ ...ACME, frontmatter: { stage: ["B"] } }]);
       await render();
@@ -323,14 +323,47 @@ describe("renderCompanyDetail: meta row", () => {
       sel.value = "A";
       sel.trigger("change");
       await flush();
-      // QUIRK: stage is a one-item list on the generic form, a scalar here.
-      expect(fm(ACME.path)?.stage).toBe("A");
+      // Stage is a one-item list here too, as on the generic form and the template.
+      expect(fm(ACME.path)?.stage).toEqual(["A"]);
       expect(badge(root).text).toBe("Saved");
       sel.value = "";
       sel.trigger("change");
       await flush();
       expect(fm(ACME.path)).not.toHaveProperty("stage");
     });
+  });
+});
+
+describe("renderCompanyDetail: failed writes", () => {
+  it("a failed chip, select or input write notices and does not flash Saved", async () => {
+    await withFields([{ key: "phase", label: "Phase", type: "enum", options: ["A", "B"] }], async () => {
+      const { root, render, app } = setup([ACME, SAM]);
+      vi.spyOn(app.fileManager, "processFrontMatter").mockRejectedValue(new Error("locked"));
+      await render();
+      await enter(chipInput(root, "DOMAIN"), "acme.dev");
+      const sel = control(root, "PHASE");
+      sel.value = "A";
+      sel.trigger("change");
+      type(control(root, "SIZE"), "Big", "blur");
+      type(control(root, "SIZE"), "Bigger");
+      await vi.advanceTimersByTimeAsync(350);
+      await flush();
+      expect(Notice.messages).toEqual(["Save failed: locked", "Save failed: locked", "Save failed: locked", "Save failed: locked"]);
+      expect(badge(root).text).toBe("");
+    });
+  });
+
+  it("an input cell flashes Saved only once its write has landed", async () => {
+    const { root, render, app } = setup([ACME]);
+    let land: () => void = () => {};
+    vi.spyOn(app.fileManager, "processFrontMatter").mockImplementation(() => new Promise<void>((resolve) => { land = resolve; }));
+    await render();
+    type(control(root, "SIZE"), "Big", "blur");
+    await flush();
+    expect(badge(root).text).toBe("");
+    land();
+    await flush();
+    expect(badge(root).text).toBe("Saved");
   });
 });
 

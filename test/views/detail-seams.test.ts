@@ -28,11 +28,13 @@ describe("coerceFieldEdit", () => {
     expect(coerceFieldEdit(contact, "tags", null)).toEqual([]);
   });
 
-  it("turns number and currency input into a number, or null when not numeric", () => {
+  it("turns number and currency input into a number, or null when empty or not numeric", () => {
     expect(coerceFieldEdit(deal, "value", "12.5")).toBe(12.5);
+    expect(coerceFieldEdit(deal, "value", "0")).toBe(0);
     expect(coerceFieldEdit(sequence, "steps", "abc")).toBeNull();
-    // QUIRK: an empty number becomes 0.
-    expect(coerceFieldEdit(deal, "value", "")).toBe(0);
+    expect(coerceFieldEdit(deal, "value", "")).toBeNull();
+    expect(coerceFieldEdit(deal, "value", "  ")).toBeNull();
+    expect(coerceFieldEdit(deal, "value", null)).toBeNull();
   });
 
   it("wraps stage in a one-item list, null when empty", () => {
@@ -95,12 +97,16 @@ describe("dateInputValue and enumCurrent", () => {
 });
 
 describe("isChipField and chipConfig", () => {
-  it("chips for tags, multitext and any suggestion source", () => {
+  it("chips for tags, multitext, any suggestion source, and a text or email list", () => {
     expect(isChipField(field("tags", { type: "tags" }))).toBe(true);
     expect(isChipField(field("notes", { type: "multitext", suggestionSource: "none" }))).toBe(true);
     expect(isChipField(field("company"))).toBe(true);
     expect(isChipField(field("size"))).toBe(false);
     expect(isChipField(field("phone"))).toBe(false);
+    expect(isChipField(field("phone", { isList: true }))).toBe(true);
+    expect(isChipField(field("email", { type: "email", isList: true }))).toBe(true);
+    expect(isChipField(field("n", { type: "number", isList: true }))).toBe(false);
+    expect(isChipField(field("k", { type: "enum", isList: true }))).toBe(false);
   });
 
   it("an entity source targets that entity and links its chips", () => {
@@ -239,9 +245,9 @@ describe("entity detail seams", () => {
     expect(detailFields(def).map((f) => f.key)).toEqual(["name", "x"]);
   });
 
-  it("picks the control by type, then chips, then text", () => {
+  it("picks the control by type, then chips, then text; a text or email list is chips", () => {
     expect(contact.fields.map((f) => [f.key, detailControl(f)])).toEqual([
-      ["name", "text"], ["email", "email"], ["phone", "text"], ["company", "chips"], ["role", "chips"],
+      ["name", "text"], ["email", "chips"], ["phone", "chips"], ["company", "chips"], ["role", "chips"],
       ["lastContact", "date"], ["tags", "chips"],
     ]);
     expect(deal.fields.map(detailControl)).toEqual(["text", "enum", "number", "chips", "chips", "chips", "date"]);
@@ -252,9 +258,11 @@ describe("entity detail seams", () => {
 });
 
 describe("company detail seams", () => {
-  it("titles with a truthy name, else the basename", () => {
+  it("titles with the name unless it is missing or empty, else the basename, as the generic form does", () => {
     expect(companyDetailTitle({ name: "Acme" }, "file")).toBe("Acme");
-    expect(companyDetailTitle({ name: 0 }, "file")).toBe("file");
+    expect(companyDetailTitle({ name: 0 }, "file")).toBe(0);
+    expect(companyDetailTitle({ name: "" }, "file")).toBe("file");
+    expect(companyDetailTitle({ name: null }, "file")).toBe("file");
     expect(companyDetailTitle({}, "file")).toBe("file");
   });
 
@@ -283,8 +291,9 @@ describe("company detail seams", () => {
     expect(metaInputValue("date", "2026-01-01")).toBe("2026-01-01");
     expect(metaInputValue("number", "7")).toBe(7);
     expect(metaInputValue("currency", "x")).toBeNull();
-    // QUIRK: an empty number writes 0.
-    expect(metaInputValue("number", "")).toBe(0);
+    expect(metaInputValue("number", "0")).toBe(0);
+    expect(metaInputValue("number", "")).toBeNull();
+    expect(metaInputValue("currency", " ")).toBeNull();
   });
 
   it("alternates sections between the columns", () => {

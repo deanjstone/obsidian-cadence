@@ -7,7 +7,7 @@ import { reminderTimeStr } from "../../src/utils/reminders";
 import { companyMetaControl } from "../../src/views/company-detail";
 import {
   PROJECT_PRIORITY_FALLBACK, PROJECT_STATUS_FALLBACK, PROJECT_TEXT_SECTIONS, TASKNOTES_FOLDER, TASKNOTES_PROMPT, addMilestone,
-  addTask, commitMilestones, commitTasks, milestoneCardTitle, milestoneDateFromInput, milestoneDateValue, newTaskReminder,
+  addTask, commitMilestones, commitTasks, milestoneCardTitle, milestoneDateFromInput, milestoneDateValue, milestoneNotesFromInput, newTaskReminder,
   projectDetailTitle, projectMetaFields, projectPills, projectProgress, projectTextSection, removeItem, taskBell, taskCardTitle,
   taskNoteContent, taskNotePath, taskNotesItems, updateItem, writeProjectFrontmatter,
 } from "../../src/views/project-detail";
@@ -26,11 +26,13 @@ describe("project page seams", () => {
     expect(projectDetailTitle({}, "bare")).toBe("bare");
   });
 
-  it("projectPills: status and priority with their classes, current values and defaults", () => {
+  it("projectPills: status and priority with their classes, current values and defaults; a stored value outside the options is offered", () => {
     expect(projectPills({ status: "on_hold", priority: "High" }, ["a"], ["b"])).toEqual([
-      { key: "status", cls: "cad-pill cad-pill-on_hold", options: ["a"], current: "on_hold" },
-      { key: "priority", cls: "cad-pill cad-pill-prio-high", options: ["b"], current: "High" },
+      { key: "status", cls: "cad-pill cad-pill-on_hold", options: ["a", "on_hold"], current: "on_hold" },
+      { key: "priority", cls: "cad-pill cad-pill-prio-high", options: ["b", "High"], current: "High" },
     ]);
+    expect(projectPills({ status: "a", priority: "b" }, ["a"], ["b"]).map((p) => p.options)).toEqual([["a"], ["b"]]);
+    expect(projectPills({}, ["a"], ["b"]).map((p) => [p.options, p.current])).toEqual([[["a"], "active"], [["b"], "medium"]]);
     expect(projectPills({}, PROJECT_STATUS_FALLBACK, PROJECT_PRIORITY_FALLBACK).map((p) => [p.cls, p.current])).toEqual([
       ["cad-pill cad-pill-active", "active"], ["cad-pill cad-pill-prio-medium", "medium"],
     ]);
@@ -53,10 +55,10 @@ describe("project page seams", () => {
     expect(projectMetaFields(def).map((f) => f.label)).toEqual(["Ty2", "X"]);
   });
 
-  it("writeProjectFrontmatter: deletes null, undefined and '', writes the rest (an empty list included)", () => {
-    const fm: Frontmatter = { a: 1, b: 2, c: 3, keep: "k" };
+  it("writeProjectFrontmatter: deletes null, undefined, '' and an empty list, writes the rest", () => {
+    const fm: Frontmatter = { a: 1, b: 2, c: 3, d: ["x"], keep: "k" };
     writeProjectFrontmatter(fm, { a: null, b: undefined, c: "", d: [], e: 0, f: false, g: "x" });
-    expect(fm).toEqual({ keep: "k", d: [], e: 0, f: false, g: "x" });
+    expect(fm).toEqual({ keep: "k", e: 0, f: false, g: "x" });
   });
 
   it("projectProgress: null without milestones, else the band, label and percent", () => {
@@ -107,6 +109,10 @@ describe("milestone seams", () => {
     }
   });
 
+  it("milestoneNotesFromInput: whitespace only is no notes, anything else is kept as typed", () => {
+    expect([milestoneNotesFromInput(""), milestoneNotesFromInput(" \n\t"), milestoneNotesFromInput(" a\n")]).toEqual(["", "", " a\n"]);
+  });
+
   it("commitMilestones: rewrites the section, or appends it under the raw key", () => {
     expect(commitMilestones(DOC, ms())).toBe(
       "## Brief\nGo\n## Milestones\n- [x] 2026-09-15 — Kickoff\n- [ ] Beta\n    n\n\n## Tasks\n- [ ] Old\n## Notes\nN\n",
@@ -126,8 +132,10 @@ describe("milestone seams", () => {
     expect(items).toHaveLength(2);
   });
 
-  it("updateItem throws for a missing item, as assigning to it did", () => {
-    expect(() => updateItem(ms(), 2, { title: "x" })).toThrow(TypeError);
+  it("updateItem leaves the list alone for a missing item, as removeItem does", () => {
+    const items = ms();
+    expect(updateItem(items, 2, { title: "x" })).toEqual(items);
+    expect(updateItem(items, -1, { title: "x" })).toEqual(items);
   });
 
   it("addMilestone appends an untitled open milestone dated today, without notes", () => {
@@ -189,10 +197,11 @@ describe("task seams", () => {
     expect(taskNotePath(TASKNOTES_FOLDER, "New", () => false)).toBe("TaskNotes/Tasks/New.md");
   });
 
-  it("taskNoteContent: open, scheduled today, linked to the project, title unquoted", () => {
+  it("taskNoteContent: open, scheduled today, linked to the project, title quoted", () => {
     expect(taskNoteContent("Fix: it", new Date("2026-10-10T09:00:00Z"), "Apollo")).toBe(
-      '---\ntitle: Fix: it\nstatus: open\nscheduled: 2026-10-10\nprojects: "[[Apollo]]"\npriority: normal\n---\n',
+      '---\ntitle: "Fix: it"\nstatus: open\nscheduled: 2026-10-10\nprojects: "[[Apollo]]"\npriority: normal\n---\n',
     );
+    expect(taskNoteContent('"Quoted" \\ #tag', new Date("2026-10-10T09:00:00Z"), "Apollo")).toContain('title: "\\"Quoted\\" \\\\ #tag"\n');
     expect(TASKNOTES_PROMPT).toEqual({ title: "Ajouter une tâche (TaskNotes)", placeholder: "Que faut-il faire ?", cta: "Ajouter" });
   });
 });

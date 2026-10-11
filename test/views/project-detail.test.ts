@@ -186,18 +186,20 @@ describe("renderProjectDetail: status and priority pills", () => {
     const odd = setup([{ path: "Cadence/Projects/Odd.md", frontmatter: { status: "On  Hold", priority: "Urgent" } }]);
     await odd.render("Cadence/Projects/Odd.md");
     expect(pills(odd.root).map((w) => w.classes[2])).toEqual(["cad-pill-on-hold", "cad-pill-prio-urgent"]);
-    // QUIRK: a value outside the options selects nothing, so the select shows its first option.
-    expect([pill(odd.root, 0).value, pill(odd.root, 1).value]).toEqual(["active", "low"]);
+    // A stored value outside the options is offered after them and selected, so the pill shows it.
+    expect([pill(odd.root, 0).value, pill(odd.root, 1).value]).toEqual(["On  Hold", "Urgent"]);
+    expect(pill(odd.root, 1).options.map((o) => o.value)).toEqual(["low", "medium", "high", "Urgent"]);
   });
 
-  it("takes the options from the project's field definitions", async () => {
+  it("takes the options from the project's field definitions, offering a stored status outside them", async () => {
     const status = ENTITIES.project.fields.find((f) => f.key === "status") as EntityField;
     const saved = status.options;
     status.options = ["open", "closed"];
     try {
       const { root, render } = setup([APOLLO]);
       await render();
-      expect(pill(root, 0).options.map((o) => o.value)).toEqual(["open", "closed"]);
+      expect(pill(root, 0).options.map((o) => o.value)).toEqual(["open", "closed", "on_hold"]);
+      expect(pill(root, 0).value).toBe("on_hold");
       status.options = [];
       const fallback = setup([APOLLO]);
       await fallback.render();
@@ -288,17 +290,17 @@ describe("renderProjectDetail: meta row", () => {
     expect(fm(APOLLO.path)?.owner).toEqual(["[[Sam Lee]]", "[[Ann]]"]);
   });
 
-  it("× and Backspace remove chips; removing the last keeps an empty list", async () => {
+  it("× and Backspace remove chips; removing the last deletes the key", async () => {
     const { root, render, fm } = setup([APOLLO]);
     await render();
     chip(root, "TAGS", "q4").children[1].trigger("click");
     await flush();
-    // QUIRK: the project write only deletes null and '', so the key stays as []. The company page deletes it.
-    expect(fm(APOLLO.path)?.tags).toEqual([]);
+    // An empty list deletes the key, as on the company page and the generic form.
+    expect(fm(APOLLO.path)).not.toHaveProperty("tags");
     chipInput(root, "OWNER").trigger("keydown", { key: "Backspace" });
     await flush();
     expect(chips(root, "OWNER")).toEqual([]);
-    expect(fm(APOLLO.path)?.owner).toEqual([]);
+    expect(fm(APOLLO.path)).not.toHaveProperty("owner");
   });
 
   it("suggests contacts for the owner and vault tags for tags, and adds on mousedown", async () => {
@@ -368,11 +370,11 @@ describe("renderProjectDetail: meta row", () => {
         choose(control(root, "PHASE"), "A");
         await flush();
         expect([fm(APOLLO.path)?.budget, fm(APOLLO.path)?.phase]).toEqual([12.5, "A"]);
-        // QUIRK: clearing a number writes 0, because Number('') is 0.
+        // Clearing a number deletes the key, as an empty text field does.
         type(control(root, "BUDGET"), "", "blur");
         choose(control(root, "PHASE"), "");
         await flush();
-        expect(fm(APOLLO.path)?.budget).toBe(0);
+        expect(fm(APOLLO.path)).not.toHaveProperty("budget");
         expect(fm(APOLLO.path)).not.toHaveProperty("phase");
       },
     );

@@ -184,6 +184,27 @@ describe("_renderMilestoneSection", () => {
     expect(await section("## Milestones")).toBe("- [ ] 2026-11-01 — Beta\n- [x] Go live\n- [ ] 2026-10-10\n");
   });
 
+  it("a pending edit lands on the row it was made on after an earlier row is deleted", async () => {
+    const { parent, milestones, section } = setup();
+    milestones();
+    type(mileRow(parent, 1).children[2], "Beta 2");
+    type(mileRow(parent, 2).children[1], "2027-02-01");
+    mileRow(parent, 0).children[3].trigger("click");
+    await flush();
+    await vi.advanceTimersByTimeAsync(400);
+    expect(await section("## Milestones")).toBe("- [ ] 2026-11-01 — Beta 2\n- [ ] 2027-02-01 — Launch\n");
+  });
+
+  it("a pending edit on a deleted row is dropped, without throwing", async () => {
+    const { parent, milestones, section } = setup();
+    milestones();
+    type(mileRow(parent, 2).children[2], "Go live");
+    mileRow(parent, 2).children[3].trigger("click");
+    await flush();
+    await vi.advanceTimersByTimeAsync(400);
+    expect(await section("## Milestones")).toBe("- [x] 2026-09-15 — Kickoff\n    Went well\n- [ ] 2026-11-01 — Beta\n");
+  });
+
   it("shows notes as a preview, or a + Add notes link", () => {
     const { parent, milestones } = setup();
     milestones();
@@ -228,6 +249,24 @@ describe("_renderMilestoneSection", () => {
     await flush();
     expect(await section("## Milestones")).toContain("- [x] 2026-09-15 — Kickoff\n- [ ] 2026-11-01");
     expect(notesEl(parent, 0).children[0].text).toBe("+ Add notes");
+  });
+});
+
+describe("_renderMilestoneSection: blank notes", () => {
+  it("whitespace-only notes on a milestone without notes write nothing, typed or blurred", async () => {
+    const { parent, milestones, app, flashSaved } = setup();
+    const items = milestones();
+    const modify = vi.spyOn(app.vault, "modify");
+    notesEl(parent, 1).children[0].trigger("click");
+    const ta = notesEl(parent, 1).children[0];
+    type(ta, "   ");
+    await vi.advanceTimersByTimeAsync(400);
+    type(ta, " \n ", "blur");
+    await flush();
+    expect(modify).not.toHaveBeenCalled();
+    expect(flashSaved).not.toHaveBeenCalled();
+    expect(items[1].notes || "").toBe("");
+    expect(notesEl(parent, 1).children[0].text).toBe("+ Add notes");
   });
 });
 
@@ -328,6 +367,21 @@ describe("_renderTaskSection (native)", () => {
     expect(rendered).toHaveBeenCalledTimes(1);
   });
 
+  it("a pending title edit lands on its own task after an earlier task is deleted, and is dropped with its task", async () => {
+    const { parent, tasks, section } = setup();
+    tasks();
+    type(taskRow(parent, 1).children[1], "Hire two");
+    taskRow(parent, 0).children[3].trigger("click");
+    await flush();
+    await vi.advanceTimersByTimeAsync(400);
+    expect(await section("## Tasks")).toBe("- [x] Hire two\n");
+    type(taskRow(parent, 1).children[1], "Hire three");
+    taskRow(parent, 1).children[3].trigger("click");
+    await flush();
+    await vi.advanceTimersByTimeAsync(400);
+    expect(await section("## Tasks")).toBe("");
+  });
+
   it("+ Add appends an empty task to the shared list, keeping a pending edit", async () => {
     const { parent, tasks, section } = setup();
     const items = tasks();
@@ -388,6 +442,27 @@ describe("_renderTaskSection (native)", () => {
     expect(Notice.messages).toEqual(["Add a task title first."]);
     expect(name.focusCount).toBe(1);
     expect(modals).toHaveLength(1);
+  });
+});
+
+describe("_renderTaskSection: the bell's blank check", () => {
+  it("a blank title notices before anything is written", async () => {
+    const modals: Any[] = [];
+    vi.spyOn(CadenceReminderEditModal.prototype, "open").mockImplementation(function (this: Any) {
+      modals.push(this);
+    });
+    const { parent, tasks, app, section, flashSaved } = setup();
+    const items = tasks();
+    const modify = vi.spyOn(app.vault, "modify");
+    taskRow(parent, 1).children[1].value = "  ";
+    taskRow(parent, 1).children[2].trigger("click");
+    await flush();
+    expect(Notice.messages).toEqual(["Add a task title first."]);
+    expect(modify).not.toHaveBeenCalled();
+    expect(flashSaved).not.toHaveBeenCalled();
+    expect(items[1].title).toBe("Hire");
+    expect(await section("## Tasks")).toBe("- [ ] Plan\n- [x] Hire");
+    expect(modals).toEqual([]);
   });
 });
 
@@ -460,7 +535,7 @@ describe("_renderTaskSection (TaskNotes)", () => {
     expect(prompt.mock.calls).toEqual([[{ title: "Ajouter une tâche (TaskNotes)", placeholder: "Que faut-il faire ?", cta: "Ajouter" }]]);
     expect(app.vault.created).toEqual(["TaskNotes/Tasks/Fix ab.md"]);
     expect(await app.vault.read(app.vault.getAbstractFileByPath("TaskNotes/Tasks/Fix ab.md") as Any)).toBe(
-      '---\ntitle: Fix: "a/b"?\nstatus: open\nscheduled: 2026-10-10\nprojects: "[[Apollo]]"\npriority: normal\n---\n',
+      '---\ntitle: "Fix: \\"a/b\\"?"\nstatus: open\nscheduled: 2026-10-10\nprojects: "[[Apollo]]"\npriority: normal\n---\n',
     );
     expect(rendered).toHaveBeenCalledTimes(1);
   });
@@ -518,12 +593,12 @@ describe("_commitTasks", () => {
 });
 
 describe("_writeProjectFrontmatter", () => {
-  it("sets each patched key, deletes null, undefined and '', keeps [] and 0, then flashes", async () => {
+  it("sets each patched key, deletes null, undefined, '' and [], keeps 0, then flashes", async () => {
     const { view, file, app, flashSaved } = setup([
       { path: "Cadence/Projects/P.md", frontmatter: { a: 1, b: 2, c: 3, d: 4 } },
     ]);
     await view._writeProjectFrontmatter(file("Cadence/Projects/P.md"), { a: null, b: undefined, c: "", d: [], e: 0, f: "x" }, flashSaved);
-    expect(app.metadataCache.getFileCache(file("Cadence/Projects/P.md"))?.frontmatter).toEqual({ d: [], e: 0, f: "x" });
+    expect(app.metadataCache.getFileCache(file("Cadence/Projects/P.md"))?.frontmatter).toEqual({ e: 0, f: "x" });
     expect(flashSaved).toHaveBeenCalledTimes(1);
     await view._writeProjectFrontmatter(file("Cadence/Projects/P.md"), { g: 1 });
   });

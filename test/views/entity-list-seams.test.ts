@@ -331,6 +331,7 @@ describe("kanban seams", () => {
     [{ key: "s", label: "", type: "multitext", suggestionSource: "history" }, ["Won"]],
     [{ key: "s", label: "", suggestionSource: "folder:X" }, "[[Won]]"],
     [{ key: "s", label: "", suggestionSource: "tags" }, "Won"],
+    [{ key: "stage", label: "", type: "enum" }, ["Won"]],
   ])("kanbanDropValue(%j) → %j", (field, value) => {
     expect(kanbanDropValue(field, "Won")).toEqual(value);
   });

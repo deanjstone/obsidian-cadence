@@ -8,12 +8,19 @@ import type { VaultNode } from './vault';
    behind the chip input (its source, values, suggestions and link targets).
    Plain data in, plain data out; the views keep the DOM. */
 
+/** A number or currency input's value: null (delete the key) when empty or
+    not numeric, so clearing the field removes it like any other empty field
+    (#50), rather than Number('') writing 0. */
+function numberValue(raw: unknown): number | null {
+  if (raw == null || String(raw).trim() === '') return null;
+  const n = Number(raw);
+  return isNaN(n) ? null : n;
+}
+
 /** Coerce a raw form value for `key` before it is written: tags split on
-    commas, numbers and currency to a number (null when not numeric), stage
-    to a one-item list, and an empty string to null. A key with no field in
-    `def` is written as-is.
-    Flagged quirk (kept as-is): an empty number or currency becomes 0, because
-    Number('') is 0. */
+    commas, numbers and currency to a number (null when empty or not
+    numeric), stage to a one-item list, and an empty string to null. A key
+    with no field in `def` is written as-is. */
 export function coerceFieldEdit(def: EntityDef, key: string, raw: unknown): unknown {
   let value: unknown = raw;
   const fdef = def.fields.find((f) => f.key === key);
@@ -25,8 +32,7 @@ export function coerceFieldEdit(def: EntityDef, key: string, raw: unknown): unkn
         value = ((raw as string) || '').split(',').map((t) => t.trim()).filter(Boolean);
       }
     } else if (fdef.type === 'number' || fdef.type === 'currency') {
-      const n = Number(raw);
-      value = isNaN(n) ? null : n;
+      value = numberValue(raw);
     } else if (key === 'stage') {
       value = raw ? [raw] : null;
     } else if (raw === '') {
@@ -58,9 +64,12 @@ export function enumCurrent(current: unknown): string {
   return Array.isArray(current) ? String(current[0] || '') : String(current || '');
 }
 
-/** True when a field edits as chips: tags, multitext, or any suggestion source. */
+/** True when a field edits as chips: tags, multitext, any suggestion source,
+    or a text or email list (contact phone and email), which a plain input
+    would write back as a scalar (#50). */
 export function isChipField(f: EntityField): boolean {
   const fieldType = f.type || 'text';
+  if (f.isList === true && (fieldType === 'text' || fieldType === 'email')) return true;
   return fieldType === 'tags' || fieldType === 'multitext' || getFieldSuggestionSource(f) !== 'none';
 }
 
@@ -250,15 +259,10 @@ export function metaInputType(fieldType: string): 'date' | 'number' | 'text' {
 }
 
 /** What an input cell writes: the text, or a number for number and
-    currency; null (delete) when empty or not numeric.
-    Flagged quirk (kept as-is): an empty number writes 0, because Number('') is 0. */
+    currency; null (delete) when empty or not numeric. */
 export function metaInputValue(fieldType: string, raw: string): string | number | null {
-  let val: string | number | null = raw || null;
-  if (fieldType === 'number' || fieldType === 'currency') {
-    const n = Number(raw);
-    val = isNaN(n) ? null : n;
-  }
-  return val;
+  if (fieldType === 'number' || fieldType === 'currency') return numberValue(raw);
+  return raw || null;
 }
 
 /** The detail pages' two columns: sections alternate between them: 1st, 3rd, … left; 2nd, 4th, … right. */

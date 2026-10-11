@@ -225,8 +225,8 @@ describe("renderEntityDetail: fields", () => {
     await render("contact", JANE.path);
     expect(rowKinds(root)).toEqual([
       ["NAME", "input:text"],
-      ["EMAIL", "input:email"],
-      ["PHONE", "input:text"],
+      ["EMAIL", "chips"],
+      ["PHONE", "chips"],
       ["COMPANY", "chips"],
       ["ROLE", "chips"],
       ["LAST CONTACT", "input:date"],
@@ -235,14 +235,16 @@ describe("renderEntityDetail: fields", () => {
     expect(form(root).children.every((r) => r.classes[0] === "cad-form-row")).toBe(true);
   });
 
-  it("fills text and email inputs with the stringified value, and the primary placeholder", async () => {
+  it("fills a text input with the stringified value and the primary placeholder; list fields without a source are plain chips", async () => {
     const { root, render } = setup([JANE]);
     await render("contact", JANE.path);
     expect([control(root, "NAME").value, control(root, "NAME").placeholder]).toEqual(["Jane Doe", "Contact name"]);
-    expect(control(root, "EMAIL").value).toBe("jane@acme.test");
-    // QUIRK: a list field without a chip source is a text input showing the joined array.
-    expect(control(root, "PHONE").value).toBe("555-1,555-2");
-    expect(control(root, "PHONE").placeholder).toBe("");
+    expect(chips(root, "EMAIL")).toEqual(["jane@acme.test"]);
+    expect(chips(root, "PHONE")).toEqual(["555-1", "555-2"]);
+    expect(chipInput(root, "PHONE").placeholder).toBe("Add phone...");
+    const scalar = setup([{ path: "Cadence/Contacts/S.md", frontmatter: { name: "S", phone: "555-9" } }]);
+    await scalar.render("contact", "Cadence/Contacts/S.md");
+    expect(chips(scalar.root, "PHONE")).toEqual(["555-9"]);
   });
 
   it("skips a non-enum `type` field and renders an enum `type` field as a select", async () => {
@@ -334,25 +336,33 @@ describe("renderEntityDetail: fields", () => {
     type(value, "abc", "blur");
     await flush();
     expect(fm(DEAL.path)).not.toHaveProperty("value");
-    // QUIRK: clearing a number writes 0, because Number('') is 0.
-    type(value, "", "blur");
+    type(value, "0", "blur");
     await flush();
     expect(fm(DEAL.path)?.value).toBe(0);
+    // Clearing a number deletes the key, as an empty text field does.
+    type(value, "", "blur");
+    await flush();
+    expect(fm(DEAL.path)).not.toHaveProperty("value");
   });
 
-  it("text and email inputs write on debounce and blur; an empty value deletes the key", async () => {
+  it("a text input writes on debounce and blur; email and phone write lists; an empty value deletes the key", async () => {
     const { root, render, fm } = setup([JANE]);
     await render("contact", JANE.path);
     type(control(root, "NAME"), "Jane D");
     await vi.advanceTimersByTimeAsync(350);
     expect(fm(JANE.path)?.name).toBe("Jane D");
-    // QUIRK: the email input writes a scalar over the list it read.
-    type(control(root, "EMAIL"), "j@x.test", "blur");
+    // Email and phone are lists, so an edit keeps the list it read.
+    await enter(chipInput(root, "EMAIL"), "j@x.test");
+    expect(fm(JANE.path)?.email).toEqual(["jane@acme.test", "j@x.test"]);
+    chip(root, "PHONE", "555-1").children[1].trigger("click");
     await flush();
-    expect(fm(JANE.path)?.email).toBe("j@x.test");
-    type(control(root, "PHONE"), "", "blur");
+    expect(fm(JANE.path)?.phone).toEqual(["555-2"]);
+    chipInput(root, "PHONE").trigger("keydown", { key: "Backspace" });
     await flush();
     expect(fm(JANE.path)).not.toHaveProperty("phone");
+    type(control(root, "NAME"), "", "blur");
+    await flush();
+    expect(fm(JANE.path)).not.toHaveProperty("name");
   });
 
   it("a write flashes Saved for 1400ms", async () => {

@@ -34,13 +34,14 @@ export function detailFields(def: EntityDef): EntityField[] {
 export type DetailControl = 'enum' | 'date' | 'number' | 'email' | 'chips' | 'text';
 
 /** The control a field edits with: by type first (currency is a number),
-    then chips for tags, multitext or any suggestion source, else text. */
+    and an email list is chips (#50), then chips for tags, multitext, any
+    suggestion source or a text list, else text. */
 export function detailControl(f: EntityField): DetailControl {
   const fieldType = f.type || 'text';
   if (fieldType === 'enum') return 'enum';
   if (fieldType === 'date') return 'date';
   if (fieldType === 'number' || fieldType === 'currency') return 'number';
-  if (fieldType === 'email') return 'email';
+  if (fieldType === 'email') return f.isList === true ? 'chips' : 'email';
   return isChipField(f) ? 'chips' : 'text';
 }
 

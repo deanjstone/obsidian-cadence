@@ -4,7 +4,7 @@ import { CadenceConfirmModal } from '../modals/confirm';
 import { createEntity, listEntities } from '../utils/entities';
 import {
   COMPANY_LIST_KEYS, applyFieldEdit, autoCreatesNote, chipAdd, chipConfig, chipCreation, chipLinkTarget, chipValues, chipWriteValue,
-  dateInputValue, enumCurrent, filterSuggestions, findNoteByName, folderNoteNames, historyValues, metaControl, metaInputType,
+  coerceFieldEdit, dateInputValue, enumCurrent, filterSuggestions, findNoteByName, folderNoteNames, historyValues, metaControl, metaInputType,
   metaInputValue, splitSectionColumns,
 } from '../utils/field-edit';
 import { parseH2Sections } from '../utils/parsing';
@@ -25,10 +25,10 @@ interface TagSource {
 /* The saved badge keeps its hide timer on the element. */
 type SavedBadge = HTMLElement & { _t?: ReturnType<typeof setTimeout> };
 
-/** The page title: `name` when truthy, else the basename. Flagged: unlike
-    the generic form, a falsy name such as 0 falls back too. */
+/** The page title: `name` unless it is missing or empty, else the basename,
+    as on the generic form, so a name of 0 is kept (#50). */
 export function companyDetailTitle(fm: Frontmatter, basename: string): unknown {
-  return fm.name || basename;
+  return (fm.name != null && fm.name !== '') ? fm.name : basename;
 }
 
 /** The meta row's fields: every non-primary field, except a `type` field
@@ -62,6 +62,16 @@ export async function renderCompanyDetail(view: AppViewHost, root: HTMLElement, 
     savedBadge.addClass('show');
     clearTimeout(savedBadge._t);
     savedBadge._t = setTimeout(() => savedBadge.removeClass('show'), 1400);
+  };
+  /* Every meta-cell write: flashes Saved once it has landed, and notices a
+     failure rather than leaving an unhandled rejection (#50). */
+  const writeField = async (key: string, value: unknown) => {
+    try {
+      await view.app.fileManager.processFrontMatter(file, (frontmatter) => applyFieldEdit(frontmatter, key, value));
+      flashSaved();
+    } catch (e) {
+      new Notice(`Save failed: ${(e as Error).message}`);
+    }
   };
   const openNote = headRight.createEl('button', { cls: 'cad-btn', text: 'Open as note' });
   openNote.addEventListener('click', () => view.app.workspace.openLinkText(file.path, '', false));
@@ -251,9 +261,7 @@ export async function renderCompanyDetail(view: AppViewHost, root: HTMLElement, 
       };
 
       const save = async () => {
-        const val = chipWriteValue(valuesList, isPlainChip, isList);
-        await view.app.fileManager.processFrontMatter(file, (frontmatter) => applyFieldEdit(frontmatter, key, val));
-        flashSaved();
+        await writeField(key, chipWriteValue(valuesList, isPlainChip, isList));
       };
 
       const addVal = async (raw: string) => {
@@ -316,9 +324,7 @@ export async function renderCompanyDetail(view: AppViewHost, root: HTMLElement, 
         if (enumCurrent(current) === opt) o.selected = true;
       });
       const commit = async () => {
-        const val = sel.value || null;
-        await view.app.fileManager.processFrontMatter(file, (frontmatter) => applyFieldEdit(frontmatter, key, val));
-        flashSaved();
+        await writeField(key, coerceFieldEdit(def, key, sel.value));
       };
       sel.addEventListener('change', commit);
     } else {
@@ -333,11 +339,7 @@ export async function renderCompanyDetail(view: AppViewHost, root: HTMLElement, 
       }
 
       let t: ReturnType<typeof setTimeout> | undefined;
-      const commit = () => {
-        const val = metaInputValue(fieldType, inp.value);
-        view.app.fileManager.processFrontMatter(file, (frontmatter) => applyFieldEdit(frontmatter, key, val));
-        flashSaved();
-      };
+      const commit = () => writeField(key, metaInputValue(fieldType, inp.value));
       inp.addEventListener('input', () => { clearTimeout(t); t = setTimeout(commit, 350); });
       inp.addEventListener('blur', commit);
     }
