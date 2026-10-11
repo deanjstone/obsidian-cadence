@@ -4,7 +4,7 @@ import { CadenceImportModal } from '../modals/import-modal';
 import { CadenceWidgetCreateModal } from '../modals/widget-create';
 import type { EntityDef, Entity, ProjectMeta } from '../types/entities';
 import type { WidgetConfig } from '../types/modals';
-import { entityValue, getEnumOptions, listEntities, listEntityFiles, readEntity, readProjectMeta } from '../utils/entities';
+import { entityKeyFromFile, entityValue, getEnumOptions, listEntities, listEntityFiles, readEntity, readProjectMeta } from '../utils/entities';
 import { fmtValue } from '../utils/format';
 import { WIDGET_STYLE_OPTIONS, chartData, dashboardWidgets, removeWidget, widgetTitle } from './components/charts';
 import type { AppViewHost } from './host';
@@ -115,6 +115,31 @@ export function acceptsDrop(path: string, fromStage: string, stage: string): boo
   return !(!path || fromStage === stage);
 }
 
+/* Whether a drop changes the field: a value already on that card (in any
+   case) writes nothing. */
+export function dropChanges(current: unknown, target: string): boolean {
+  return String(current ?? '').toLowerCase() !== target.toLowerCase();
+}
+
+/* A drop on a status or priority card: writes the field to a project note
+   whose value it changes. Any other note, or an unchanged value, is left
+   alone. */
+async function dropOntoCard(view: AppViewHost, def: EntityDef, path: string, key: 'status' | 'priority', value: string): Promise<void> {
+  const file = view.app.vault.getAbstractFileByPath(path);
+  if (!file || !(file instanceof TFile)) return;
+  if (entityKeyFromFile(view.app, file) !== 'project') return;
+  if (!dropChanges(entityValue(readEntity(view.app, file), key, def), value)) return;
+  try {
+    await view.app.fileManager.processFrontMatter(file, (fm) => {
+      fm[key] = value;
+    });
+    new Notice(`Project ${key} set to ${value}`);
+    view.render();
+  } catch (e) {
+    new Notice(`Failed to change ${key}: ${(e as Error).message}`);
+  }
+}
+
 /* The status key a card grid groups by: lower case, spaces as '_'. */
 function statusKey(status: string): string {
   return status.toLowerCase().replace(/\s+/g, '_');
@@ -219,17 +244,7 @@ export async function renderProjectsDashboard(view: AppViewHost, root: HTMLEleme
       const path = ev.dataTransfer!.getData('text/cadence-entity');
       const fromStage = ev.dataTransfer!.getData('text/cadence-stage-status');
       if (!acceptsDrop(path, fromStage, status)) return;
-      const file = view.app.vault.getAbstractFileByPath(path);
-      if (!file || !(file instanceof TFile)) return;
-      try {
-        await view.app.fileManager.processFrontMatter(file, (fm) => {
-          fm['status'] = status;
-        });
-        new Notice(`Project status set to ${status}`);
-        view.render();
-      } catch (e) {
-        new Notice(`Failed to change status: ${(e as Error).message}`);
-      }
+      await dropOntoCard(view, def, path, 'status', status);
     });
 
     if (!items.length) {
@@ -319,17 +334,7 @@ export async function renderProjectsDashboard(view: AppViewHost, root: HTMLEleme
         const path = ev.dataTransfer!.getData('text/cadence-entity');
         const fromStage = ev.dataTransfer!.getData('text/cadence-stage');
         if (!acceptsDrop(path, fromStage, prio)) return;
-        const file = view.app.vault.getAbstractFileByPath(path);
-        if (!file || !(file instanceof TFile)) return;
-        try {
-          await view.app.fileManager.processFrontMatter(file, (fm) => {
-            fm['priority'] = prio;
-          });
-          new Notice(`Project priority set to ${prio}`);
-          view.render();
-        } catch (e) {
-          new Notice(`Failed to change priority: ${(e as Error).message}`);
-        }
+        await dropOntoCard(view, def, path, 'priority', prio);
       });
 
       if (!items.length) {

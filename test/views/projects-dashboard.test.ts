@@ -322,21 +322,34 @@ describe("renderProjectsDashboard: drag and drop", () => {
     expect(rendered).not.toHaveBeenCalled();
   });
 
-  it("QUIRK: a status card ignores text/cadence-stage, so a priority row dropped on a status card writes the status", async () => {
-    const { view, root, fm } = setup(PROJECTS);
+  it("a row dragged between the boards writes only when the value changes (case-insensitively)", async () => {
+    const { view, root, fm, rendered } = setup(PROJECTS);
     await view.renderProjectsDashboard(root);
-    statusCard(root, "cancelled").trigger("drop", { dataTransfer: dataTransfer({ "text/cadence-entity": "Cadence/Projects/Alpha.md", "text/cadence-stage": "cancelled" }) });
+    statusCard(root, "active").trigger("drop", { dataTransfer: dataTransfer({ "text/cadence-entity": "Cadence/Projects/Alpha.md", "text/cadence-stage": "high" }) });
+    statusCard(root, "done").trigger("drop", { dataTransfer: dataTransfer({ "text/cadence-entity": "Cadence/Projects/Beta.md", "text/cadence-stage": "medium" }) });
+    prioCard(root, "medium").trigger("drop", { dataTransfer: dataTransfer({ "text/cadence-entity": "Cadence/Projects/Beta.md", "text/cadence-stage-status": "done" }) });
+    await flush();
+    expect([fm("Cadence/Projects/Alpha.md")!.status, fm("Cadence/Projects/Beta.md")!.status, fm("Cadence/Projects/Beta.md")!.priority]).toEqual(["active", "Done", "Medium"]);
+    expect(Notice.messages).toEqual([]);
+    expect(rendered).not.toHaveBeenCalled();
+    statusCard(root, "cancelled").trigger("drop", { dataTransfer: dataTransfer({ "text/cadence-entity": "Cadence/Projects/Alpha.md", "text/cadence-stage": "high" }) });
     await flush();
     expect(fm("Cadence/Projects/Alpha.md")!.status).toBe("cancelled");
+    expect(Notice.messages).toEqual(["Project status set to cancelled"]);
   });
 
-  it("QUIRK: a drop writes status to any note, not only projects", async () => {
-    const files = [...PROJECTS, { path: "Cadence/Contacts/Jane.md", frontmatter: { name: "Jane" } }];
-    const { view, root, fm } = setup(files);
+  it("a drop writes only to project notes; a contact or other note is left alone", async () => {
+    const files = [...PROJECTS, { path: "Cadence/Contacts/Jane.md", frontmatter: { name: "Jane" } }, { path: "Notes/Loose.md", frontmatter: {} }];
+    const { view, root, fm, rendered } = setup(files);
     await view.renderProjectsDashboard(root);
     statusCard(root, "active").trigger("drop", { dataTransfer: dataTransfer({ "text/cadence-entity": "Cadence/Contacts/Jane.md" }) });
+    prioCard(root, "low").trigger("drop", { dataTransfer: dataTransfer({ "text/cadence-entity": "Cadence/Contacts/Jane.md" }) });
+    statusCard(root, "active").trigger("drop", { dataTransfer: dataTransfer({ "text/cadence-entity": "Notes/Loose.md" }) });
     await flush();
-    expect(fm("Cadence/Contacts/Jane.md")!.status).toBe("active");
+    expect(fm("Cadence/Contacts/Jane.md")).toEqual({ name: "Jane" });
+    expect(fm("Notes/Loose.md")).toEqual({});
+    expect(Notice.messages).toEqual([]);
+    expect(rendered).not.toHaveBeenCalled();
   });
 
   it("notices a failed write and does not re-render", async () => {

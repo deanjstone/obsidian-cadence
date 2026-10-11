@@ -8,7 +8,7 @@ import {
   crmStatCards, crmSummary, customerBase, dealValue, hotDeals, pipelineByStage, recentActivities, staleDeals,
 } from "../../src/views/crm-dashboard";
 import {
-  PROJECT_PRIORITIES, PROJECT_STATUSES, acceptsDrop, dashRowPill, dashboardOptions, priorityAccent, projectCardPills,
+  PROJECT_PRIORITIES, PROJECT_STATUSES, acceptsDrop, dashRowPill, dropChanges, dashboardOptions, priorityAccent, projectCardPills,
   projectRowName, projectsSummary, projectsViewGroups, statusAccent, type ProjectCardData,
 } from "../../src/views/projects-dashboard";
 import { fmtValue } from "../../src/utils/format";
@@ -106,6 +106,12 @@ describe("dashboard rows", () => {
     expect(acceptsDrop("a.md", "active", "done")).toBe(true);
     expect(acceptsDrop("", "active", "done")).toBe(false);
     expect(acceptsDrop("a.md", "done", "done")).toBe(false);
+  });
+
+  it("dropChanges is false when the note already holds the card's value, in any case", () => {
+    expect([dropChanges("Done", "done"), dropChanges(["high"], "high"), dropChanges("", "active"), dropChanges(undefined, "active"), dropChanges("active", "done")]).toEqual([
+      false, false, true, true, true,
+    ]);
   });
 });
 
