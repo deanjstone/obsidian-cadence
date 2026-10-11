@@ -1,6 +1,7 @@
 import { Modal, type App } from 'obsidian';
 import { ENTITIES } from '../constants/entities';
 import { getFieldSuggestionSource, listEntities } from '../utils/entities';
+import { suggestionTarget } from '../utils/field-edit';
 import type { EntityDef, EntityField, EntityKey } from '../types/entities';
 import type { EntityCreateResult } from '../types/modals';
 
@@ -113,16 +114,16 @@ export function buildEntityCreateValues(def: EntityDef, inputs: EntityCreateInpu
 /** Typeahead suggestions for a text field: names or values containing the
     text after the last comma, minus names already typed. Reads vault tags,
     the same key across markdown notes (history), a folder:<path> walk, or
-    an entity's notes. An entity:<key> source is not an ENTITIES key, so it
-    falls back to the field-key rule (flagged, not fixed). */
+    an entity's notes. An entity:<key> source reads that entity's notes, and
+    a folder: source naming an entity's folder (any case, trailing slashes)
+    reads that folder (#56); any other source falls back to the field-key
+    rule. */
 export function entityCreateSuggestions(app: App, f: EntityField, suggestionSource: string, fullVal: string): string[] {
   const lastCommaIdx = fullVal.lastIndexOf(',');
   const query = (lastCommaIdx === -1 ? fullVal : fullVal.slice(lastCommaIdx + 1)).trim().toLowerCase();
   if (!query) return [];
 
-  const isEntitySrc = ENTITIES[suggestionSource] != null;
-  const isFolderSrc = suggestionSource && suggestionSource.startsWith('folder:');
-  const customFolderPath = isFolderSrc ? suggestionSource.slice('folder:'.length) : null;
+  const { targetEntityKey, customFolderPath } = suggestionTarget(suggestionSource, ENTITIES);
   const typedNames = fullVal.split(',').map(s => s.trim().replace(/^\[\[|\]\]$/g, '').toLowerCase()).filter(Boolean);
 
   let filtered: string[] = [];
@@ -167,7 +168,7 @@ export function entityCreateSuggestions(app: App, f: EntityField, suggestionSour
         n.toLowerCase().includes(query) && !typedNames.includes(n.toLowerCase())
       );
     } else {
-      const targetKey = isEntitySrc ? suggestionSource : (f.key === 'company' ? 'company' : (f.key === 'partner' ? 'partner' : (f.key === 'related' ? 'project' : 'contact')));
+      const targetKey = targetEntityKey || (f.key === 'company' ? 'company' : (f.key === 'partner' ? 'partner' : (f.key === 'related' ? 'project' : 'contact')));
       const entitiesList = listEntities(app, targetKey);
       filtered = entitiesList.filter((c) =>
         c.basename.toLowerCase().includes(query) &&

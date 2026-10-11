@@ -68,9 +68,9 @@ describe("entityKeyFromFile", () => {
   it("returns null outside entity folders with an unknown type", () => {
     expect(entityKeyFromFile(app, file(nonEntityNote.path))).toBeNull();
   });
-  it("returns a single-item type array itself (it indexes ENTITIES via its string form) — flagged quirk", () => {
+  it("reads a single-item type array as its one key; a longer array names no entity", () => {
     const f = app.vault.addFile({ path: "Elsewhere/x.md", frontmatter: { type: ["company"] } });
-    expect(entityKeyFromFile(app, f)).toEqual(["company"]);
+    expect(entityKeyFromFile(app, f)).toBe("company");
     const g = app.vault.addFile({ path: "Elsewhere/y.md", frontmatter: { type: ["company", "deal"] } });
     expect(entityKeyFromFile(app, g)).toBeNull();
   });

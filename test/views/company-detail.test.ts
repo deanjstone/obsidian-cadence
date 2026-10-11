@@ -164,7 +164,7 @@ describe("renderCompanyDetail: meta row", () => {
     expect(metaRow(root).children.every((c) => c.classes[0] === "cad-pd-meta-cell" && c.style.position === "relative")).toBe(true);
   });
 
-  it("skips a non-enum type field, and checks chips before enum", async () => {
+  it("skips a non-enum type field, and checks enum before chips", async () => {
     await withFields(
       [
         { key: "type", label: "Type" },
@@ -174,8 +174,8 @@ describe("renderCompanyDetail: meta row", () => {
       async () => {
         const { root, render } = setup([ACME]);
         await render();
-        // QUIRK: an enum with a suggestion source is a chip input here, but a select on the generic detail form.
-        expect(cellKinds(root).slice(5)).toEqual([["TIER", "chips"], ["STAGE", "select"]]);
+        // An enum with a suggestion source is a select, as on the generic detail form (#56).
+        expect(cellKinds(root).slice(5)).toEqual([["TIER", "select"], ["STAGE", "select"]]);
       },
     );
   });
@@ -183,7 +183,8 @@ describe("renderCompanyDetail: meta row", () => {
   it("chips show the values, links unwrapped for relation sources only", async () => {
     const { root, render } = setup([ACME]);
     await render();
-    expect(chips(root, "DOMAIN")).toEqual(["acme.test", "[[acme.io]]"]);
+    // A history chip shows a linked value unwrapped (#56); the write keeps it as stored.
+    expect(chips(root, "DOMAIN")).toEqual(["acme.test", "acme.io"]);
     expect(chips(root, "INDUSTRY")).toEqual(["Manufacturing"]);
     expect(chips(root, "OWNER")).toEqual(["Sam Lee"]);
     expect(chips(root, "TAGS")).toEqual(["key"]);

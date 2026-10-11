@@ -428,8 +428,8 @@ describe("renderEntityDetail: chip fields", () => {
     const { root, render } = setup([JANE]);
     await render("contact", JANE.path);
     expect(chips(root, "COMPANY")).toEqual(["Acme Corp"]);
-    // QUIRK: a history source is a plain chip, so a linked value keeps its brackets.
-    expect(chips(root, "ROLE")).toEqual(["CTO", "[[Board]]"]);
+    // A history chip shows a linked value unwrapped, and writes it back as stored (#56).
+    expect(chips(root, "ROLE")).toEqual(["CTO", "Board"]);
     expect(chips(root, "TAGS")).toEqual(["vip"]);
     expect(chipInput(root, "COMPANY").placeholder).toBe("Add company...");
     expect(row(root, "COMPANY").style.position).toBe("relative");
@@ -511,12 +511,40 @@ describe("renderEntityDetail: chip fields", () => {
     expect(app.vault.created).toEqual(["Cadence/Companies/iOS Labs GmbH.md"]);
   });
 
-  it("the note lookup is case-insensitive across the vault, so an existing note is not recreated", async () => {
-    const { root, render, app } = setup([JANE, ACME, { path: "Elsewhere/INITECH.md" }]);
+  it("the note lookup is case-insensitive within the target entity, so an existing note is not recreated", async () => {
+    const { root, render, app } = setup([JANE, ACME, { path: "Cadence/Companies/EU/INITECH.md" }]);
     await render("contact", JANE.path);
     await enter(chipInput(root, "COMPANY"), "Initech");
     await flush();
     expect(app.vault.created).toEqual([]);
+  });
+
+  it("a same-named note outside the target entity is not the linked note: the company is created (#56)", async () => {
+    const { root, render, app } = setup([JANE, ACME, { path: "Elsewhere/INITECH.md" }]);
+    await render("contact", JANE.path);
+    await enter(chipInput(root, "COMPANY"), "Initech");
+    await flush();
+    expect(app.vault.created).toEqual(["Cadence/Companies/Initech.md"]);
+  });
+
+  it("clicking a link chip opens the target entity's note, not a same-named note elsewhere (#56)", async () => {
+    const { root, render, opened, openedFile, file } = setup([
+      { path: "Archive/Acme Corp.md" }, JANE, ACME,
+    ]);
+    await render("contact", JANE.path);
+    chip(root, "COMPANY", "Acme Corp").children[0].trigger("click");
+    expect(opened.mock.calls).toEqual([["company", file(ACME.path)]]);
+    expect(openedFile).not.toHaveBeenCalled();
+  });
+
+  it("re-entering a single-value chip's current value writes nothing (#56)", async () => {
+    const { root, render, app } = setup([DEAL, { path: "Cadence/Contacts/Jane Doe.md" }]);
+    const write = vi.spyOn(app.fileManager, "processFrontMatter");
+    await render("deal", DEAL.path);
+    await enter(chipInput(root, "CONTACT"), " Jane Doe ");
+    expect(chips(root, "CONTACT")).toEqual(["Jane Doe"]);
+    expect(chipInput(root, "CONTACT").value).toBe("");
+    expect(write).not.toHaveBeenCalled();
   });
 
   it("a failed auto-create only warns", async () => {
@@ -620,8 +648,8 @@ describe("renderEntityDetail: chip suggestions", () => {
     const { root, render } = setup([JANE, BOB, { path: "x.md", frontmatter: { role: " Owner " } }]);
     await render("contact", JANE.path);
     chipInput(root, "ROLE").trigger("focus");
-    // QUIRK: history values are unwrapped, but the chips are not, so [[Board]] is offered again as Board.
-    expect(suggestions(root, "ROLE")).toEqual(["Board", "Sales", "Owner"]);
+    // [[Board]] is already a chip, so Board is not offered again (#56).
+    expect(suggestions(root, "ROLE")).toEqual(["Sales", "Owner"]);
   });
 
   it("mousedown on a suggestion adds it and hides the box", async () => {
@@ -652,9 +680,9 @@ describe("renderEntityDetail: chip suggestions", () => {
       await render("vendor", "Cadence/Vendors/V.md");
       chipInput(root, "SUPPLIER").trigger("focus");
       expect(suggestions(root, "SUPPLIER")).toEqual(["Nut Ltd"]);
-      // QUIRK: the trailing slash matches the Companies entity, but the folder lookup finds nothing to suggest.
+      // The trailing slash matches the Companies entity, and suggests its notes (#56).
       chipInput(root, "ACCOUNT").trigger("focus");
-      expect(suggestions(root, "ACCOUNT")).toEqual([]);
+      expect(suggestions(root, "ACCOUNT")).toEqual(["Globex"]);
       chip(root, "SUPPLIER", "Bolt Co").children[0].trigger("click");
       chip(root, "ACCOUNT", "Acme Corp").children[0].trigger("click");
       expect(openedFile.mock.calls).toEqual([[file("Cadence/Suppliers/Bolt Co.md")]]);

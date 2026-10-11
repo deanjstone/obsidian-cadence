@@ -1,15 +1,14 @@
 import { Notice, type TFile } from 'obsidian';
 import { ENTITIES } from '../constants/entities';
 import { CadenceConfirmModal } from '../modals/confirm';
-import { createEntity, listEntities } from '../utils/entities';
+import { createEntity } from '../utils/entities';
 import {
-  COMPANY_LIST_KEYS, applyFieldEdit, autoCreatesNote, chipAdd, chipConfig, chipCreation, chipLinkTarget, chipValues, chipWriteValue,
-  coerceFieldEdit, dateInputValue, enumCurrent, filterSuggestions, findNoteByName, folderNoteNames, historyValues, metaControl, metaInputType,
+  COMPANY_LIST_KEYS, applyFieldEdit, autoCreatesNote, chipAdd, chipConfig, chipCreation, chipLabel, chipLinkTarget, chipScopeNotes, chipValues, chipWriteValue,
+  coerceFieldEdit, dateInputValue, enumCurrent, filterSuggestions, findNoteByName, historyValues, metaControl, metaInputType,
   metaInputValue, splitSectionColumns,
 } from '../utils/field-edit';
 import { parseH2Sections } from '../utils/parsing';
-import type { VaultNode } from '../utils/vault';
-import type { EntityDef, EntityField, EntityKey, Frontmatter } from '../types/entities';
+import type { EntityDef, EntityField, Frontmatter } from '../types/entities';
 import type { AppViewHost } from './host';
 
 /* The meta-cell and column helpers are shared with the project page, so they
@@ -115,6 +114,7 @@ export async function renderCompanyDetail(view: AppViewHost, root: HTMLElement, 
 
     if (control === 'chips') {
       const { suggestionSource, isPlainChip, isList, targetEntityKey, customFolderPath } = chipConfig(f, ENTITIES, COMPANY_LIST_KEYS);
+      const chipText = (value: string) => chipLabel(value, suggestionSource);
 
       const wrap = cell.createDiv({ cls: 'cad-pd-tag-input-wrap' });
       wrap.style.display = 'flex';
@@ -171,14 +171,9 @@ export async function renderCompanyDetail(view: AppViewHost, root: HTMLElement, 
             return cache && cache.frontmatter || {};
           }), key);
         } else if (suggestionSource !== 'none') {
-          if (customFolderPath) {
-            // Custom folder source: list basenames of .md files in that folder
-            candidates = folderNoteNames(view.app.vault.getAbstractFileByPath(customFolderPath) as VaultNode | null);
-          } else {
-            candidates = listEntities(view.app, targetEntityKey as EntityKey).map(c => c.basename);
-          }
+          candidates = chipScopeNotes(view.app, targetEntityKey, customFolderPath).map(note => note.basename);
         }
-        const filtered = filterSuggestions(candidates, query, valuesList);
+        const filtered = filterSuggestions(candidates, query, valuesList.map(chipText));
 
         if (filtered.length === 0) {
           suggestionsBox.style.display = 'none';
@@ -226,13 +221,13 @@ export async function renderCompanyDetail(view: AppViewHost, root: HTMLElement, 
           chip.style.boxSizing = 'border-box';
           chip.style.color = 'var(--text-normal)';
 
-          const labelSpan = chip.createSpan({ text: valName });
+          const labelSpan = chip.createSpan({ text: chipText(valName) });
           if (!isPlainChip) {
             labelSpan.style.textDecoration = 'underline';
             labelSpan.style.cursor = 'pointer';
             labelSpan.addEventListener('click', (ev) => {
               ev.stopPropagation();
-              const target = chipLinkTarget(targetEntityKey, findNoteByName(view.app.vault.getMarkdownFiles(), valName), valName);
+              const target = chipLinkTarget(targetEntityKey, findNoteByName(chipScopeNotes(view.app, targetEntityKey, customFolderPath), valName), valName);
               if (target.kind === 'entity') {
                 view.openEntityDetail(target.entityKey, target.file);
               } else if (target.kind === 'file') {
@@ -265,7 +260,7 @@ export async function renderCompanyDetail(view: AppViewHost, root: HTMLElement, 
       };
 
       const addVal = async (raw: string) => {
-        const added = chipAdd(valuesList, raw, isList);
+        const added = chipAdd(valuesList, raw, isList, chipText);
         if (added.kind === 'blank') return;
         inp.value = '';
         if (added.kind === 'duplicate') return;
@@ -275,7 +270,7 @@ export async function renderCompanyDetail(view: AppViewHost, root: HTMLElement, 
         await save();
 
         if (!isPlainChip && autoCreatesNote(targetEntityKey)) {
-          const targetFile = findNoteByName(view.app.vault.getMarkdownFiles(), name);
+          const targetFile = findNoteByName(chipScopeNotes(view.app, targetEntityKey, customFolderPath), name);
           if (!targetFile) {
             try {
               const creation = chipCreation(suggestionSource, targetEntityKey, ENTITIES);
