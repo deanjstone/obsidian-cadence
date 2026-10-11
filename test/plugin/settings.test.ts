@@ -5,6 +5,7 @@ import { DEFAULT_SETTINGS } from "../../src/constants/settings";
 import { fmtValue } from "../../src/utils/format";
 import { restoreEntities, snapshotEntities } from "../helpers/setting-tab";
 import { makePlugin } from "../helpers/plugin";
+import { getDealStages } from "../../src/utils/entities";
 
 /* Characterization tests for CadencePlugin.loadSettings (merge with the
    defaults, custom-entity rebuild into ENTITIES), saveSettings and
@@ -137,6 +138,15 @@ describe("loadSettings: custom entities into ENTITIES", () => {
     for (const key of Object.keys(plugin.settings.customEntities)) {
       expect(ENTITIES[key].fields).toBe(plugin.settings.customEntities[key]);
     }
+  });
+
+  it("loads customised deal stages as saved, so the pipeline and kanban read them (#73)", async () => {
+    const stages = ["Discovery", "Lead", "Demo", "Closed Won", "Closed Lost"];
+    const deal = [field("title", { primary: true }), field("stage", { type: "enum", options: stages, locked: true })];
+    const { plugin } = await loaded({ customEntities: { deal } });
+    expect(ENTITIES.deal.fields).toBe(plugin.settings.customEntities.deal);
+    expect(getDealStages()).toEqual(stages);
+    expect(ENTITIES.deal.fields[1]).toEqual({ key: "stage", label: "stage", type: "enum", options: stages, locked: true });
   });
 
   it("drops a custom schema with no custom page, from settings and ENTITIES", async () => {

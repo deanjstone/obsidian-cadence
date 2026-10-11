@@ -2568,6 +2568,9 @@ function isPermanentlyLocked(entityKey, field) {
   if (entityKey === "deal" && k === "stage") return true;
   return false;
 }
+function areOptionsLocked(entityKey, field) {
+  return isPermanentlyLocked(entityKey, field) && !(entityKey === "deal" && field.key === "stage");
+}
 function isFieldLocked(entityKey, field) {
   if (isPermanentlyLocked(entityKey, field)) return true;
   if (field.locked !== void 0) return !!field.locked;
@@ -2973,7 +2976,7 @@ function renderEntityPropertiesSettings(tab, containerEl) {
           placeholder: "Option A, Option B...",
           cls: "cad-prop-input"
         });
-        if (permLocked) {
+        if (areOptionsLocked(selectedEntityKey, field)) {
           inputOptions.disabled = true;
         } else {
           inputOptions.addEventListener("change", async () => {

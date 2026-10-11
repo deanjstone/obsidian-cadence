@@ -1,8 +1,11 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { FakeElement, type MockFileSpec } from "../mocks/obsidian";
 import { makeAppView } from "../helpers/app-view";
 import { withTimezone, ZONES } from "../helpers/timezone";
 import { fmtValue } from "../../src/utils/format";
+import { ENTITIES } from "../../src/constants/entities";
+import { applyPropertyEdit } from "../../src/settings/entity-properties";
+import { restoreEntities, snapshotEntities } from "../helpers/setting-tab";
 
 /* Characterization tests for the Sales report, renderReportSales: the four
    stat cards (revenue, lost, capture rate, average deal), revenue by month
@@ -81,6 +84,35 @@ describe("renderReportSales: layout and stats", () => {
       ["rose", "LOST", cur(0), "0 deals"],
       ["mint", "CAPTURE", "0%", "of closed value"],
       ["sky", "AVG DEAL", cur(0), "won deals"],
+    ]);
+  });
+});
+
+describe("renderReportSales: stages customised in Properties (#73)", () => {
+  let saved: Record<string, Any>;
+  beforeEach(() => {
+    saved = snapshotEntities();
+  });
+  afterEach(() => {
+    restoreEntities(saved);
+  });
+
+  it("with Won and Lost renamed to Closed Won and Closed Lost, those deals are revenue and losses in any case, and an added open stage is in no card (#54)", async () => {
+    const field = ENTITIES.deal.fields.find((f) => f.key === "stage")!;
+    expect(applyPropertyEdit(ENTITIES, "deal", { kind: "options", field, value: "Discovery, Lead, Proposal, Closed Won, Closed Lost" }).ok).toBe(true);
+    const files = [
+      W1,
+      deal("CW", { title: "Renamed win", stage: ["closed won"], value: 2000 }, Date.UTC(2026, 9, 5)),
+      deal("CL", { title: "Renamed loss", stage: "Closed Lost", value: 1000 }, Date.UTC(2026, 9, 6)),
+      deal("D1", { title: "Discovery", stage: "Discovery", value: 800 }, Date.UTC(2026, 9, 7)),
+    ];
+    const { view, root } = setup(files);
+    await view.renderReportSales(root);
+    expect(stats(root)).toEqual([
+      ["emerald", "REVENUE", cur(7000), "2 deals"],
+      ["rose", "LOST", cur(1000), "1 deal"],
+      ["mint", "CAPTURE", "88%", "of closed value"],
+      ["sky", "AVG DEAL", cur(3500), "won deals"],
     ]);
   });
 });

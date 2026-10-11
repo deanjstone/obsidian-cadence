@@ -1,7 +1,9 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { FakeElement, type MockFileSpec } from "../mocks/obsidian";
 import { makeAppView } from "../helpers/app-view";
 import { ENTITIES } from "../../src/constants/entities";
+import { applyPropertyEdit } from "../../src/settings/entity-properties";
+import { restoreEntities, snapshotEntities } from "../helpers/setting-tab";
 import { fmtValue } from "../../src/utils/format";
 
 /* Characterization tests for the Pipeline report, renderReportPipeline:
@@ -151,6 +153,53 @@ describe("renderReportPipeline: by stage", () => {
     } finally {
       field.options = original;
     }
+  });
+});
+
+describe("renderReportPipeline: stages customised in Properties (#73)", () => {
+  let saved: Record<string, Any>;
+  beforeEach(() => {
+    saved = snapshotEntities();
+  });
+  afterEach(() => {
+    restoreEntities(saved);
+  });
+
+  /* The stage options as the Properties editor saves them. */
+  function editStages(value: string) {
+    const field = ENTITIES.deal.fields.find((f) => f.key === "stage")!;
+    expect(applyPropertyEdit(ENTITIES, "deal", { kind: "options", field, value }).ok).toBe(true);
+  }
+
+  it("an added stage gets a row, and deals at a renamed stage keep their own row with their value", async () => {
+    editStages("Discovery, Lead, Qualified, Demo, Negotiation, Won, Lost");
+    const { view, root } = setup([...DEALS, deal("X", { stage: "Discovery", value: 600 })]);
+    await view.renderReportPipeline(root);
+    expect(tableRows(root)).toEqual([
+      ["Discovery", "1", cur(600)],
+      ["Lead", "1", cur(1000)],
+      ["Qualified", "1", cur(2000)],
+      ["Demo", "0", cur(0)],
+      ["Negotiation", "1", cur(8000)],
+      ["Won", "2", cur(5700)],
+      ["Lost", "1", cur(3000)],
+      ["Proposal", "1", cur(4000)],
+      ["Custom", "1", cur(0)],
+    ]);
+  });
+
+  it("Won and Lost renamed to Closed Won and Closed Lost still close deals, in any case (#54)", async () => {
+    editStages("Lead, Qualified, Proposal, Negotiation, Closed Won, Closed Lost");
+    const { view, root } = setup([A, E, F, G, deal("Y", { stage: "closed won", value: 300 })]);
+    await view.renderReportPipeline(root);
+    expect(tableRows(root).map((r) => r[0] + ":" + r[1])).toEqual(["Lead:1", "Qualified:0", "Proposal:0", "Negotiation:0", "Closed Won:3", "Closed Lost:1"]);
+    expect(stats(root)).toEqual([
+      ["sky", "OPEN", "1", cur(1000)],
+      ["mint", "WEIGHTED", cur(100), "forecast on open"],
+      ["emerald", "WON", "3", cur(6000)],
+      ["rose", "LOST", "1", cur(3000)],
+      ["warn", "WIN RATE", "75%", "3/4 closed"],
+    ]);
   });
 });
 

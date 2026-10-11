@@ -61,6 +61,13 @@ export function isPermanentlyLocked(entityKey: string, field: EntityField): bool
   return false;
 }
 
+/* Whether a field's options are read-only: a permanently locked field's
+   are, except the deal's stage, whose options are the pipeline owners
+   customise (#73). Its key, type and delete stay locked. */
+export function areOptionsLocked(entityKey: string, field: EntityField): boolean {
+  return isPermanentlyLocked(entityKey, field) && !(entityKey === 'deal' && field.key === 'stage');
+}
+
 /* Whether a field is locked: its `locked` flag, else true for `type` and
    for every core entity's field, false for a custom entity's. Reading the
    default writes nothing into the registry. */
@@ -602,7 +609,7 @@ export function renderEntityPropertiesSettings(tab: SettingTabHost, containerEl:
           placeholder: 'Option A, Option B...',
           cls: 'cad-prop-input'
         });
-        if (permLocked) {
+        if (areOptionsLocked(selectedEntityKey, field)) {
           inputOptions.disabled = true;
         } else {
           inputOptions.addEventListener('change', async () => {

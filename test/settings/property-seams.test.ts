@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createMockApp, SuggestModal, TFile } from "../mocks/obsidian";
 import {
   applyPropertyEdit,
+  areOptionsLocked,
   entityPickerLabel,
   entityPickerOptions,
   fieldKeySuggestions,
@@ -83,6 +84,13 @@ describe("locks", () => {
     expect(["status", "priority", "owner"].map((key) => isPermanentlyLocked("project", { key, label: "" }))).toEqual([true, true, false]);
     expect(["stage", "status"].map((key) => isPermanentlyLocked("deal", { key, label: "" }))).toEqual([true, false]);
     expect(isPermanentlyLocked("vendor", { key: "status", label: "" })).toBe(false);
+  });
+
+  it("keeps a permanently locked field's options read-only, except the deal's stage (#73)", () => {
+    expect(["status", "priority"].map((key) => areOptionsLocked("project", { key, label: "", type: "enum" }))).toEqual([true, true]);
+    expect(areOptionsLocked("deal", { key: "stage", label: "", type: "enum" })).toBe(false);
+    expect(areOptionsLocked("vendor", { key: "name", label: "", primary: true })).toBe(true);
+    expect(areOptionsLocked("partner", { key: "status", label: "", type: "enum" })).toBe(false);
   });
 
   it("defaults the lock without writing a flag: type and core fields locked, custom fields not; an explicit flag wins", () => {
