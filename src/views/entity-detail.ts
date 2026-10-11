@@ -3,7 +3,7 @@ import { ENTITIES } from '../constants/entities';
 import { CadenceConfirmModal } from '../modals/confirm';
 import { closedPatch } from '../utils/deals';
 import {
-  DETAIL_LIST_KEYS, applyFieldEdit, coerceFieldEdit, dateInputValue, enumCurrent, isChipField,
+  DETAIL_LIST_KEYS, applyFieldEdit, coerceFieldEdit, dateInputValue, enumCurrent, isChipField, withStoredOption,
 } from '../utils/field-edit';
 import { parseH2Sections } from '../utils/parsing';
 import type { EntityDef, EntityField, Frontmatter } from '../types/entities';
@@ -131,9 +131,10 @@ export async function renderEntityDetail(view: AppViewHost, root: HTMLElement, e
       const sel = row.createEl('select', { cls: 'cad-form-input' });
       // Allow empty
       sel.createEl('option', { value: '', text: '—' });
-      (f.options || []).forEach((opt) => {
+      const stored = enumCurrent(current);
+      withStoredOption(f.options || [], stored).forEach((opt) => {
         const o = sel.createEl('option', { value: opt, text: opt });
-        if (enumCurrent(current) === opt) o.selected = true;
+        if (stored === opt) o.selected = true;
       });
       sel.addEventListener('change', () => writeField(f.key, sel.value));
     } else if (control === 'date') {

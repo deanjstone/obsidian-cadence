@@ -293,6 +293,25 @@ describe("renderEntityDetail: fields", () => {
     expect(p.fm("Cadence/Partners/P.md")).toEqual({ name: "P", status: "Active" });
   });
 
+  it("a select offers and selects a stored value outside its options; nothing is written until a pick (#89)", async () => {
+    const odd = { ...DEAL, frontmatter: { ...DEAL.frontmatter, stage: ["Legacy"] } };
+    const { root, render, fm, app } = setup([odd]);
+    const write = vi.spyOn(app.fileManager, "processFrontMatter");
+    await render("deal", DEAL.path);
+    const stage = control(root, "STAGE");
+    expect(stage.options.map((o) => o.value)).toEqual(["", "Lead", "Qualified", "Proposal", "Negotiation", "Won", "Lost", "Legacy"]);
+    expect(stage.value).toBe("Legacy");
+    const p = setup([{ path: "Cadence/Partners/P.md", frontmatter: { name: "P", tier: "Diamond" } }]);
+    const pWrite = vi.spyOn(p.app.fileManager, "processFrontMatter");
+    await p.render("partner", "Cadence/Partners/P.md");
+    expect(control(p.root, "TIER").value).toBe("Diamond");
+    expect([write, pWrite].map((w) => w.mock.calls.length)).toEqual([0, 0]);
+    expect(fm(DEAL.path)?.stage).toEqual(["Legacy"]);
+    choose(stage, "Lead");
+    await flush();
+    expect(fm(DEAL.path)?.stage).toEqual(["Lead"]);
+  });
+
   it("moving a deal's stage to Won or Lost writes today's `closed` date; an open stage or the same outcome leaves it", async () => {
     vi.setSystemTime(new Date(2026, 9, 11, 23, 30));
     const { root, render, fm } = setup([DEAL]);

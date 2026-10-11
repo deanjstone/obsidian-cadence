@@ -333,6 +333,30 @@ describe("renderCompanyDetail: meta row", () => {
       expect(fm(ACME.path)).not.toHaveProperty("stage");
     });
   });
+
+  it("a stored value outside the options is offered after them and selected; nothing is written until a pick (#89)", async () => {
+    const fields: EntityField[] = [
+      { key: "stage", label: "Stage", type: "enum", options: ["A", "B"] },
+      { key: "phase", label: "Phase", type: "enum", options: ["A", "B"] },
+    ];
+    await withFields(fields, async () => {
+      const { root, render, fm, app } = setup([{ ...ACME, frontmatter: { name: "Acme Corp", stage: ["Legacy"], phase: "Old" } }]);
+      const write = vi.spyOn(app.fileManager, "processFrontMatter");
+      await render();
+      const stage = control(root, "STAGE");
+      const phase = control(root, "PHASE");
+      expect([stage.options.map((o) => o.value), stage.value]).toEqual([["", "A", "B", "Legacy"], "Legacy"]);
+      expect([phase.options.map((o) => o.value), phase.value]).toEqual([["", "A", "B", "Old"], "Old"]);
+      expect(write).not.toHaveBeenCalled();
+      expect(fm(ACME.path)).toEqual({ name: "Acme Corp", stage: ["Legacy"], phase: "Old" });
+      stage.value = "B";
+      stage.trigger("change");
+      phase.value = "A";
+      phase.trigger("change");
+      await flush();
+      expect([fm(ACME.path)?.stage, fm(ACME.path)?.phase]).toEqual([["B"], "A"]);
+    });
+  });
 });
 
 describe("renderCompanyDetail: failed writes", () => {

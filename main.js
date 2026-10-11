@@ -3368,6 +3368,9 @@ function dateInputValue(current) {
 function enumCurrent(current) {
   return Array.isArray(current) ? String(current[0] || "") : String(current || "");
 }
+function withStoredOption(options, stored) {
+  return stored === "" || options.includes(stored) ? options : [...options, stored];
+}
 function isChipField(f) {
   const fieldType = f.type || "text";
   if (f.isList === true && (fieldType === "text" || fieldType === "email")) return true;
@@ -4288,9 +4291,10 @@ async function renderCompanyDetail(view, root, file) {
       sel.style.outline = "none";
       sel.style.width = "100%";
       sel.createEl("option", { value: "", text: "\u2014" });
-      (f.options || []).forEach((opt) => {
+      const stored = enumCurrent(current);
+      withStoredOption(f.options || [], stored).forEach((opt) => {
         const o = sel.createEl("option", { value: opt, text: opt });
-        if (enumCurrent(current) === opt) o.selected = true;
+        if (stored === opt) o.selected = true;
       });
       const commit = async () => {
         await writeField(key, coerceFieldEdit(def, key, sel.value));
@@ -5870,9 +5874,10 @@ async function renderEntityDetail(view, root, entityKey, file) {
     if (control === "enum") {
       const sel = row.createEl("select", { cls: "cad-form-input" });
       sel.createEl("option", { value: "", text: "\u2014" });
-      (f.options || []).forEach((opt) => {
+      const stored = enumCurrent(current);
+      withStoredOption(f.options || [], stored).forEach((opt) => {
         const o = sel.createEl("option", { value: opt, text: opt });
-        if (enumCurrent(current) === opt) o.selected = true;
+        if (stored === opt) o.selected = true;
       });
       sel.addEventListener("change", () => writeField(f.key, sel.value));
     } else if (control === "date") {
@@ -7995,17 +8000,15 @@ function projectDetailTitle(fm, basename) {
 }
 var PROJECT_STATUS_FALLBACK = ["active", "on_hold", "backlog", "done", "cancelled"];
 var PROJECT_PRIORITY_FALLBACK = ["low", "medium", "high"];
-function withStored(options, stored) {
-  if (stored == null || stored === "") return options;
-  const value = String(stored);
-  return options.includes(value) ? options : [...options, value];
+function storedText(stored) {
+  return stored == null ? "" : String(stored);
 }
 function projectPills(fm, statusOptions, priorityOptions) {
   const status = String(fm.status || "active");
   const priority = String(fm.priority || "");
   return [
-    { key: "status", cls: "cad-pill cad-pill-" + status.toLowerCase().replace(/\s+/g, "-"), options: withStored(statusOptions, fm.status), current: status },
-    { key: "priority", cls: "cad-pill cad-pill-prio-" + (priority || "medium").toLowerCase(), options: withStored(priorityOptions, fm.priority), current: priority || "medium" }
+    { key: "status", cls: "cad-pill cad-pill-" + status.toLowerCase().replace(/\s+/g, "-"), options: withStoredOption(statusOptions, storedText(fm.status)), current: status },
+    { key: "priority", cls: "cad-pill cad-pill-prio-" + (priority || "medium").toLowerCase(), options: withStoredOption(priorityOptions, storedText(fm.priority)), current: priority || "medium" }
   ];
 }
 function projectMetaFields(def) {
@@ -8222,9 +8225,10 @@ async function renderProjectDetail(view, root, file) {
       sel.style.outline = "none";
       sel.style.width = "100%";
       sel.createEl("option", { value: "", text: "\u2014" });
-      (f.options || []).forEach((opt) => {
+      const stored = enumCurrent(current);
+      withStoredOption(f.options || [], stored).forEach((opt) => {
         const o = sel.createEl("option", { value: opt, text: opt });
-        if (enumCurrent(current) === opt) o.selected = true;
+        if (stored === opt) o.selected = true;
       });
       const commit = async () => {
         const val = sel.value || null;

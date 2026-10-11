@@ -383,6 +383,21 @@ describe("renderProjectDetail: meta row", () => {
       },
     );
   });
+
+  it("a meta select offers and selects a stored value outside its options; nothing is written until a pick (#89)", async () => {
+    await withFields([{ key: "phase", label: "Phase", type: "enum", options: ["A", "B"] }], async () => {
+      const { root, render, fm, app } = setup([{ ...APOLLO, frontmatter: { name: "Apollo", phase: ["Legacy"] } }]);
+      const write = vi.spyOn(app.fileManager, "processFrontMatter");
+      await render();
+      const phase = control(root, "PHASE");
+      expect([phase.options.map((o) => o.value), phase.value]).toEqual([["", "A", "B", "Legacy"], "Legacy"]);
+      expect(write).not.toHaveBeenCalled();
+      expect(fm(APOLLO.path)).toEqual({ name: "Apollo", phase: ["Legacy"] });
+      choose(phase, "B");
+      await flush();
+      expect(fm(APOLLO.path)?.phase).toBe("B");
+    });
+  });
 });
 
 describe("renderProjectDetail: progress", () => {

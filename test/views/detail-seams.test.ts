@@ -4,7 +4,7 @@ import { ENTITIES } from "../../src/constants/entities";
 import {
   COMPANY_LIST_KEYS, DETAIL_LIST_KEYS, applyFieldEdit, chipAdd, chipConfig, chipCreation, chipLabel, chipLinkTarget, chipValues,
   chipWriteValue, coerceFieldEdit, dateInputValue, enumCurrent, filterSuggestions, findNoteByName, folderNoteNames,
-  historyValues, isChipField,
+  historyValues, isChipField, withStoredOption,
 } from "../../src/utils/field-edit";
 import { detailControl, detailFields, entityDetailTitle } from "../../src/views/entity-detail";
 import {
@@ -79,7 +79,7 @@ describe("applyFieldEdit", () => {
   });
 });
 
-describe("dateInputValue and enumCurrent", () => {
+describe("dateInputValue, enumCurrent and withStoredOption", () => {
   it("formats a parseable date as YYYY-MM-DD in UTC, else null", () => {
     expect(dateInputValue("2026-09-30")).toBe("2026-09-30");
     expect(dateInputValue("2026-11-30T23:30:00+10:00")).toBe("2026-11-30");
@@ -93,6 +93,13 @@ describe("dateInputValue and enumCurrent", () => {
     expect(enumCurrent("Lead")).toBe("Lead");
     expect(enumCurrent(null)).toBe("");
     expect(enumCurrent(0)).toBe("");
+  });
+
+  it("withStoredOption adds a stored value outside the options after them, and nothing for a blank or listed one (#89)", () => {
+    expect(withStoredOption(["A", "B"], "Legacy")).toEqual(["A", "B", "Legacy"]);
+    expect(withStoredOption(["A", "B"], "B")).toEqual(["A", "B"]);
+    expect(withStoredOption(["A", "B"], "")).toEqual(["A", "B"]);
+    expect(withStoredOption([], "Old")).toEqual(["Old"]);
   });
 });
 
