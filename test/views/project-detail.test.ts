@@ -368,11 +368,11 @@ describe("renderProjectDetail: meta row", () => {
         choose(control(root, "PHASE"), "A");
         await flush();
         expect([fm(APOLLO.path)?.budget, fm(APOLLO.path)?.phase]).toEqual([12.5, "A"]);
-        // QUIRK: clearing a number writes 0, because Number('') is 0.
+        // Clearing a number deletes the key, as an empty text field does.
         type(control(root, "BUDGET"), "", "blur");
         choose(control(root, "PHASE"), "");
         await flush();
-        expect(fm(APOLLO.path)?.budget).toBe(0);
+        expect(fm(APOLLO.path)).not.toHaveProperty("budget");
         expect(fm(APOLLO.path)).not.toHaveProperty("phase");
       },
     );

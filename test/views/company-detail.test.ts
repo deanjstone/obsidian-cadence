@@ -298,10 +298,10 @@ describe("renderCompanyDetail: meta row", () => {
         type(control(root, "FOUNDED"), "2000-01-01", "blur");
         await flush();
         expect(fm(ACME.path)).toEqual({ name: "Acme Corp", employees: 12, founded: "2000-01-01" });
-        // QUIRK: clearing a number writes 0, as on the generic form.
+        // Clearing a number deletes the key, as on the generic form.
         type(control(root, "EMPLOYEES"), "", "blur");
         await flush();
-        expect(fm(ACME.path)?.employees).toBe(0);
+        expect(fm(ACME.path)).not.toHaveProperty("employees");
       },
     );
   });

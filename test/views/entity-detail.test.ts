@@ -334,10 +334,13 @@ describe("renderEntityDetail: fields", () => {
     type(value, "abc", "blur");
     await flush();
     expect(fm(DEAL.path)).not.toHaveProperty("value");
-    // QUIRK: clearing a number writes 0, because Number('') is 0.
-    type(value, "", "blur");
+    type(value, "0", "blur");
     await flush();
     expect(fm(DEAL.path)?.value).toBe(0);
+    // Clearing a number deletes the key, as an empty text field does.
+    type(value, "", "blur");
+    await flush();
+    expect(fm(DEAL.path)).not.toHaveProperty("value");
   });
 
   it("text and email inputs write on debounce and blur; an empty value deletes the key", async () => {

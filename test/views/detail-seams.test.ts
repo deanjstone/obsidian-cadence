@@ -28,11 +28,13 @@ describe("coerceFieldEdit", () => {
     expect(coerceFieldEdit(contact, "tags", null)).toEqual([]);
   });
 
-  it("turns number and currency input into a number, or null when not numeric", () => {
+  it("turns number and currency input into a number, or null when empty or not numeric", () => {
     expect(coerceFieldEdit(deal, "value", "12.5")).toBe(12.5);
+    expect(coerceFieldEdit(deal, "value", "0")).toBe(0);
     expect(coerceFieldEdit(sequence, "steps", "abc")).toBeNull();
-    // QUIRK: an empty number becomes 0.
-    expect(coerceFieldEdit(deal, "value", "")).toBe(0);
+    expect(coerceFieldEdit(deal, "value", "")).toBeNull();
+    expect(coerceFieldEdit(deal, "value", "  ")).toBeNull();
+    expect(coerceFieldEdit(deal, "value", null)).toBeNull();
   });
 
   it("wraps stage in a one-item list, null when empty", () => {
@@ -283,8 +285,9 @@ describe("company detail seams", () => {
     expect(metaInputValue("date", "2026-01-01")).toBe("2026-01-01");
     expect(metaInputValue("number", "7")).toBe(7);
     expect(metaInputValue("currency", "x")).toBeNull();
-    // QUIRK: an empty number writes 0.
-    expect(metaInputValue("number", "")).toBe(0);
+    expect(metaInputValue("number", "0")).toBe(0);
+    expect(metaInputValue("number", "")).toBeNull();
+    expect(metaInputValue("currency", " ")).toBeNull();
   });
 
   it("alternates sections between the columns", () => {
