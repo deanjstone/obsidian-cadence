@@ -112,14 +112,21 @@ describe("_computeBriefing: reminders", () => {
     expect(setMode.mock.calls).toEqual([["planner.inbox"]]);
   });
 
-  it("QUIRK: names the first overdue reminder in settings order, not the most overdue, and truncates past 50 chars", async () => {
+  it("names the most overdue reminder, not the first in settings order, and truncates past 50 chars", async () => {
     const long = "x".repeat(51);
     const { view } = setup([], {
       ...quietTasks,
       reminders: [reminder(long, "2026-10-09T09:00:00Z"), reminder("Oldest", "2026-01-01T00:00:00Z"), reminder("Third", "2026-10-10T08:59:59Z")],
     });
     expect(shape(await view._computeBriefing())).toEqual([
-      ["⚠", "rose", `3 overdue reminders — "${"x".repeat(47)}…" + 2 more`],
+      ["⚠", "rose", '3 overdue reminders — "Oldest" + 2 more'],
+    ]);
+    const truncated = setup([], {
+      ...quietTasks,
+      reminders: [reminder("Recent", "2026-10-10T08:00:00Z"), reminder(long, "2026-10-01T09:00:00Z")],
+    });
+    expect(shape(await truncated.view._computeBriefing())).toEqual([
+      ["⚠", "rose", `2 overdue reminders — "${"x".repeat(47)}…" + 1 more`],
     ]);
   });
 

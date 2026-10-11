@@ -7056,7 +7056,7 @@ function computeBriefing(data, now) {
   const reminders = (data.reminders || []).filter((r) => !r.done);
   const overdue = reminders.filter((r) => r.when && new Date(r.when).getTime() <= nowMs);
   if (overdue.length) {
-    const ex = overdue[0];
+    const ex = overdue.reduce((a, b) => new Date(b.when).getTime() < new Date(a.when).getTime() ? b : a);
     const exTxt = ex.text.length > 50 ? ex.text.slice(0, 47) + "\u2026" : ex.text;
     items.push({
       icon: "\u26A0",
