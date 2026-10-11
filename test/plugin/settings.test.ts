@@ -263,7 +263,7 @@ describe("registerCustomPropertyTypes", () => {
     expect(app.metadataTypeManager.types).toEqual(JSON.parse(readFileSync("test/fixtures/registrations.original.json", "utf8")).propertyTypes);
   });
 
-  it("QUIRK: `type` is registered as multitext, then overwritten as text by the added type field", async () => {
+  it("registers `type` only from the entities' type fields, as text, never as multitext first", async () => {
     const { plugin, app } = await loaded({});
     const calls: string[][] = [];
     const setType = app.metadataTypeManager.setType.bind(app.metadataTypeManager);
@@ -272,8 +272,8 @@ describe("registerCustomPropertyTypes", () => {
       setType(key, type);
     };
     plugin.registerCustomPropertyTypes();
-    expect(calls[0]).toEqual(["type", "multitext"]);
-    expect(calls.filter(([k]) => k === "type").map(([, t]) => t)).toEqual(["multitext", "text", "text", "text", "text", "text"]);
+    expect(calls[0]).toEqual(["name", "text"]);
+    expect(calls.filter(([k]) => k === "type").map(([, t]) => t)).toEqual(["text", "text", "text", "text", "text"]);
     expect(app.metadataTypeManager.types.type).toBe("text");
   });
 
@@ -297,7 +297,7 @@ describe("registerCustomPropertyTypes", () => {
     ENTITIES.activity.fields = [];
     plugin.registerCustomPropertyTypes();
     expect(app.metadataTypeManager.types).toEqual({
-      type: "multitext", p: "text", d: "date", n: "number", c: "number", t: "tags", m: "multitext",
+      p: "text", d: "date", n: "number", c: "number", t: "tags", m: "multitext",
       l: "multitext", e: "multitext", u: "text", x: "text",
     });
   });

@@ -143,7 +143,8 @@ export function reconstructEntities(settings: PluginSettings, entities: Record<s
 }
 
 /* The Obsidian property type for an entity field: text for the primary
-   field, then by field type, then multitext for any list. An enum is text. */
+   field, then by field type, then multitext for any list. An enum is text,
+   because Obsidian has no select property type. */
 export function propertyTypeFor(f: EntityField): string {
   if (f.primary) return 'text';
   const ftype = f.type || 'text';
@@ -169,13 +170,12 @@ export async function saveSettings(plugin: PluginHost): Promise<void> {
   setCurrentCurrency(plugin.settings.currency || 'USD');
 }
 
-/* QUIRK (#22): `type` is registered as multitext first, then every entity
-   but activity has a text `type` field, so it ends up text. */
+/* Registers each core entity field's property type. `type` comes only from
+   the entities' own type fields (text), never a separate registration. */
 export function registerCustomPropertyTypes(plugin: PluginHost): void {
   try {
     const manager = (plugin.app as unknown as AppWithMetadataTypes).metadataTypeManager;
     if (manager && typeof manager.setType === 'function') {
-      manager.setType('type', 'multitext');
       for (const key of PROPERTY_TYPE_ENTITIES) {
         const def = ENTITIES[key];
         if (!def || !def.fields) continue;

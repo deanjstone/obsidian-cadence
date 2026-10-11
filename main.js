@@ -2025,6 +2025,9 @@ function fmtValue(val, type) {
 // src/plugin/settings.ts
 var CORE_ENTITY_KEYS = ["contact", "company", "partner", "registration", "commission", "lead", "certification", "activity", "sequence", "project", "deal"];
 var PROPERTY_TYPE_ENTITIES = ["project", "deal", "contact", "company", "activity"];
+function defaultSettings() {
+  return JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+}
 function fillSettingDefaults(settings, defaults) {
   if (!settings.customEntities) {
     settings.customEntities = {};
@@ -2133,7 +2136,7 @@ function propertyTypeFor(f) {
 }
 async function loadSettings(plugin) {
   const loadedData = await plugin.loadData() || {};
-  plugin.settings = Object.assign({}, DEFAULT_SETTINGS, loadedData);
+  plugin.settings = Object.assign(defaultSettings(), loadedData);
   fillSettingDefaults(plugin.settings, DEFAULT_SETTINGS);
   setCurrentCurrency(plugin.settings.currency || "USD");
   reconstructEntities(plugin.settings, ENTITIES);
@@ -2146,7 +2149,6 @@ function registerCustomPropertyTypes(plugin) {
   try {
     const manager = plugin.app.metadataTypeManager;
     if (manager && typeof manager.setType === "function") {
-      manager.setType("type", "multitext");
       for (const key of PROPERTY_TYPE_ENTITIES) {
         const def = ENTITIES[key];
         if (!def || !def.fields) continue;
@@ -2234,6 +2236,8 @@ function addCustomPage(settings, entities, form, now) {
   const val = (form.label || "").trim();
   if (!val) return { notice: "Please enter a page label." };
   const { singular, entityKey } = customPageEntityKey(val, form.sectionId);
+  const existing = (settings.customPages || []).find((page) => page.entityKey === entityKey);
+  if (existing) return { notice: `A page for this entity already exists: "${existing.label}".` };
   if (!settings.customEntities) {
     settings.customEntities = {};
   }
@@ -2274,6 +2278,8 @@ function deleteCustomPage(settings, entities, pageId) {
   if (originalIndex < 0) return false;
   const entityKey = settings.customPages[originalIndex].entityKey;
   settings.customPages.splice(originalIndex, 1);
+  if (CORE_ENTITY_KEYS.includes(entityKey)) return true;
+  if (settings.customPages.some((page) => page.entityKey === entityKey)) return true;
   if (settings.customEntities && settings.customEntities[entityKey]) {
     delete settings.customEntities[entityKey];
   }
@@ -2951,7 +2957,7 @@ var MODULE_TOGGLES = [
 ];
 function ensureModules(settings) {
   if (!settings.modules) {
-    settings.modules = { crm: true, prm: true, planner: true, projects: true };
+    settings.modules = { ...DEFAULT_SETTINGS.modules };
   }
   if (settings.modules.projects === void 0) {
     settings.modules.projects = true;
@@ -3040,7 +3046,7 @@ function defaultTabOptions(groups) {
   }));
 }
 function defaultTabValue(settings) {
-  return settings.defaultTab || "planner.today";
+  return settings.defaultTab || DEFAULT_SETTINGS.defaultTab;
 }
 function renderAppSettings(tab, containerEl) {
   containerEl.createEl("h3", { text: "App" });
@@ -10869,7 +10875,7 @@ async function saveTodayJournal(view, body) {
 // src/views/app-view.ts
 function initAppViewState(view, plugin) {
   view.plugin = plugin;
-  const raw = plugin.settings.defaultTab || "planner.today";
+  const raw = plugin.settings.defaultTab || DEFAULT_SETTINGS.defaultTab;
   view.mode = view._migrateModeId(raw);
   view.todayFile = null;
   view.todayParsed = null;
