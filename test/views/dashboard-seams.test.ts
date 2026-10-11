@@ -35,8 +35,8 @@ describe("dashboardOptions", () => {
     expect(dashboardOptions(withFields(project, [{ key: "status", label: "S" }]), "status", ["x"])).toEqual(["x"]);
   });
 
-  it("QUIRK: keeps an empty options list (getEnumOptions would fall back), so there are no cards", () => {
-    expect(dashboardOptions(withFields(project, [{ key: "status", label: "S", options: [] }]), "status", ["x"])).toEqual([]);
+  it("falls back on an empty options list, as getEnumOptions does, so the field still has cards", () => {
+    expect(dashboardOptions(withFields(project, [{ key: "status", label: "S", options: [] }]), "status", ["x"])).toEqual(["x"]);
   });
 });
 

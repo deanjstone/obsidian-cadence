@@ -49,11 +49,10 @@ export interface DashboardColumn {
 }
 
 /* A field's options from the def, or the fallback when the field is
-   missing or has no options list. Unlike getEnumOptions, an empty list
-   is kept, so it gives no cards. */
+   missing or its options list is missing or empty (as getEnumOptions). */
 export function dashboardOptions(def: EntityDef, key: string, fallback: string[]): string[] {
-  const field = def.fields.find(f => f.key === key) || { options: fallback };
-  return field.options || fallback;
+  const field = def.fields.find(f => f.key === key);
+  return field && field.options && field.options.length ? field.options : fallback;
 }
 
 /* A status card's accent: its known colour (only the first '-' is read
