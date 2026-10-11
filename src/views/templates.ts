@@ -33,10 +33,11 @@ export async function renderTemplatesDashboard(view: AppViewHost, root: HTMLElem
     cls: 'cad-proj-grid'
   });
 
+  const templatesFolder = 'Cadence/Templates';
+  await ensureFolderSync(view.app, templatesFolder);
+
   // Render Daily Note Template Card
   {
-    const templatesFolder = 'Cadence/Templates';
-    await ensureFolderSync(view.app, templatesFolder);
     const dailyTemplatePath = `${templatesFolder}/daily.md`;
     const dailyTFile = view.app.vault.getAbstractFileByPath(dailyTemplatePath);
     const exists = !!(dailyTFile && dailyTFile instanceof TFile);
@@ -106,9 +107,6 @@ export async function renderTemplatesDashboard(view: AppViewHost, root: HTMLElem
   }
 
   for (const [entityKey, def] of Object.entries(ENTITIES)) {
-    const templatesFolder = 'Cadence/Templates';
-    await ensureFolderSync(view.app, templatesFolder);
-
     let foundPath: string | null = null;
     let exists = false;
     const pathsToTry = templatePathCandidates(templatesFolder, entityKey, def);
@@ -359,7 +357,7 @@ export async function renderTemplateDetail(view: AppViewHost, root: HTMLElement,
 
 export function renderTemplateSectionWithDelete(
   view: AppViewHost, parent: HTMLElement, file: TFile, sections: Record<string, string>, rawKey: string,
-  flashSaved?: FlashSaved, allRawKeys?: string[],
+  flashSaved?: FlashSaved,
 ): void {
   const entityKey = templateEntityKey(file.basename);
   const { cleanLabel, tag } = parseHeaderKey(rawKey);

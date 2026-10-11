@@ -35,7 +35,6 @@ export interface BriefingItem {
 
 export async function renderHome(view: AppViewHost, root: HTMLElement): Promise<void> {
   root.addClass('cadence-home');
-  const settings = view.plugin.settings;
 
   /* Header */
   const today = new Date();

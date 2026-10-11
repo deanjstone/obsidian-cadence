@@ -122,7 +122,6 @@ export class CadenceCaptureModal extends Modal {
     schedFields.style.display = 'none';
     schedFields.style.marginTop = '12px';
     schedFields.style.gap = '12px';
-    schedFields.style.display = 'none';
 
     const dateRow = schedFields.createDiv({ cls: 'cad-form-row' });
     dateRow.createDiv({ cls: 'cad-form-label', text: 'WHEN' });

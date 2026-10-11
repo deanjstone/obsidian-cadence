@@ -2,7 +2,7 @@ import { ItemView, Notice, setIcon, type TAbstractFile, type TFile, type Workspa
 import { ENTITIES } from '../constants/entities';
 import { BUILT_SURFACES, VIEW_TYPE_CADENCE_APP, type NavSurface } from '../constants/nav';
 import { DEFAULT_SETTINGS } from '../constants/settings';
-import type { Entity, EntityDef, EntityKey, TaskNotesTask } from '../types/entities';
+import type { Entity, EntityDef, EntityField, EntityKey, TaskNotesTask } from '../types/entities';
 import type { ChartStyle } from '../types/modals';
 import type { Reminder, ReminderBucket } from '../types/reminders';
 import { CadenceEntityCreateModal } from '../modals/entity-create';
@@ -18,6 +18,7 @@ import { dashCardSection, type DashCardRow } from './components/cards';
 import {
   drawBarChart, drawChart, drawChartEmpty, drawDonutChart, drawKpiGrid, drawSimpleList, type ChartDatum,
 } from './components/charts';
+import { renderChipInput, type ChipInputOptions } from './components/chip-input';
 import { getEntityFiles, renderEntityLinks, renderEntityTable, renderOwnerLinks } from './components/entity-table';
 import {
   renderCrossSections, renderDynamicH2Section, renderGenericTextSection, renderMarkdownTextCard, renderProjectTextSection,
@@ -32,7 +33,7 @@ import {
 } from './home';
 import type { AppViewHost, AppViewPlugin, ListFilter, PromptOptions, TaskCompleteSource } from './host';
 import { inboxOverdueCount, renderInbox, renderInboxRow, renderProjectTasksSection } from './inbox';
-import { getEntityKanbanParams, renderEntityKanban } from './kanban';
+import { getEntityKanbanParams } from './kanban';
 import {
   migrateModeId, modeUsesEntityFolder, resolveSurface, routeFor, setMode, toggleCadenceDark, toggleGroup, toggleMobileNav,
   visibleNavGroups,
@@ -41,7 +42,7 @@ import { renderPRMAnalytics, renderTeam } from './prm';
 import {
   renderMilestoneSection, renderProjectDetail, renderTaskSection, saveMilestones, saveProjectFrontmatter, saveTasks,
 } from './project-detail';
-import { renderProjectsDashboard, renderProjectsView } from './projects-dashboard';
+import { renderProjectsDashboard } from './projects-dashboard';
 import { renderReportGraph } from './report-graph';
 import {
   renderProductivity, renderReportActivity, renderReportPartners, renderReportPipeline, renderReportSales,
@@ -461,8 +462,6 @@ export function planEntityLinks(
 
         // An entity:<key> source names the entity <key>, not a folder called entity:<key> (#45).
         const source = suggestionSource.startsWith('entity:') ? suggestionSource.slice('entity:'.length) : suggestionSource;
-        // QUIRK (kept): 'history' is excluded above, so this always picks source.
-        const creationSource = source === 'history' ? 'folder:Cadence/Shared' : source;
         let targetEntityKey = ENTITIES[source] ? source : null;
         if (source.startsWith('folder:')) {
           const customFolderPath = source.slice('folder:'.length);
@@ -477,7 +476,7 @@ export function planEntityLinks(
         // Only a relation field (contact, company, project) auto-creates its notes (#45).
         if (!autoCreatesNote(targetEntityKey)) continue;
         const label = targetEntityKey ? ENTITIES[targetEntityKey].label : 'Note';
-        for (const name of names) links.push({ name, creationSource, label });
+        for (const name of names) links.push({ name, creationSource: source, label });
       }
     }
   }
@@ -571,6 +570,8 @@ export class CadenceAppView extends ItemView implements AppViewHost {
 
   _renderEntityTable(parent: HTMLElement, entityKey: EntityKey, filteredList: Entity[], columns: string[]) { return renderEntityTable(this, parent, entityKey, filteredList, columns); }
 
+  _renderChipInput(parent: HTMLElement, f: EntityField, current: unknown, opts: ChipInputOptions) { return renderChipInput(this, parent, f, current, opts); }
+
   renderCompanyDetail(root: HTMLElement, file: TFile) { return renderCompanyDetail(this, root, file); }
 
   /* ── Project DETAIL view (real PM surface) ─────── */
@@ -601,9 +602,6 @@ export class CadenceAppView extends ItemView implements AppViewHost {
   _renderEntityLinks(parent: HTMLElement, val: unknown, targetEntityKey: string, prefix?: string) { return renderEntityLinks(this, parent, val, targetEntityKey, prefix); }
 
   _renderOwnerLinks(parent: HTMLElement, ownerVal: unknown, showPrefix?: boolean) { return renderOwnerLinks(this, parent, ownerVal, showPrefix); }
-
-  /* ── Projects: rich card grid with milestone progress ─ */
-  renderProjectsView(root: HTMLElement) { return renderProjectsView(this, root); }
 
   /* ── Home / Command Centre ───────────────── */
   renderHome(root: HTMLElement) { return renderHome(this, root); }
@@ -637,7 +635,7 @@ export class CadenceAppView extends ItemView implements AppViewHost {
 
   renderTemplateDetail(root: HTMLElement, entityKey: string, file: TFile | null) { return renderTemplateDetail(this, root, entityKey, file); }
 
-  _renderTemplateSectionWithDelete(parent: HTMLElement, file: TFile, sections: Record<string, string>, rawKey: string, flashSaved?: FlashSaved, allRawKeys?: string[]) { return renderTemplateSectionWithDelete(this, parent, file, sections, rawKey, flashSaved, allRawKeys); }
+  _renderTemplateSectionWithDelete(parent: HTMLElement, file: TFile, sections: Record<string, string>, rawKey: string, flashSaved?: FlashSaved) { return renderTemplateSectionWithDelete(this, parent, file, sections, rawKey, flashSaved); }
 
   _getEntityFiles(entityKey: EntityKey | 'daily') { return getEntityFiles(this, entityKey); }
 
@@ -655,9 +653,6 @@ export class CadenceAppView extends ItemView implements AppViewHost {
   _renderInboxRow(parent: HTMLElement, r: Reminder, bucket: ReminderBucket) { return renderInboxRow(this, parent, r, bucket); }
 
   _quickAddTodayTask() { return quickAddTodayTask(this); }
-
-  /* ── Pipeline kanban (deals grouped by stage) ───── */
-  renderEntityKanban(root: HTMLElement, entityKey: string, groupBy: string, groups: string[]) { return renderEntityKanban(this, root, entityKey, groupBy, groups); }
 
   /* Central chart dispatcher — replaces 4 duplicated if-elseif blocks at call sites. */
   _drawChart(parent: HTMLElement, style: ChartStyle | string, data: ChartDatum[]) { return drawChart(this, parent, style, data); }

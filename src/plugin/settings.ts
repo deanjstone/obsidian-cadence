@@ -111,7 +111,8 @@ export function reconstructEntities(settings: PluginSettings, entities: Record<s
     }
   }
 
-  // Ensure 'type' field is in customEntities and ENTITIES fields (except activity)
+  // Ensure a 'type' field on every entity but activity. An entity with a
+  // settings list shares it as its fields, so this adds it there too.
   for (const [entityKey, def] of Object.entries(entities)) {
     if (entityKey === 'activity') continue;
 
@@ -122,18 +123,6 @@ export function reconstructEntities(settings: PluginSettings, entities: Record<s
         label: 'Type',
         type: 'text'
       });
-    }
-
-    // Also ensure it is in the settings' customEntities fields
-    if (settings.customEntities[entityKey]) {
-      const hasSetType = settings.customEntities[entityKey].some(f => f.key === 'type');
-      if (!hasSetType) {
-        settings.customEntities[entityKey].push({
-          key: 'type',
-          label: 'Type',
-          type: 'text'
-        });
-      }
     }
   }
 }

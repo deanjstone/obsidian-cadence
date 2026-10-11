@@ -1,7 +1,7 @@
 import type { App, EventRef, TFile, WorkspaceLeaf } from 'obsidian';
 import type { NavGroup, NavSurface } from '../constants/nav';
 import type { ReminderStore } from '../modals/reminder-edit';
-import type { Entity, EntityKey, TaskNotesTask } from '../types/entities';
+import type { Entity, EntityField, EntityKey, TaskNotesTask } from '../types/entities';
 import type { ChartStyle } from '../types/modals';
 import type { Reminder, ReminderBucket } from '../types/reminders';
 import type { AppViewSettings } from '../types/settings';
@@ -10,6 +10,7 @@ import type { TaskRef } from '../utils/task-lines';
 import type { DashCardRow } from './components/cards';
 import type { PlannerDay } from './calendar';
 import type { ChartDatum } from './components/charts';
+import type { ChipInputOptions } from './components/chip-input';
 import type { FlashSaved, ProjectTextSectionDef } from './components/sections';
 import type { EntityListOptions } from './entity-list';
 import type { BriefingItem } from './home';
@@ -105,6 +106,8 @@ export interface AppViewHost {
   _renderOwnerLinks(parent: HTMLElement, ownerVal: unknown, showPrefix?: boolean): void;
   _renderEntityTable(parent: HTMLElement, entityKey: EntityKey, filteredList: Entity[], columns: string[]): void;
   _getEntityFiles(entityKey: EntityKey | 'daily'): TFile[];
+  /** The chip input of the generic form, the company page and the project page. */
+  _renderChipInput(parent: HTMLElement, f: EntityField, current: unknown, opts: ChipInputOptions): void;
   _renderMarkdownTextCard(
     parent: HTMLElement, file: TFile, sectionKey: string, label: string, initialValue: string | undefined,
     placeholder?: string, flashSaved?: FlashSaved,
@@ -167,8 +170,6 @@ export interface AppViewHost {
   /* ── Entity list and kanban (src/views/entity-list.ts, src/views/kanban.ts) ── */
   renderEntityList(root: HTMLElement, entityKey: string, opts?: EntityListOptions): Promise<void>;
   getEntityKanbanParams(entityKey: string): KanbanParams;
-  /** Flagged: no call site; characterized and kept. */
-  renderEntityKanban(root: HTMLElement, entityKey: string, groupBy: string, groups: string[]): Promise<void>;
 
   /* ── Entity and company detail (src/views/entity-detail.ts, src/views/company-detail.ts) ── */
   renderEntityDetail(root: HTMLElement, entityKey: string, file: TFile): Promise<void>;
@@ -193,8 +194,6 @@ export interface AppViewHost {
 
   /* ── Projects and CRM dashboards (src/views/projects-dashboard.ts, src/views/crm-dashboard.ts) ── */
   renderProjectsDashboard(root: HTMLElement): Promise<void>;
-  /** Flagged: no call site (projects.projects routes to renderEntityList); characterized and kept. */
-  renderProjectsView(root: HTMLElement): Promise<void>;
   /** The CRM dashboard; the moved function is renderCrmDashboard. */
   renderDashboard(root: HTMLElement): Promise<void>;
 
@@ -202,10 +201,9 @@ export interface AppViewHost {
   renderTemplatesDashboard(root: HTMLElement): Promise<void>;
   /** The template builder; with no file it closes the detail. */
   renderTemplateDetail(root: HTMLElement, entityKey: string, file: TFile | null): Promise<void>;
-  /** Flagged: allRawKeys is never read, and the propagation key is file.basename. */
+  /** Flagged: the propagation key is file.basename. */
   _renderTemplateSectionWithDelete(
     parent: HTMLElement, file: TFile, sections: Record<string, string>, rawKey: string, flashSaved?: FlashSaved,
-    allRawKeys?: string[],
   ): void;
   /** The entity's notes whose same-named section has non-placeholder content. */
   _getFilesUsingTemplateSection(entityKey: EntityKey | 'daily', rawKey: string): Promise<TFile[]>;

@@ -99,9 +99,6 @@ export function buildEntityCreateValues(def: EntityDef, inputs: EntityCreateInpu
       } else {
         raw = parts;
       }
-    } else if (isEntityRef) {
-      // Unreachable: every entity reference is also a list field.
-      raw = `[[${raw.replace(/^\[\[|\]\]$/g, '').trim()}]]`;
     } else if (type === 'number' || type === 'currency') {
       const n = Number(raw);
       raw = isNaN(n) ? null : n;
