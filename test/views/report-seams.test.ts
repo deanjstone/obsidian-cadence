@@ -84,11 +84,14 @@ describe("pipelineReport", () => {
     ]);
   });
 
-  it("counts every configured stage, closed ones included", () => {
+  it("counts every configured stage, closed ones included, then each stage off the list", () => {
     expect(report.byStage.map((s) => [s.stage, s.count, s.value])).toEqual([
       ["Lead", 1, 1000], ["Qualified", 1, 2000], ["Proposal", 1, 4000], ["Negotiation", 1, 8000], ["Won", 1, 5000], ["Lost", 1, 3000],
+      ["Custom", 1, 100],
     ]);
-    expect(pipelineReport(deals, deal, ["Custom"], NOW).byStage).toEqual([{ stage: "Custom", count: 1, value: 100 }]);
+    expect(pipelineReport(deals, deal, ["Custom"], NOW).byStage.map((s) => [s.stage, s.count])).toEqual([
+      ["Custom", 1], ["Lead", 1], ["Qualified", 1], ["Proposal", 1], ["Negotiation", 1], ["Won", 1], ["Lost", 1],
+    ]);
   });
 
   it("ranks open owners by value", () => {

@@ -108,15 +108,36 @@ describe("renderReportPipeline: by stage", () => {
       ["Qualified", "1", cur(2000)],
       ["Proposal", "1", cur(4000)],
       ["Negotiation", "1", cur(8000)],
-      ["Won", "1", cur(5000)],
+      ["Won", "2", cur(5700)],
       ["Lost", "1", cur(3000)],
+      ["Custom", "1", cur(0)],
     ]);
   });
 
-  it("QUIRK: a deal off the stage list ('won', 'Custom') is in no table row", async () => {
+  it("puts every deal in one row: 'won' in Won, a stage off the list ('Custom') in its own row", async () => {
     const { view, root } = setup([G, H]);
     await view.renderReportPipeline(root);
-    expect(tableRows(root).map((r) => r[1])).toEqual(["0", "0", "0", "0", "0", "0"]);
+    expect(tableRows(root).map((r) => r[0] + ":" + r[1])).toEqual(["Lead:0", "Qualified:0", "Proposal:0", "Negotiation:0", "Won:1", "Lost:0", "Custom:1"]);
+  });
+
+  it("weighs a custom configured stage between its built-in neighbours, and a built-in stage in any case", async () => {
+    const field = ENTITIES.deal.fields.find((f) => f.key === "stage")!;
+    const original = field.options;
+    field.options = ["Discovery", "Lead", "Demo", "Negotiation", "Won", "Lost"];
+    try {
+      const files = [
+        deal("X", { stage: "Discovery", value: 1000 }),
+        deal("Y", { stage: "Demo", value: 1000 }),
+        deal("Z", { stage: "negotiation", value: 1000 }),
+        deal("Q", { stage: "Elsewhere", value: 1000 }),
+      ];
+      const { view, root } = setup(files);
+      await view.renderReportPipeline(root);
+      // Discovery sits halfway from 0 to Lead (0.10), Demo halfway from Lead to Negotiation (0.75); off the list weighs 0.
+      expect(stats(root)[1]).toEqual(["mint", "WEIGHTED", cur(1000 * 0.05 + 1000 * 0.425 + 1000 * 0.75), "forecast on open"]);
+    } finally {
+      field.options = original;
+    }
   });
 
   it("follows the configured deal stages", async () => {

@@ -68,3 +68,64 @@ export function crmSummary(deals: Entity[], def: EntityDef): CrmSummary {
     avgDeal: won.length === 0 ? 0 : wonValue / won.length,
   };
 }
+
+export interface StageGroup {
+  /** The configured option, an off-list stage as first written, or `(no stage)`. */
+  stage: string;
+  items: Entity[];
+}
+
+export const NO_STAGE = '(no stage)';
+
+/* Deals grouped by stage, so every deal is in exactly one group: one group
+   per configured stage, in order, then one per stage off the list in
+   first-seen order, then `(no stage)` for blank ones. Stages match after
+   foldStage, and a Won or Lost spelled like no option ('Closed Won') joins
+   the first option with the same outcome. */
+export function dealsByStage(deals: Entity[], def: EntityDef, stages: string[]): StageGroup[] {
+  const groups: StageGroup[] = stages.map((stage) => ({ stage, items: [] }));
+  const byFold = new Map<string, StageGroup>();
+  groups.forEach((g) => { if (!byFold.has(foldStage(g.stage))) byFold.set(foldStage(g.stage), g); });
+  const byOutcome = new Map<DealOutcome, StageGroup>();
+  groups.forEach((g) => {
+    const outcome = stageOutcome(g.stage);
+    if (outcome !== 'open' && !byOutcome.has(outcome)) byOutcome.set(outcome, g);
+  });
+  const offList: StageGroup[] = [];
+  const noStage: StageGroup = { stage: NO_STAGE, items: [] };
+  deals.forEach((e) => {
+    const stage = dealStage(e, def).trim();
+    const folded = foldStage(stage);
+    let group = folded ? byFold.get(folded) || byOutcome.get(stageOutcome(stage)) : noStage;
+    if (!group) {
+      group = { stage, items: [] };
+      byFold.set(folded, group);
+      offList.push(group);
+    }
+    group.items.push(e);
+  });
+  return [...groups, ...offList, ...(noStage.items.length ? [noStage] : [])];
+}
+
+/* Forecast weights for the built-in open stages, by folded name. */
+const BUILT_IN_CONFIDENCE: Record<string, number> = { 'lead': 0.10, 'qualified': 0.25, 'proposal': 0.50, 'negotiation': 0.75 };
+
+/* A forecast weight for any stage. A built-in open stage (Lead, Qualified,
+   Proposal, Negotiation) keeps its weight in any case. Any other open stage
+   on the configured list is weighed by its place among the open options,
+   in a straight line between its nearest weighted neighbours (0 before the
+   first, 1 after the last). Won, Lost, blank and off-list stages weigh 0. */
+export function stageConfidence(stages: string[]): (stage: unknown) => number {
+  const open = stages.map(foldStage).filter((s) => s && stageOutcome(s) === 'open');
+  const anchors: Array<[number, number]> = [[-1, 0]];
+  open.forEach((s, i) => { if (s in BUILT_IN_CONFIDENCE) anchors.push([i, BUILT_IN_CONFIDENCE[s]]); });
+  anchors.push([open.length, 1]);
+  const weights = new Map<string, number>(Object.entries(BUILT_IN_CONFIDENCE));
+  open.forEach((s, i) => {
+    if (weights.has(s)) return;
+    const before = anchors.filter(([at]) => at < i).pop()!;
+    const after = anchors.find(([at]) => at > i)!;
+    weights.set(s, before[1] + ((after[1] - before[1]) * (i - before[0])) / (after[0] - before[0]));
+  });
+  return (stage) => weights.get(foldStage(stage)) ?? 0;
+}

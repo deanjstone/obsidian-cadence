@@ -2,7 +2,7 @@ import { ENTITIES } from '../constants/entities';
 import { CadenceWidgetCreateModal } from '../modals/widget-create';
 import type { Entity, EntityDef } from '../types/entities';
 import type { WidgetConfig } from '../types/modals';
-import { crmSummary, dealValue, sumValues, type CrmSummary } from '../utils/deals';
+import { crmSummary, dealValue, dealsByStage, sumValues, type CrmSummary } from '../utils/deals';
 import { entityValue, getDealStages, listEntities, listEntityFiles } from '../utils/entities';
 import { fmtValue } from '../utils/format';
 import type { DashCardRow, StatCard } from './components/cards';
@@ -42,13 +42,10 @@ export interface StageBar {
   width: string;
 }
 
-/* One bar per stage, in stage order. A deal whose stage is off the list
-   is in no bar. */
+/* One bar per stage, in stage order, then one per stage off the list and
+   `(no stage)` (dealsByStage), so every deal is in one bar. */
 export function pipelineByStage(deals: Entity[], def: EntityDef, stages: string[]): StageBar[] {
-  const stageData = stages.map((stage) => {
-    const items = deals.filter((e) => String(entityValue(e, 'stage', def)) === stage);
-    return { stage, count: items.length, value: sumValues(items, def) };
-  });
+  const stageData = dealsByStage(deals, def, stages).map(({ stage, items }) => ({ stage, count: items.length, value: sumValues(items, def) }));
   const maxStageVal = Math.max(1, ...stageData.map((s) => s.value));
   return stageData.map((s) => ({ ...s, width: `${(s.value / maxStageVal) * 100}%` }));
 }

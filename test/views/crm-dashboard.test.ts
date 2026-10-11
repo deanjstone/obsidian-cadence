@@ -138,16 +138,23 @@ describe("renderDashboard: pipeline by stage", () => {
       ["Qualified", "Qualified", "0", "0%", cur(0)],
       ["Proposal", "Proposal", "1", "100%", cur(12000)],
       ["Negotiation", "Negotiation", "1", `${(7000 / 12000) * 100}%`, cur(7000)],
-      ["Won", "Won", "1", `${(4500 / 12000) * 100}%`, cur(4500)],
+      ["Won", "Won", "2", `${(4800 / 12000) * 100}%`, cur(4800)],
       ["Lost", "Lost", "1", `${(1000 / 12000) * 100}%`, cur(1000)],
+      ["(no stage)", "(no stage)", "1", "0%", cur(0)],
     ]);
   });
 
-  it("QUIRK: a deal whose stage is off the list ('won', blank) is in no bar", async () => {
+  it("puts every deal in one bar: 'won' in Won, a blank stage in (no stage)", async () => {
     const { view, root } = setup(ALL);
     await view.renderDashboard(root);
     const counted = stageRows(root).reduce((n, r) => n + Number(r.children[1].text), 0);
-    expect(counted).toBe(4);
+    expect(counted).toBe(6);
+  });
+
+  it("adds a bar per stage off the list, after the configured ones, so custom stages still show", async () => {
+    const { view, root } = setup([deal("X", { stage: "Discovery", value: 5 }), deal("Y", { stage: "discovery", value: 1 })]);
+    await view.renderDashboard(root);
+    expect(stageRows(root).map((r) => [r.dataset.stage, r.children[1].text]).slice(6)).toEqual([["Discovery", "2"]]);
   });
 
   it("scales against at least 1, so all-zero values draw empty bars", async () => {

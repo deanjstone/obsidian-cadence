@@ -3,7 +3,7 @@ import { ENTITIES } from '../constants/entities';
 import type { Entity, EntityDef } from '../types/entities';
 import type { DailyNoteSettings } from '../types/settings';
 import { addDays, dailyNotePath, parseYmd, startOfDay, startOfWeek, ymd } from '../utils/dates';
-import { crmSummary, dealOutcome, dealValue, sumValues } from '../utils/deals';
+import { crmSummary, dealOutcome, dealValue, dealsByStage, stageConfidence, sumValues } from '../utils/deals';
 import { entityValue, getDealStages, listEntities } from '../utils/entities';
 import { fmtValue } from '../utils/format';
 import { parseSections } from '../utils/parsing';
@@ -51,10 +51,6 @@ function entityTitle(entity: Entity, key: string, def: EntityDef): string {
   return (entityValue(entity, key, def) as string) || entity.basename;
 }
 
-function stageOf(entity: Entity, def: EntityDef): string {
-  return String(entityValue(entity, 'stage', def));
-}
-
 /* Owner rows: `(unassigned)` is plain text, any other owner links to contacts. */
 function ownerRows<T>(byOwner: Map<string, T>, size: (data: T) => number, limit: number, meta: (data: T) => string): DashCardRow[] {
   return [...byOwner.entries()]
@@ -67,18 +63,19 @@ function ownerRows<T>(byOwner: Map<string, T>, size: (data: T) => number, limit:
     }));
 }
 
-const STAGE_CONFIDENCE: Record<string, number> = { 'Lead': 0.10, 'Qualified': 0.25, 'Proposal': 0.50, 'Negotiation': 0.75 };
-
 export interface PipelineReport {
   /** Every deal not Won or Lost (in any case), as on the CRM dashboard. */
   open: Entity[];
   won: Entity[];
   lost: Entity[];
-  /** Open value times each built-in open stage's confidence; any other stage weighs 0. */
+  /** Open value times each stage's confidence (stageConfidence): the
+      built-in open stages in any case, custom configured stages by place,
+      off-list stages 0. */
   weighted: number;
   winRate: number;
   stats: StatCard[];
-  /** One row per configured stage; a deal off the list is in none. */
+  /** One row per configured stage, then one per stage off the list and
+      `(no stage)` (dealsByStage), so every deal is in one row. */
   byStage: Array<{ stage: string; count: number; value: number }>;
   /** The top 8 owners of open deals by value. */
   owners: DashCardRow[];
@@ -91,7 +88,8 @@ export interface PipelineReport {
 
 export function pipelineReport(deals: Entity[], def: EntityDef, stages: string[], now: number): PipelineReport {
   const { open, won, lost, openValue, wonValue, lostValue, winRate } = crmSummary(deals, def);
-  const weighted = open.reduce((s, e) => s + dealValue(e, def) * (STAGE_CONFIDENCE[stageOf(e, def)] || 0), 0);
+  const confidence = stageConfidence(stages);
+  const weighted = open.reduce((s, e) => s + dealValue(e, def) * confidence(entityValue(e, 'stage', def)), 0);
 
   const byOwner = new Map<string, { count: number; value: number }>();
   open.forEach((e) => {
@@ -135,10 +133,7 @@ export function pipelineReport(deals: Entity[], def: EntityDef, stages: string[]
       { label: 'LOST', value: lost.length, sub: fmtValue(lostValue, 'currency'), accent: 'rose' },
       { label: 'WIN RATE', value: `${winRate}%`, sub: `${won.length}/${won.length + lost.length} closed`, accent: 'warn' },
     ],
-    byStage: stages.map((stage) => {
-      const items = deals.filter((e) => stageOf(e, def) === stage);
-      return { stage, count: items.length, value: sumValues(items, def) };
-    }),
+    byStage: dealsByStage(deals, def, stages).map(({ stage, items }) => ({ stage, count: items.length, value: sumValues(items, def) })),
     owners: ownerRows(byOwner, (o) => o.value, 8,
       (o) => `${o.count} deal${o.count === 1 ? '' : 's'} · ${fmtValue(o.value, 'currency')}`),
     cohorts: cohorts.map(({ label, count, value, accent }) => ({

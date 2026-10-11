@@ -5318,6 +5318,50 @@ function crmSummary(deals, def) {
     avgDeal: won.length === 0 ? 0 : wonValue / won.length
   };
 }
+var NO_STAGE = "(no stage)";
+function dealsByStage(deals, def, stages) {
+  const groups = stages.map((stage) => ({ stage, items: [] }));
+  const byFold = /* @__PURE__ */ new Map();
+  groups.forEach((g) => {
+    if (!byFold.has(foldStage(g.stage))) byFold.set(foldStage(g.stage), g);
+  });
+  const byOutcome = /* @__PURE__ */ new Map();
+  groups.forEach((g) => {
+    const outcome = stageOutcome(g.stage);
+    if (outcome !== "open" && !byOutcome.has(outcome)) byOutcome.set(outcome, g);
+  });
+  const offList = [];
+  const noStage = { stage: NO_STAGE, items: [] };
+  deals.forEach((e) => {
+    const stage = dealStage(e, def).trim();
+    const folded = foldStage(stage);
+    let group = folded ? byFold.get(folded) || byOutcome.get(stageOutcome(stage)) : noStage;
+    if (!group) {
+      group = { stage, items: [] };
+      byFold.set(folded, group);
+      offList.push(group);
+    }
+    group.items.push(e);
+  });
+  return [...groups, ...offList, ...noStage.items.length ? [noStage] : []];
+}
+var BUILT_IN_CONFIDENCE = { "lead": 0.1, "qualified": 0.25, "proposal": 0.5, "negotiation": 0.75 };
+function stageConfidence(stages) {
+  const open = stages.map(foldStage).filter((s) => s && stageOutcome(s) === "open");
+  const anchors = [[-1, 0]];
+  open.forEach((s, i) => {
+    if (s in BUILT_IN_CONFIDENCE) anchors.push([i, BUILT_IN_CONFIDENCE[s]]);
+  });
+  anchors.push([open.length, 1]);
+  const weights = new Map(Object.entries(BUILT_IN_CONFIDENCE));
+  open.forEach((s, i) => {
+    if (weights.has(s)) return;
+    const before = anchors.filter(([at]) => at < i).pop();
+    const after = anchors.find(([at]) => at > i);
+    weights.set(s, before[1] + (after[1] - before[1]) * (i - before[0]) / (after[0] - before[0]));
+  });
+  return (stage) => weights.get(foldStage(stage)) ?? 0;
+}
 
 // src/views/crm-dashboard.ts
 var DAY_MS = 864e5;
@@ -5332,10 +5376,7 @@ function crmStatCards(summary) {
   ];
 }
 function pipelineByStage(deals, def, stages) {
-  const stageData = stages.map((stage) => {
-    const items = deals.filter((e) => String(entityValue(e, "stage", def)) === stage);
-    return { stage, count: items.length, value: sumValues(items, def) };
-  });
+  const stageData = dealsByStage(deals, def, stages).map(({ stage, items }) => ({ stage, count: items.length, value: sumValues(items, def) }));
   const maxStageVal = Math.max(1, ...stageData.map((s) => s.value));
   return stageData.map((s) => ({ ...s, width: `${s.value / maxStageVal * 100}%` }));
 }
@@ -9513,9 +9554,6 @@ function reportBar(value, max) {
 function entityTitle(entity, key, def) {
   return entityValue(entity, key, def) || entity.basename;
 }
-function stageOf(entity, def) {
-  return String(entityValue(entity, "stage", def));
-}
 function ownerRows(byOwner, size, limit, meta) {
   return [...byOwner.entries()].sort((a, b) => size(b[1]) - size(a[1])).slice(0, limit).map(([owner, data]) => ({
     title: owner,
@@ -9523,10 +9561,10 @@ function ownerRows(byOwner, size, limit, meta) {
     meta: meta(data)
   }));
 }
-var STAGE_CONFIDENCE = { "Lead": 0.1, "Qualified": 0.25, "Proposal": 0.5, "Negotiation": 0.75 };
 function pipelineReport(deals, def, stages, now) {
   const { open, won, lost, openValue, wonValue, lostValue, winRate } = crmSummary(deals, def);
-  const weighted = open.reduce((s, e) => s + dealValue(e, def) * (STAGE_CONFIDENCE[stageOf(e, def)] || 0), 0);
+  const confidence = stageConfidence(stages);
+  const weighted = open.reduce((s, e) => s + dealValue(e, def) * confidence(entityValue(e, "stage", def)), 0);
   const byOwner = /* @__PURE__ */ new Map();
   open.forEach((e) => {
     const owner = String(entityValue(e, "owner", def) || "(unassigned)");
@@ -9571,10 +9609,7 @@ function pipelineReport(deals, def, stages, now) {
       { label: "LOST", value: lost.length, sub: fmtValue(lostValue, "currency"), accent: "rose" },
       { label: "WIN RATE", value: `${winRate}%`, sub: `${won.length}/${won.length + lost.length} closed`, accent: "warn" }
     ],
-    byStage: stages.map((stage) => {
-      const items = deals.filter((e) => stageOf(e, def) === stage);
-      return { stage, count: items.length, value: sumValues(items, def) };
-    }),
+    byStage: dealsByStage(deals, def, stages).map(({ stage, items }) => ({ stage, count: items.length, value: sumValues(items, def) })),
     owners: ownerRows(
       byOwner,
       (o) => o.value,

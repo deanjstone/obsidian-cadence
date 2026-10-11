@@ -195,11 +195,21 @@ describe("crmSummary / crmStatCards", () => {
 
 describe("pipelineByStage", () => {
   it("counts and sums each stage, scaling widths to the largest", () => {
-    const deals = [entity("A", { stage: "Lead", value: 200 }), entity("B", { stage: "Lead", value: 200 }), entity("C", { stage: "Won", value: 100 }), entity("D", { stage: "x", value: 9e9 })];
+    const deals = [entity("A", { stage: "Lead", value: 200 }), entity("B", { stage: "Lead", value: 200 }), entity("C", { stage: "Won", value: 100 })];
     expect(pipelineByStage(deals, deal, ["Lead", "Won", "Lost"])).toEqual([
       { stage: "Lead", count: 2, value: 400, width: "100%" },
       { stage: "Won", count: 1, value: 100, width: "25%" },
       { stage: "Lost", count: 0, value: 0, width: "0%" },
+    ]);
+  });
+
+  it("matches stages in any case, puts 'Closed Won' in Won, and adds off-list stages then (no stage) last", () => {
+    const deals = [
+      entity("A", { stage: "lead", value: 1 }), entity("B", { stage: "Closed Won", value: 2 }), entity("C", { value: 4 }),
+      entity("D", { stage: "x", value: 8 }), entity("E", { stage: "X ", value: 16 }),
+    ];
+    expect(pipelineByStage(deals, deal, ["Lead", "Won"]).map((s) => [s.stage, s.count, s.value])).toEqual([
+      ["Lead", 1, 1], ["Won", 1, 2], ["x", 2, 24], ["(no stage)", 1, 4],
     ]);
   });
 
