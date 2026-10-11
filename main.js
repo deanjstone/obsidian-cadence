@@ -9357,7 +9357,7 @@ var GRAPH_TYPE_COLORS = {
 function graphNodeColor(type) {
   return GRAPH_TYPE_COLORS[type] || GRAPH_TYPE_COLORS.note;
 }
-function buildEntityGraph(files, resolvedLinks, random = Math.random) {
+function buildEntityGraph(files, resolvedLinks, random = Math.random, size = { width: 800, height: 400 }) {
   const nodes = [];
   const nodeMap = /* @__PURE__ */ new Map();
   files.filter((f) => f.path.startsWith("Cadence/")).forEach((file) => {
@@ -9367,8 +9367,8 @@ function buildEntityGraph(files, resolvedLinks, random = Math.random) {
       name: file.basename,
       type,
       file,
-      x: random() * 500 + 150,
-      y: random() * 250 + 100,
+      x: random() * size.width * 0.625 + size.width * 0.1875,
+      y: random() * size.height * 0.625 + size.height * 0.25,
       vx: 0,
       vy: 0,
       radius: graphNodeRadius(type)
@@ -9449,6 +9449,11 @@ function layoutGraph(graph, size, pinned = null) {
     n.vy *= 0.92;
   });
 }
+var SETTLE_SPEED = 0.01;
+function graphSettled(nodes, pinned = null) {
+  if (pinned) return false;
+  return nodes.every((n) => Math.hypot(n.vx, n.vy) < SETTLE_SPEED);
+}
 function toGraphPoint(screen, transform) {
   return {
     x: (screen.x - transform.x) / transform.k,
@@ -9509,13 +9514,18 @@ async function renderReportGraph(view, root) {
   tooltip.style.display = "none";
   tooltip.style.zIndex = "100";
   tooltip.style.boxShadow = "var(--shadow-s)";
-  const { nodes, links } = buildEntityGraph(view.app.vault.getMarkdownFiles(), view.app.metadataCache.resolvedLinks || {});
   let width = canvas.clientWidth || 800;
   let height = canvas.clientHeight || 400;
   canvas.width = width * window.devicePixelRatio;
   canvas.height = height * window.devicePixelRatio;
   const ctx = canvas.getContext("2d");
   ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+  const { nodes, links } = buildEntityGraph(
+    view.app.vault.getMarkdownFiles(),
+    view.app.metadataCache.resolvedLinks || {},
+    Math.random,
+    { width, height }
+  );
   let transform = { x: 0, y: 0, k: 1 };
   let isPanning = false;
   let panStart = { x: 0, y: 0 };
@@ -9524,6 +9534,10 @@ async function renderReportGraph(view, root) {
   let dragStartPos = { x: 0, y: 0 };
   let hasMovedSinceDown = false;
   const resizeObserver = new ResizeObserver(() => {
+    if (!canvas.isConnected) {
+      stop();
+      return;
+    }
     if (!canvas.clientWidth) return;
     width = canvas.clientWidth;
     height = canvas.clientHeight;
@@ -9531,8 +9545,18 @@ async function renderReportGraph(view, root) {
     canvas.height = height * window.devicePixelRatio;
     ctx.resetTransform();
     ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+    requestDraw();
   });
   resizeObserver.observe(canvas);
+  let frameQueued = false;
+  const requestDraw = () => {
+    if (frameQueued) return;
+    frameQueued = true;
+    requestAnimationFrame(step);
+  };
+  const stop = () => {
+    resizeObserver.disconnect();
+  };
   const getMousePos = (e) => {
     const rect = canvas.getBoundingClientRect();
     return {
@@ -9546,6 +9570,7 @@ async function renderReportGraph(view, root) {
     else view.openEntityDetail(node.type, node.file);
   };
   const press = (e) => {
+    requestDraw();
     dragStartPos = { x: e.clientX, y: e.clientY };
     hasMovedSinceDown = false;
     const canvasPos = getCanvasPos(e);
@@ -9559,6 +9584,7 @@ async function renderReportGraph(view, root) {
     }
   };
   const move = (e) => {
+    requestDraw();
     const dist = Math.hypot(e.clientX - dragStartPos.x, e.clientY - dragStartPos.y);
     if (dist > 4) {
       hasMovedSinceDown = true;
@@ -9590,6 +9616,7 @@ async function renderReportGraph(view, root) {
     }
   };
   const release = () => {
+    requestDraw();
     const pressed = draggedNode;
     isPanning = false;
     draggedNode = null;
@@ -9597,6 +9624,7 @@ async function renderReportGraph(view, root) {
     if (!hasMovedSinceDown && pressed) openNode(pressed);
   };
   const leave = () => {
+    requestDraw();
     draggedNode = null;
     isPanning = false;
     hoveredNode = null;
@@ -9631,10 +9659,12 @@ async function renderReportGraph(view, root) {
     e.preventDefault();
     const mouse = getMousePos(e);
     transform = zoomAt(transform, mouse, e.deltaY);
+    requestDraw();
   });
   const step = () => {
+    frameQueued = false;
     if (!canvas.isConnected) {
-      resizeObserver.disconnect();
+      stop();
       return;
     }
     layoutGraph({ nodes, links }, { width, height }, draggedNode);
@@ -9672,9 +9702,9 @@ async function renderReportGraph(view, root) {
       ctx.fillText(n.name, n.x, n.y + n.radius + 12 / transform.k);
     });
     ctx.restore();
-    requestAnimationFrame(step);
+    if (!graphSettled(nodes, draggedNode)) requestDraw();
   };
-  requestAnimationFrame(step);
+  requestDraw();
 }
 
 // src/views/reports.ts

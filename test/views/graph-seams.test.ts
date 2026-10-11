@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { TFile } from "obsidian";
 import {
-  GRAPH_TYPE_COLORS, buildEntityGraph, graphNodeColor, graphNodeRadius, graphNodeType, graphTooltip, layoutGraph, nodeAt,
+  GRAPH_TYPE_COLORS, buildEntityGraph, graphNodeColor, graphSettled, graphNodeRadius, graphNodeType, graphTooltip, layoutGraph, nodeAt,
   toGraphPoint, zoomAt, type GraphNode,
 } from "../../src/views/report-graph";
 
@@ -72,6 +72,14 @@ describe("buildEntityGraph", () => {
   it("draws from Math.random by default", () => {
     vi.spyOn(Math, "random").mockReturnValue(0.5);
     expect(buildEntityGraph([file("Cadence/a.md")], {}).nodes.map((n) => [n.x, n.y])).toEqual([[400, 225]]);
+  });
+
+  it("spreads the start positions over the canvas size: 3/16–13/16 across and 1/4–7/8 down (150–650 × 100–350 at 800×400)", () => {
+    const files = [file("Cadence/a.md"), file("Cadence/b.md")];
+    const { nodes } = buildEntityGraph(files, {}, seq(0, 0, 1, 1), { width: 1600, height: 800 });
+    expect(nodes.map((n) => [n.x, n.y])).toEqual([[300, 200], [1300, 700]]);
+    const small = buildEntityGraph(files, {}, seq(0, 0, 1, 1), { width: 320, height: 240 });
+    expect(small.nodes.map((n) => [n.x, n.y])).toEqual([[60, 60], [260, 210]]);
   });
 
   it("links resolved targets that are graph nodes, in link order, both ways and to itself; others are dropped", () => {
@@ -151,6 +159,16 @@ describe("layoutGraph", () => {
     const n = node("n", 400, 200);
     layoutGraph({ nodes: [n], links: [] }, { width: 1000, height: 400 });
     expect(n.x).toBe(400 + 100 * 0.0003);
+  });
+});
+
+describe("graphSettled", () => {
+  it("is settled when every node moves under 0.01px a frame, and never while a node is pinned", () => {
+    expect(graphSettled([])).toBe(true);
+    expect(graphSettled([node("a", 0, 0, { vx: 0.006, vy: -0.0079 })])).toBe(true);
+    expect(graphSettled([node("a", 0, 0), node("b", 0, 0, { vx: 0.006, vy: 0.008 })])).toBe(false);
+    const held = node("h", 0, 0);
+    expect(graphSettled([held], held)).toBe(false);
   });
 });
 

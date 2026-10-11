@@ -114,12 +114,71 @@ describe("renderReportGraph: layout", () => {
     expect(frame()[0]).toEqual(["clearRect", 0, 0, 1000, 500]);
   });
 
-  it("queues one frame on render; each frame queues the next while the canvas is connected", async () => {
-    const { raf, frame } = await rendered();
+  it("queues one frame on render; an empty graph is settled after it and queues nothing more", async () => {
+    const { raf, frames, frame } = await rendered();
     expect(raf).toHaveBeenCalledTimes(1);
     frame();
+    expect(frames).toEqual([]);
+    expect(raf).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps animating while the nodes move, then settles near the centre and stops redrawing", async () => {
+    const { frames, frame } = await rendered([note("Cadence/Contacts/A.md")], { random: [0, 0] });
+    let count = 0;
+    let last: unknown[] = [];
+    while (frames.length && count < 5000) {
+      last = ops(frame(), "arc")[0];
+      count++;
+    }
+    expect(frames).toEqual([]);
+    expect(count).toBeGreaterThan(10);
+    expect(count).toBeLessThan(5000);
+    expect(Math.hypot((last[1] as number) - 400, (last[2] as number) - 200)).toBeLessThan(5);
+  });
+
+  it("once settled, a pointer move, press, release, leave, wheel step or resize draws one more frame", async () => {
+    const { canvas, frames, frame } = await rendered();
     frame();
-    expect(raf).toHaveBeenCalledTimes(3);
+    const redraws = (act: () => void) => {
+      act();
+      act();
+      const queued = frames.length;
+      for (let i = 0; frames.length && i < 100; i++) frame();
+      return frames.length ? Infinity : queued;
+    };
+    expect(redraws(() => canvas.trigger("mousemove", pointer(5, 5)))).toBe(1);
+    expect(redraws(() => canvas.trigger("mousedown", pointer(5, 5)))).toBe(1);
+    expect(redraws(() => canvas.trigger("mouseup", pointer(5, 5)))).toBe(1);
+    expect(redraws(() => canvas.trigger("mouseleave"))).toBe(1);
+    expect(redraws(() => canvas.trigger("wheel", { ...pointer(5, 5), deltaY: 10 }))).toBe(1);
+    canvas.clientWidth = 900;
+    canvas.clientHeight = 300;
+    expect(redraws(() => FakeResizeObserver.made[0].callback())).toBe(1);
+  });
+
+  it("a resize after the canvas leaves the document disconnects the observer and draws nothing", async () => {
+    const { canvas, frames, frame } = await rendered();
+    frame();
+    canvas.isConnected = false;
+    canvas.clientWidth = 900;
+    FakeResizeObserver.made[0].callback();
+    expect(FakeResizeObserver.made[0].disconnected).toBe(1);
+    expect(frames).toEqual([]);
+  });
+
+  it("starts the nodes spread over the canvas's laid-out size", async () => {
+    const createEl = FakeElement.prototype.createEl;
+    vi.spyOn(FakeElement.prototype, "createEl").mockImplementation(function (this: FakeElement, ...args: Any[]) {
+      const el = createEl.apply(this, args as Any);
+      if (args[0] === "canvas") Object.assign(el, { clientWidth: 1600, clientHeight: 800 });
+      return el;
+    });
+    const { canvas, frame } = await rendered([note("Cadence/Contacts/A.md")], { random: [1, 1] });
+    expect([canvas.width, canvas.height]).toEqual([3200, 1600]);
+    const [arc] = ops(frame(), "arc");
+    // Starts at (1300, 700), pulled toward (800, 400) at 0.0012.
+    expect(arc[1]).toBeCloseTo(1300 - 500 * 0.0012, 10);
+    expect(arc[2]).toBeCloseTo(700 - 300 * 0.0012, 10);
   });
 
   it("a frame after the canvas leaves the document disconnects the observer, draws nothing and queues nothing", async () => {

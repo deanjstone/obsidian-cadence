@@ -87,11 +87,14 @@ export function graphNodeColor(type: GraphNodeType): string {
 }
 
 /* One node per markdown note under Cadence/, in file order, each starting
-   at a random point in 150–650 × 100–350 (x drawn before y). One edge per
+   at a random point spread over the canvas: 3/16–13/16 of its width and
+   1/4–7/8 of its height (150–650 × 100–350 at the default 800×400; x
+   drawn before y). One edge per
    resolved link from one graph note to another, in the source's link
    order: a self-link is an edge, and links both ways are two. */
 export function buildEntityGraph(
   files: TFile[], resolvedLinks: Record<string, Record<string, number>>, random: () => number = Math.random,
+  size: { width: number; height: number } = { width: 800, height: 400 },
 ): EntityGraph {
   const nodes: GraphNode[] = [];
   const nodeMap = new Map<string, GraphNode>();
@@ -102,8 +105,8 @@ export function buildEntityGraph(
       name: file.basename,
       type,
       file,
-      x: random() * 500 + 150,
-      y: random() * 250 + 100,
+      x: random() * size.width * 0.625 + size.width * 0.1875,
+      y: random() * size.height * 0.625 + size.height * 0.25,
       vx: 0,
       vy: 0,
       radius: graphNodeRadius(type),
@@ -191,6 +194,17 @@ export function layoutGraph(graph: EntityGraph, size: { width: number; height: n
   });
 }
 
+/* Below this speed (px a frame) a node is at rest. */
+const SETTLE_SPEED = 0.01;
+
+/* Whether the layout has come to rest: every node moves under
+   SETTLE_SPEED px a frame. Never while a node is pinned (dragged), which
+   the pointer is still moving. */
+export function graphSettled(nodes: GraphNode[], pinned: GraphNode | null = null): boolean {
+  if (pinned) return false;
+  return nodes.every((n) => Math.hypot(n.vx, n.vy) < SETTLE_SPEED);
+}
+
 /* A screen point (relative to the canvas) in graph space. */
 export function toGraphPoint(screen: GraphPoint, transform: GraphTransform): GraphPoint {
   return {
@@ -268,15 +282,17 @@ export async function renderReportGraph(view: AppViewHost, root: HTMLElement): P
   tooltip.style.zIndex = '100';
   tooltip.style.boxShadow = 'var(--shadow-s)';
 
-  // Gather Nodes & Links
-  const { nodes, links } = buildEntityGraph(view.app.vault.getMarkdownFiles(), view.app.metadataCache.resolvedLinks || {});
-
   let width = canvas.clientWidth || 800;
   let height = canvas.clientHeight || 400;
   canvas.width = width * window.devicePixelRatio;
   canvas.height = height * window.devicePixelRatio;
   const ctx = canvas.getContext('2d')!;
   ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+
+  // Gather Nodes & Links, spread over the canvas
+  const { nodes, links } = buildEntityGraph(
+    view.app.vault.getMarkdownFiles(), view.app.metadataCache.resolvedLinks || {}, Math.random, { width, height },
+  );
 
   // Zoom & Pan state
   let transform: GraphTransform = { x: 0, y: 0, k: 1 };
@@ -289,6 +305,10 @@ export async function renderReportGraph(view: AppViewHost, root: HTMLElement): P
 
   // Resize handling
   const resizeObserver = new ResizeObserver(() => {
+    if (!canvas.isConnected) {
+      stop();
+      return;
+    }
     if (!canvas.clientWidth) return;
     width = canvas.clientWidth;
     height = canvas.clientHeight;
@@ -296,8 +316,22 @@ export async function renderReportGraph(view: AppViewHost, root: HTMLElement): P
     canvas.height = height * window.devicePixelRatio;
     ctx.resetTransform();
     ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+    requestDraw();
   });
   resizeObserver.observe(canvas);
+
+  /* Frames run only while something changes: the layout moving, or the
+     pointer, the zoom or the size. Once the layout settles, the loop stops
+     until the next change asks for a frame. */
+  let frameQueued = false;
+  const requestDraw = () => {
+    if (frameQueued) return;
+    frameQueued = true;
+    requestAnimationFrame(step);
+  };
+  const stop = () => {
+    resizeObserver.disconnect();
+  };
 
   // Coordinate conversions
   const getMousePos = (e: ClientPoint) => {
@@ -320,6 +354,7 @@ export async function renderReportGraph(view: AppViewHost, root: HTMLElement): P
      pressed node is held from the press, so a click needs no mousemove
      first: a release within 4px of the press opens it. */
   const press = (e: ClientPoint) => {
+    requestDraw();
     dragStartPos = { x: e.clientX, y: e.clientY };
     hasMovedSinceDown = false;
 
@@ -336,6 +371,7 @@ export async function renderReportGraph(view: AppViewHost, root: HTMLElement): P
   };
 
   const move = (e: ClientPoint) => {
+    requestDraw();
     const dist = Math.hypot(e.clientX - dragStartPos.x, e.clientY - dragStartPos.y);
     if (dist > 4) {
       hasMovedSinceDown = true;
@@ -373,6 +409,7 @@ export async function renderReportGraph(view: AppViewHost, root: HTMLElement): P
   };
 
   const release = () => {
+    requestDraw();
     const pressed = draggedNode;
     isPanning = false;
     draggedNode = null;
@@ -382,6 +419,7 @@ export async function renderReportGraph(view: AppViewHost, root: HTMLElement): P
   };
 
   const leave = () => {
+    requestDraw();
     draggedNode = null;
     isPanning = false;
     hoveredNode = null;
@@ -425,12 +463,14 @@ export async function renderReportGraph(view: AppViewHost, root: HTMLElement): P
     const mouse = getMousePos(e);
 
     transform = zoomAt(transform, mouse, e.deltaY);
+    requestDraw();
   });
 
   // Physics Engine
   const step = () => {
+    frameQueued = false;
     if (!canvas.isConnected) {
-      resizeObserver.disconnect();
+      stop();
       return;
     }
 
@@ -483,8 +523,8 @@ export async function renderReportGraph(view: AppViewHost, root: HTMLElement): P
 
     ctx.restore();
 
-    requestAnimationFrame(step);
+    if (!graphSettled(nodes, draggedNode)) requestDraw();
   };
 
-  requestAnimationFrame(step);
+  requestDraw();
 }
