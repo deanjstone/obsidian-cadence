@@ -233,10 +233,10 @@ describe("_tickProjectTaskByText", () => {
     expect(app.vault.modified).toEqual([]);
   });
 
-  it("QUIRK: the rewrite drops non-task lines from ## Tasks and indentation from task lines", async () => {
+  it("edits only the ticked line, keeping non-task lines and indentation in ## Tasks", async () => {
     const { view, file, read } = setup([project("Intro line\n- [ ] Ship\n  - [ ] Sub\n    detail\n")]);
     await view._tickProjectTaskByText(file("Cadence/Projects/P.md"), "Ship", true);
-    expect(await read("Cadence/Projects/P.md")).toContain("## Tasks\n- [x] Ship\n- [ ] Sub\n\n## Notes");
+    expect(await read("Cadence/Projects/P.md")).toContain("## Tasks\nIntro line\n- [x] Ship\n  - [ ] Sub\n    detail\n\n## Notes");
   });
 
   it("does nothing without a ## Tasks section", async () => {
@@ -245,11 +245,12 @@ describe("_tickProjectTaskByText", () => {
     expect(app.vault.modified).toEqual([]);
   });
 
-  it("swallows a read error", async () => {
+  it("reports a read error with a Notice and writes nothing", async () => {
     const { view, file, app } = setup([project("- [ ] Ship\n")]);
     vi.spyOn(app.vault, "read").mockRejectedValue(new Error("gone"));
     await expect(view._tickProjectTaskByText(file("Cadence/Projects/P.md"), "Ship", true)).resolves.toBeUndefined();
     expect(app.vault.modified).toEqual([]);
+    expect(Notice.messages).toEqual(["Couldn't update Cadence/Projects/P.md: gone"]);
   });
 });
 
@@ -286,20 +287,21 @@ describe("_tickDailyNoteTaskByText", () => {
       { tasksHeading: "## Todo" },
     );
     await view._tickDailyNoteTaskByText(file("daily/2026-10-10.md"), "Ship", true);
-    expect(await read("daily/2026-10-10.md")).toBe("## Todo\n- [x] Ship\n\n## Today\n- [ ] Ship\n");
+    expect(await read("daily/2026-10-10.md")).toBe("## Todo\n- [x] Ship\n## Today\n- [ ] Ship\n");
   });
 
-  it("QUIRK: the rewrite drops non-task lines from the tasks section and de-indents the ticked line", async () => {
+  it("edits only the ticked line, keeping non-task lines and indentation in the tasks section", async () => {
     const { view, file, read } = setup([daily("Plan:\n  - [ ] Ship\n  - [ ] Keep\n")]);
     await view._tickDailyNoteTaskByText(file("daily/2026-10-10.md"), "Ship", true);
-    expect(await read("daily/2026-10-10.md")).toContain("## Today\n- [x] Ship\n  - [ ] Keep\n\n## Journal");
+    expect(await read("daily/2026-10-10.md")).toContain("## Today\nPlan:\n  - [x] Ship\n  - [ ] Keep\n\n## Journal");
   });
 
-  it("swallows a read error", async () => {
+  it("reports a read error with a Notice and writes nothing", async () => {
     const { view, file, app } = setup([daily("- [ ] Ship\n")]);
     vi.spyOn(app.vault, "read").mockRejectedValue(new Error("gone"));
     await view._tickDailyNoteTaskByText(file("daily/2026-10-10.md"), "Ship", true);
     expect(app.vault.modified).toEqual([]);
+    expect(Notice.messages).toEqual(["Couldn't update daily/2026-10-10.md: gone"]);
   });
 });
 

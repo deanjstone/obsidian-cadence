@@ -1,6 +1,6 @@
 import type { DailyNoteSettings } from '../types/settings';
 import type { TaskNotesTask } from '../types/entities';
-import { parseH2Sections, parseSections, parseTasksList, replaceSection, stringifyTasks } from './parsing';
+import { parseHeaderKey, parseSections, replaceSection } from './parsing';
 
 /* Checklist lines (`- [ ] …`) and the markdown rewrites behind every task
    tick and append on Home, Today, the Calendar and task propagation. Each
@@ -22,6 +22,52 @@ export function taskLineState(line: string): 'open' | 'done' | null {
   const match = TASK_PREFIX.exec(line);
   if (!match) return null;
   return match[1] === ' ' ? 'open' : 'done';
+}
+
+/** Sets a checklist line's leading box to `done`, keeping its indentation,
+    spacing and text. A line already in that state, or not a checklist
+    line, comes back unchanged. */
+export function setTaskLineState(line: string, done: boolean): string {
+  return line.replace(/^(\s*-\s\[)(x|X| )(\]\s)/, (whole, open: string, box: string, close: string) => {
+    if ((box !== ' ') === done) return whole;
+    return `${open}${done ? 'x' : ' '}${close}`;
+  });
+}
+
+/** Whether a project H2 heading key (`Label #tag`) is a tasks section: a
+    #tasks tag or the label Tasks, in any case. */
+export function isTasksSectionKey(rawKey: string): boolean {
+  const { cleanLabel, tag } = parseHeaderKey(rawKey);
+  return tag === '#tasks' || cleanLabel.toLowerCase() === 'tasks';
+}
+
+/* The line indexes of the checklist lines in every H2 section whose
+   trimmed heading line `inSection` accepts. */
+function sectionTaskLineIndexes(lines: string[], inSection: (heading: string) => boolean): number[] {
+  const indexes: number[] = [];
+  let active = false;
+  lines.forEach((line, i) => {
+    if (/^##\s/.test(line)) {
+      active = inSection(line.trim());
+      return;
+    }
+    if (active && TASK_PREFIX.test(line)) indexes.push(i);
+  });
+  return indexes;
+}
+
+/* Sets every listed line whose trimmed text equals `text` to `done`, in
+   place. Returns the new content, or null when no line changes. */
+function tickLinesByText(lines: string[], indexes: number[], text: string, done: boolean): string | null {
+  let changed = false;
+  for (const i of indexes) {
+    if (lines[i].replace(TASK_PREFIX, '').trim() !== text) continue;
+    const next = setTaskLineState(lines[i], done);
+    if (next === lines[i]) continue;
+    lines[i] = next;
+    changed = true;
+  }
+  return changed ? lines.join('\n') : null;
 }
 
 /** TaskNotes tasks scheduled on `ymd`, and their checklist lines. */
@@ -84,38 +130,20 @@ export function replaceJournal(content: string, settings: Pick<DailyNoteSettings
   return replaceSection(content, settings.journalHeading, body || '');
 }
 
-/** Sets every task in a project's `## Tasks` whose trimmed title equals
-    `text` to `done`. Returns null when no task changes. */
+/** Sets every task in a project's tasks sections (`isTasksSectionKey`, so
+    `## Tasks #todo` and `## Todo #tasks` too) whose trimmed title equals
+    `text` to `done`, editing only those lines. Returns null when no task
+    changes. */
 export function tickProjectTasks(content: string, text: string, done: boolean): string | null {
-  const sections = parseH2Sections(content);
-  const tasks = parseTasksList(sections['Tasks'] || '');
-  let changed = false;
-  const updated = tasks.map((tk) => {
-    if (tk.title.trim() === text && !!tk.done !== !!done) {
-      changed = true;
-      return Object.assign({}, tk, { done: !!done });
-    }
-    return tk;
-  });
-  if (!changed) return null;
-  return replaceSection(content, '## Tasks', stringifyTasks(updated));
+  const lines = content.split('\n');
+  const indexes = sectionTaskLineIndexes(lines, (heading) => isTasksSectionKey(heading.replace(/^##\s+/, '')));
+  return tickLinesByText(lines, indexes, text, !!done);
 }
 
-/** Sets every daily-note task whose trimmed text equals `text` to `done`.
-    Returns null when no line changes. */
+/** Sets every daily-note task whose trimmed text equals `text` to `done`,
+    editing only those lines. Returns null when no line changes. */
 export function tickDailyTasks(content: string, settings: TaskHeadings, text: string, done: boolean): string | null {
-  const parsed = parseSections(content, settings);
-  let changed = false;
-  const updatedTasks = parsed.tasks.map((line) => {
-    const lineText = line.replace(TASK_PREFIX, '').trim();
-    if (lineText !== text) return line;
-    const isDone = / \[(x|X)\] /.test(line);
-    if (isDone === !!done) return line;
-    changed = true;
-    return done
-      ? line.replace(/^\s*-\s\[\s\]\s/, '- [x] ')
-      : line.replace(/^\s*-\s\[(x|X)\]\s/, '- [ ] ');
-  });
-  if (!changed) return null;
-  return replaceSection(content, settings.tasksHeading, updatedTasks.join('\n'));
+  const lines = content.split('\n');
+  const indexes = sectionTaskLineIndexes(lines, (heading) => heading === settings.tasksHeading);
+  return tickLinesByText(lines, indexes, text, !!done);
 }

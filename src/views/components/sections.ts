@@ -4,6 +4,7 @@ import type { Entity, EntityKey, Frontmatter } from '../../types/entities';
 import { entityValue, listEntities, readProjectMeta } from '../../utils/entities';
 import { fmtValue, pctBand } from '../../utils/format';
 import { parseHeaderKey, parseLinkValues, parseMilestones, parseTasksList } from '../../utils/parsing';
+import { isTasksSectionKey } from '../../utils/task-lines';
 import type { AppViewHost } from '../host';
 import { sectionChartData } from './charts';
 
@@ -67,7 +68,7 @@ export type DynamicH2Kind =
 export function dynamicH2Kind(rawKey: string): DynamicH2Kind {
   const { cleanLabel, tag } = parseHeaderKey(rawKey);
   const cleanLower = cleanLabel.toLowerCase();
-  if (tag === '#tasks' || cleanLower === 'tasks') return { kind: 'tasks', cleanLabel };
+  if (isTasksSectionKey(rawKey)) return { kind: 'tasks', cleanLabel };
   if (tag === '#milestones' || cleanLower === 'milestones') return { kind: 'milestones', cleanLabel };
   if (tag.startsWith('#cross-')) {
     const crossParts = tag.slice('#cross-'.length).split('-');

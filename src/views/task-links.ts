@@ -177,17 +177,28 @@ export async function propagateTaskComplete(view: AppViewHost, text: string, don
   }
 }
 
+/* A propagation target that can't be read is reported and skipped, so the
+   other targets still update. */
+async function readTickTarget(view: AppViewHost, file: TFile): Promise<string | null> {
+  try {
+    return await view.app.vault.read(file);
+  } catch (error) {
+    new Notice(`Couldn't update ${file.path}: ${(error as Error).message}`);
+    return null;
+  }
+}
+
 export async function tickProjectTaskByText(view: AppViewHost, file: TFile, text: string, done: boolean): Promise<void> {
-  let content;
-  try { content = await view.app.vault.read(file); } catch (_) { return; }
+  const content = await readTickTarget(view, file);
+  if (content === null) return;
   const next = tickProjectTasks(content, text, done);
   if (next === null) return;
   await view.app.vault.modify(file, next);
 }
 
 export async function tickDailyNoteTaskByText(view: AppViewHost, file: TFile, text: string, done: boolean): Promise<void> {
-  let content;
-  try { content = await view.app.vault.read(file); } catch (_) { return; }
+  const content = await readTickTarget(view, file);
+  if (content === null) return;
   const next = tickDailyTasks(content, view.plugin.settings, text, done);
   if (next === null) return;
   await view.app.vault.modify(file, next);

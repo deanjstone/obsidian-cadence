@@ -99,8 +99,9 @@ describe("tickProjectTasks", () => {
     expect(tickProjectTasks("## Brief\n- [ ] Ship\n", "Ship", true)).toBeNull();
   });
 
-  it("does not match a tagged Tasks heading", () => {
-    expect(tickProjectTasks("## Tasks #todo\n- [ ] Ship\n", "Ship", true)).toBeNull();
+  it("matches every tasks section: a tagged Tasks heading, or any label with a #tasks tag", () => {
+    expect(tickProjectTasks("## Tasks #todo\n- [ ] Ship\n", "Ship", true)).toBe("## Tasks #todo\n- [x] Ship\n");
+    expect(tickProjectTasks("## Todo #tasks\n- [ ] Ship\n## Notes\n- [ ] Ship\n", "Ship", true)).toBe("## Todo #tasks\n- [x] Ship\n## Notes\n- [ ] Ship\n");
   });
 });
 
