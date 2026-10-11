@@ -25,10 +25,10 @@ interface TagSource {
 /* The saved badge keeps its hide timer on the element. */
 type SavedBadge = HTMLElement & { _t?: ReturnType<typeof setTimeout> };
 
-/** The page title: `name` when truthy, else the basename. Flagged: unlike
-    the generic form, a falsy name such as 0 falls back too. */
+/** The page title: `name` unless it is missing or empty, else the basename,
+    as on the generic form, so a name of 0 is kept (#50). */
 export function companyDetailTitle(fm: Frontmatter, basename: string): unknown {
-  return fm.name || basename;
+  return (fm.name != null && fm.name !== '') ? fm.name : basename;
 }
 
 /** The meta row's fields: every non-primary field, except a `type` field

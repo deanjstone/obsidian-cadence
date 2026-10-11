@@ -186,18 +186,20 @@ describe("renderProjectDetail: status and priority pills", () => {
     const odd = setup([{ path: "Cadence/Projects/Odd.md", frontmatter: { status: "On  Hold", priority: "Urgent" } }]);
     await odd.render("Cadence/Projects/Odd.md");
     expect(pills(odd.root).map((w) => w.classes[2])).toEqual(["cad-pill-on-hold", "cad-pill-prio-urgent"]);
-    // QUIRK: a value outside the options selects nothing, so the select shows its first option.
-    expect([pill(odd.root, 0).value, pill(odd.root, 1).value]).toEqual(["active", "low"]);
+    // A stored value outside the options is offered after them and selected, so the pill shows it.
+    expect([pill(odd.root, 0).value, pill(odd.root, 1).value]).toEqual(["On  Hold", "Urgent"]);
+    expect(pill(odd.root, 1).options.map((o) => o.value)).toEqual(["low", "medium", "high", "Urgent"]);
   });
 
-  it("takes the options from the project's field definitions", async () => {
+  it("takes the options from the project's field definitions, offering a stored status outside them", async () => {
     const status = ENTITIES.project.fields.find((f) => f.key === "status") as EntityField;
     const saved = status.options;
     status.options = ["open", "closed"];
     try {
       const { root, render } = setup([APOLLO]);
       await render();
-      expect(pill(root, 0).options.map((o) => o.value)).toEqual(["open", "closed"]);
+      expect(pill(root, 0).options.map((o) => o.value)).toEqual(["open", "closed", "on_hold"]);
+      expect(pill(root, 0).value).toBe("on_hold");
       status.options = [];
       const fallback = setup([APOLLO]);
       await fallback.render();

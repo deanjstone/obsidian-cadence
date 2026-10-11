@@ -53,10 +53,18 @@ export interface ProjectPill {
   key: 'status' | 'priority';
   /** Classes for the pill's wrapper, after `cad-pd-select-wrap`. */
   cls: string;
+  /** The field's options, then a stored value that is not one of them, so
+      the pill shows (and keeps) what the note holds (#50). */
   options: string[];
-  /** The option to select. Flagged: a value outside `options` selects nothing,
-      so the select shows its first option. */
+  /** The option to select. */
   current: string;
+}
+
+/* The options, plus the stored value when the note has one outside them. */
+function withStored(options: string[], stored: unknown): string[] {
+  if (stored == null || stored === '') return options;
+  const value = String(stored);
+  return options.includes(value) ? options : [...options, value];
 }
 
 /** The hero's two selects. Status defaults to active and priority to
@@ -65,8 +73,8 @@ export function projectPills(fm: Frontmatter, statusOptions: string[], priorityO
   const status = String(fm.status || 'active');
   const priority = String(fm.priority || '');
   return [
-    { key: 'status', cls: 'cad-pill cad-pill-' + status.toLowerCase().replace(/\s+/g, '-'), options: statusOptions, current: status },
-    { key: 'priority', cls: 'cad-pill cad-pill-prio-' + (priority || 'medium').toLowerCase(), options: priorityOptions, current: priority || 'medium' },
+    { key: 'status', cls: 'cad-pill cad-pill-' + status.toLowerCase().replace(/\s+/g, '-'), options: withStored(statusOptions, fm.status), current: status },
+    { key: 'priority', cls: 'cad-pill cad-pill-prio-' + (priority || 'medium').toLowerCase(), options: withStored(priorityOptions, fm.priority), current: priority || 'medium' },
   ];
 }
 

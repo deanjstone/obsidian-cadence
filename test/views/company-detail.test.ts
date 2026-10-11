@@ -105,10 +105,10 @@ describe("renderCompanyDetail: header", () => {
     ]);
   });
 
-  it("titles with name, else the basename (a falsy name included)", async () => {
+  it("titles with name, else the basename; a name of 0 is kept, as on the generic form", async () => {
     const { root, render } = setup([{ path: "Cadence/Companies/Zero.md", frontmatter: { name: 0 } }]);
     await render("Cadence/Companies/Zero.md");
-    expect(crumbs(root)[1]).toBe("Zero");
+    expect(crumbs(root)[1]).toBe("0");
     const bare = setup([{ path: "Cadence/Companies/Bare.md" }]);
     await bare.render("Cadence/Companies/Bare.md");
     expect(crumbs(bare.root)[1]).toBe("Bare");

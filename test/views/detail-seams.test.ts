@@ -258,9 +258,11 @@ describe("entity detail seams", () => {
 });
 
 describe("company detail seams", () => {
-  it("titles with a truthy name, else the basename", () => {
+  it("titles with the name unless it is missing or empty, else the basename, as the generic form does", () => {
     expect(companyDetailTitle({ name: "Acme" }, "file")).toBe("Acme");
-    expect(companyDetailTitle({ name: 0 }, "file")).toBe("file");
+    expect(companyDetailTitle({ name: 0 }, "file")).toBe(0);
+    expect(companyDetailTitle({ name: "" }, "file")).toBe("file");
+    expect(companyDetailTitle({ name: null }, "file")).toBe("file");
     expect(companyDetailTitle({}, "file")).toBe("file");
   });
 

@@ -26,11 +26,13 @@ describe("project page seams", () => {
     expect(projectDetailTitle({}, "bare")).toBe("bare");
   });
 
-  it("projectPills: status and priority with their classes, current values and defaults", () => {
+  it("projectPills: status and priority with their classes, current values and defaults; a stored value outside the options is offered", () => {
     expect(projectPills({ status: "on_hold", priority: "High" }, ["a"], ["b"])).toEqual([
-      { key: "status", cls: "cad-pill cad-pill-on_hold", options: ["a"], current: "on_hold" },
-      { key: "priority", cls: "cad-pill cad-pill-prio-high", options: ["b"], current: "High" },
+      { key: "status", cls: "cad-pill cad-pill-on_hold", options: ["a", "on_hold"], current: "on_hold" },
+      { key: "priority", cls: "cad-pill cad-pill-prio-high", options: ["b", "High"], current: "High" },
     ]);
+    expect(projectPills({ status: "a", priority: "b" }, ["a"], ["b"]).map((p) => p.options)).toEqual([["a"], ["b"]]);
+    expect(projectPills({}, ["a"], ["b"]).map((p) => [p.options, p.current])).toEqual([[["a"], "active"], [["b"], "medium"]]);
     expect(projectPills({}, PROJECT_STATUS_FALLBACK, PROJECT_PRIORITY_FALLBACK).map((p) => [p.cls, p.current])).toEqual([
       ["cad-pill cad-pill-active", "active"], ["cad-pill cad-pill-prio-medium", "medium"],
     ]);
