@@ -632,7 +632,7 @@ export class CadenceAppView extends ItemView implements AppViewHost {
 
   renderTemplateDetail(root: HTMLElement, entityKey: string, file: TFile | null) { return renderTemplateDetail(this, root, entityKey, file); }
 
-  _renderTemplateSectionWithDelete(parent: HTMLElement, file: TFile, sections: Record<string, string>, rawKey: string, flashSaved?: FlashSaved, allRawKeys?: string[]) { return renderTemplateSectionWithDelete(this, parent, file, sections, rawKey, flashSaved, allRawKeys); }
+  _renderTemplateSectionWithDelete(parent: HTMLElement, file: TFile, sections: Record<string, string>, rawKey: string, flashSaved?: FlashSaved) { return renderTemplateSectionWithDelete(this, parent, file, sections, rawKey, flashSaved); }
 
   _getEntityFiles(entityKey: EntityKey | 'daily') { return getEntityFiles(this, entityKey); }
 

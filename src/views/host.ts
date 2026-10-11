@@ -198,10 +198,9 @@ export interface AppViewHost {
   renderTemplatesDashboard(root: HTMLElement): Promise<void>;
   /** The template builder; with no file it closes the detail. */
   renderTemplateDetail(root: HTMLElement, entityKey: string, file: TFile | null): Promise<void>;
-  /** Flagged: allRawKeys is never read, and the propagation key is file.basename. */
+  /** Flagged: the propagation key is file.basename. */
   _renderTemplateSectionWithDelete(
     parent: HTMLElement, file: TFile, sections: Record<string, string>, rawKey: string, flashSaved?: FlashSaved,
-    allRawKeys?: string[],
   ): void;
   /** The entity's notes whose same-named section has non-placeholder content. */
   _getFilesUsingTemplateSection(entityKey: EntityKey | 'daily', rawKey: string): Promise<TFile[]>;

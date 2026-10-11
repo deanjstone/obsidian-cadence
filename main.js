@@ -297,7 +297,6 @@ var CadenceCaptureModal = class extends import_obsidian.Modal {
     schedFields.style.display = "none";
     schedFields.style.marginTop = "12px";
     schedFields.style.gap = "12px";
-    schedFields.style.display = "none";
     const dateRow = schedFields.createDiv({ cls: "cad-form-row" });
     dateRow.createDiv({ cls: "cad-form-label", text: "WHEN" });
     const dateInput = dateRow.createEl("input", { type: "datetime-local", cls: "cad-form-input" });
@@ -6955,7 +6954,6 @@ var CadenceReminderEditModal = class extends import_obsidian19.Modal {
 // src/views/home.ts
 async function renderHome(view, root) {
   root.addClass("cadence-home");
-  const settings = view.plugin.settings;
   const today = /* @__PURE__ */ new Date();
   const dateStr = today.toLocaleDateString(void 0, { weekday: "long", month: "long", day: "numeric", year: "numeric" });
   view._renderPageHeader(root, `${greeting()}.`, dateStr, (right2) => {
@@ -10462,9 +10460,9 @@ async function renderTemplatesDashboard(view, root) {
   const grid = root.createDiv({
     cls: "cad-proj-grid"
   });
+  const templatesFolder = "Cadence/Templates";
+  await ensureFolderSync(view.app, templatesFolder);
   {
-    const templatesFolder = "Cadence/Templates";
-    await ensureFolderSync(view.app, templatesFolder);
     const dailyTemplatePath = `${templatesFolder}/daily.md`;
     const dailyTFile = view.app.vault.getAbstractFileByPath(dailyTemplatePath);
     const exists = !!(dailyTFile && dailyTFile instanceof import_obsidian28.TFile);
@@ -10526,8 +10524,6 @@ async function renderTemplatesDashboard(view, root) {
     });
   }
   for (const [entityKey, def] of Object.entries(ENTITIES)) {
-    const templatesFolder = "Cadence/Templates";
-    await ensureFolderSync(view.app, templatesFolder);
     let foundPath = null;
     let exists = false;
     const pathsToTry = templatePathCandidates(templatesFolder, entityKey, def);
@@ -10747,7 +10743,7 @@ async function renderTemplateDetail(view, root, entityKey, file) {
     }).open();
   });
 }
-function renderTemplateSectionWithDelete(view, parent, file, sections, rawKey, flashSaved, allRawKeys) {
+function renderTemplateSectionWithDelete(view, parent, file, sections, rawKey, flashSaved) {
   const entityKey = templateEntityKey(file.basename);
   const { cleanLabel, tag } = parseHeaderKey(rawKey);
   const wrap = parent.createDiv({ attr: { style: "position: relative; margin-bottom: 12px; transition: transform 0.2s ease;" } });
@@ -11723,8 +11719,8 @@ var CadenceAppView = class extends import_obsidian30.ItemView {
   renderTemplateDetail(root, entityKey, file) {
     return renderTemplateDetail(this, root, entityKey, file);
   }
-  _renderTemplateSectionWithDelete(parent, file, sections, rawKey, flashSaved, allRawKeys) {
-    return renderTemplateSectionWithDelete(this, parent, file, sections, rawKey, flashSaved, allRawKeys);
+  _renderTemplateSectionWithDelete(parent, file, sections, rawKey, flashSaved) {
+    return renderTemplateSectionWithDelete(this, parent, file, sections, rawKey, flashSaved);
   }
   _getEntityFiles(entityKey) {
     return getEntityFiles(this, entityKey);
