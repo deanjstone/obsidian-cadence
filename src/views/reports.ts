@@ -354,7 +354,7 @@ export function activityReport(activities: Entity[], def: EntityDef, now: Date, 
   activities.forEach((e) => {
     const when = entityValue(e, 'when', def);
     if (!when) return;
-    const t = new Date(when as string).getTime();
+    const t = (parseYmd(when) ?? new Date(when as string)).getTime();
     if (isNaN(t)) return;
     const idx = weeks.findIndex((w) => t >= w.start.getTime() && t < w.end.getTime());
     if (idx >= 0) weeks[idx].count++;

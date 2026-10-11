@@ -1,3 +1,5 @@
+import { parseYmd } from './dates';
+
 export type PctBand = 'rose' | 'warn' | 'mint' | 'emerald';
 
 /* Map a 0-100 % to a colour band — drives progress bar tint. */
@@ -48,7 +50,8 @@ export function fmtValue(val: unknown, type?: string): string {
   if (val == null || val === '') return '';
   if (type === 'tags' && Array.isArray(val)) return val.map((t) => `#${t}`).join(' ');
   if (type === 'date') {
-    const d = new Date(val as string);
+    /* A bare YYYY-MM-DD (or a one-item list of one) is local midnight (#70). */
+    const d = parseYmd(String(val)) ?? new Date(val as string);
     if (!isNaN(d.getTime())) return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
     return String(val);
   }
