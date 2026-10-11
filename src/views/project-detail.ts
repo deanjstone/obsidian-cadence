@@ -230,12 +230,12 @@ export function taskNotePath(folderPath: string, text: string, exists: (path: st
   return filename;
 }
 
-/** A new task note: open, scheduled today, linked to the project.
-    Flagged: the title is written unquoted, so YAML-significant text (a
-    colon, a leading quote) is not escaped. */
+/** A new task note: open, scheduled today, linked to the project. The
+    title is a double-quoted YAML string (JSON's escaping is valid there), so
+    a colon, a quote or a leading # stays text (#50). */
 export function taskNoteContent(text: string, today: Date, projectBasename: string): string {
   return `---
-title: ${text}
+title: ${JSON.stringify(text)}
 status: open
 scheduled: ${ymd(today)}
 projects: "[[${projectBasename}]]"

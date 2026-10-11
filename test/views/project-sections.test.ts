@@ -496,7 +496,7 @@ describe("_renderTaskSection (TaskNotes)", () => {
     expect(prompt.mock.calls).toEqual([[{ title: "Ajouter une tâche (TaskNotes)", placeholder: "Que faut-il faire ?", cta: "Ajouter" }]]);
     expect(app.vault.created).toEqual(["TaskNotes/Tasks/Fix ab.md"]);
     expect(await app.vault.read(app.vault.getAbstractFileByPath("TaskNotes/Tasks/Fix ab.md") as Any)).toBe(
-      '---\ntitle: Fix: "a/b"?\nstatus: open\nscheduled: 2026-10-10\nprojects: "[[Apollo]]"\npriority: normal\n---\n',
+      '---\ntitle: "Fix: \\"a/b\\"?"\nstatus: open\nscheduled: 2026-10-10\nprojects: "[[Apollo]]"\npriority: normal\n---\n',
     );
     expect(rendered).toHaveBeenCalledTimes(1);
   });

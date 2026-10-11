@@ -191,10 +191,11 @@ describe("task seams", () => {
     expect(taskNotePath(TASKNOTES_FOLDER, "New", () => false)).toBe("TaskNotes/Tasks/New.md");
   });
 
-  it("taskNoteContent: open, scheduled today, linked to the project, title unquoted", () => {
+  it("taskNoteContent: open, scheduled today, linked to the project, title quoted", () => {
     expect(taskNoteContent("Fix: it", new Date("2026-10-10T09:00:00Z"), "Apollo")).toBe(
-      '---\ntitle: Fix: it\nstatus: open\nscheduled: 2026-10-10\nprojects: "[[Apollo]]"\npriority: normal\n---\n',
+      '---\ntitle: "Fix: it"\nstatus: open\nscheduled: 2026-10-10\nprojects: "[[Apollo]]"\npriority: normal\n---\n',
     );
+    expect(taskNoteContent('"Quoted" \\ #tag', new Date("2026-10-10T09:00:00Z"), "Apollo")).toContain('title: "\\"Quoted\\" \\\\ #tag"\n');
     expect(TASKNOTES_PROMPT).toEqual({ title: "Ajouter une tâche (TaskNotes)", placeholder: "Que faut-il faire ?", cta: "Ajouter" });
   });
 });
