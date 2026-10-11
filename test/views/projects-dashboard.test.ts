@@ -100,24 +100,42 @@ describe("renderProjectsDashboard: header and stats", () => {
     expect(total.children.map((c) => c.text)).toEqual(["TOTAL PROJECTS", "5", "Across all active and custom statuses"]);
   });
 
-  it("renders one card per status option with its accent, label and case-insensitive count", async () => {
+  it("renders one card per status option with its accent, label and count, folding case and -/_/spaces", async () => {
     const { view, root } = setup(PROJECTS);
     await view.renderProjectsDashboard(root);
     expect(statusCards(root).map((c) => [c.dataset.stage, c.dataset.accent, c.children[0].text, c.children[1].text])).toEqual([
       ["active", "emerald", "ACTIVE PROJECTS", "2"],
-      ["on_hold", "warn", "ON HOLD PROJECTS", "0"],
+      ["on_hold", "warn", "ON HOLD PROJECTS", "1"],
       ["backlog", "purple", "BACKLOG PROJECTS", "0"],
       ["done", "mint", "DONE PROJECTS", "1"],
       ["cancelled", "rose", "CANCELLED PROJECTS", "0"],
+      [undefined, "sky", "OTHER PROJECTS", "1"],
     ]);
   });
 
-  it("QUIRK: a project with no status or an off-list one ('on-hold') is in the total but in no status card", async () => {
+  it("every project in the total is in a status card: 'on-hold' in ON HOLD, no status in OTHER", async () => {
     const { view, root } = setup(PROJECTS);
     await view.renderProjectsDashboard(root);
     const listed = statusCards(root).flatMap((c) => cardRows(c).filter((r) => r.hasClass("cad-dash-row")).map((r) => r.children[0].text));
-    expect(listed).toEqual(["Alpha launch", "Epsilon", "Beta"]);
+    expect(listed).toEqual(["Alpha launch", "Epsilon", "Gamma", "Beta", "Delta"]);
     expect(statGrid(root).children[0].children[1].text).toBe("5");
+  });
+
+  it("the OTHER card shows an off-list status as its pill-free row, takes no drops, and is absent when empty", async () => {
+    const files = [project("Odd", { name: "Odd", status: "archived" }), project("Ok", { name: "Ok", status: "active" })];
+    const { view, root, fm, rendered } = setup(files);
+    await view.renderProjectsDashboard(root);
+    const other = statusCards(root).at(-1)!;
+    expect([other.dataset.stage, other.children[0].text, cardRows(other).map(rowView)]).toEqual([undefined, "OTHER PROJECTS", [["Odd"]]]);
+    other.trigger("drop", { dataTransfer: dataTransfer({ "text/cadence-entity": "Cadence/Projects/Ok.md", "text/cadence-stage-status": "active" }) });
+    await flush();
+    expect([fm("Cadence/Projects/Ok.md")!.status, rendered.mock.calls.length]).toEqual(["active", 0]);
+    const dt = dataTransfer();
+    cardRows(other)[0].trigger("dragstart", { dataTransfer: dt });
+    expect(dt.store["text/cadence-stage-status"]).toBe("");
+    const clean = setup([project("Ok", { status: "active" })]);
+    await clean.view.renderProjectsDashboard(clean.root);
+    expect(statusCards(clean.root).map((c) => c.children[0].text)).not.toContain("OTHER PROJECTS");
   });
 
   it("lists each status card's projects with a priority pill, or 'No projects'", async () => {

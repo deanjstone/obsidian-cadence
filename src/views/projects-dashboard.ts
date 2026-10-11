@@ -66,24 +66,35 @@ export function priorityAccent(priority: string): string {
   return PRIORITY_ACCENTS[priority.toLowerCase()] || 'sky';
 }
 
-/* The projects whose field matches the option, ignoring case. A blank or
-   off-list value matches no option. */
-function projectsWith(projects: Entity[], def: EntityDef, key: string, option: string): Entity[] {
-  return projects.filter(p => String(entityValue(p, key, def)).toLowerCase() === option.toLowerCase());
+/* An option as the dashboard compares it: lower case, with runs of
+   spaces, '-' and '_' folded to one '_' ('On Hold', 'on-hold', 'on_hold'). */
+export function optionKey(value: unknown): string {
+  return String(value ?? '').trim().toLowerCase().replace(/[\s_-]+/g, '_');
 }
 
-/* The dashboard's numbers: the total, one card per status option and one
-   per priority option. A project counts in the total even when no card
-   matches its status. */
-export function projectsSummary(projects: Entity[], def: EntityDef): { total: number; statuses: DashboardColumn[]; priorities: DashboardColumn[] } {
+/* The projects whose field matches the option (optionKey). A blank or
+   off-list value matches no option. */
+function projectsWith(projects: Entity[], def: EntityDef, key: string, option: string): Entity[] {
+  return projects.filter(p => optionKey(entityValue(p, key, def)) === optionKey(option));
+}
+
+/* The dashboard's numbers: the total, one card per status option, the
+   projects no status card holds (no status, or off the list), and one card
+   per priority option. */
+export function projectsSummary(projects: Entity[], def: EntityDef): {
+  total: number; statuses: DashboardColumn[]; otherStatuses: Entity[]; priorities: DashboardColumn[];
+} {
+  const statuses = dashboardOptions(def, 'status', PROJECT_STATUSES).map((status, index) => ({
+    value: status,
+    label: `${status.replace(/_/g, ' ').toUpperCase()} PROJECTS`,
+    accent: statusAccent(status, index),
+    items: projectsWith(projects, def, 'status', status),
+  }));
+  const carded = new Set(statuses.flatMap(c => c.items));
   return {
     total: projects.length,
-    statuses: dashboardOptions(def, 'status', PROJECT_STATUSES).map((status, index) => ({
-      value: status,
-      label: `${status.replace(/_/g, ' ').toUpperCase()} PROJECTS`,
-      accent: statusAccent(status, index),
-      items: projectsWith(projects, def, 'status', status),
-    })),
+    statuses,
+    otherStatuses: projects.filter(p => !carded.has(p)),
     priorities: dashboardOptions(def, 'priority', PROJECT_PRIORITIES).map((prio) => ({
       value: prio,
       label: `${prio.toUpperCase()} PRIORITY`,
@@ -115,10 +126,10 @@ export function acceptsDrop(path: string, fromStage: string, stage: string): boo
   return !(!path || fromStage === stage);
 }
 
-/* Whether a drop changes the field: a value already on that card (in any
-   case) writes nothing. */
+/* Whether a drop changes the field: a value already on that card
+   (optionKey) writes nothing. */
 export function dropChanges(current: unknown, target: string): boolean {
-  return String(current ?? '').toLowerCase() !== target.toLowerCase();
+  return optionKey(current) !== optionKey(target);
 }
 
 /* A drop on a status or priority card: writes the field to a project note
@@ -209,11 +220,11 @@ export async function renderProjectsDashboard(view: AppViewHost, root: HTMLEleme
   totalCard.createDiv({ cls: 'cad-stat-value', text: String(summary.total), attr: { style: 'font-size: 3rem; font-weight: 800; margin-top: 12px; line-height: 1;' } });
   totalCard.createDiv({ cls: 'cad-stat-sub', text: 'Across all active and custom statuses', attr: { style: 'margin-top: 12px; font-size: 0.85em; color: var(--text-muted);' } });
 
-  // 2. Dynamic status cards
-  summary.statuses.forEach(({ value: status, label, accent, items }) => {
+  // 2. Dynamic status cards, then OTHER for any project none of them holds
+  const drawStatusCard = ({ value: status, label, accent, items }: DashboardColumn, droppable: boolean) => {
     const colCard = grid.createDiv({ cls: 'cad-stat-card', attr: { style: 'padding: 20px; display: flex; flex-direction: column; min-height: 280px; margin: 0; position: relative;' } });
     colCard.dataset.accent = accent;
-    colCard.dataset.stage = status; // For drag & drop target
+    if (droppable) colCard.dataset.stage = status; // For drag & drop target
 
     // Header info
     colCard.createDiv({
@@ -228,24 +239,26 @@ export async function renderProjectsDashboard(view: AppViewHost, root: HTMLEleme
     const list = colCard.createDiv({ attr: { style: 'margin-top: 16px; flex: 1; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; padding-right: 4px; min-height: 120px;' } });
 
     // Drag and drop listeners on the status card itself
-    colCard.addEventListener('dragover', (ev) => {
-      ev.preventDefault();
-      try { ev.dataTransfer!.dropEffect = 'move'; } catch (_) { }
-      colCard.style.boxShadow = '0 0 0 2px var(--interactive-accent)';
-    });
-    colCard.addEventListener('dragleave', (ev) => {
-      if (!colCard.contains(ev.relatedTarget as Node | null)) {
+    if (droppable) {
+      colCard.addEventListener('dragover', (ev) => {
+        ev.preventDefault();
+        try { ev.dataTransfer!.dropEffect = 'move'; } catch (_) { }
+        colCard.style.boxShadow = '0 0 0 2px var(--interactive-accent)';
+      });
+      colCard.addEventListener('dragleave', (ev) => {
+        if (!colCard.contains(ev.relatedTarget as Node | null)) {
+          colCard.style.boxShadow = '';
+        }
+      });
+      colCard.addEventListener('drop', async (ev) => {
+        ev.preventDefault();
         colCard.style.boxShadow = '';
-      }
-    });
-    colCard.addEventListener('drop', async (ev) => {
-      ev.preventDefault();
-      colCard.style.boxShadow = '';
-      const path = ev.dataTransfer!.getData('text/cadence-entity');
-      const fromStage = ev.dataTransfer!.getData('text/cadence-stage-status');
-      if (!acceptsDrop(path, fromStage, status)) return;
-      await dropOntoCard(view, def, path, 'status', status);
-    });
+        const path = ev.dataTransfer!.getData('text/cadence-entity');
+        const fromStage = ev.dataTransfer!.getData('text/cadence-stage-status');
+        if (!acceptsDrop(path, fromStage, status)) return;
+        await dropOntoCard(view, def, path, 'status', status);
+      });
+    }
 
     if (!items.length) {
       list.createDiv({ cls: 'cad-empty', text: 'No projects', attr: { style: 'text-align: center; color: var(--text-faint); margin-top: 32px;' } });
@@ -289,7 +302,11 @@ export async function renderProjectsDashboard(view: AppViewHost, root: HTMLEleme
         }
       });
     }
-  });
+  };
+  summary.statuses.forEach((column) => drawStatusCard(column, true));
+  if (summary.otherStatuses.length) {
+    drawStatusCard({ value: '', label: 'OTHER PROJECTS', accent: 'sky', items: summary.otherStatuses }, false);
+  }
 
   // ─── Priority Board Section ────────────────────────
   root.createDiv({ cls: 'cad-section-label-lg', text: 'PROJECTS BY PRIORITY' });

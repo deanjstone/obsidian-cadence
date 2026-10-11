@@ -70,7 +70,7 @@ describe("projectsSummary", () => {
     expect(summary.total).toBe(4);
     expect(summary.statuses.map((c) => [c.value, c.label, c.accent, names(c.items)])).toEqual([
       ["active", "ACTIVE PROJECTS", "emerald", ["A"]],
-      ["on_hold", "ON HOLD PROJECTS", "warn", []],
+      ["on_hold", "ON HOLD PROJECTS", "warn", ["C"]],
       ["backlog", "BACKLOG PROJECTS", "purple", []],
       ["done", "DONE PROJECTS", "mint", ["B"]],
       ["cancelled", "CANCELLED PROJECTS", "rose", []],
@@ -80,6 +80,12 @@ describe("projectsSummary", () => {
       ["medium", "MEDIUM PRIORITY", "warn", []],
       ["high", "HIGH PRIORITY", "rose", ["A"]],
     ]);
+  });
+
+  it("puts a project with no status, or one matching no option, in otherStatuses", () => {
+    const summary = projectsSummary([...projects, entity("E", { status: "archived" }), entity("F", { status: "On Hold" })], project);
+    expect(names(summary.otherStatuses)).toEqual(["D", "E"]);
+    expect(names(summary.statuses[1].items)).toEqual(["C", "F"]);
   });
 
   it("falls back to the default statuses and priorities when the def has neither field", () => {
