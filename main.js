@@ -4435,6 +4435,9 @@ var WIDGET_STYLE_OPTIONS = [
 function dashboardWidgets(settings, key) {
   return settings[key] || [];
 }
+function widgetTitle(widget) {
+  return String(widget.title ?? "").trim() || "Untitled chart";
+}
 function removeWidget(widgets, id) {
   return (widgets || []).filter((item) => item.id !== id);
 }
@@ -5440,7 +5443,7 @@ async function renderCrmDashboard(view, root) {
     widgets.forEach((w) => {
       const card = widgetsGrid.createDiv({ cls: "cad-dash-card", attr: { style: "margin: 0; display: flex; flex-direction: column;" } });
       const head = card.createDiv({ cls: "cad-dash-card-head", attr: { style: "display: flex; justify-content: space-between; align-items: center; padding: 10px 14px;" } });
-      head.createDiv({ cls: "cad-dash-card-title", text: w.title.toUpperCase(), attr: { style: "font-weight: 700; font-size: 0.75rem; letter-spacing: 0.12em;" } });
+      head.createDiv({ cls: "cad-dash-card-title", text: widgetTitle(w).toUpperCase(), attr: { style: "font-weight: 700; font-size: 0.75rem; letter-spacing: 0.12em;" } });
       const actionsWrap = head.createDiv({ attr: { style: "display: flex; gap: 8px; align-items: center;" } });
       const styleSelect = actionsWrap.createEl("select", { cls: "cad-prop-input" });
       styleSelect.style.padding = "2px 4px";
@@ -5466,7 +5469,7 @@ async function renderCrmDashboard(view, root) {
         attr: { style: "color: var(--text-error); padding: 2px 8px; font-weight: bold; border-color: var(--text-error); font-size: 1.1em; height: auto; border-radius: 4px; background: transparent;" }
       });
       delBtn.addEventListener("click", async () => {
-        if (!confirm(`Delete chart "${w.title}"?`)) return;
+        if (!confirm(`Delete chart "${widgetTitle(w)}"?`)) return;
         view.plugin.settings.crmDashboardWidgets = removeWidget(view.plugin.settings.crmDashboardWidgets, w.id);
         await view.plugin.saveSettings();
         view.render();
@@ -7920,7 +7923,7 @@ async function renderPRMAnalytics(view, root) {
     widgets.forEach((w) => {
       const card = widgetsGrid.createDiv({ cls: "cad-dash-card", attr: { style: "margin: 0; display: flex; flex-direction: column;" } });
       const head = card.createDiv({ cls: "cad-dash-card-head", attr: { style: "display: flex; justify-content: space-between; align-items: center; padding: 10px 14px;" } });
-      head.createDiv({ cls: "cad-dash-card-title", text: w.title.toUpperCase(), attr: { style: "font-weight: 700; font-size: 0.75rem; letter-spacing: 0.12em;" } });
+      head.createDiv({ cls: "cad-dash-card-title", text: widgetTitle(w).toUpperCase(), attr: { style: "font-weight: 700; font-size: 0.75rem; letter-spacing: 0.12em;" } });
       const actionsWrap = head.createDiv({ attr: { style: "display: flex; gap: 8px; align-items: center;" } });
       const styleSelect = actionsWrap.createEl("select", { cls: "cad-prop-input" });
       styleSelect.style.padding = "2px 4px";
@@ -7946,7 +7949,7 @@ async function renderPRMAnalytics(view, root) {
         attr: { style: "color: var(--text-error); padding: 2px 8px; font-weight: bold; border-color: var(--text-error); font-size: 1.1em; height: auto; border-radius: 4px; background: transparent;" }
       });
       delBtn.addEventListener("click", async () => {
-        if (!confirm(`Delete chart "${w.title}"?`)) return;
+        if (!confirm(`Delete chart "${widgetTitle(w)}"?`)) return;
         view.plugin.settings.prmDashboardWidgets = removeWidget(view.plugin.settings.prmDashboardWidgets, w.id);
         await view.plugin.saveSettings();
         view.render();
@@ -8707,8 +8710,8 @@ var PRIORITY_ACCENTS = {
   high: "rose"
 };
 function dashboardOptions(def, key, fallback) {
-  const field = def.fields.find((f) => f.key === key) || { options: fallback };
-  return field.options || fallback;
+  const field = def.fields.find((f) => f.key === key);
+  return field && field.options && field.options.length ? field.options : fallback;
 }
 function statusAccent(status, index) {
   return STATUS_ACCENTS[status.toLowerCase().replace("-", "_")] || FALLBACK_ACCENTS[index % FALLBACK_ACCENTS.length];
@@ -8716,18 +8719,24 @@ function statusAccent(status, index) {
 function priorityAccent(priority) {
   return PRIORITY_ACCENTS[priority.toLowerCase()] || "sky";
 }
+function optionKey(value) {
+  return String(value ?? "").trim().toLowerCase().replace(/[\s_-]+/g, "_");
+}
 function projectsWith(projects, def, key, option) {
-  return projects.filter((p) => String(entityValue(p, key, def)).toLowerCase() === option.toLowerCase());
+  return projects.filter((p) => optionKey(entityValue(p, key, def)) === optionKey(option));
 }
 function projectsSummary(projects, def) {
+  const statuses = dashboardOptions(def, "status", PROJECT_STATUSES).map((status, index) => ({
+    value: status,
+    label: `${status.replace(/_/g, " ").toUpperCase()} PROJECTS`,
+    accent: statusAccent(status, index),
+    items: projectsWith(projects, def, "status", status)
+  }));
+  const carded = new Set(statuses.flatMap((c) => c.items));
   return {
     total: projects.length,
-    statuses: dashboardOptions(def, "status", PROJECT_STATUSES).map((status, index) => ({
-      value: status,
-      label: `${status.replace(/_/g, " ").toUpperCase()} PROJECTS`,
-      accent: statusAccent(status, index),
-      items: projectsWith(projects, def, "status", status)
-    })),
+    statuses,
+    otherStatuses: projects.filter((p) => !carded.has(p)),
     priorities: dashboardOptions(def, "priority", PROJECT_PRIORITIES).map((prio) => ({
       value: prio,
       label: `${prio.toUpperCase()} PRIORITY`,
@@ -8742,12 +8751,30 @@ function projectRowName(entity, def) {
 function dashRowPill(value) {
   if (!value) return null;
   return {
-    cls: `cad-pill cad-pill-${String(value).toLowerCase().replace(/\s+/g, "_")}`,
+    cls: `cad-pill cad-pill-${String(value).toLowerCase().replace(/\s+/g, "-")}`,
     text: String(value).replace(/_/g, " ")
   };
 }
 function acceptsDrop(path, fromStage, stage) {
   return !(!path || fromStage === stage);
+}
+function dropChanges(current, target) {
+  return optionKey(current) !== optionKey(target);
+}
+async function dropOntoCard(view, def, path, key, value) {
+  const file = view.app.vault.getAbstractFileByPath(path);
+  if (!file || !(file instanceof import_obsidian24.TFile)) return;
+  if (entityKeyFromFile(view.app, file) !== "project") return;
+  if (!dropChanges(entityValue(readEntity(view.app, file), key, def), value)) return;
+  try {
+    await view.app.fileManager.processFrontMatter(file, (fm) => {
+      fm[key] = value;
+    });
+    new import_obsidian24.Notice(`Project ${key} set to ${value}`);
+    view.render();
+  } catch (e) {
+    new import_obsidian24.Notice(`Failed to change ${key}: ${e.message}`);
+  }
 }
 function statusKey(status) {
   return status.toLowerCase().replace(/\s+/g, "_");
@@ -8795,10 +8822,10 @@ async function renderProjectsDashboard(view, root) {
   totalCard.createDiv({ cls: "cad-stat-label", text: "TOTAL PROJECTS", attr: { style: "font-weight: 700; letter-spacing: 0.12em;" } });
   totalCard.createDiv({ cls: "cad-stat-value", text: String(summary.total), attr: { style: "font-size: 3rem; font-weight: 800; margin-top: 12px; line-height: 1;" } });
   totalCard.createDiv({ cls: "cad-stat-sub", text: "Across all active and custom statuses", attr: { style: "margin-top: 12px; font-size: 0.85em; color: var(--text-muted);" } });
-  summary.statuses.forEach(({ value: status, label, accent, items }) => {
+  const drawStatusCard = ({ value: status, label, accent, items }, droppable) => {
     const colCard = grid.createDiv({ cls: "cad-stat-card", attr: { style: "padding: 20px; display: flex; flex-direction: column; min-height: 280px; margin: 0; position: relative;" } });
     colCard.dataset.accent = accent;
-    colCard.dataset.stage = status;
+    if (droppable) colCard.dataset.stage = status;
     colCard.createDiv({
       cls: "cad-stat-label",
       text: label,
@@ -8810,37 +8837,29 @@ async function renderProjectsDashboard(view, root) {
       attr: { style: "font-size: 2.25rem; font-weight: 800; margin-top: 4px;" }
     });
     const list = colCard.createDiv({ attr: { style: "margin-top: 16px; flex: 1; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; padding-right: 4px; min-height: 120px;" } });
-    colCard.addEventListener("dragover", (ev) => {
-      ev.preventDefault();
-      try {
-        ev.dataTransfer.dropEffect = "move";
-      } catch (_) {
-      }
-      colCard.style.boxShadow = "0 0 0 2px var(--interactive-accent)";
-    });
-    colCard.addEventListener("dragleave", (ev) => {
-      if (!colCard.contains(ev.relatedTarget)) {
+    if (droppable) {
+      colCard.addEventListener("dragover", (ev) => {
+        ev.preventDefault();
+        try {
+          ev.dataTransfer.dropEffect = "move";
+        } catch (_) {
+        }
+        colCard.style.boxShadow = "0 0 0 2px var(--interactive-accent)";
+      });
+      colCard.addEventListener("dragleave", (ev) => {
+        if (!colCard.contains(ev.relatedTarget)) {
+          colCard.style.boxShadow = "";
+        }
+      });
+      colCard.addEventListener("drop", async (ev) => {
+        ev.preventDefault();
         colCard.style.boxShadow = "";
-      }
-    });
-    colCard.addEventListener("drop", async (ev) => {
-      ev.preventDefault();
-      colCard.style.boxShadow = "";
-      const path = ev.dataTransfer.getData("text/cadence-entity");
-      const fromStage = ev.dataTransfer.getData("text/cadence-stage-status");
-      if (!acceptsDrop(path, fromStage, status)) return;
-      const file = view.app.vault.getAbstractFileByPath(path);
-      if (!file || !(file instanceof import_obsidian24.TFile)) return;
-      try {
-        await view.app.fileManager.processFrontMatter(file, (fm) => {
-          fm["status"] = status;
-        });
-        new import_obsidian24.Notice(`Project status set to ${status}`);
-        view.render();
-      } catch (e) {
-        new import_obsidian24.Notice(`Failed to change status: ${e.message}`);
-      }
-    });
+        const path = ev.dataTransfer.getData("text/cadence-entity");
+        const fromStage = ev.dataTransfer.getData("text/cadence-stage-status");
+        if (!acceptsDrop(path, fromStage, status)) return;
+        await dropOntoCard(view, def, path, "status", status);
+      });
+    }
     if (!items.length) {
       list.createDiv({ cls: "cad-empty", text: "No projects", attr: { style: "text-align: center; color: var(--text-faint); margin-top: 32px;" } });
     } else {
@@ -8877,7 +8896,11 @@ async function renderProjectsDashboard(view, root) {
         }
       });
     }
-  });
+  };
+  summary.statuses.forEach((column) => drawStatusCard(column, true));
+  if (summary.otherStatuses.length) {
+    drawStatusCard({ value: "", label: "OTHER PROJECTS", accent: "sky", items: summary.otherStatuses }, false);
+  }
   root.createDiv({ cls: "cad-section-label-lg", text: "PROJECTS BY PRIORITY" });
   const boardWrap = root.createDiv({ cls: "cad-stat-grid", attr: { style: "padding-top: 0; padding-bottom: 24px;" } });
   const renderBoard = () => {
@@ -8916,17 +8939,7 @@ async function renderProjectsDashboard(view, root) {
         const path = ev.dataTransfer.getData("text/cadence-entity");
         const fromStage = ev.dataTransfer.getData("text/cadence-stage");
         if (!acceptsDrop(path, fromStage, prio)) return;
-        const file = view.app.vault.getAbstractFileByPath(path);
-        if (!file || !(file instanceof import_obsidian24.TFile)) return;
-        try {
-          await view.app.fileManager.processFrontMatter(file, (fm) => {
-            fm["priority"] = prio;
-          });
-          new import_obsidian24.Notice(`Project priority set to ${prio}`);
-          view.render();
-        } catch (e) {
-          new import_obsidian24.Notice(`Failed to change priority: ${e.message}`);
-        }
+        await dropOntoCard(view, def, path, "priority", prio);
       });
       if (!items.length) {
         list.createDiv({ cls: "cad-empty", text: "No projects", attr: { style: "text-align: center; color: var(--text-faint); margin-top: 32px;" } });
@@ -8986,7 +8999,7 @@ async function renderProjectsDashboard(view, root) {
     widgets.forEach((w) => {
       const card = widgetsGrid.createDiv({ cls: "cad-dash-card", attr: { style: "margin: 0; display: flex; flex-direction: column;" } });
       const head = card.createDiv({ cls: "cad-dash-card-head", attr: { style: "display: flex; justify-content: space-between; align-items: center; padding: 10px 14px;" } });
-      head.createDiv({ cls: "cad-dash-card-title", text: w.title.toUpperCase(), attr: { style: "font-weight: 700; font-size: 0.75rem; letter-spacing: 0.12em;" } });
+      head.createDiv({ cls: "cad-dash-card-title", text: widgetTitle(w).toUpperCase(), attr: { style: "font-weight: 700; font-size: 0.75rem; letter-spacing: 0.12em;" } });
       const actionsWrap = head.createDiv({ attr: { style: "display: flex; gap: 8px; align-items: center;" } });
       const styleSelect = actionsWrap.createEl("select", { cls: "cad-prop-input" });
       styleSelect.style.padding = "2px 4px";
@@ -9012,7 +9025,7 @@ async function renderProjectsDashboard(view, root) {
         attr: { style: "color: var(--text-error); padding: 2px 8px; font-weight: bold; border-color: var(--text-error); font-size: 1.1em; height: auto; border-radius: 4px; background: transparent;" }
       });
       delBtn.addEventListener("click", async () => {
-        if (!confirm(`Delete chart "${w.title}"?`)) return;
+        if (!confirm(`Delete chart "${widgetTitle(w)}"?`)) return;
         view.plugin.settings.projectDashboardWidgets = removeWidget(view.plugin.settings.projectDashboardWidgets, w.id);
         await view.plugin.saveSettings();
         view.render();
