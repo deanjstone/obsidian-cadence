@@ -4448,11 +4448,15 @@ function dashCardSection(view, parent, title, rows, emptyMsg) {
     }
     const metaDiv = row.createDiv({ cls: "cad-dash-row-meta" });
     if (r.metaParts) {
-      r.metaParts.forEach((part) => {
+      const parts = [{ text: r.meta }, ...r.metaParts].filter((part) => String(part.text ?? "").trim() !== "");
+      parts.forEach((part, index) => {
+        if (index > 0 && !String(parts[index - 1].text).trimEnd().endsWith("\xB7") && !String(part.text).trimStart().startsWith("\xB7")) {
+          metaDiv.createSpan({ text: " \xB7 " });
+        }
         if (part.entityKey) {
           view._renderEntityLinks(metaDiv, part.text, part.entityKey);
         } else {
-          metaDiv.createSpan({ text: part.text || "" });
+          metaDiv.createSpan({ text: part.text });
         }
       });
     } else {

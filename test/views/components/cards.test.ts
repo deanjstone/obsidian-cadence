@@ -55,15 +55,17 @@ describe("_dashCardSection", () => {
     expect(titleDiv.findAll("a").map((a) => [a.text, a.classes[0]])).toEqual([["Acme Corp", "cad-company-link"]]);
   });
 
-  it("QUIRK: renders meta parts back to back, linking parts with an entityKey, with no separator", () => {
+  it("renders meta, then the meta parts, linking parts with an entityKey, separated by ' · ' and skipping blank parts", () => {
     const { view, parent } = setup();
     view._dashCardSection(parent, "T", [{
-      meta: "ignored",
-      metaParts: [{ text: "[[Jane Doe]]", entityKey: "contact" }, { text: " · Lead" }, {}],
+      meta: "Note",
+      metaParts: [{ text: "[[Jane Doe]]", entityKey: "contact" }, { text: "Lead" }, {}, { text: " · 3 deals" }],
     }]);
     const meta = bodyOf(parent).children[0].children[1];
     expect(meta.text).toBe("");
-    expect(meta.children.map((c) => [c.localName, c.text])).toEqual([["a", "Jane Doe"], ["span", " · Lead"], ["span", ""]]);
+    expect(meta.children.map((c) => [c.localName, c.text])).toEqual([
+      ["span", "Note"], ["span", " · "], ["a", "Jane Doe"], ["span", " · "], ["span", "Lead"], ["span", " · 3 deals"],
+    ]);
   });
 
   it("makes rows with a file clickable, opening the file's detail form", () => {
