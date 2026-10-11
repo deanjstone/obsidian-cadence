@@ -230,6 +230,7 @@ export async function toggleTodayTask(view: AppViewHost, idx: number, checked: b
     if (view.todayTaskNotes && view.todayTaskNotes[idx]) {
       const taskObj = view.todayTaskNotes[idx];
       await toggleTaskNotesTask(view.app, taskObj.file, checked);
+      await view._propagateTaskComplete(taskObj.title, checked, { kind: 'tasknotes', file: taskObj.file });
     }
   } else {
     const ref = view.todayParsed ? taskLineRef(view.todayParsed.tasks, idx) : null;

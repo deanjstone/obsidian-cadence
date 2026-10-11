@@ -220,9 +220,10 @@ export interface AppViewHost {
 }
 
 /* Where a ticked task came from, for _propagateTaskComplete. A daily note
-   passes its file and date, a project its file, a reminder its id. */
+   passes its file and date, a project its file, a reminder its id, and a
+   TaskNotes task its own note. */
 export interface TaskCompleteSource {
-  kind: 'daily' | 'project' | 'reminder' | (string & {});
+  kind: 'daily' | 'project' | 'reminder' | 'tasknotes' | (string & {});
   file?: TFile;
   date?: Date;
   /** kind 'reminder': the reminder's id, skipped when syncing reminders. */

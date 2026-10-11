@@ -329,7 +329,7 @@ describe("toggleTodayTask", () => {
     expect(rendered).toHaveBeenCalledTimes(2);
   });
 
-  it("in TaskNotes mode, sets the task note's status and re-renders without propagating", async () => {
+  it("in TaskNotes mode, sets the task note's status, propagates its title and re-renders", async () => {
     const { view, parent, app, propagate, rendered } = setup(
       [NOTE, taskNote("A", { title: "A", status: "open", scheduled: "2026-10-10" })],
       TASKNOTES,
@@ -339,7 +339,8 @@ describe("toggleTodayTask", () => {
     const fm = app.metadataCache.getFileCache(app.vault.getAbstractFileByPath("TaskNotes/Tasks/A.md") as TFile)!.frontmatter;
     expect(fm!.status).toBe("done");
     await view.toggleTodayTask(7, true);
-    expect(propagate).not.toHaveBeenCalled();
+    const taskFile = app.vault.getAbstractFileByPath("TaskNotes/Tasks/A.md");
+    expect(propagate.mock.calls).toEqual([["A", true, { kind: "tasknotes", file: taskFile }]]);
     expect(rendered).toHaveBeenCalledTimes(2);
     expect(app.vault.modified).toEqual([]);
   });

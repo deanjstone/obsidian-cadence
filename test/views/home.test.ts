@@ -377,7 +377,7 @@ describe("_homeTodayCard (TaskNotes)", () => {
     expect(openDetail.mock.calls).toEqual([["project", file("Cadence/Projects/Website relaunch.md")]]);
   });
 
-  it("toggles a TaskNotes task's status and re-renders, without touching a daily note", async () => {
+  it("toggles a TaskNotes task's status, propagates its title and re-renders, without touching a daily note", async () => {
     const { view, parent, app, rendered, file } = setup([tn("a", { scheduled: "2026-10-10" })], TASKNOTES);
     const propagate = vi.spyOn(view, "_propagateTaskComplete").mockResolvedValue(undefined);
     await view._homeTodayCard(parent);
@@ -386,7 +386,7 @@ describe("_homeTodayCard (TaskNotes)", () => {
     cb.trigger("change");
     await flush();
     expect(app.metadataCache.getFileCache(file("TaskNotes/Tasks/a.md") as never)?.frontmatter?.status).toBe("done");
-    expect(propagate).not.toHaveBeenCalled();
+    expect(propagate.mock.calls).toEqual([["a", true, { kind: "tasknotes", file: file("TaskNotes/Tasks/a.md") }]]);
     expect(rendered).toHaveBeenCalledTimes(1);
     expect(app.vault.created).toEqual([]);
   });

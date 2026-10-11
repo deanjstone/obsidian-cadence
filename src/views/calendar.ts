@@ -173,6 +173,7 @@ export async function togglePlannerTask(view: AppViewHost, day: PlannerDay, idx:
     if (day.rawTasks && day.rawTasks[idx]) {
       const taskObj = day.rawTasks[idx];
       await toggleTaskNotesTask(view.app, taskObj.file, checked);
+      await view._propagateTaskComplete(taskObj.title, checked, { kind: 'tasknotes', file: taskObj.file });
     }
   } else {
     const ref = taskLineRef(day.tasks, idx);

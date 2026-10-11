@@ -401,8 +401,8 @@ describe("_renderTaskSection (TaskNotes)", () => {
     expect(app.workspace.openedLinks).toEqual([["TaskNotes/Tasks/x.md", "", false]]);
   });
 
-  it("ticking sets the task note's status, without touching the section or propagating", async () => {
-    const { parent, tasks, app, propagated, rendered, read } = tn();
+  it("ticking sets the task note's status and propagates its title, without touching the section", async () => {
+    const { parent, tasks, app, propagated, rendered, read, file } = tn();
     const before = await read();
     tasks();
     tick(taskRow(parent, 1).children[0], true);
@@ -411,7 +411,10 @@ describe("_renderTaskSection (TaskNotes)", () => {
     const status = (path: string) => app.metadataCache.getFileCache(app.vault.getAbstractFileByPath(path) as Any)?.frontmatter?.status;
     expect([status(TASKS[0].path), status(TASKS[1].path)]).toEqual(["open", "done"]);
     expect(await read()).toBe(before);
-    expect(propagated).not.toHaveBeenCalled();
+    expect(propagated.mock.calls).toEqual([
+      ["Ship", true, { kind: "tasknotes", file: file(TASKS[1].path) }],
+      ["Write spec", false, { kind: "tasknotes", file: file(TASKS[0].path) }],
+    ]);
     expect(rendered).toHaveBeenCalledTimes(2);
   });
 

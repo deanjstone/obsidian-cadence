@@ -752,6 +752,7 @@ export function renderTaskSection(
         if (view.plugin.settings.taskManagementSystem === 'tasknotes') {
           const taskObj = fileTaskNotes[idx];
           await toggleTaskNotesTask(view.app, taskObj.file, cb.checked);
+          await view._propagateTaskComplete(taskObj.title, cb.checked, { kind: 'tasknotes', file: taskObj.file });
         } else {
           replaceItems(items, updateItem(items, idx, { done: cb.checked }));
           await view._commitTasks(file, items, flashSaved, false, rawKey);

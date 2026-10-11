@@ -473,6 +473,7 @@ export async function homeTodayCard(view: AppViewHost, parent: HTMLElement): Pro
       if (settings.taskManagementSystem === 'tasknotes') {
         const taskObj = todayTaskNotes[idx];
         await toggleTaskNotesTask(view.app, taskObj.file, cb.checked);
+        await view._propagateTaskComplete(taskObj.title, cb.checked, { kind: 'tasknotes', file: taskObj.file });
       } else {
         await view._tickDailyNoteTask(file!, taskLineRef(tasksList, idx)!, cb.checked, new Date());
       }
