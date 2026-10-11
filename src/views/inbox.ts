@@ -252,7 +252,11 @@ export function renderInboxRow(view: AppViewHost, parent: HTMLElement, r: Remind
   const handlers: Record<InboxRowAction, () => unknown> = {
     snooze15: () => view.plugin.snoozeReminder(r.id, 15 * 60 * 1000),
     snooze60: () => view.plugin.snoozeReminder(r.id, 60 * 60 * 1000),
-    tomorrow: () => view.plugin.updateReminder(r.id, { when: tomorrowAtNine(new Date()), notified: false }),
+    /* A snooze, so a repeating occurrence hands its series on first (#66). */
+    tomorrow: () => {
+      const now = Date.now();
+      return view.plugin.snoozeReminder(r.id, new Date(tomorrowAtNine(new Date(now))).getTime() - now);
+    },
     schedule: () => openEdit(),
     edit: () => openEdit(),
     done: async () => {

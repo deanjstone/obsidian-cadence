@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { FakeElement, type MockFileSpec } from "../mocks/obsidian";
-import { flush, makeAppView } from "../helpers/app-view";
+import { flush, makeAppView, useRealReminderEngine } from "../helpers/app-view";
 import { projectWebsite } from "../fixtures/vault";
 import { CadenceReminderEditModal } from "../../src/modals/reminder-edit";
 import { CadenceConfirmModal } from "../../src/modals/confirm";
@@ -303,8 +303,52 @@ describe("_renderInboxRow", () => {
     expect(calls).toEqual([
       ["snoozeReminder", "a", 15 * 60 * 1000],
       ["snoozeReminder", "a", 60 * 60 * 1000],
-      ["updateReminder", "a", { when: "2026-10-11T09:00:00.000Z", notified: false }],
+      ["snoozeReminder", "a", 24 * 60 * 60 * 1000],
     ]);
+  });
+
+  describe("Tom. snoozes to tomorrow 9am through the series hand-on (#66)", () => {
+    function tomorrow(reminders: Array<Record<string, unknown>>) {
+      const { view, plugin } = setup([], { reminders });
+      useRealReminderEngine(plugin);
+      const { actions } = row(view, reminders[0]);
+      actions.children[2].trigger("click");
+      return (plugin.settings.reminders as Array<Record<string, unknown>>)
+        .map((r) => ({ when: r.when, notified: r.notified, done: r.done, advanced: !!r.advanced }));
+    }
+
+    it("on an unfired repeating occurrence, moves only that occurrence; the series keeps its own time", () => {
+      expect(tomorrow([reminder("a", "2026-10-10T15:00:00Z", { repeat: "daily" })])).toEqual([
+        { when: "2026-10-11T09:00:00.000Z", notified: false, done: false, advanced: true },
+        { when: "2026-10-11T15:00:00.000Z", notified: false, done: false, advanced: false },
+      ]);
+    });
+
+    it("on a one-off, moves it to tomorrow 9am as before", () => {
+      expect(tomorrow([reminder("a", "2026-10-10T08:00:00Z", { notified: true })])).toEqual([
+        { when: "2026-10-11T09:00:00.000Z", notified: false, done: false, advanced: false },
+      ]);
+    });
+
+    it("on a fired repeating occurrence, adds no second series", () => {
+      expect(tomorrow([
+        reminder("a", "2026-10-10T08:00:00Z", { repeat: "daily", notified: true, advanced: true }),
+        reminder("b", "2026-10-11T08:00:00.000Z", { repeat: "daily" }),
+      ])).toEqual([
+        { when: "2026-10-11T09:00:00.000Z", notified: false, done: false, advanced: true },
+        { when: "2026-10-11T08:00:00.000Z", notified: false, done: false, advanced: false },
+      ]);
+    });
+
+    it("on a fired repeating occurrence saved before #44 (no advanced flag), adds no second series", () => {
+      expect(tomorrow([
+        reminder("a", "2026-10-10T08:00:00Z", { repeat: "daily", notified: true }),
+        reminder("b", "2026-10-11T08:00:00.000Z", { repeat: "daily" }),
+      ])).toEqual([
+        { when: "2026-10-11T09:00:00.000Z", notified: false, done: false, advanced: true },
+        { when: "2026-10-11T08:00:00.000Z", notified: false, done: false, advanced: false },
+      ]);
+    });
   });
 
   it("Done completes the reminder, then propagates its text", async () => {
