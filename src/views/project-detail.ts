@@ -4,7 +4,7 @@ import { CadenceConfirmModal } from '../modals/confirm';
 import { CadenceReminderEditModal } from '../modals/reminder-edit';
 import type { EntityDef, EntityField, EntityKey, Frontmatter, ProjectMeta, TaskNotesTask } from '../types/entities';
 import type { Reminder } from '../types/reminders';
-import { ymd } from '../utils/dates';
+import { parseYmd, ymd } from '../utils/dates';
 import { createEntity, getEnumOptions, listEntities, readProjectMeta } from '../utils/entities';
 import {
   COMPANY_LIST_KEYS, autoCreatesNote, chipAdd, chipConfig, chipCreation, chipLinkTarget, chipValues, chipWriteValue, dateInputValue,
@@ -124,14 +124,14 @@ export function milestoneCardTitle(rawKey: string, milestones: Array<Pick<Milest
   return `${cleanLabel.toUpperCase()} · ${milestones.filter((m) => m.done).length}/${milestones.length}`;
 }
 
-/** The YYYY-MM-DD a milestone's date input shows (UTC), or null for no valid date. */
+/** The local YYYY-MM-DD a milestone's date input shows, or null for no valid date. */
 export function milestoneDateValue(date: unknown): string | null {
-  return date instanceof Date && !isNaN(date.getTime()) ? date.toISOString().slice(0, 10) : null;
+  return date instanceof Date && !isNaN(date.getTime()) ? ymd(date) : null;
 }
 
-/** A milestone's date from its date input: null when cleared. */
+/** A milestone's date from its date input, as local midnight: null when cleared. */
 export function milestoneDateFromInput(value: string): Date | null {
-  return value ? new Date(value) : null;
+  return value ? parseYmd(value) : null;
 }
 
 /** Rewrite (or append) the `## <rawKey>` section with the milestones. */

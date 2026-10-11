@@ -8,6 +8,20 @@ export function ymd(d: Date = new Date()): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
+/* A bare `YYYY-MM-DD` as local midnight, the date ymd() writes back (#46).
+   `new Date('YYYY-MM-DD')` reads it as UTC midnight, a day early west of UTC.
+   The same strings are valid as before, and an overflowing day rolls over the
+   same way. Any other string is null. */
+export function parseYmd(s: unknown): Date | null {
+  if (typeof s !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
+  const utc = new Date(s);
+  if (isNaN(utc.getTime())) return null;
+  const d = new Date(0);
+  d.setFullYear(utc.getUTCFullYear(), utc.getUTCMonth(), utc.getUTCDate());
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
 export function dailyNotePath(settings: Pick<DailyNoteSettings, 'dailyNoteFolder'>, date: Date = new Date()): string {
   const folder = (settings.dailyNoteFolder || '').replace(/\/$/, '');
   const name = ymd(date);
