@@ -2,7 +2,7 @@ import { ItemView, Notice, setIcon, type TAbstractFile, type TFile, type Workspa
 import { ENTITIES } from '../constants/entities';
 import { BUILT_SURFACES, VIEW_TYPE_CADENCE_APP, type NavSurface } from '../constants/nav';
 import { DEFAULT_SETTINGS } from '../constants/settings';
-import type { Entity, EntityDef, EntityKey, TaskNotesTask } from '../types/entities';
+import type { Entity, EntityDef, EntityField, EntityKey, TaskNotesTask } from '../types/entities';
 import type { ChartStyle } from '../types/modals';
 import type { Reminder, ReminderBucket } from '../types/reminders';
 import { CadenceEntityCreateModal } from '../modals/entity-create';
@@ -18,6 +18,7 @@ import { dashCardSection, type DashCardRow } from './components/cards';
 import {
   drawBarChart, drawChart, drawChartEmpty, drawDonutChart, drawKpiGrid, drawSimpleList, type ChartDatum,
 } from './components/charts';
+import { renderChipInput, type ChipInputOptions } from './components/chip-input';
 import { getEntityFiles, renderEntityLinks, renderEntityTable, renderOwnerLinks } from './components/entity-table';
 import {
   renderCrossSections, renderDynamicH2Section, renderGenericTextSection, renderMarkdownTextCard, renderProjectTextSection,
@@ -568,6 +569,8 @@ export class CadenceAppView extends ItemView implements AppViewHost {
   renderEntityDetail(root: HTMLElement, entityKey: string, file: TFile) { return renderEntityDetail(this, root, entityKey, file); }
 
   _renderEntityTable(parent: HTMLElement, entityKey: EntityKey, filteredList: Entity[], columns: string[]) { return renderEntityTable(this, parent, entityKey, filteredList, columns); }
+
+  _renderChipInput(parent: HTMLElement, f: EntityField, current: unknown, opts: ChipInputOptions) { return renderChipInput(this, parent, f, current, opts); }
 
   renderCompanyDetail(root: HTMLElement, file: TFile) { return renderCompanyDetail(this, root, file); }
 

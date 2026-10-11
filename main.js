@@ -24,7 +24,7 @@ __export(main_exports, {
   CadencePlugin: () => CadencePlugin
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian31 = require("obsidian");
+var import_obsidian32 = require("obsidian");
 
 // src/constants/nav.ts
 var VIEW_TYPE_CADENCE_APP = "cadence-app";
@@ -3318,7 +3318,7 @@ async function ensureDailyNote(app, settings, date = /* @__PURE__ */ new Date())
 }
 
 // src/views/app-view.ts
-var import_obsidian30 = require("obsidian");
+var import_obsidian31 = require("obsidian");
 
 // src/modals/entity-create.ts
 var import_obsidian11 = require("obsidian");
@@ -4270,180 +4270,11 @@ async function renderCompanyDetail(view, root, file) {
     const current = fm[key];
     const control = metaControl(f);
     if (control === "chips") {
-      const { suggestionSource, isPlainChip, isList, targetEntityKey, customFolderPath } = chipConfig(f, ENTITIES, COMPANY_LIST_KEYS);
-      const chipText = (value) => chipLabel(value, suggestionSource);
-      const wrap = cell.createDiv({ cls: "cad-pd-tag-input-wrap" });
-      wrap.style.display = "flex";
-      wrap.style.flexWrap = "wrap";
-      wrap.style.gap = "6px";
-      wrap.style.alignItems = "center";
-      wrap.style.border = "none";
-      wrap.style.borderRadius = "0";
-      wrap.style.padding = "4px 0";
-      wrap.style.minHeight = "36px";
-      wrap.style.backgroundColor = "transparent";
-      wrap.style.cursor = "text";
-      const inp = wrap.createEl("input", { type: "text", cls: "cad-pd-tag-input-field" });
-      inp.style.border = "none";
-      inp.style.outline = "none";
-      inp.style.background = "transparent";
-      inp.style.color = "var(--text-normal)";
-      inp.style.flex = "1";
-      inp.style.minWidth = "80px";
-      inp.style.padding = "0";
-      inp.style.height = "24px";
-      inp.style.lineHeight = "24px";
-      inp.placeholder = `Add ${label.toLowerCase()}...`;
-      const suggestionsBox = cell.createDiv({ cls: "cad-pd-tag-suggestions" });
-      suggestionsBox.style.position = "absolute";
-      suggestionsBox.style.zIndex = "10000";
-      suggestionsBox.style.backgroundColor = "var(--background-secondary)";
-      suggestionsBox.style.border = "1px solid var(--border-color)";
-      suggestionsBox.style.borderRadius = "4px";
-      suggestionsBox.style.boxShadow = "var(--shadow-s)";
-      suggestionsBox.style.maxHeight = "150px";
-      suggestionsBox.style.overflowY = "auto";
-      suggestionsBox.style.display = "none";
-      suggestionsBox.style.width = "100%";
-      suggestionsBox.style.boxSizing = "border-box";
-      suggestionsBox.style.top = "100%";
-      suggestionsBox.style.left = "0";
-      suggestionsBox.style.marginTop = "4px";
-      let valuesList = chipValues(current, isPlainChip);
-      const updateSuggestions = () => {
-        const query = inp.value.trim().toLowerCase();
-        suggestionsBox.empty();
-        let candidates = [];
-        if (suggestionSource === "tags") {
-          candidates = Object.keys(view.app.metadataCache.getTags() || {}).map((t) => t.replace(/^#/, ""));
-        } else if (suggestionSource === "history") {
-          candidates = historyValues(view.app.vault.getMarkdownFiles().map((fl) => {
-            const cache2 = view.app.metadataCache.getFileCache(fl);
-            return cache2 && cache2.frontmatter || {};
-          }), key);
-        } else if (suggestionSource !== "none") {
-          candidates = chipScopeNotes(view.app, targetEntityKey, customFolderPath).map((note) => note.basename);
-        }
-        const filtered = filterSuggestions(candidates, query, valuesList.map(chipText));
-        if (filtered.length === 0) {
-          suggestionsBox.style.display = "none";
-          return;
-        }
-        filtered.forEach((valStr) => {
-          const item = suggestionsBox.createDiv({ cls: "cad-suggestion-item" });
-          item.style.padding = "6px 10px";
-          item.style.cursor = "pointer";
-          item.style.fontSize = "13px";
-          item.style.color = "var(--text-normal)";
-          item.setText(valStr);
-          item.addEventListener("mouseenter", () => {
-            item.style.backgroundColor = "var(--background-modifier-hover)";
-          });
-          item.addEventListener("mouseleave", () => {
-            item.style.backgroundColor = "transparent";
-          });
-          item.addEventListener("mousedown", async (ev) => {
-            ev.preventDefault();
-            await addVal(valStr);
-            suggestionsBox.style.display = "none";
-          });
-        });
-        suggestionsBox.style.display = "block";
-      };
-      const renderChips = () => {
-        const existing = wrap.querySelectorAll(".cad-tag-chip");
-        existing.forEach((c) => c.remove());
-        valuesList.forEach((valName) => {
-          const chip = wrap.createDiv({ cls: "cad-tag-chip" });
-          chip.style.display = "inline-flex";
-          chip.style.alignItems = "center";
-          chip.style.gap = "6px";
-          chip.style.backgroundColor = "var(--background-secondary, #eee)";
-          chip.style.padding = "2px 8px";
-          chip.style.borderRadius = "12px";
-          chip.style.fontSize = "12px";
-          chip.style.height = "24px";
-          chip.style.boxSizing = "border-box";
-          chip.style.color = "var(--text-normal)";
-          const labelSpan = chip.createSpan({ text: chipText(valName) });
-          if (!isPlainChip) {
-            labelSpan.style.textDecoration = "underline";
-            labelSpan.style.cursor = "pointer";
-            labelSpan.addEventListener("click", (ev) => {
-              ev.stopPropagation();
-              const target = chipLinkTarget(targetEntityKey, findNoteByName(chipScopeNotes(view.app, targetEntityKey, customFolderPath), valName), valName);
-              if (target.kind === "entity") {
-                view.openEntityDetail(target.entityKey, target.file);
-              } else if (target.kind === "file") {
-                view.openEntityDetailFromFile(target.file);
-              } else {
-                view.app.workspace.openLinkText(target.linktext, "", false);
-              }
-            });
-          }
-          const close = chip.createSpan({ text: "\xD7" });
-          close.style.cursor = "pointer";
-          close.style.fontWeight = "bold";
-          close.style.fontSize = "14px";
-          close.style.lineHeight = "1";
-          close.style.color = "var(--text-muted)";
-          close.addEventListener("click", async (ev) => {
-            ev.stopPropagation();
-            valuesList = valuesList.filter((v) => v !== valName);
-            await save();
-            renderChips();
-          });
-          wrap.insertBefore(chip, inp);
-        });
-      };
-      const save = async () => {
-        await writeField(key, chipWriteValue(valuesList, isPlainChip, isList));
-      };
-      const addVal = async (raw) => {
-        const added = chipAdd(valuesList, raw, isList, chipText);
-        if (added.kind === "blank") return;
-        inp.value = "";
-        if (added.kind === "duplicate") return;
-        const { name } = added;
-        valuesList = added.values;
-        renderChips();
-        await save();
-        if (!isPlainChip && autoCreatesNote(targetEntityKey)) {
-          const targetFile = findNoteByName(chipScopeNotes(view.app, targetEntityKey, customFolderPath), name);
-          if (!targetFile) {
-            try {
-              const creation = chipCreation(suggestionSource, targetEntityKey, ENTITIES);
-              await createEntity(view.app, creation.source, name);
-              new import_obsidian14.Notice(`Created new ${creation.label}: ${name}`);
-            } catch (e) {
-              console.warn(`Failed to auto-create ${targetEntityKey || suggestionSource}`, e);
-            }
-          }
-        }
-      };
-      inp.addEventListener("input", updateSuggestions);
-      inp.addEventListener("focus", updateSuggestions);
-      inp.addEventListener("keydown", async (ev) => {
-        if (ev.key === "Enter") {
-          ev.preventDefault();
-          await addVal(inp.value);
-          suggestionsBox.style.display = "none";
-        } else if (ev.key === "Backspace" && !inp.value && valuesList.length > 0) {
-          valuesList.pop();
-          await save();
-          renderChips();
-        }
+      view._renderChipInput(cell, f, current, {
+        listKeys: COMPANY_LIST_KEYS,
+        layout: "meta",
+        save: (value) => writeField(key, value)
       });
-      inp.addEventListener("blur", async () => {
-        setTimeout(async () => {
-          suggestionsBox.style.display = "none";
-          if (inp.value.trim()) {
-            await addVal(inp.value);
-          }
-        }, 180);
-      });
-      wrap.addEventListener("click", () => inp.focus());
-      renderChips();
     } else if (control === "enum") {
       const sel = cell.createEl("select", { cls: "cad-pd-meta-input" });
       sel.style.border = "none";
@@ -4723,6 +4554,201 @@ function drawSimpleList(view, parent, data) {
   });
 }
 
+// src/views/components/chip-input.ts
+var import_obsidian15 = require("obsidian");
+function renderChipInput(view, parent, f, current, opts) {
+  const { suggestionSource, isPlainChip, isList, targetEntityKey, customFolderPath } = chipConfig(f, ENTITIES, opts.listKeys);
+  const chipText = (value) => chipLabel(value, suggestionSource);
+  const isForm = opts.layout === "form";
+  const wrap = parent.createDiv({ cls: "cad-pd-tag-input-wrap" });
+  wrap.style.display = "flex";
+  wrap.style.flexWrap = "wrap";
+  wrap.style.gap = "6px";
+  wrap.style.alignItems = "center";
+  wrap.style.border = "none";
+  wrap.style.borderRadius = "0";
+  wrap.style.padding = "4px 0";
+  wrap.style.minHeight = "36px";
+  wrap.style.backgroundColor = "transparent";
+  wrap.style.cursor = "text";
+  let inp;
+  if (isForm) {
+    inp = wrap.createEl("input", { type: "text" });
+    inp.style.border = "none";
+    inp.style.outline = "none";
+    inp.style.background = "transparent";
+    inp.style.flex = "1";
+    inp.style.minWidth = "80px";
+    inp.style.color = "var(--text-normal)";
+    inp.style.padding = "0";
+    inp.style.margin = "0";
+    inp.style.height = "24px";
+  } else {
+    inp = wrap.createEl("input", { type: "text", cls: "cad-pd-tag-input-field" });
+    inp.style.border = "none";
+    inp.style.outline = "none";
+    inp.style.background = "transparent";
+    inp.style.color = "var(--text-normal)";
+    inp.style.flex = "1";
+    inp.style.minWidth = "80px";
+    inp.style.padding = "0";
+    inp.style.height = "24px";
+    inp.style.lineHeight = "24px";
+  }
+  inp.placeholder = `Add ${f.label.toLowerCase()}...`;
+  const suggestionsBox = parent.createDiv({ cls: "cad-pd-tag-suggestions" });
+  suggestionsBox.style.position = "absolute";
+  suggestionsBox.style.zIndex = "10000";
+  suggestionsBox.style.backgroundColor = "var(--background-secondary)";
+  suggestionsBox.style.border = "1px solid var(--border-color)";
+  suggestionsBox.style.borderRadius = "4px";
+  suggestionsBox.style.boxShadow = "var(--shadow-s)";
+  suggestionsBox.style.maxHeight = "150px";
+  suggestionsBox.style.overflowY = "auto";
+  suggestionsBox.style.display = "none";
+  suggestionsBox.style.width = isForm ? "calc(100% - 150px)" : "100%";
+  suggestionsBox.style.boxSizing = "border-box";
+  suggestionsBox.style.top = "100%";
+  if (isForm) suggestionsBox.style.right = "0";
+  else suggestionsBox.style.left = "0";
+  suggestionsBox.style.marginTop = "4px";
+  let valuesList = chipValues(current, isPlainChip);
+  const updateSuggestions = () => {
+    const query = inp.value.trim().toLowerCase();
+    suggestionsBox.empty();
+    let candidates = [];
+    if (suggestionSource === "tags") {
+      candidates = Object.keys(view.app.metadataCache.getTags() || {}).map((t) => t.replace(/^#/, ""));
+    } else if (suggestionSource === "history") {
+      candidates = historyValues(view.app.vault.getMarkdownFiles().map((fl) => {
+        const cache = view.app.metadataCache.getFileCache(fl);
+        return cache && cache.frontmatter || {};
+      }), f.key);
+    } else if (suggestionSource !== "none") {
+      candidates = chipScopeNotes(view.app, targetEntityKey, customFolderPath).map((note) => note.basename);
+    }
+    const filtered = filterSuggestions(candidates, query, valuesList.map(chipText));
+    if (filtered.length === 0) {
+      suggestionsBox.style.display = "none";
+      return;
+    }
+    filtered.forEach((valStr) => {
+      const item = suggestionsBox.createDiv({ cls: "cad-suggestion-item" });
+      item.style.padding = "6px 10px";
+      item.style.cursor = "pointer";
+      item.style.fontSize = "13px";
+      item.style.color = "var(--text-normal)";
+      item.setText(valStr);
+      item.addEventListener("mouseenter", () => {
+        item.style.backgroundColor = "var(--background-modifier-hover)";
+      });
+      item.addEventListener("mouseleave", () => {
+        item.style.backgroundColor = "transparent";
+      });
+      item.addEventListener("mousedown", async (ev) => {
+        ev.preventDefault();
+        await addVal(valStr);
+        suggestionsBox.style.display = "none";
+      });
+    });
+    suggestionsBox.style.display = "block";
+  };
+  const renderChips = () => {
+    const existing = wrap.querySelectorAll(".cad-tag-chip");
+    existing.forEach((c) => c.remove());
+    valuesList.forEach((valName) => {
+      const chip = wrap.createDiv({ cls: "cad-tag-chip" });
+      chip.style.display = "inline-flex";
+      chip.style.alignItems = "center";
+      chip.style.gap = "6px";
+      chip.style.backgroundColor = "var(--background-secondary, #eee)";
+      chip.style.padding = "2px 8px";
+      chip.style.borderRadius = "12px";
+      chip.style.fontSize = "12px";
+      chip.style.height = "24px";
+      chip.style.boxSizing = "border-box";
+      chip.style.color = "var(--text-normal)";
+      const labelSpan = chip.createSpan({ text: chipText(valName) });
+      if (!isPlainChip) {
+        labelSpan.style.textDecoration = "underline";
+        labelSpan.style.cursor = "pointer";
+        labelSpan.addEventListener("click", (ev) => {
+          ev.stopPropagation();
+          const target = chipLinkTarget(targetEntityKey, findNoteByName(chipScopeNotes(view.app, targetEntityKey, customFolderPath), valName), valName);
+          if (target.kind === "entity") {
+            view.openEntityDetail(target.entityKey, target.file);
+          } else if (target.kind === "file") {
+            view.openEntityDetailFromFile(target.file);
+          } else {
+            view.app.workspace.openLinkText(target.linktext, "", false);
+          }
+        });
+      }
+      const close = chip.createSpan({ text: "\xD7" });
+      close.style.cursor = "pointer";
+      close.style.fontWeight = "bold";
+      close.style.fontSize = "14px";
+      close.style.lineHeight = "1";
+      close.style.color = "var(--text-muted)";
+      close.addEventListener("click", async (ev) => {
+        ev.stopPropagation();
+        valuesList = valuesList.filter((v) => v !== valName);
+        await save();
+        renderChips();
+      });
+      wrap.insertBefore(chip, inp);
+    });
+  };
+  const save = async () => {
+    await opts.save(chipWriteValue(valuesList, isPlainChip, isList));
+  };
+  const addVal = async (raw) => {
+    const added = chipAdd(valuesList, raw, isList, chipText);
+    if (added.kind === "blank") return;
+    inp.value = "";
+    if (added.kind === "duplicate") return;
+    const { name } = added;
+    valuesList = added.values;
+    renderChips();
+    await save();
+    if (!isPlainChip && autoCreatesNote(targetEntityKey)) {
+      const targetFile = findNoteByName(chipScopeNotes(view.app, targetEntityKey, customFolderPath), name);
+      if (!targetFile) {
+        try {
+          const creation = chipCreation(suggestionSource, targetEntityKey, ENTITIES);
+          await createEntity(view.app, creation.source, name);
+          new import_obsidian15.Notice(`Created new ${creation.label}: ${name}`);
+        } catch (e) {
+          console.warn(`Failed to auto-create ${targetEntityKey || suggestionSource}`, e);
+        }
+      }
+    }
+  };
+  inp.addEventListener("input", updateSuggestions);
+  inp.addEventListener("focus", updateSuggestions);
+  inp.addEventListener("keydown", async (ev) => {
+    if (ev.key === "Enter") {
+      ev.preventDefault();
+      await addVal(inp.value);
+      suggestionsBox.style.display = "none";
+    } else if (ev.key === "Backspace" && !inp.value && valuesList.length > 0) {
+      valuesList.pop();
+      await save();
+      renderChips();
+    }
+  });
+  inp.addEventListener("blur", async () => {
+    setTimeout(async () => {
+      suggestionsBox.style.display = "none";
+      if (inp.value.trim()) {
+        await addVal(inp.value);
+      }
+    }, 180);
+  });
+  wrap.addEventListener("click", () => inp.focus());
+  renderChips();
+}
+
 // src/views/components/entity-table.ts
 function renderEntityLinks(view, parent, val, targetEntityKey, prefix = "") {
   if (!val) return;
@@ -4842,7 +4868,7 @@ function getEntityFiles(view, entityKey) {
 }
 
 // src/views/components/sections.ts
-var import_obsidian15 = require("obsidian");
+var import_obsidian16 = require("obsidian");
 function linksTo(val, name) {
   const cleanName = name.trim().toLowerCase();
   return parseLinkValues(val).some((link) => link.target.toLowerCase() === cleanName);
@@ -4896,7 +4922,7 @@ function renderMarkdownTextCard(view, parent, file, sectionKey, label, initialVa
   const openBtn = head.createEl("button", { cls: "cad-btn cad-btn-sm", attr: { style: "margin-left: auto; padding: 4px 6px; display: inline-flex; align-items: center; justify-content: center; border-radius: 4px; border: 1px solid var(--border-color); background: transparent; cursor: pointer;" } });
   openBtn.title = "Open this note natively to edit with full Live Preview & Autocomplete";
   try {
-    (0, import_obsidian15.setIcon)(openBtn, "file-text");
+    (0, import_obsidian16.setIcon)(openBtn, "file-text");
   } catch (_) {
   }
   openBtn.addEventListener("click", (ev) => {
@@ -4913,7 +4939,7 @@ function renderMarkdownTextCard(view, parent, file, sectionKey, label, initialVa
       return;
     }
     try {
-      await import_obsidian15.MarkdownRenderer.render(view.app, rawText, previewDiv, file.path, view);
+      await import_obsidian16.MarkdownRenderer.render(view.app, rawText, previewDiv, file.path, view);
     } catch (error) {
       console.warn("Cadence: markdown render failed, showing the raw text", error);
       previewDiv.empty();
@@ -5058,7 +5084,7 @@ function renderSingleCrossSection(view, parent, targetEntity, linkField, request
     const board = secWrap.createDiv({ cls: "cad-kanban-board" });
     const groupField = def.fields.find((f) => f.key === "stage" || f.key === "status" || f.key === "type" || f.type === "enum") || def.fields[1];
     const columns = groupField.options || ["To Do", "In Progress", "Done"];
-    const isMobile = !!(import_obsidian15.Platform && import_obsidian15.Platform.isMobile);
+    const isMobile = !!(import_obsidian16.Platform && import_obsidian16.Platform.isMobile);
     columns.forEach((colName) => {
       const items = filteredList.filter((e) => {
         const val = entityValue(e, groupField.key, def);
@@ -5094,7 +5120,7 @@ function renderSingleCrossSection(view, parent, targetEntity, linkField, request
         const fromStage = ev.dataTransfer.getData("text/cadence-stage");
         if (!path || fromStage === colName) return;
         const file = view.app.vault.getAbstractFileByPath(path);
-        if (!file || !(file instanceof import_obsidian15.TFile)) return;
+        if (!file || !(file instanceof import_obsidian16.TFile)) return;
         try {
           await view.app.fileManager.processFrontMatter(file, (fm) => {
             const isList = groupField.type === "multitext" || groupField.type === "tags" || groupField.isList === true;
@@ -5105,10 +5131,10 @@ function renderSingleCrossSection(view, parent, targetEntity, linkField, request
               fm[groupField.key] = isLink ? `[[${colName}]]` : colName;
             }
           });
-          new import_obsidian15.Notice(`Moved to ${colName}`);
+          new import_obsidian16.Notice(`Moved to ${colName}`);
           view.render();
         } catch (e) {
-          new import_obsidian15.Notice(`Failed to move: ${e.message}`);
+          new import_obsidian16.Notice(`Failed to move: ${e.message}`);
         }
       });
       if (!items.length) {
@@ -5273,7 +5299,7 @@ function renderDynamicH2Section(view, parent, file, sections, rawKey, flashSaved
       const vBtn = viewSwitch.createEl("button", { attr: { style: `padding: 4px 6px; display: inline-flex; align-items: center; justify-content: center; border-radius: 4px; cursor: pointer; border: 1px solid var(--border-color); background: ${v === viewType ? "var(--interactive-accent)" : "transparent"}; color: ${v === viewType ? "var(--text-on-accent)" : "var(--text-muted)"};` } });
       vBtn.title = title;
       try {
-        (0, import_obsidian15.setIcon)(vBtn, icon);
+        (0, import_obsidian16.setIcon)(vBtn, icon);
       } catch (_) {
       }
       if (v !== viewType) {
@@ -5332,7 +5358,7 @@ function renderDynamicH2Section(view, parent, file, sections, rawKey, flashSaved
 }
 
 // src/modals/widget-create.ts
-var import_obsidian16 = require("obsidian");
+var import_obsidian17 = require("obsidian");
 function buildWidgetConfig(form) {
   const title = form.title.trim();
   if (!title) return null;
@@ -5343,7 +5369,7 @@ function buildWidgetConfig(form) {
     style: form.style
   };
 }
-var CadenceWidgetCreateModal = class extends import_obsidian16.Modal {
+var CadenceWidgetCreateModal = class extends import_obsidian17.Modal {
   constructor(app, entityKey, onSubmit, onCancel) {
     super(app);
     if (typeof entityKey === "function") {
@@ -5399,12 +5425,12 @@ var CadenceWidgetCreateModal = class extends import_obsidian16.Modal {
     const submit = () => {
       const config = buildWidgetConfig({ title: inputTitle.value, groupBy: selectProp.value, style: selectStyle.value });
       if (!config) {
-        new import_obsidian16.Notice("Please enter a chart title.");
+        new import_obsidian17.Notice("Please enter a chart title.");
         inputTitle.focus();
         return;
       }
       if (!config.groupBy) {
-        new import_obsidian16.Notice(`There is no property to group ${entityLabel} by.`);
+        new import_obsidian17.Notice(`There is no property to group ${entityLabel} by.`);
         return;
       }
       this._submitted = true;
@@ -5744,7 +5770,7 @@ async function renderCrmDashboard(view, root) {
 }
 
 // src/views/entity-detail.ts
-var import_obsidian17 = require("obsidian");
+var import_obsidian18 = require("obsidian");
 function entityDetailTitle(fm, primaryKey, basename) {
   return fm[primaryKey] != null && fm[primaryKey] !== "" ? fm[primaryKey] : basename;
 }
@@ -5796,10 +5822,10 @@ async function renderEntityDetail(view, root, entityKey, file) {
         setTimeout(async () => {
           try {
             await view.app.vault.trash(file, true);
-            new import_obsidian17.Notice(`Deleted ${def.label}: ${file.basename}`);
+            new import_obsidian18.Notice(`Deleted ${def.label}: ${file.basename}`);
             view.closeEntityDetail();
           } catch (e) {
-            new import_obsidian17.Notice(`Delete failed: ${e.message}`);
+            new import_obsidian18.Notice(`Delete failed: ${e.message}`);
           }
         }, 50);
       }
@@ -5823,7 +5849,7 @@ async function renderEntityDetail(view, root, entityKey, file) {
       });
       flashSaved();
     } catch (e) {
-      new import_obsidian17.Notice(`Save failed: ${e.message}`);
+      new import_obsidian18.Notice(`Save failed: ${e.message}`);
     }
   };
   const debouncedWrite = (key, val) => {
@@ -5864,183 +5890,12 @@ async function renderEntityDetail(view, root, entityKey, file) {
       inp.addEventListener("blur", () => writeField(f.key, inp.value));
     } else {
       if (control === "chips") {
-        const { suggestionSource, isPlainChip, isList, targetEntityKey, customFolderPath } = chipConfig(f, ENTITIES, DETAIL_LIST_KEYS);
-        const chipText = (value) => chipLabel(value, suggestionSource);
         row.style.position = "relative";
-        const wrap = row.createDiv({ cls: "cad-pd-tag-input-wrap" });
-        wrap.style.display = "flex";
-        wrap.style.flexWrap = "wrap";
-        wrap.style.gap = "6px";
-        wrap.style.alignItems = "center";
-        wrap.style.border = "none";
-        wrap.style.borderRadius = "0";
-        wrap.style.padding = "4px 0";
-        wrap.style.minHeight = "36px";
-        wrap.style.backgroundColor = "transparent";
-        wrap.style.cursor = "text";
-        const inp = wrap.createEl("input", { type: "text" });
-        inp.style.border = "none";
-        inp.style.outline = "none";
-        inp.style.background = "transparent";
-        inp.style.flex = "1";
-        inp.style.minWidth = "80px";
-        inp.style.color = "var(--text-normal)";
-        inp.style.padding = "0";
-        inp.style.margin = "0";
-        inp.style.height = "24px";
-        inp.placeholder = "Add " + f.label.toLowerCase() + "...";
-        const suggestionsBox = row.createDiv({ cls: "cad-pd-tag-suggestions" });
-        suggestionsBox.style.position = "absolute";
-        suggestionsBox.style.zIndex = "10000";
-        suggestionsBox.style.backgroundColor = "var(--background-secondary)";
-        suggestionsBox.style.border = "1px solid var(--border-color)";
-        suggestionsBox.style.borderRadius = "4px";
-        suggestionsBox.style.boxShadow = "var(--shadow-s)";
-        suggestionsBox.style.maxHeight = "150px";
-        suggestionsBox.style.overflowY = "auto";
-        suggestionsBox.style.display = "none";
-        suggestionsBox.style.width = "calc(100% - 150px)";
-        suggestionsBox.style.boxSizing = "border-box";
-        suggestionsBox.style.top = "100%";
-        suggestionsBox.style.right = "0";
-        suggestionsBox.style.marginTop = "4px";
-        let valuesList = chipValues(fm[f.key], isPlainChip);
-        const updateSuggestions = () => {
-          const query = inp.value.trim().toLowerCase();
-          suggestionsBox.empty();
-          let candidates = [];
-          if (suggestionSource === "tags") {
-            candidates = Object.keys(view.app.metadataCache.getTags() || {}).map((t) => t.replace(/^#/, ""));
-          } else if (suggestionSource === "history") {
-            candidates = historyValues(view.app.vault.getMarkdownFiles().map((fl) => {
-              const cache2 = view.app.metadataCache.getFileCache(fl);
-              return cache2 && cache2.frontmatter || {};
-            }), f.key);
-          } else if (suggestionSource !== "none") {
-            candidates = chipScopeNotes(view.app, targetEntityKey, customFolderPath).map((note) => note.basename);
-          }
-          const filtered = filterSuggestions(candidates, query, valuesList.map(chipText));
-          if (filtered.length === 0) {
-            suggestionsBox.style.display = "none";
-            return;
-          }
-          filtered.forEach((valStr) => {
-            const item = suggestionsBox.createDiv({ cls: "cad-suggestion-item" });
-            item.style.padding = "6px 10px";
-            item.style.cursor = "pointer";
-            item.style.fontSize = "13px";
-            item.style.color = "var(--text-normal)";
-            item.setText(valStr);
-            item.addEventListener("mouseenter", () => {
-              item.style.backgroundColor = "var(--background-modifier-hover)";
-            });
-            item.addEventListener("mouseleave", () => {
-              item.style.backgroundColor = "transparent";
-            });
-            item.addEventListener("mousedown", async (ev) => {
-              ev.preventDefault();
-              await addVal(valStr);
-              suggestionsBox.style.display = "none";
-            });
-          });
-          suggestionsBox.style.display = "block";
-        };
-        const renderChips = () => {
-          const existing = wrap.querySelectorAll(".cad-tag-chip");
-          existing.forEach((c) => c.remove());
-          valuesList.forEach((valName) => {
-            const chip = wrap.createDiv({ cls: "cad-tag-chip" });
-            chip.style.display = "inline-flex";
-            chip.style.alignItems = "center";
-            chip.style.gap = "6px";
-            chip.style.backgroundColor = "var(--background-secondary, #eee)";
-            chip.style.padding = "2px 8px";
-            chip.style.borderRadius = "12px";
-            chip.style.fontSize = "12px";
-            chip.style.height = "24px";
-            chip.style.boxSizing = "border-box";
-            chip.style.color = "var(--text-normal)";
-            const labelSpan = chip.createSpan({ text: chipText(valName) });
-            if (!isPlainChip) {
-              labelSpan.style.textDecoration = "underline";
-              labelSpan.style.cursor = "pointer";
-              labelSpan.addEventListener("click", (ev) => {
-                ev.stopPropagation();
-                const target = chipLinkTarget(targetEntityKey, findNoteByName(chipScopeNotes(view.app, targetEntityKey, customFolderPath), valName), valName);
-                if (target.kind === "entity") {
-                  view.openEntityDetail(target.entityKey, target.file);
-                } else if (target.kind === "file") {
-                  view.openEntityDetailFromFile(target.file);
-                } else {
-                  view.app.workspace.openLinkText(target.linktext, "", false);
-                }
-              });
-            }
-            const close = chip.createSpan({ text: "\xD7" });
-            close.style.cursor = "pointer";
-            close.style.fontWeight = "bold";
-            close.style.fontSize = "14px";
-            close.style.lineHeight = "1";
-            close.style.color = "var(--text-muted)";
-            close.addEventListener("click", async (ev) => {
-              ev.stopPropagation();
-              valuesList = valuesList.filter((v) => v !== valName);
-              await save();
-              renderChips();
-            });
-            wrap.insertBefore(chip, inp);
-          });
-        };
-        const save = async () => {
-          await writeField(f.key, chipWriteValue(valuesList, isPlainChip, isList));
-        };
-        const addVal = async (raw) => {
-          const added = chipAdd(valuesList, raw, isList, chipText);
-          if (added.kind === "blank") return;
-          inp.value = "";
-          if (added.kind === "duplicate") return;
-          const { name } = added;
-          valuesList = added.values;
-          renderChips();
-          await save();
-          if (!isPlainChip && autoCreatesNote(targetEntityKey)) {
-            const targetFile = findNoteByName(chipScopeNotes(view.app, targetEntityKey, customFolderPath), name);
-            if (!targetFile) {
-              try {
-                const creation = chipCreation(suggestionSource, targetEntityKey, ENTITIES);
-                await createEntity(view.app, creation.source, name);
-                new import_obsidian17.Notice(`Created new ${creation.label}: ${name}`);
-              } catch (e) {
-                console.warn(`Failed to auto-create ${targetEntityKey || suggestionSource}`, e);
-              }
-            }
-          }
-        };
-        inp.addEventListener("input", updateSuggestions);
-        inp.addEventListener("focus", updateSuggestions);
-        inp.addEventListener("keydown", async (ev) => {
-          if (ev.key === "Enter") {
-            ev.preventDefault();
-            await addVal(inp.value);
-            suggestionsBox.style.display = "none";
-          } else if (ev.key === "Backspace" && !inp.value && valuesList.length > 0) {
-            valuesList.pop();
-            await save();
-            renderChips();
-          }
+        view._renderChipInput(row, f, fm[f.key], {
+          listKeys: DETAIL_LIST_KEYS,
+          layout: "form",
+          save: (value) => writeField(f.key, value)
         });
-        inp.addEventListener("blur", async () => {
-          setTimeout(async () => {
-            suggestionsBox.style.display = "none";
-            if (inp.value.trim()) {
-              await addVal(inp.value);
-            }
-          }, 180);
-        });
-        wrap.addEventListener("click", () => {
-          inp.focus();
-        });
-        renderChips();
       } else {
         const inp = row.createEl("input", { type: "text", cls: "cad-form-input" });
         if (current) inp.value = String(current);
@@ -6070,7 +5925,7 @@ async function renderEntityDetail(view, root, entityKey, file) {
 }
 
 // src/views/entity-list.ts
-var import_obsidian18 = require("obsidian");
+var import_obsidian19 = require("obsidian");
 
 // src/views/kanban.ts
 function unwrapLink(value) {
@@ -6359,7 +6214,7 @@ async function renderEntityList(view, root, entityKey, opts = {}) {
       btn2.style.borderRadius = "4px";
       btn2.style.cursor = "pointer";
       try {
-        (0, import_obsidian18.setIcon)(btn2, l.icon);
+        (0, import_obsidian19.setIcon)(btn2, l.icon);
       } catch (_) {
       }
       btn2.title = l.title;
@@ -6553,23 +6408,23 @@ async function renderEntityList(view, root, entityKey, opts = {}) {
             const fromStage = ev.dataTransfer.getData("text/cadence-stage");
             if (!path || fromStage === stage) return;
             const file = view.app.vault.getAbstractFileByPath(path);
-            if (!file || !(file instanceof import_obsidian18.TFile)) return;
+            if (!file || !(file instanceof import_obsidian19.TFile)) return;
             try {
               await view.app.fileManager.processFrontMatter(file, (fm) => {
                 const before = fm[groupBy];
                 fm[groupBy] = kanbanDropValue(def.fields.find((fd) => fd.key === groupBy), stage);
                 if (entityKey === "deal" && groupBy === "stage") Object.assign(fm, closedPatch(before, fm[groupBy], /* @__PURE__ */ new Date()));
               });
-              new import_obsidian18.Notice(`Moved to ${stage}`);
+              new import_obsidian19.Notice(`Moved to ${stage}`);
             } catch (e) {
-              new import_obsidian18.Notice(`Failed to move: ${e.message}`);
+              new import_obsidian19.Notice(`Failed to move: ${e.message}`);
             }
           });
         }
         if (!items.length) {
           list.createDiv({ cls: "cad-empty", text: "\u2014" });
         } else {
-          const isMobile = !!(import_obsidian18.Platform && import_obsidian18.Platform.isMobile);
+          const isMobile = !!(import_obsidian19.Platform && import_obsidian19.Platform.isMobile);
           items.forEach((e) => {
             const card = list.createDiv({ cls: "cad-kanban-card" });
             card.dataset.path = e.file.path;
@@ -6711,10 +6566,10 @@ async function renderEntityList(view, root, entityKey, opts = {}) {
 }
 
 // src/views/home.ts
-var import_obsidian20 = require("obsidian");
+var import_obsidian21 = require("obsidian");
 
 // src/modals/reminder-edit.ts
-var import_obsidian19 = require("obsidian");
+var import_obsidian20 = require("obsidian");
 var BAD_TIME_MESSAGE = "Couldn't read that time, so nothing was saved. Fix it, or Clear it to unschedule.";
 function buildReminderPatch(form, reminder) {
   const text = form.text.trim();
@@ -6740,7 +6595,7 @@ function filterReminderProjects(projects, query) {
   const q = (query || "").toLowerCase();
   return projects.filter((p) => p.name.toLowerCase().includes(q) || p.file.path.toLowerCase().includes(q));
 }
-var ReminderProjectSuggestModal = class extends import_obsidian19.SuggestModal {
+var ReminderProjectSuggestModal = class extends import_obsidian20.SuggestModal {
   constructor(app, projs, onChoose) {
     super(app);
     this.projs = projs;
@@ -6757,7 +6612,7 @@ var ReminderProjectSuggestModal = class extends import_obsidian19.SuggestModal {
     this.onChoose(item);
   }
 };
-var CadenceReminderEditModal = class extends import_obsidian19.Modal {
+var CadenceReminderEditModal = class extends import_obsidian20.Modal {
   constructor(app, plugin, reminder, opts) {
     super(app);
     this.plugin = plugin;
@@ -6816,8 +6671,8 @@ var CadenceReminderEditModal = class extends import_obsidian19.Modal {
         chip.addEventListener("click", (e) => {
           e.preventDefault();
           const file = this.app.vault.getAbstractFileByPath(projectPath);
-          if (!(file instanceof import_obsidian19.TFile)) {
-            new import_obsidian19.Notice(`Project note not found: ${projectPath}`);
+          if (!(file instanceof import_obsidian20.TFile)) {
+            new import_obsidian20.Notice(`Project note not found: ${projectPath}`);
             return;
           }
           this._submitted = true;
@@ -6898,7 +6753,7 @@ var CadenceReminderEditModal = class extends import_obsidian19.Modal {
         return;
       }
       if (fields === "bad-time") {
-        new import_obsidian19.Notice(BAD_TIME_MESSAGE);
+        new import_obsidian20.Notice(BAD_TIME_MESSAGE);
         dateInput.focus();
         return;
       }
@@ -6906,7 +6761,7 @@ var CadenceReminderEditModal = class extends import_obsidian19.Modal {
       try {
         if (this.isNew) {
           await this.plugin.addReminder(fields);
-          new import_obsidian19.Notice(fields.when ? `Reminder set \xB7 ${reminderTimeStr(fields.when)}` : "Captured to Inbox");
+          new import_obsidian20.Notice(fields.when ? `Reminder set \xB7 ${reminderTimeStr(fields.when)}` : "Captured to Inbox");
         } else {
           await this.plugin.updateReminder(this.reminder.id, fields);
         }
@@ -6939,7 +6794,7 @@ var CadenceReminderEditModal = class extends import_obsidian19.Modal {
   _openReminderProjectPicker(rerender) {
     const projectFiles = listEntityFiles(this.app, "project");
     if (!projectFiles.length) {
-      new import_obsidian19.Notice("No projects yet. Create one in Planner \u2192 Projects first.");
+      new import_obsidian20.Notice("No projects yet. Create one in Planner \u2192 Projects first.");
       return;
     }
     const projects = projectFiles.map((f) => ({ file: f, name: projectNameFromPath(this.app, f.path) }));
@@ -7000,7 +6855,7 @@ async function renderBriefing(view, root) {
     card.createDiv({ cls: "cad-briefing-empty", text: "Nothing flagged. Make today count." });
     return;
   }
-  const { shown, hiddenCount } = visibleBriefing(items, !!(import_obsidian20.Platform && import_obsidian20.Platform.isMobile));
+  const { shown, hiddenCount } = visibleBriefing(items, !!(import_obsidian21.Platform && import_obsidian21.Platform.isMobile));
   const list = card.createDiv({ cls: "cad-briefing-list" });
   shown.forEach((it) => {
     const row = list.createDiv({ cls: `cad-briefing-row cad-tone-${it.tone || "emerald"}` });
@@ -7334,7 +7189,7 @@ async function homeTodayCard(view, parent) {
         ev.preventDefault();
         ev.stopPropagation();
         const f = view.app.vault.getAbstractFileByPath(linkedProject);
-        if (f && f instanceof import_obsidian20.TFile) view.openEntityDetail("project", f);
+        if (f && f instanceof import_obsidian21.TFile) view.openEntityDetail("project", f);
       });
     }
     if (settings.taskManagementSystem !== "tasknotes") {
@@ -7380,7 +7235,7 @@ async function homeWeekCard(view, parent) {
     for (let i = 0; i < 7; i++) {
       const d = addDays(weekStart, i);
       const f = view.app.vault.getAbstractFileByPath(dailyNotePath(settings, d));
-      if (f && f instanceof import_obsidian20.TFile) {
+      if (f && f instanceof import_obsidian21.TFile) {
         const c = await view.app.vault.read(f);
         const p = parseSections(c, settings);
         const counts = countTaskLines(withoutBlankTasks(p.tasks));
@@ -7606,7 +7461,7 @@ async function homeActivitiesCard(view, parent) {
 }
 
 // src/views/inbox.ts
-var import_obsidian21 = require("obsidian");
+var import_obsidian22 = require("obsidian");
 function overdueCount(reminders, now) {
   const open = (reminders || []).filter((r) => !r.done);
   return open.filter((r) => (reminderTime(r.when) ?? Infinity) <= now).length;
@@ -7774,7 +7629,7 @@ function renderInboxRow(view, parent, r, bucket) {
       ev.preventDefault();
       ev.stopPropagation();
       const file = view.app.vault.getAbstractFileByPath(r.project);
-      if (file && file instanceof import_obsidian21.TFile) view.openEntityDetail("project", file);
+      if (file && file instanceof import_obsidian22.TFile) view.openEntityDetail("project", file);
     });
   }
   const preview = notesPreview(r.notes);
@@ -8129,7 +7984,7 @@ async function renderTeam(view, root) {
 }
 
 // src/views/project-detail.ts
-var import_obsidian22 = require("obsidian");
+var import_obsidian23 = require("obsidian");
 function projectDetailTitle(fm, basename) {
   return fm.name || basename;
 }
@@ -8316,10 +8171,10 @@ async function renderProjectDetail(view, root, file) {
         setTimeout(async () => {
           try {
             await view.app.vault.trash(file, true);
-            new import_obsidian22.Notice(`Deleted project: ${file.basename}`);
+            new import_obsidian23.Notice(`Deleted project: ${file.basename}`);
             view.closeEntityDetail();
           } catch (e) {
-            new import_obsidian22.Notice(`Delete failed: ${e.message}`);
+            new import_obsidian23.Notice(`Delete failed: ${e.message}`);
           }
         }, 50);
       }
@@ -8349,181 +8204,11 @@ async function renderProjectDetail(view, root, file) {
     const current = fm[key];
     const control = metaControl(f);
     if (control === "chips") {
-      const { suggestionSource, isPlainChip, isList, targetEntityKey, customFolderPath } = chipConfig(f, ENTITIES, COMPANY_LIST_KEYS);
-      const chipText = (value) => chipLabel(value, suggestionSource);
-      const wrap = cell.createDiv({ cls: "cad-pd-tag-input-wrap" });
-      wrap.style.display = "flex";
-      wrap.style.flexWrap = "wrap";
-      wrap.style.gap = "6px";
-      wrap.style.alignItems = "center";
-      wrap.style.border = "none";
-      wrap.style.borderRadius = "0";
-      wrap.style.padding = "4px 0";
-      wrap.style.minHeight = "36px";
-      wrap.style.backgroundColor = "transparent";
-      wrap.style.cursor = "text";
-      const inp = wrap.createEl("input", { type: "text", cls: "cad-pd-tag-input-field" });
-      inp.style.border = "none";
-      inp.style.outline = "none";
-      inp.style.background = "transparent";
-      inp.style.color = "var(--text-normal)";
-      inp.style.flex = "1";
-      inp.style.minWidth = "80px";
-      inp.style.padding = "0";
-      inp.style.height = "24px";
-      inp.style.lineHeight = "24px";
-      inp.placeholder = `Add ${label.toLowerCase()}...`;
-      const suggestionsBox = cell.createDiv({ cls: "cad-pd-tag-suggestions" });
-      suggestionsBox.style.position = "absolute";
-      suggestionsBox.style.zIndex = "10000";
-      suggestionsBox.style.backgroundColor = "var(--background-secondary)";
-      suggestionsBox.style.border = "1px solid var(--border-color)";
-      suggestionsBox.style.borderRadius = "4px";
-      suggestionsBox.style.boxShadow = "var(--shadow-s)";
-      suggestionsBox.style.maxHeight = "150px";
-      suggestionsBox.style.overflowY = "auto";
-      suggestionsBox.style.display = "none";
-      suggestionsBox.style.width = "100%";
-      suggestionsBox.style.boxSizing = "border-box";
-      suggestionsBox.style.top = "100%";
-      suggestionsBox.style.left = "0";
-      suggestionsBox.style.marginTop = "4px";
-      let valuesList = chipValues(current, isPlainChip);
-      const updateSuggestions = () => {
-        const query = inp.value.trim().toLowerCase();
-        suggestionsBox.empty();
-        let candidates = [];
-        if (suggestionSource === "tags") {
-          candidates = Object.keys(view.app.metadataCache.getTags() || {}).map((t) => t.replace(/^#/, ""));
-        } else if (suggestionSource === "history") {
-          candidates = historyValues(view.app.vault.getMarkdownFiles().map((fl) => {
-            const cache2 = view.app.metadataCache.getFileCache(fl);
-            return cache2 && cache2.frontmatter || {};
-          }), key);
-        } else if (suggestionSource !== "none") {
-          candidates = chipScopeNotes(view.app, targetEntityKey, customFolderPath).map((note) => note.basename);
-        }
-        const filtered = filterSuggestions(candidates, query, valuesList.map(chipText));
-        if (filtered.length === 0) {
-          suggestionsBox.style.display = "none";
-          return;
-        }
-        filtered.forEach((valStr) => {
-          const item = suggestionsBox.createDiv({ cls: "cad-suggestion-item" });
-          item.style.padding = "6px 10px";
-          item.style.cursor = "pointer";
-          item.style.fontSize = "13px";
-          item.style.color = "var(--text-normal)";
-          item.setText(valStr);
-          item.addEventListener("mouseenter", () => {
-            item.style.backgroundColor = "var(--background-modifier-hover)";
-          });
-          item.addEventListener("mouseleave", () => {
-            item.style.backgroundColor = "transparent";
-          });
-          item.addEventListener("mousedown", async (ev) => {
-            ev.preventDefault();
-            await addVal(valStr);
-            suggestionsBox.style.display = "none";
-          });
-        });
-        suggestionsBox.style.display = "block";
-      };
-      const renderChips = () => {
-        const existing = wrap.querySelectorAll(".cad-tag-chip");
-        existing.forEach((c) => c.remove());
-        valuesList.forEach((valName) => {
-          const chip = wrap.createDiv({ cls: "cad-tag-chip" });
-          chip.style.display = "inline-flex";
-          chip.style.alignItems = "center";
-          chip.style.gap = "6px";
-          chip.style.backgroundColor = "var(--background-secondary, #eee)";
-          chip.style.padding = "2px 8px";
-          chip.style.borderRadius = "12px";
-          chip.style.fontSize = "12px";
-          chip.style.height = "24px";
-          chip.style.boxSizing = "border-box";
-          chip.style.color = "var(--text-normal)";
-          const labelSpan = chip.createSpan({ text: chipText(valName) });
-          if (!isPlainChip) {
-            labelSpan.style.textDecoration = "underline";
-            labelSpan.style.cursor = "pointer";
-            labelSpan.addEventListener("click", (ev) => {
-              ev.stopPropagation();
-              const target = chipLinkTarget(targetEntityKey, findNoteByName(chipScopeNotes(view.app, targetEntityKey, customFolderPath), valName), valName);
-              if (target.kind === "entity") {
-                view.openEntityDetail(target.entityKey, target.file);
-              } else if (target.kind === "file") {
-                view.openEntityDetailFromFile(target.file);
-              } else {
-                view.app.workspace.openLinkText(target.linktext, "", false);
-              }
-            });
-          }
-          const close = chip.createSpan({ text: "\xD7" });
-          close.style.cursor = "pointer";
-          close.style.fontWeight = "bold";
-          close.style.fontSize = "14px";
-          close.style.lineHeight = "1";
-          close.style.color = "var(--text-muted)";
-          close.addEventListener("click", async (ev) => {
-            ev.stopPropagation();
-            valuesList = valuesList.filter((v) => v !== valName);
-            await save();
-            renderChips();
-          });
-          wrap.insertBefore(chip, inp);
-        });
-      };
-      const save = async () => {
-        const val = chipWriteValue(valuesList, isPlainChip, isList);
-        await view._writeProjectFrontmatter(file, { [key]: val }, flashSaved);
-      };
-      const addVal = async (raw) => {
-        const added = chipAdd(valuesList, raw, isList, chipText);
-        if (added.kind === "blank") return;
-        inp.value = "";
-        if (added.kind === "duplicate") return;
-        const { name } = added;
-        valuesList = added.values;
-        renderChips();
-        await save();
-        if (!isPlainChip && autoCreatesNote(targetEntityKey)) {
-          const targetFile = findNoteByName(chipScopeNotes(view.app, targetEntityKey, customFolderPath), name);
-          if (!targetFile) {
-            try {
-              const creation = chipCreation(suggestionSource, targetEntityKey, ENTITIES);
-              await createEntity(view.app, creation.source, name);
-              new import_obsidian22.Notice(`Created new ${creation.label}: ${name}`);
-            } catch (e) {
-              console.warn(`Failed to auto-create ${targetEntityKey || suggestionSource}`, e);
-            }
-          }
-        }
-      };
-      inp.addEventListener("input", updateSuggestions);
-      inp.addEventListener("focus", updateSuggestions);
-      inp.addEventListener("keydown", async (ev) => {
-        if (ev.key === "Enter") {
-          ev.preventDefault();
-          await addVal(inp.value);
-          suggestionsBox.style.display = "none";
-        } else if (ev.key === "Backspace" && !inp.value && valuesList.length > 0) {
-          valuesList.pop();
-          await save();
-          renderChips();
-        }
+      view._renderChipInput(cell, f, current, {
+        listKeys: COMPANY_LIST_KEYS,
+        layout: "meta",
+        save: (value) => view._writeProjectFrontmatter(file, { [key]: value }, flashSaved)
       });
-      inp.addEventListener("blur", async () => {
-        setTimeout(async () => {
-          suggestionsBox.style.display = "none";
-          if (inp.value.trim()) {
-            await addVal(inp.value);
-          }
-        }, 180);
-      });
-      wrap.addEventListener("click", () => inp.focus());
-      renderChips();
     } else if (control === "enum") {
       const sel = cell.createEl("select", { cls: "cad-pd-meta-input" });
       sel.style.border = "none";
@@ -8767,7 +8452,7 @@ function renderTaskSection(view, parent, file, tasks, flashSaved, rawKey = "Task
         bell.addEventListener("click", async () => {
           const taskText = titleInp.value.trim();
           if (!taskText) {
-            new import_obsidian22.Notice("Add a task title first.");
+            new import_obsidian23.Notice("Add a task title first.");
             titleInp.focus();
             return;
           }
@@ -8818,7 +8503,7 @@ async function tickProjectTaskRow(view, file, items, task, checked, flashSaved, 
   const content = await view.app.vault.read(file);
   const toggled = ref ? toggleProjectTaskByRef(content, rawKey, ref, checked) : null;
   if (!toggled) {
-    new import_obsidian22.Notice("That task changed in the note, so nothing was ticked.");
+    new import_obsidian23.Notice("That task changed in the note, so nothing was ticked.");
     return;
   }
   await view.app.vault.modify(file, toggled.content);
@@ -8838,12 +8523,12 @@ async function saveProjectFrontmatter(view, file, patch, flashSaved) {
     await view.app.fileManager.processFrontMatter(file, (fm) => writeProjectFrontmatter(fm, patch));
     if (typeof flashSaved === "function") flashSaved();
   } catch (e) {
-    new import_obsidian22.Notice(`Save failed: ${e.message}`);
+    new import_obsidian23.Notice(`Save failed: ${e.message}`);
   }
 }
 
 // src/views/projects-dashboard.ts
-var import_obsidian23 = require("obsidian");
+var import_obsidian24 = require("obsidian");
 var PROJECT_STATUSES = ["active", "on_hold", "backlog", "done", "cancelled"];
 var PROJECT_PRIORITIES = ["low", "medium", "high"];
 var STATUS_ACCENTS = {
@@ -8914,17 +8599,17 @@ function dropChanges(current, target) {
 }
 async function dropOntoCard(view, def, path, key, value) {
   const file = view.app.vault.getAbstractFileByPath(path);
-  if (!file || !(file instanceof import_obsidian23.TFile)) return;
+  if (!file || !(file instanceof import_obsidian24.TFile)) return;
   if (entityKeyFromFile(view.app, file) !== "project") return;
   if (!dropChanges(entityValue(readEntity(view.app, file), key, def), value)) return;
   try {
     await view.app.fileManager.processFrontMatter(file, (fm) => {
       fm[key] = value;
     });
-    new import_obsidian23.Notice(`Project ${key} set to ${value}`);
+    new import_obsidian24.Notice(`Project ${key} set to ${value}`);
     view.render();
   } catch (e) {
-    new import_obsidian23.Notice(`Failed to change ${key}: ${e.message}`);
+    new import_obsidian24.Notice(`Failed to change ${key}: ${e.message}`);
   }
 }
 async function renderProjectsDashboard(view, root) {
@@ -8988,7 +8673,7 @@ async function renderProjectsDashboard(view, root) {
     if (!items.length) {
       list.createDiv({ cls: "cad-empty", text: "No projects", attr: { style: "text-align: center; color: var(--text-faint); margin-top: 32px;" } });
     } else {
-      const isMobile = !!(import_obsidian23.Platform && import_obsidian23.Platform.isMobile);
+      const isMobile = !!(import_obsidian24.Platform && import_obsidian24.Platform.isMobile);
       items.forEach((e) => {
         const row = list.createDiv({ cls: "cad-dash-row", attr: { style: "display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; background: var(--background-secondary); border-radius: 6px; cursor: pointer; border: 1px solid var(--border-color);" } });
         const nameEl = row.createDiv({ attr: { style: "font-weight: 500; font-size: 0.9em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px;" } });
@@ -9069,7 +8754,7 @@ async function renderProjectsDashboard(view, root) {
       if (!items.length) {
         list.createDiv({ cls: "cad-empty", text: "No projects", attr: { style: "text-align: center; color: var(--text-faint); margin-top: 32px;" } });
       } else {
-        const isMobile = !!(import_obsidian23.Platform && import_obsidian23.Platform.isMobile);
+        const isMobile = !!(import_obsidian24.Platform && import_obsidian24.Platform.isMobile);
         items.forEach((e) => {
           const row = list.createDiv({ cls: "cad-dash-row", attr: { style: "display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; background: var(--background-secondary); border-radius: 6px; cursor: pointer; border: 1px solid var(--border-color);" } });
           const nameEl = row.createDiv({ attr: { style: "font-weight: 500; font-size: 0.9em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px;" } });
@@ -9602,7 +9287,7 @@ async function renderReportGraph(view, root) {
 }
 
 // src/views/reports.ts
-var import_obsidian24 = require("obsidian");
+var import_obsidian25 = require("obsidian");
 var DAY_MS2 = 864e5;
 function reportBar(value, max) {
   const ratio = value / max;
@@ -10067,7 +9752,7 @@ async function renderProductivity(view, root) {
   const notes = /* @__PURE__ */ new Map();
   for (const d of productivityDates(now, settings.weekStartsOn)) {
     const f = view.app.vault.getAbstractFileByPath(dailyNotePath(settings, d));
-    if (f && f instanceof import_obsidian24.TFile) notes.set(ymd(d), await view.app.vault.read(f));
+    if (f && f instanceof import_obsidian25.TFile) notes.set(ymd(d), await view.app.vault.read(f));
   }
   const report = productivityReport(notes, now, settings);
   view._renderPageHeader(root, "Productivity", "Last 30 days \xB7 across your daily notes");
@@ -10083,7 +9768,7 @@ async function renderProductivity(view, root) {
 }
 
 // src/views/task-links.ts
-var import_obsidian25 = require("obsidian");
+var import_obsidian26 = require("obsidian");
 function taskLinkKey(dailyPath, text) {
   return `${dailyPath}::${(text || "").trim()}`;
 }
@@ -10105,14 +9790,14 @@ async function setTaskProjectLink(view, dailyPath, text, projectPath) {
 function openTaskProjectPicker(view, dailyPath, text, currentLink) {
   const projectFiles = listEntityFiles(view.app, "project");
   if (!projectFiles.length) {
-    new import_obsidian25.Notice("No projects yet. Create one in Planner \u2192 Projects first.");
+    new import_obsidian26.Notice("No projects yet. Create one in Planner \u2192 Projects first.");
     return;
   }
   const projects = projectFiles.map((f) => ({
     file: f,
     name: projectNameFromPath(view.app, f.path)
   }));
-  const picker = new class extends import_obsidian25.SuggestModal {
+  const picker = new class extends import_obsidian26.SuggestModal {
     constructor(app, projs, hasLink) {
       super(app);
       this.projs = projs;
@@ -10201,12 +9886,12 @@ async function propagateTaskComplete(view, text, done, source) {
   }
   for (const path of targets.projectPaths) {
     const file = view.app.vault.getAbstractFileByPath(path);
-    if (!file || !(file instanceof import_obsidian25.TFile)) continue;
+    if (!file || !(file instanceof import_obsidian26.TFile)) continue;
     await view._tickProjectTaskByText(file, targets.text, !!done);
   }
   for (const path of targets.dailyPaths) {
     const file = view.app.vault.getAbstractFileByPath(path);
-    if (!file || !(file instanceof import_obsidian25.TFile)) continue;
+    if (!file || !(file instanceof import_obsidian26.TFile)) continue;
     await view._tickDailyNoteTaskByText(file, targets.text, !!done);
   }
 }
@@ -10214,7 +9899,7 @@ async function readTickTarget(view, file) {
   try {
     return await view.app.vault.read(file);
   } catch (error) {
-    new import_obsidian25.Notice(`Couldn't update ${file.path}: ${error.message}`);
+    new import_obsidian26.Notice(`Couldn't update ${file.path}: ${error.message}`);
     return null;
   }
 }
@@ -10236,7 +9921,7 @@ async function tickDailyNoteTask(view, file, ref, checked, date) {
   const content = await view.app.vault.read(file);
   const toggled = toggleDailyTaskByRef(content, view.plugin.settings, ref, checked);
   if (!toggled) {
-    new import_obsidian25.Notice("That task changed in the note, so nothing was ticked.");
+    new import_obsidian26.Notice("That task changed in the note, so nothing was ticked.");
     return;
   }
   await view.app.vault.modify(file, toggled.content);
@@ -10246,13 +9931,13 @@ async function tickDailyNoteTask(view, file, ref, checked, date) {
 }
 
 // src/views/templates.ts
-var import_obsidian28 = require("obsidian");
+var import_obsidian29 = require("obsidian");
 
 // src/modals/chart-section.ts
-var import_obsidian27 = require("obsidian");
+var import_obsidian28 = require("obsidian");
 
 // src/modals/cross-section.ts
-var import_obsidian26 = require("obsidian");
+var import_obsidian27 = require("obsidian");
 function sectionId(prefix) {
   return prefix + Math.random().toString(36).slice(2, 10).padEnd(8, "0");
 }
@@ -10269,7 +9954,7 @@ function buildCrossSectionConfig(form) {
     viewType: form.viewType
   };
 }
-var CadenceCrossSectionModal = class extends import_obsidian26.Modal {
+var CadenceCrossSectionModal = class extends import_obsidian27.Modal {
   constructor(app, parentEntity, onSubmit) {
     super(app);
     this.parentEntity = parentEntity;
@@ -10331,7 +10016,7 @@ var CadenceCrossSectionModal = class extends import_obsidian26.Modal {
     const submit = () => {
       const blank = noLinkFieldMessage(selectTarget.value, selectField.value);
       if (blank) {
-        new import_obsidian26.Notice(blank);
+        new import_obsidian27.Notice(blank);
         return;
       }
       this.onSubmit(buildCrossSectionConfig({
@@ -10371,7 +10056,7 @@ function chartSectionDefaults(fieldKeys, parentEntity) {
   const groupField = fieldKeys.find((k) => ["stage", "status", "type", "priority"].includes(k));
   return { linkField, groupField };
 }
-var CadenceChartSectionModal = class extends import_obsidian27.Modal {
+var CadenceChartSectionModal = class extends import_obsidian28.Modal {
   constructor(app, parentEntity, onSubmit) {
     super(app);
     this.parentEntity = parentEntity;
@@ -10437,7 +10122,7 @@ var CadenceChartSectionModal = class extends import_obsidian27.Modal {
     ok.addEventListener("click", () => {
       const blank = noLinkFieldMessage(selTarget.value, selLink.value);
       if (blank) {
-        new import_obsidian27.Notice(blank);
+        new import_obsidian28.Notice(blank);
         return;
       }
       this.onSubmit(buildChartSectionConfig({
@@ -10465,7 +10150,7 @@ async function renderTemplatesDashboard(view, root) {
   {
     const dailyTemplatePath = `${templatesFolder}/daily.md`;
     const dailyTFile = view.app.vault.getAbstractFileByPath(dailyTemplatePath);
-    const exists = !!(dailyTFile && dailyTFile instanceof import_obsidian28.TFile);
+    const exists = !!(dailyTFile && dailyTFile instanceof import_obsidian29.TFile);
     const card = grid.createDiv({
       cls: "cad-proj-card cad-template-tile"
     });
@@ -10474,7 +10159,7 @@ async function renderTemplatesDashboard(view, root) {
     const infoWrap = head.createDiv({ attr: { style: "display: flex; align-items: center; gap: 12px;" } });
     const iconSpan = infoWrap.createSpan({ cls: "cad-template-tile-icon" });
     try {
-      (0, import_obsidian28.setIcon)(iconSpan, "sun");
+      (0, import_obsidian29.setIcon)(iconSpan, "sun");
     } catch (_) {
       iconSpan.setText("\u2600\uFE0F");
     }
@@ -10515,7 +10200,7 @@ async function renderTemplatesDashboard(view, root) {
       resetBtn.addEventListener("click", async (e) => {
         e.stopPropagation();
         await view.app.vault.create(dailyTemplatePath, DAILY_TEMPLATE_CONTENT);
-        new import_obsidian28.Notice("Daily Note template successfully enabled.");
+        new import_obsidian29.Notice("Daily Note template successfully enabled.");
         view.render();
       });
     }
@@ -10529,7 +10214,7 @@ async function renderTemplatesDashboard(view, root) {
     const pathsToTry = templatePathCandidates(templatesFolder, entityKey, def);
     for (const p of pathsToTry) {
       const tFile = view.app.vault.getAbstractFileByPath(p);
-      if (tFile && tFile instanceof import_obsidian28.TFile) {
+      if (tFile && tFile instanceof import_obsidian29.TFile) {
         exists = true;
         foundPath = p;
         break;
@@ -10543,7 +10228,7 @@ async function renderTemplatesDashboard(view, root) {
     const infoWrap = head.createDiv({ attr: { style: "display: flex; align-items: center; gap: 12px;" } });
     const iconSpan = infoWrap.createSpan({ cls: "cad-template-tile-icon" });
     try {
-      (0, import_obsidian28.setIcon)(iconSpan, def.icon || "file-text");
+      (0, import_obsidian29.setIcon)(iconSpan, def.icon || "file-text");
     } catch (_) {
       iconSpan.setText("\u{1F4DD}");
     }
@@ -10592,13 +10277,13 @@ async function renderTemplatesDashboard(view, root) {
       const templateContent = defaultTemplateContent(entityKey);
       const targetPath = foundPath ?? `${templatesFolder}/${entityKey}.md`;
       let tFile = view.app.vault.getAbstractFileByPath(targetPath);
-      if (tFile && tFile instanceof import_obsidian28.TFile) {
+      if (tFile && tFile instanceof import_obsidian29.TFile) {
         if (!confirm(`Are you sure you want to reset the template for ${def.label}? Your visual changes will be overwritten.`)) return;
         await view.app.vault.modify(tFile, templateContent);
-        new import_obsidian28.Notice(`Template reset for ${def.label}.`);
+        new import_obsidian29.Notice(`Template reset for ${def.label}.`);
       } else {
         await view.app.vault.create(targetPath, templateContent);
-        new import_obsidian28.Notice(`Template successfully enabled for ${def.label}.`);
+        new import_obsidian29.Notice(`Template successfully enabled for ${def.label}.`);
       }
       view.render();
     });
@@ -10643,10 +10328,10 @@ async function renderTemplateDetail(view, root, entityKey, file) {
     if (!confirm(`Delete this custom template? Cadence will fall back to using the default structure.`)) return;
     try {
       await view.app.vault.trash(file, true);
-      new import_obsidian28.Notice(`Custom template deleted.`);
+      new import_obsidian29.Notice(`Custom template deleted.`);
       view.closeEntityDetail();
     } catch (e) {
-      new import_obsidian28.Notice(`Error: ${e.message}`);
+      new import_obsidian29.Notice(`Error: ${e.message}`);
     }
   });
   const cols = root.createDiv({ cls: "cad-pd-cols" });
@@ -10667,11 +10352,11 @@ async function renderTemplateDetail(view, root, entityKey, file) {
     const curContent = await view.app.vault.read(file);
     const nextContent = appendTemplateSection(curContent, cleanTitle, tag, defaultBody);
     if (nextContent === null) {
-      new import_obsidian28.Notice(`Section "${cleanTitle}" is already in this template.`);
+      new import_obsidian29.Notice(`Section "${cleanTitle}" is already in this template.`);
       return;
     }
     await view.app.vault.modify(file, nextContent);
-    new import_obsidian28.Notice(`Section "${cleanTitle}" added to template.`);
+    new import_obsidian29.Notice(`Section "${cleanTitle}" added to template.`);
     await view._propagateTemplateSectionAdd(entityKey, cleanTitle, tag, defaultBody);
     view.render();
   };
@@ -10789,7 +10474,7 @@ function renderTemplateSectionWithDelete(view, parent, file, sections, rawKey, f
   const grip = ctrlRow.createDiv({ attr: { style: "cursor: grab; display: flex; align-items: center; justify-content: center; color: var(--text-muted); opacity: 0.7; padding: 2px 4px;" } });
   grip.title = "Drag card to reorder";
   try {
-    (0, import_obsidian28.setIcon)(grip, "grip-vertical");
+    (0, import_obsidian29.setIcon)(grip, "grip-vertical");
   } catch (_) {
   }
   const delBtn = ctrlRow.createEl("button", { text: "\xD7", attr: { style: "color: var(--text-error); padding: 0 4px; font-weight: bold; background: transparent; border: none; font-size: 1.25em; cursor: pointer;" } });
@@ -10804,7 +10489,7 @@ function renderTemplateSectionWithDelete(view, parent, file, sections, rawKey, f
     if (nextContent !== null) {
       await view.app.vault.modify(file, nextContent);
       if (propagates) await view._propagateTemplateSectionDelete(entityKey, rawKey);
-      new import_obsidian28.Notice(`Section "${cleanLabel}" removed.`);
+      new import_obsidian29.Notice(`Section "${cleanLabel}" removed.`);
       view.render();
     }
   });
@@ -10977,7 +10662,7 @@ function filesUsingTemplateSection(notes, sectionKey) {
 }
 
 // src/views/today.ts
-var import_obsidian29 = require("obsidian");
+var import_obsidian30 = require("obsidian");
 async function quickAddTodayTask(view) {
   if (view.plugin.settings.taskManagementSystem === "tasknotes") {
     const commandId = "tasknotes:create-new-task";
@@ -11001,7 +10686,7 @@ async function quickAddTodayTask(view) {
     const content = await view.app.vault.read(file);
     await view.app.vault.modify(file, appendDailyTask(content, view.plugin.settings, text));
   }
-  new import_obsidian29.Notice("Added to today");
+  new import_obsidian30.Notice("Added to today");
   view.render();
 }
 function todaySummary(tasksList, greet) {
@@ -11083,7 +10768,7 @@ async function renderTodayPane(view, root) {
           ev.preventDefault();
           ev.stopPropagation();
           const file = view.app.vault.getAbstractFileByPath(linkedProject);
-          if (file && file instanceof import_obsidian29.TFile) view.openEntityDetail("project", file);
+          if (file && file instanceof import_obsidian30.TFile) view.openEntityDetail("project", file);
         });
       }
       if (view.plugin.settings.taskManagementSystem !== "tasknotes") {
@@ -11134,7 +10819,7 @@ async function renderTodayPane(view, root) {
     customWrap.style.gridTemplateColumns = "repeat(auto-fit, minmax(320px, 1fr))";
     customWrap.style.gap = "16px";
     const flashSaved = () => {
-      new import_obsidian29.Notice("Section saved");
+      new import_obsidian30.Notice("Section saved");
     };
     otherKeys.forEach((rawKey) => {
       view._renderDynamicH2Section(customWrap, view.todayFile, allSections, rawKey, flashSaved);
@@ -11303,7 +10988,7 @@ async function renderAppView(view) {
     const topbar = root.createDiv({ cls: "cad-app-topbar" });
     const burger = topbar.createEl("button", { cls: "cad-mobile-burger" });
     try {
-      (0, import_obsidian30.setIcon)(burger, "menu");
+      (0, import_obsidian31.setIcon)(burger, "menu");
     } catch (_) {
     }
     burger.title = "Show nav";
@@ -11315,7 +11000,7 @@ async function renderAppView(view) {
     const dark = !!view.plugin.settings.cadenceAppDark;
     const themeBtn = topRight.createEl("button", { cls: "cad-topbar-icon-btn" });
     try {
-      (0, import_obsidian30.setIcon)(themeBtn, dark ? "sun" : "moon");
+      (0, import_obsidian31.setIcon)(themeBtn, dark ? "sun" : "moon");
     } catch (_) {
     }
     themeBtn.title = dark ? "Cadence: switch to light" : "Cadence: switch to dark";
@@ -11335,7 +11020,7 @@ async function renderAppView(view) {
         const head = groupEl.createDiv({ cls: "cad-nav-group-head" });
         const chev = head.createSpan({ cls: "cad-nav-group-chev" });
         try {
-          (0, import_obsidian30.setIcon)(chev, isCollapsed ? "chevron-right" : "chevron-down");
+          (0, import_obsidian31.setIcon)(chev, isCollapsed ? "chevron-right" : "chevron-down");
         } catch (_) {
         }
         head.createSpan({ cls: "cad-nav-group-label", text: group.label.toUpperCase() });
@@ -11349,7 +11034,7 @@ async function renderAppView(view) {
           });
           const ic = item.createSpan({ cls: "cad-app-nav-icon" });
           try {
-            (0, import_obsidian30.setIcon)(ic, s.icon);
+            (0, import_obsidian31.setIcon)(ic, s.icon);
           } catch (_) {
           }
           item.createSpan({ cls: "cad-app-nav-label", text: s.label });
@@ -11415,7 +11100,7 @@ function renderComingSoon(view, root, surface2) {
   wrap.createDiv({ cls: "cad-soon-desc", text: surface2.desc });
   const ic = wrap.createDiv({ cls: "cad-soon-icon" });
   try {
-    (0, import_obsidian30.setIcon)(ic, surface2.icon);
+    (0, import_obsidian31.setIcon)(ic, surface2.icon);
   } catch (_) {
   }
   const meta = wrap.createDiv({ cls: "cad-soon-meta" });
@@ -11436,7 +11121,7 @@ async function openSettingsTab(view, root) {
   const wrap = root.createDiv({ cls: "cad-soon-wrap" });
   const ic = wrap.createDiv({ cls: "cad-soon-icon" });
   try {
-    (0, import_obsidian30.setIcon)(ic, "settings-2");
+    (0, import_obsidian31.setIcon)(ic, "settings-2");
   } catch (_) {
   }
   wrap.createDiv({ cls: "cad-eyebrow", text: "CADENCE" });
@@ -11474,7 +11159,7 @@ async function createEntityFromPrompt(view, entityKey, defaults = {}) {
           if (!targetFile) {
             try {
               await createEntity(view.app, link.creationSource, link.name);
-              new import_obsidian30.Notice(`Created new ${link.label}: ${link.name}`);
+              new import_obsidian31.Notice(`Created new ${link.label}: ${link.name}`);
             } catch (e) {
               console.warn(`Failed to auto-create ${link.creationSource}`, e);
             }
@@ -11488,11 +11173,11 @@ async function createEntityFromPrompt(view, entityKey, defaults = {}) {
             });
           });
         }
-        new import_obsidian30.Notice(`Created ${def.label}: ${file.basename}
+        new import_obsidian31.Notice(`Created ${def.label}: ${file.basename}
 Saved to ${file.path}`, 4e3);
         await view.openEntityDetail(entityKey, file);
       } catch (e) {
-        new import_obsidian30.Notice(`Cadence: failed to create ${def.label} \u2014 ${e.message}`);
+        new import_obsidian31.Notice(`Cadence: failed to create ${def.label} \u2014 ${e.message}`);
       }
     }
   }).open();
@@ -11531,7 +11216,7 @@ function planEntityLinks(def, defaults, values) {
   }
   return { extras, links };
 }
-var CadenceAppView = class extends import_obsidian30.ItemView {
+var CadenceAppView = class extends import_obsidian31.ItemView {
   constructor(leaf, plugin) {
     super(leaf);
     initAppViewState(this, plugin);
@@ -11625,6 +11310,9 @@ var CadenceAppView = class extends import_obsidian30.ItemView {
   }
   _renderEntityTable(parent, entityKey, filteredList, columns) {
     return renderEntityTable(this, parent, entityKey, filteredList, columns);
+  }
+  _renderChipInput(parent, f, current, opts) {
+    return renderChipInput(this, parent, f, current, opts);
   }
   renderCompanyDetail(root, file) {
     return renderCompanyDetail(this, root, file);
@@ -11863,7 +11551,7 @@ var CadenceAppView = class extends import_obsidian30.ItemView {
 };
 
 // src/main.ts
-var CadencePlugin = class extends import_obsidian31.Plugin {
+var CadencePlugin = class extends import_obsidian32.Plugin {
   async onload() {
     await this.loadSettings();
     this.app.workspace.onLayoutReady(async () => {
@@ -11992,11 +11680,11 @@ var CadencePlugin = class extends import_obsidian31.Plugin {
         const noteLabel = sameDay(noteDate, /* @__PURE__ */ new Date()) ? "today's note" : `${ymd(noteDate)} note`;
         const appended = dailyNoteAppended ? ` \xB7 added to ${noteLabel}` : "";
         if (when) {
-          new import_obsidian31.Notice(`Reminder set \xB7 ${reminderTimeStr(when)}${appended}`);
+          new import_obsidian32.Notice(`Reminder set \xB7 ${reminderTimeStr(when)}${appended}`);
         } else if (unreadable) {
-          new import_obsidian31.Notice(`Captured to Inbox (couldn't read the time "${result.when}")${appended}`);
+          new import_obsidian32.Notice(`Captured to Inbox (couldn't read the time "${result.when}")${appended}`);
         } else {
-          new import_obsidian31.Notice(`Captured to Inbox${appended}`);
+          new import_obsidian32.Notice(`Captured to Inbox${appended}`);
         }
       }
     }).open();

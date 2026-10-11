@@ -1,7 +1,7 @@
 import type { App, EventRef, TFile, WorkspaceLeaf } from 'obsidian';
 import type { NavGroup, NavSurface } from '../constants/nav';
 import type { ReminderStore } from '../modals/reminder-edit';
-import type { Entity, EntityKey, TaskNotesTask } from '../types/entities';
+import type { Entity, EntityField, EntityKey, TaskNotesTask } from '../types/entities';
 import type { ChartStyle } from '../types/modals';
 import type { Reminder, ReminderBucket } from '../types/reminders';
 import type { AppViewSettings } from '../types/settings';
@@ -10,6 +10,7 @@ import type { TaskRef } from '../utils/task-lines';
 import type { DashCardRow } from './components/cards';
 import type { PlannerDay } from './calendar';
 import type { ChartDatum } from './components/charts';
+import type { ChipInputOptions } from './components/chip-input';
 import type { FlashSaved, ProjectTextSectionDef } from './components/sections';
 import type { EntityListOptions } from './entity-list';
 import type { BriefingItem } from './home';
@@ -105,6 +106,8 @@ export interface AppViewHost {
   _renderOwnerLinks(parent: HTMLElement, ownerVal: unknown, showPrefix?: boolean): void;
   _renderEntityTable(parent: HTMLElement, entityKey: EntityKey, filteredList: Entity[], columns: string[]): void;
   _getEntityFiles(entityKey: EntityKey | 'daily'): TFile[];
+  /** The chip input of the generic form, the company page and the project page. */
+  _renderChipInput(parent: HTMLElement, f: EntityField, current: unknown, opts: ChipInputOptions): void;
   _renderMarkdownTextCard(
     parent: HTMLElement, file: TFile, sectionKey: string, label: string, initialValue: string | undefined,
     placeholder?: string, flashSaved?: FlashSaved,
