@@ -2422,14 +2422,8 @@ function isPermanentlyLocked(entityKey, field) {
 }
 function isFieldLocked(entityKey, field) {
   if (isPermanentlyLocked(entityKey, field)) return true;
-  if (field.locked === void 0) {
-    if (field.key === "type") {
-      field.locked = true;
-    } else {
-      field.locked = CORE_ENTITY_KEYS2.includes(entityKey);
-    }
-  }
-  return !!field.locked;
+  if (field.locked !== void 0) return !!field.locked;
+  return field.key === "type" || CORE_ENTITY_KEYS2.includes(entityKey);
 }
 function snapshotCustomEntities(settings, entities) {
   if (!settings.customEntities) {
@@ -2437,28 +2431,6 @@ function snapshotCustomEntities(settings, entities) {
   }
   for (const [ek, ent] of Object.entries(entities)) {
     settings.customEntities[ek] = JSON.parse(JSON.stringify(ent.fields));
-  }
-}
-function copyPropertyShape(target, source) {
-  target.label = source.label;
-  target.type = source.type;
-  if (source.options) {
-    target.options = JSON.parse(JSON.stringify(source.options));
-  } else {
-    delete target.options;
-  }
-  if (source.suggestionSource) {
-    target.suggestionSource = source.suggestionSource;
-  } else {
-    delete target.suggestionSource;
-  }
-}
-function syncSharedProperties(entities, sourceField) {
-  if (sourceField.key === "type") return;
-  for (const ent of Object.values(entities)) {
-    ent.fields.forEach((f) => {
-      if (f.key === sourceField.key && f !== sourceField) copyPropertyShape(f, sourceField);
-    });
   }
 }
 function fieldKeySuggestions(entities, frontmatters) {
@@ -2512,10 +2484,21 @@ var SOURCE_OPTIONS = [
   { value: "none", label: "None" },
   { value: "folder", label: "Folder\u2026" }
 ];
+function otherSource(field) {
+  const activeSource = field.suggestionSource || getFieldSuggestionSource(field);
+  if (!activeSource || activeSource.startsWith("folder:")) return null;
+  return SOURCE_OPTIONS.some((s) => s.value === activeSource) ? null : activeSource;
+}
+function sourceOptions(field) {
+  const other = otherSource(field);
+  if (!other) return SOURCE_OPTIONS;
+  const name = other.startsWith("entity:") ? other.slice("entity:".length) : other;
+  return [{ value: other, label: `${name.charAt(0).toUpperCase()}${name.slice(1)} notes` }, ...SOURCE_OPTIONS];
+}
 function sourceState(field) {
   const activeSource = field.suggestionSource || getFieldSuggestionSource(field);
   const isCustomFolder = !!(activeSource && activeSource.startsWith("folder:"));
-  let selected = null;
+  let selected = otherSource(field);
   SOURCE_OPTIONS.forEach((s) => {
     if (!isCustomFolder && s.value === activeSource) selected = s.value;
     else if (isCustomFolder && s.value === "folder") selected = s.value;
@@ -2575,17 +2558,14 @@ function applyPropertyEdit(entities, entityKey, edit) {
   switch (edit.kind) {
     case "label": {
       edit.field.label = edit.value.trim() || edit.field.key;
-      syncSharedProperties(entities, edit.field);
       return { ok: true, migrations, rerender: false };
     }
     case "options": {
       edit.field.options = parseEnumOptions(edit.value);
-      syncSharedProperties(entities, edit.field);
       return { ok: true, migrations, rerender: false };
     }
     case "source": {
       edit.field.suggestionSource = edit.value;
-      syncSharedProperties(entities, edit.field);
       return { ok: true, migrations, rerender: false };
     }
     case "lock": {
@@ -2600,22 +2580,9 @@ function applyPropertyEdit(entities, entityKey, edit) {
         return { ok: false, notice: "This technical key is already in use." };
       }
       const oldKey = field.key;
+      if (sanitized === oldKey) return { ok: true, migrations, rerender: true };
       migrations.push({ kind: "key", entityKey, oldKey, newKey: sanitized });
-      for (const [ek, ent] of Object.entries(entities)) {
-        if (ek === entityKey) continue;
-        const targetField = ent.fields.find((f) => f.key === oldKey);
-        if (targetField) {
-          migrations.push({ kind: "key", entityKey: ek, oldKey, newKey: sanitized });
-          targetField.key = sanitized;
-        }
-      }
       field.key = sanitized;
-      const matchingField = Object.values(entities).flatMap((ent) => ent.fields).find((f) => f.key === sanitized && f !== field);
-      if (matchingField) {
-        copyPropertyShape(field, matchingField);
-        return { ok: true, migrations, notice: `Linked key to existing property "${sanitized}".`, rerender: true };
-      }
-      syncSharedProperties(entities, field);
       return { ok: true, migrations, rerender: true };
     }
     case "type": {
@@ -2623,18 +2590,7 @@ function applyPropertyEdit(entities, entityKey, edit) {
       const oldType = field.type || "text";
       const newType = edit.value;
       migrations.push({ kind: "type", entityKey, fieldKey: field.key, oldType, newType });
-      if (field.key !== "type") {
-        for (const [ek, ent] of Object.entries(entities)) {
-          if (ek === entityKey) continue;
-          const targetField = ent.fields.find((f) => f.key === field.key);
-          if (targetField) {
-            migrations.push({ kind: "type", entityKey: ek, fieldKey: field.key, oldType, newType });
-            targetField.type = newType;
-          }
-        }
-      }
       field.type = newType;
-      syncSharedProperties(entities, field);
       return { ok: true, migrations, rerender: true };
     }
     case "remove": {
@@ -2729,6 +2685,17 @@ function renderEntityPropertiesSettings(tab, containerEl) {
     };
     const edit = (change) => applyPropertyEdit(ENTITIES, selectedEntityKey, change);
     let draggedIndex = null;
+    const frontmatters = [];
+    try {
+      const vaultFiles = tab.app.vault.getMarkdownFiles().slice(0, 200);
+      for (const vf of vaultFiles) {
+        const cache = tab.app.metadataCache.getFileCache(vf);
+        if (cache && cache.frontmatter) frontmatters.push(cache.frontmatter);
+      }
+    } catch (error) {
+      console.warn("Cadence: could not read frontmatter for key suggestions", error);
+    }
+    const _allSuggestionKeys = fieldKeySuggestions(ENTITIES, frontmatters);
     def.fields.forEach((field, index) => {
       const tr = tbody.createEl("tr");
       tr.addClass("cad-prop-row");
@@ -2807,16 +2774,6 @@ function renderEntityPropertiesSettings(tab, containerEl) {
       const datalistId = `cad-key-dl-${selectedEntityKey}-${index}`;
       const datalist = keyWrap.createEl("datalist");
       datalist.id = datalistId;
-      const frontmatters = [];
-      try {
-        const vaultFiles = tab.app.vault.getMarkdownFiles().slice(0, 200);
-        for (const vf of vaultFiles) {
-          const cache = tab.app.metadataCache.getFileCache(vf);
-          if (cache && cache.frontmatter) frontmatters.push(cache.frontmatter);
-        }
-      } catch (_) {
-      }
-      const _allSuggestionKeys = fieldKeySuggestions(ENTITIES, frontmatters);
       _allSuggestionKeys.forEach((k) => datalist.createEl("option", { value: k }));
       const inputKey = keyWrap.createEl("input", {
         type: "text",
@@ -2868,14 +2825,18 @@ function renderEntityPropertiesSettings(tab, containerEl) {
           placeholder: "Option A, Option B...",
           cls: "cad-prop-input"
         });
-        inputOptions.addEventListener("change", async () => {
-          await commit(edit({ kind: "options", field, value: inputOptions.value }));
-        });
+        if (permLocked) {
+          inputOptions.disabled = true;
+        } else {
+          inputOptions.addEventListener("change", async () => {
+            await commit(edit({ kind: "options", field, value: inputOptions.value }));
+          });
+        }
       } else if (optionsKind === "source") {
         const sourceWrap = tdOptions.createDiv({ cls: "cad-source-wrap" });
         const selectSource = sourceWrap.createEl("select", { cls: "cad-prop-input" });
         const { selected, isCustomFolder, folderPath: currentFolderPath } = sourceState(field);
-        SOURCE_OPTIONS.forEach((s) => {
+        sourceOptions(field).forEach((s) => {
           const opt = selectSource.createEl("option", { value: s.value, text: s.label });
           if (s.value === selected) opt.selected = true;
         });
@@ -2925,7 +2886,9 @@ function renderEntityPropertiesSettings(tab, containerEl) {
           folderPickerWrap.style.display = show ? "flex" : "none";
           if (!show) {
             _folderPath = "";
-            folderBadgeEl.setText(folderBadge("").text);
+            const cleared = folderBadge("");
+            folderBadgeEl.setText(cleared.text);
+            folderBadgeEl.style.color = cleared.color;
             await saveSugSource();
           }
         });
