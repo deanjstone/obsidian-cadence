@@ -167,9 +167,11 @@ export async function propagateTaskComplete(view: AppViewHost, text: string, don
   );
   if (!targets) return;
 
-  /* 1. Sync matching reminders (skip the source reminder) */
+  /* 1. Sync matching reminders (skip the source reminder). Completing goes
+     through completeReminder, so a repeating series goes on (#66). */
   for (const id of targets.reminderIds) {
-    await view.plugin.updateReminder(id, { done: !!done });
+    if (done) await view.plugin.completeReminder(id);
+    else await view.plugin.updateReminder(id, { done: false });
   }
 
   /* 2. Tick the task line in each linked project: a matching reminder's, or a daily-note task's */

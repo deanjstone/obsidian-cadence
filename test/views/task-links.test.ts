@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { FakeElement, Notice, SuggestModal, TFile, type MockFileSpec } from "../mocks/obsidian";
-import { makeAppView } from "../helpers/app-view";
+import { makeAppView, useRealReminderEngine } from "../helpers/app-view";
 import { projectWebsite } from "../fixtures/vault";
 
 /* Characterization tests for task↔project linking and task-completion
@@ -31,10 +31,14 @@ function setup(files: MockFileSpec[] = [], settings: Record<string, unknown> = {
   (made.plugin as Any).updateReminder = vi.fn(async (id: string, patch: Record<string, unknown>) => {
     updates.push([id, patch]);
   });
+  const completes: string[] = [];
+  (made.plugin as Any).completeReminder = vi.fn(async (id: string) => {
+    completes.push(id);
+  });
   const rendered = vi.spyOn(made.view, "render").mockResolvedValue(undefined);
   const file = (path: string) => made.app.vault.getAbstractFileByPath(path) as TFile;
   const read = (path: string) => made.app.vault.read(file(path));
-  return { ...made, updates, rendered, file, read };
+  return { ...made, updates, completes, rendered, file, read };
 }
 
 const reminder = (id: string, text: string, extra: Record<string, unknown> = {}) => ({
@@ -325,7 +329,7 @@ describe("_propagateTaskComplete", () => {
   });
 
   it("syncs matching reminders by trimmed text, skipping the source reminder and those already in state", async () => {
-    const { view, updates } = setup([], {
+    const { view, updates, completes } = setup([], {
       reminders: [
         reminder("r1", " Ship "),
         reminder("r2", "Ship", { done: true }),
@@ -336,7 +340,8 @@ describe("_propagateTaskComplete", () => {
     });
     spyTicks(view);
     await view._propagateTaskComplete(" Ship ", true, { kind: "reminder", id: "r3" });
-    expect(updates).toEqual([["r1", { done: true }]]);
+    expect(completes).toEqual(["r1"]);
+    expect(updates).toEqual([]);
   });
 
   it("coerces done to a boolean when syncing reminders", async () => {
@@ -445,7 +450,7 @@ describe("_propagateTaskComplete", () => {
       reminders: [reminder("r1", "Ship", { project: "Cadence/Projects/A.md" })],
     });
     const order: string[] = [];
-    (plugin as Any).updateReminder = vi.fn(async () => {
+    (plugin as Any).completeReminder = vi.fn(async () => {
       order.push("reminder");
     });
     vi.spyOn(view, "_tickProjectTaskByText").mockImplementation(async () => {
@@ -490,8 +495,85 @@ describe("_propagateTaskComplete", () => {
       { reminders: [reminder("r1", "Ship", { project: "Cadence/Projects/A.md" })] },
     );
     await view._propagateTaskComplete("Ship", true);
-    expect((plugin as Any).updateReminder).toHaveBeenCalledWith("r1", { done: true });
+    expect((plugin as Any).completeReminder).toHaveBeenCalledWith("r1");
+    expect((plugin as Any).updateReminder).not.toHaveBeenCalled();
     expect(await read("Cadence/Projects/A.md")).toBe("## Tasks\n- [x] Ship\n");
     expect(await read("daily/2026-10-10.md")).toBe("## Today\n- [x] Ship\n");
+  });
+});
+
+describe("_propagateTaskComplete hands a repeating series on (#66)", () => {
+  const TODAY = { path: "daily/2026-10-10.md", body: "## Today\n- [x] Ship\n" };
+  const PROJECT = { path: "Cadence/Projects/A.md", body: "## Tasks\n- [x] Ship\n" };
+  const TASKNOTE = { path: "TaskNotes/Ship.md", body: "---\nstatus: done\n---\n" };
+  const daily = (id: string, extra: Record<string, unknown> = {}) =>
+    reminder(id, "Ship", { when: "2026-10-10T15:00:00Z", repeat: "daily", ...extra });
+
+  function engineSetup(reminders: Array<Record<string, unknown>>, settings: Record<string, unknown> = {}) {
+    const made = setup([TODAY, PROJECT, TASKNOTE], { reminders, ...settings });
+    useRealReminderEngine(made.plugin);
+    const stored = () => (made.plugin.settings.reminders as Array<Record<string, unknown>>)
+      .map((r) => ({ when: r.when, done: r.done, advanced: !!r.advanced }));
+    return { ...made, stored };
+  }
+
+  const sources: Array<[string, (file: (path: string) => TFile) => Record<string, unknown>, Record<string, unknown>]> = [
+    ["a project task", (file) => ({ kind: "project", file: file(PROJECT.path) }), {}],
+    ["a daily-note task", (file) => ({ kind: "daily", file: file(TODAY.path), date: new Date(NOW) }), {}],
+    [
+      "a Today task linked to a project",
+      (file) => ({ kind: "daily", file: file(TODAY.path), date: new Date(NOW) }),
+      { taskProjectLinks: { "daily/2026-10-10.md::Ship": PROJECT.path } },
+    ],
+    ["a TaskNotes task", (file) => ({ kind: "tasknotes", file: file(TASKNOTE.path) }), {}],
+  ];
+
+  it.each(sources)("ticking %s completes a linked repeating reminder and schedules its next occurrence", async (_name, source, settings) => {
+    const { view, file, stored } = engineSetup([daily("r1")], settings);
+    vi.spyOn(view, "_tickProjectTaskByText").mockResolvedValue(undefined);
+    vi.spyOn(view, "_tickDailyNoteTaskByText").mockResolvedValue(undefined);
+    await view._propagateTaskComplete("Ship", true, source(file));
+    expect(stored()).toEqual([
+      { when: "2026-10-10T15:00:00Z", done: true, advanced: true },
+      { when: "2026-10-11T15:00:00.000Z", done: false, advanced: false },
+    ]);
+  });
+
+  it("ticking a task linked to a one-off reminder only marks it done", async () => {
+    const { view, stored } = engineSetup([reminder("r1", "Ship", { when: "2026-10-10T15:00:00Z" })]);
+    await view._propagateTaskComplete("Ship", true);
+    expect(stored()).toEqual([{ when: "2026-10-10T15:00:00Z", done: true, advanced: false }]);
+  });
+
+  it("an occurrence that already handed its series on adds no second next occurrence", async () => {
+    const { view, stored } = engineSetup([
+      daily("r1", { when: "2026-10-10T08:00:00Z", notified: true, advanced: true }),
+      daily("r2", { when: "2026-10-11T08:00:00Z", done: true }),
+    ]);
+    await view._propagateTaskComplete("Ship", true);
+    expect(stored()).toEqual([
+      { when: "2026-10-10T08:00:00Z", done: true, advanced: true },
+      { when: "2026-10-11T08:00:00Z", done: true, advanced: false },
+    ]);
+  });
+
+  it("a fired occurrence saved before #44 (no advanced flag) loads and doesn't fork the series", async () => {
+    const { view, stored } = engineSetup([
+      daily("r1", { when: "2026-10-10T08:00:00Z", notified: true }),
+      daily("r2", { when: "2026-10-11T08:00:00Z", done: true }),
+    ]);
+    await view._propagateTaskComplete("Ship", true);
+    expect(stored()).toEqual([
+      { when: "2026-10-10T08:00:00Z", done: true, advanced: true },
+      { when: "2026-10-11T08:00:00Z", done: true, advanced: false },
+    ]);
+  });
+
+  it("unticking reopens a done repeating reminder with a plain update and adds no occurrence", async () => {
+    const { view, plugin, stored } = engineSetup([daily("r1", { done: true, notified: true, advanced: true })]);
+    const complete = vi.spyOn(plugin as Any, "completeReminder");
+    await view._propagateTaskComplete("Ship", false);
+    expect(complete).not.toHaveBeenCalled();
+    expect(stored()).toEqual([{ when: "2026-10-10T15:00:00Z", done: false, advanced: true }]);
   });
 });

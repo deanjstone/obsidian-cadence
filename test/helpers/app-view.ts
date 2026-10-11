@@ -2,6 +2,7 @@ import { vi } from "vitest";
 import { createMockApp, WorkspaceLeaf, type App, type FakeElement, type MockFileSpec } from "../mocks/obsidian";
 import { CadenceAppView } from "../../src/views/app-view";
 import type { AppViewPlugin } from "../../src/views/host";
+import { completeReminder, snoozeReminder, updateReminder } from "../../src/plugin/reminders-engine";
 
 /* Builds a CadenceAppView against the mock App, with a plugin stub carrying
    just the settings the shell reads. Shared by the test/views/ files. */
@@ -43,6 +44,16 @@ export function makeAppView(opts: { settings?: Record<string, unknown>; files?: 
   const view: Any = new CadenceAppView(leaf, plugin as unknown as AppViewPlugin);
   const root = view.containerEl.children[1] as FakeElement;
   return { app, plugin, leaf, view, root };
+}
+
+/* Give the stub the real reminders engine, so a test sees what an action
+   does to settings.reminders (a repeating series' hand-on included). */
+export function useRealReminderEngine(stub: PluginStub): void {
+  const plugin = stub as Any;
+  plugin.refreshOpenViews = () => {};
+  plugin.updateReminder = (id: string, patch: Record<string, unknown>) => updateReminder(plugin, id, patch);
+  plugin.snoozeReminder = (id: string, ms: number) => snoozeReminder(plugin, id, ms);
+  plugin.completeReminder = (id: string) => completeReminder(plugin, id);
 }
 
 /* Every surface render() routes to that belongs to a later view ticket.
