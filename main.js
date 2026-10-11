@@ -212,6 +212,14 @@ function fromLocalDatetimeValue(s) {
   if (!s) return null;
   return new Date(s);
 }
+function newestFirst(items, when) {
+  const time = (value) => {
+    if (value == null || value === "") return null;
+    const t = (parseYmd(value) ?? new Date(value)).getTime();
+    return isNaN(t) ? null : t;
+  };
+  return items.map((item) => ({ item, t: time(when(item)) })).sort((a, b) => a.t === null ? b.t === null ? 0 : 1 : b.t === null ? -1 : b.t - a.t).map(({ item }) => item);
+}
 
 // src/modals/capture.ts
 var CAPTURE_TIME_MESSAGES = {
@@ -5440,11 +5448,7 @@ function staleDeals(open, def, now) {
   });
 }
 function recentActivities(activities, def) {
-  return [...activities].sort((a, b) => {
-    const da = new Date(entityValue(a, "when", def) || 0).getTime();
-    const db = new Date(entityValue(b, "when", def) || 0).getTime();
-    return db - da;
-  }).slice(0, 6).map((e) => {
+  return newestFirst(activities, (e) => entityValue(e, "when", def)).slice(0, 6).map((e) => {
     const typeVal = entityValue(e, "type", def) || "\u2014";
     const withVal = entityValue(e, "with", def) || "\u2014";
     const dateVal = fmtValue(entityValue(e, "when", def), "date");
@@ -7579,11 +7583,7 @@ async function homePipelineCard(view, parent) {
 }
 function selectRecentActivities(acts) {
   const def = ENTITIES.activity;
-  return [...acts].sort((a, b) => {
-    const da = new Date(entityValue(a, "when", def) || 0).getTime();
-    const db = new Date(entityValue(b, "when", def) || 0).getTime();
-    return db - da;
-  }).slice(0, 5);
+  return newestFirst(acts, (e) => entityValue(e, "when", def)).slice(0, 5);
 }
 async function homeActivitiesCard(view, parent) {
   const def = ENTITIES.activity;
@@ -9825,11 +9825,7 @@ function activityReport(activities, def, now, weekStartsOn) {
     weeks,
     bars: weeks.map((w) => ({ label: w.label, title: `Week of ${w.label} \u2014 ${w.count} activities`, ...reportBar(w.count, maxWeek) })),
     topContacts: [...contactCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([who, count]) => ({ title: who, titleEntityKey: "contact", meta: `${count} activit${count === 1 ? "y" : "ies"}` })),
-    recent: [...activities].sort((a, b) => {
-      const da = new Date(entityValue(a, "when", def) || 0).getTime();
-      const db = new Date(entityValue(b, "when", def) || 0).getTime();
-      return db - da;
-    }).slice(0, 10).map((e) => ({
+    recent: newestFirst(activities, (e) => entityValue(e, "when", def)).slice(0, 10).map((e) => ({
       title: entityTitle(e, "subject", def),
       metaParts: [
         { text: entityValue(e, "type", def) || "\u2014" },

@@ -261,6 +261,11 @@ describe("activityReport", () => {
     expect(report.topContacts.map((r) => [r.title, r.meta])).toEqual([["Jane", "2 activities"], ["Bob", "1 activity"]]);
     expect(report.recent.map((r) => r.title)).toEqual(["A", "B", "C"]);
   });
+
+  it("lists an undated or unreadable activity after every dated one, even one before 1970, in input order", () => {
+    const odd = [entity("U", {}), entity("G", { when: "soon" }), entity("Old", { when: "1960-01-01" }), entity("New", { when: "2026-01-01" })];
+    expect(activityReport(odd, activity, now, 1).recent.map((r) => r.title)).toEqual(["New", "Old", "U", "G"]);
+  });
 });
 
 describe("productivityDates", () => {

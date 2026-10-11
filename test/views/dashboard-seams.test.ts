@@ -275,6 +275,13 @@ describe("recentActivities", () => {
   });
 });
 
+describe("recentActivities: undated and unreadable", () => {
+  it("sorts an undated or unreadable activity after every dated one, even one before 1970, in input order", () => {
+    const acts = [entity("Undated", {}), entity("Garbage", { when: "soon" }), entity("Old", { when: "1960-01-01" }), entity("Blank", { when: "" }), entity("New", { when: "2026-01-01" })];
+    expect(recentActivities(acts, activity).map((r) => r.title)).toEqual(["New", "Old", "Undated", "Garbage", "Blank"]);
+  });
+});
+
 describe("customerBase", () => {
   it("totals the records and lists the three mini stats with their modes", () => {
     expect(customerBase({ contacts: 3, companies: 2, partners: 1 })).toEqual({

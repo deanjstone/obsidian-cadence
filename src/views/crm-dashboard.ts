@@ -2,6 +2,7 @@ import { ENTITIES } from '../constants/entities';
 import { CadenceWidgetCreateModal } from '../modals/widget-create';
 import type { Entity, EntityDef } from '../types/entities';
 import type { WidgetConfig } from '../types/modals';
+import { newestFirst } from '../utils/dates';
 import { NO_STAGE, crmSummary, dealValue, dealsByStage, sumValues, type CrmSummary } from '../utils/deals';
 import { entityValue, getDealStages, listEntities, listEntityFiles } from '../utils/entities';
 import { fmtValue } from '../utils/format';
@@ -84,15 +85,10 @@ export function staleDeals(open: Entity[], def: EntityDef, now: number): DashCar
     });
 }
 
-/* The 6 latest activities by `when`, newest first; an undated one sorts
-   as 1970. The `with` part links to contacts. */
+/* The 6 latest activities by `when`, newest first (newestFirst); undated
+   and unreadable ones last. The `with` part links to contacts. */
 export function recentActivities(activities: Entity[], def: EntityDef): DashCardRow[] {
-  return [...activities]
-    .sort((a, b) => {
-      const da = new Date((entityValue(a, 'when', def) as string) || 0).getTime();
-      const db = new Date((entityValue(b, 'when', def) as string) || 0).getTime();
-      return db - da;
-    })
+  return newestFirst(activities, (e) => entityValue(e, 'when', def))
     .slice(0, 6)
     .map((e) => {
       const typeVal = (entityValue(e, 'type', def) as string) || '—';

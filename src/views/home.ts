@@ -1,7 +1,7 @@
 import { Platform, TFile } from 'obsidian';
 import { ENTITIES } from '../constants/entities';
 import { CadenceReminderEditModal } from '../modals/reminder-edit';
-import { addDays, dailyNotePath, greeting, startOfDay, startOfWeek, ymd } from '../utils/dates';
+import { addDays, dailyNotePath, greeting, newestFirst, startOfDay, startOfWeek, ymd } from '../utils/dates';
 import { ensureDailyNote } from '../utils/daily-notes';
 import { dealClosedAt, dealOutcome } from '../utils/deals';
 import {
@@ -811,14 +811,10 @@ export async function homePipelineCard(view: AppViewHost, parent: HTMLElement): 
 
 /* ── Activities card ── */
 
-/** The five most recent activities by `when`; undated ones sort as 1970. */
+/** The five most recent activities by `when` (newestFirst); undated and unreadable ones last. */
 export function selectRecentActivities(acts: Entity[]): Entity[] {
   const def = ENTITIES.activity;
-  return [...acts].sort((a, b) => {
-    const da = new Date((entityValue(a, 'when', def) as string) || 0).getTime();
-    const db = new Date((entityValue(b, 'when', def) as string) || 0).getTime();
-    return db - da;
-  }).slice(0, 5);
+  return newestFirst(acts, (e) => entityValue(e, 'when', def)).slice(0, 5);
 }
 
 export async function homeActivitiesCard(view: AppViewHost, parent: HTMLElement): Promise<void> {

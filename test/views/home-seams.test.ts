@@ -326,4 +326,10 @@ describe("selectRecentActivities", () => {
     const out = selectRecentActivities([a("u"), a("1", "2026-01-01"), a("3", "2026-03-01"), a("2", "2026-02-01"), a("5", "2026-05-01"), a("4", "2026-04-01")]);
     expect(out.map((e) => e.basename)).toEqual(["5", "4", "3", "2", "1"]);
   });
+
+  it("sorts an undated or unreadable activity after every dated one, even one before 1970, in input order", () => {
+    const a = (n: string, when?: string) => entity(`Cadence/Activities/${n}.md`, when === undefined ? {} : { when });
+    const out = selectRecentActivities([a("u"), a("g", "soon"), a("old", "1960-01-01"), a("new", "2026-01-01")]);
+    expect(out.map((e) => e.basename)).toEqual(["new", "old", "u", "g"]);
+  });
 });

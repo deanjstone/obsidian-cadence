@@ -2,7 +2,7 @@ import { TFile } from 'obsidian';
 import { ENTITIES } from '../constants/entities';
 import type { Entity, EntityDef } from '../types/entities';
 import type { DailyNoteSettings } from '../types/settings';
-import { addDays, dailyNotePath, parseYmd, startOfDay, startOfWeek, ymd } from '../utils/dates';
+import { addDays, dailyNotePath, newestFirst, parseYmd, startOfDay, startOfWeek, ymd } from '../utils/dates';
 import { crmSummary, dealClosedAt, dealOutcome, dealValue, dealsByStage, linkedNames, partnerResolver, stageConfidence, sumValues } from '../utils/deals';
 import { entityValue, getDealStages, listEntities } from '../utils/entities';
 import { fmtValue } from '../utils/format';
@@ -325,7 +325,7 @@ export interface ActivityReport {
   bars: ReportBar[];
   /** The top 8 `with` values by activity count; blank ones are skipped. */
   topContacts: DashCardRow[];
-  /** The 10 latest by `when`, newest first; undated sorts as 1970. */
+  /** The 10 latest by `when`, newest first (newestFirst); undated and unreadable last. */
   recent: DashCardRow[];
 }
 
@@ -370,12 +370,7 @@ export function activityReport(activities: Entity[], def: EntityDef, now: Date, 
       .sort((a, b) => b[1] - a[1])
       .slice(0, 8)
       .map(([who, count]) => ({ title: who, titleEntityKey: 'contact', meta: `${count} activit${count === 1 ? 'y' : 'ies'}` })),
-    recent: [...activities]
-      .sort((a, b) => {
-        const da = new Date((entityValue(a, 'when', def) as string) || 0).getTime();
-        const db = new Date((entityValue(b, 'when', def) as string) || 0).getTime();
-        return db - da;
-      })
+    recent: newestFirst(activities, (e) => entityValue(e, 'when', def))
       .slice(0, 10)
       .map((e) => ({
         title: entityTitle(e, 'subject', def),
