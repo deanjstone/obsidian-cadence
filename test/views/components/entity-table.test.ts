@@ -197,9 +197,9 @@ describe("_getEntityFiles", () => {
     expect(setup(daily, { dailyNoteFolder: "daily/2026-10-01.md" }).view._getEntityFiles("daily")).toEqual([]);
   });
 
-  it("QUIRK: an empty dailyNoteFolder falls back to 'daily'", () => {
-    const { view } = setup(daily, { dailyNoteFolder: "" });
-    expect(view._getEntityFiles("daily")).toHaveLength(2);
+  it("an empty dailyNoteFolder means the vault root, where daily notes are written: only its dated notes", () => {
+    const { view } = setup([...daily, { path: "2026-10-04.md" }, { path: "README.md" }, { path: "2026-10-05.png" }], { dailyNoteFolder: "" });
+    expect(view._getEntityFiles("daily").map((f: { path: string }) => f.path)).toEqual(["2026-10-04.md"]);
   });
 
   it("lists an entity's folder for every other key", () => {

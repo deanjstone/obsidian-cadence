@@ -72,14 +72,14 @@ describe("_inboxOverdueCount", () => {
     expect(view._inboxOverdueCount()).toBe(0);
   });
 
-  it("QUIRK: an unparseable time is never overdue", () => {
+  it("an unparseable time is never overdue: it can't be read, so it counts as unscheduled", () => {
     const { view } = setup([], { reminders: [reminder("a", "garbage")] });
     expect(view._inboxOverdueCount()).toBe(0);
   });
 });
 
 describe("renderInbox", () => {
-  it("shows the empty state, with no project-tasks section, for inbox zero", async () => {
+  it("shows the empty state for inbox zero, then the project-tasks section", async () => {
     const { view, parent } = setup([projectWebsite], { reminders: [reminder("a", null, { done: true })] });
     const section = vi.spyOn(view, "_renderProjectTasksSection");
     await view.renderInbox(parent);
@@ -91,7 +91,16 @@ describe("renderInbox", () => {
       ["cad-empty-state-title", "Inbox zero"],
       ["cad-empty-state-desc", "Capture anything with + Quick capture above (or Cmd+Shift+I). Add a time and Cadence will remind you."],
     ]);
-    expect(section).not.toHaveBeenCalled();
+    expect(section.mock.calls).toEqual([[parent]]);
+  });
+
+  it("at inbox zero, still lists PROJECT TASKS when projects have open tasks", async () => {
+    const { view, parent } = setup([
+      { path: "Cadence/Projects/Site.md", frontmatter: { type: "project", name: "Site" }, body: "\n## Tasks\n- [ ] Write copy\n- [x] Brief\n" },
+    ]);
+    await view.renderInbox(parent);
+    expect(parent.children.slice(1).map((c) => c.classes[0])).toEqual(["cad-empty-state", "cad-section-label-lg", "cad-pt-wrap"]);
+    expect(parent.querySelectorAll(".cad-section-label-lg")[0].text).toBe("PROJECT TASKS · 1 open across 1 project");
   });
 
   it("wires + Quick capture to the plugin", async () => {
@@ -172,11 +181,11 @@ describe("renderInbox", () => {
     expect(plugin.settings.reminders).toHaveLength(1);
   });
 
-  it("QUIRK: an unparseable time lands in LATER but sorts as NaN", async () => {
+  it("an unparseable time lands in LATER, after every readable time", async () => {
     const { view, parent } = setup([], { reminders: [reminder("bad", "garbage"), reminder("ok", "2026-10-20T09:00:00Z")] });
     await view.renderInbox(parent);
     expect(sectionLabels(parent)).toEqual(["LATER · UNSCHEDULED · 2"]);
-    expect(rowTexts(parent)).toEqual(["Task bad", "Task ok"]);
+    expect(rowTexts(parent)).toEqual(["Task ok", "Task bad"]);
   });
 });
 
@@ -209,6 +218,12 @@ describe("_renderInboxRow", () => {
     ]);
   });
 
+  it("says a time it can't read is unreadable, muted, rather than showing nothing", () => {
+    const { view } = setup();
+    const { left } = row(view, reminder("a", "garbage", { repeat: "daily" }), "later");
+    expect(left.children[0].children.map((c) => [c.classes, c.text])).toEqual([[["cad-inbox-time-text", "muted"], "unreadable time"]]);
+  });
+
   it("marks the now bucket as overdue", () => {
     const { view } = setup();
     expect(row(view, reminder("a", null), "now").el.classes).toEqual(["cad-inbox-row", "overdue"]);
@@ -224,14 +239,14 @@ describe("_renderInboxRow", () => {
     expect(opened.map((m) => m.reminder)).toEqual([r]);
   });
 
-  it("labels the repeat; QUIRK: any repeat but none or daily reads weekly", () => {
+  it("labels a daily or weekly repeat; any other value never repeats and shows none", () => {
     const { view } = setup();
     const repeat = (value: string) =>
       row(view, reminder("a", "2026-10-10T15:00:00Z", { repeat: value })).left.querySelectorAll(".cad-inbox-repeat").map((s) => s.text);
     expect(repeat("none")).toEqual([]);
     expect(repeat("daily")).toEqual(["↻ daily"]);
     expect(repeat("weekly")).toEqual(["↻ weekly"]);
-    expect(repeat("monthly")).toEqual(["↻ weekly"]);
+    expect(repeat("monthly")).toEqual([]);
     expect(repeat("")).toEqual([]);
   });
 

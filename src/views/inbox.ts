@@ -3,7 +3,7 @@ import { CadenceConfirmModal } from '../modals/confirm';
 import { CadenceReminderEditModal } from '../modals/reminder-edit';
 import { listEntityFiles, projectNameFromPath } from '../utils/entities';
 import { parseH2Sections, parseTasksList } from '../utils/parsing';
-import { findProjectTaskReminder, reminderBucket, reminderTimeStr } from '../utils/reminders';
+import { findProjectTaskReminder, reminderBucket, reminderTime, reminderTimeLabel, repeatLabel } from '../utils/reminders';
 import type { Reminder, ReminderBucket } from '../types/reminders';
 import type { TaskItem } from '../utils/parsing';
 import type { AppViewHost } from './host';
@@ -11,7 +11,7 @@ import type { AppViewHost } from './host';
 /** Open reminders due at or before `now` (ms). An unparseable time never is. */
 export function overdueCount(reminders: Reminder[] | undefined, now: number): number {
   const open = (reminders || []).filter((r) => !r.done);
-  return open.filter((r) => r.when && new Date(r.when).getTime() <= now).length;
+  return open.filter((r) => (reminderTime(r.when) ?? Infinity) <= now).length;
 }
 
 export function inboxOverdueCount(view: AppViewHost): number {
@@ -34,10 +34,10 @@ export interface InboxSection {
 export function inboxRows(reminders: Reminder[] | undefined): { count: number; subtitle: string; sections: InboxSection[] } {
   const all = (reminders || []).filter((r) => !r.done);
 
-  // Sort: scheduled by when, captures by createdAt
+  // Sort: scheduled by when, captures (and unreadable times) by createdAt
   all.sort((a, b) => {
-    const wa = a.when ? new Date(a.when).getTime() : Infinity;
-    const wb = b.when ? new Date(b.when).getTime() : Infinity;
+    const wa = reminderTime(a.when) ?? Infinity;
+    const wb = reminderTime(b.when) ?? Infinity;
     if (wa !== wb) return wa - wb;
     const ca = a.createdAt ? new Date(a.createdAt).getTime() : 0;
     const cb = b.createdAt ? new Date(b.createdAt).getTime() : 0;
@@ -72,7 +72,6 @@ export async function renderInbox(view: AppViewHost, root: HTMLElement): Promise
     const empty = root.createDiv({ cls: 'cad-empty-state' });
     empty.createDiv({ cls: 'cad-empty-state-title', text: 'Inbox zero' });
     empty.createDiv({ cls: 'cad-empty-state-desc', text: 'Capture anything with + Quick capture above (or Cmd+Shift+I). Add a time and Cadence will remind you.' });
-    return;
   }
 
   inbox.sections.forEach(({ key, label, items }) => {
@@ -81,7 +80,8 @@ export async function renderInbox(view: AppViewHost, root: HTMLElement): Promise
     items.forEach((r) => view._renderInboxRow(list, r, key));
   });
 
-  /* ── PROJECT TASKS — every open `- [ ]` from every project's ## Tasks ── */
+  /* ── PROJECT TASKS — every open `- [ ]` from every project's ## Tasks,
+     at inbox zero too (owner decision, #55) ── */
   await view._renderProjectTasksSection(root);
 }
 
@@ -136,7 +136,7 @@ export async function renderProjectTasksSection(view: AppViewHost, root: HTMLEle
       const txt = row.createSpan({ cls: 'cad-pt-text', text: t.title });
       void txt;
       if (linked && linked.when) {
-        row.createSpan({ cls: 'cad-pt-when', text: reminderTimeStr(linked.when) });
+        row.createSpan({ cls: 'cad-pt-when', text: reminderTimeLabel(linked.when) });
       }
       const bell = row.createEl('button', {
         cls: 'cad-btn cad-btn-sm cad-pt-bell' + (linked ? ' linked' : ''),
@@ -163,11 +163,8 @@ export async function renderProjectTasksSection(view: AppViewHost, root: HTMLEle
   });
 }
 
-/** The repeat badge for a scheduled item; any repeat but none or daily reads weekly. */
-export function repeatLabel(repeat: string | null | undefined): string | null {
-  if (!repeat || repeat === 'none') return null;
-  return repeat === 'daily' ? '↻ daily' : '↻ weekly';
-}
+/* Moved to src/utils/reminders.ts, where Home shares it. */
+export { repeatLabel } from '../utils/reminders';
 
 /** The first non-blank notes line, cut to 117 characters plus '…' past 120. */
 export function notesPreview(notes: string | null | undefined): string {
@@ -206,8 +203,10 @@ export function renderInboxRow(view: AppViewHost, parent: HTMLElement, r: Remind
 
   const left = row.createDiv({ cls: 'cad-inbox-row-left' });
   const tWrap = left.createDiv({ cls: 'cad-inbox-time' });
-  if (r.when) {
-    tWrap.createSpan({ cls: 'cad-inbox-time-text', text: reminderTimeStr(r.when) });
+  if (r.when && reminderTime(r.when) === null) {
+    tWrap.createSpan({ cls: 'cad-inbox-time-text muted', text: reminderTimeLabel(r.when) });
+  } else if (r.when) {
+    tWrap.createSpan({ cls: 'cad-inbox-time-text', text: reminderTimeLabel(r.when) });
     const repeat = repeatLabel(r.repeat);
     if (repeat) tWrap.createSpan({ cls: 'cad-inbox-repeat', text: repeat });
   } else {

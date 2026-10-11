@@ -68,10 +68,17 @@ describe("_computeBriefing: open tasks today", () => {
     expect(await setup([daily("## Today\n- [x] a\n")]).view._computeBriefing()).toEqual([]);
   });
 
-  it("QUIRK: creates today's note when missing, and its blank `- [ ] ` line counts as one open task", async () => {
+  it("doesn't create today's note when it is missing, and finds no open task", async () => {
     const { view, app } = setup();
-    expect(shape(await view._computeBriefing())).toEqual([["🎯", "emerald", "1 open task on today's note"]]);
-    expect(app.vault.created).toEqual(["daily/2026-10-10.md"]);
+    expect(await view._computeBriefing()).toEqual([]);
+    expect(app.vault.created).toEqual([]);
+  });
+
+  it("doesn't count the template's blank `- [ ] ` line as an open task", async () => {
+    expect(await setup([daily("## Today\n- [ ] \n")]).view._computeBriefing()).toEqual([]);
+    expect(shape(await setup([daily("## Today\n- [ ] \n- [ ] a\n")]).view._computeBriefing())).toEqual([
+      ["🎯", "emerald", "1 open task on today's note"],
+    ]);
   });
 
   it("counts TaskNotes tasks scheduled today that are not done", async () => {
@@ -105,14 +112,21 @@ describe("_computeBriefing: reminders", () => {
     expect(setMode.mock.calls).toEqual([["planner.inbox"]]);
   });
 
-  it("QUIRK: names the first overdue reminder in settings order, not the most overdue, and truncates past 50 chars", async () => {
+  it("names the most overdue reminder, not the first in settings order, and truncates past 50 chars", async () => {
     const long = "x".repeat(51);
     const { view } = setup([], {
       ...quietTasks,
       reminders: [reminder(long, "2026-10-09T09:00:00Z"), reminder("Oldest", "2026-01-01T00:00:00Z"), reminder("Third", "2026-10-10T08:59:59Z")],
     });
     expect(shape(await view._computeBriefing())).toEqual([
-      ["⚠", "rose", `3 overdue reminders — "${"x".repeat(47)}…" + 2 more`],
+      ["⚠", "rose", '3 overdue reminders — "Oldest" + 2 more'],
+    ]);
+    const truncated = setup([], {
+      ...quietTasks,
+      reminders: [reminder("Recent", "2026-10-10T08:00:00Z"), reminder(long, "2026-10-01T09:00:00Z")],
+    });
+    expect(shape(await truncated.view._computeBriefing())).toEqual([
+      ["⚠", "rose", `2 overdue reminders — "${"x".repeat(47)}…" + 1 more`],
     ]);
   });
 
@@ -197,17 +211,30 @@ describe("_computeBriefing: stale contacts on open deals", () => {
     expect(shape(await view._computeBriefing())).toEqual([["👤", "warn", "Jane Doe — never contacted · Acme renewal (+1 more)"]]);
   });
 
-  it("QUIRK: an unparseable lastContact counts as stale and reads 'never contacted'", async () => {
+  it("an unparseable lastContact counts as stale and says it can't be read", async () => {
     const { view } = setup([openDeal, contact("Jane Doe", { lastContact: "last spring" })], quietTasks);
-    expect(shape(await view._computeBriefing())).toEqual([["👤", "warn", "Jane Doe — never contacted · Acme renewal"]]);
+    expect(shape(await view._computeBriefing())).toEqual([["👤", "warn", "Jane Doe — last contact unreadable · Acme renewal"]]);
   });
 
-  it("QUIRK: a wiki-link deal contact, as the forms write it, never matches the contact's name", async () => {
+  it("a wiki-link deal contact, as the forms write it, matches the contact", async () => {
     const { view } = setup([
       deal("Acme renewal", { title: "Acme renewal", stage: "Proposal", contact: ["[[Jane Doe]]"] }),
       contact("Jane Doe", { lastContact: "2026-01-01" }),
     ], quietTasks);
-    expect(await view._computeBriefing()).toEqual([]);
+    expect(shape(await view._computeBriefing())).toEqual([["👤", "warn", "Jane Doe — 282 days quiet · Acme renewal"]]);
+  });
+
+  it("matches a deal's contacts to a contact's name or file name, in any case, naming the deal", async () => {
+    const { view, openFromFile, file } = setup([
+      deal("Acme renewal", { title: "Acme renewal", stage: "Proposal", contact: "[[jane-doe|Jane]], [[Someone Else]]" }),
+      { path: "Cadence/Contacts/jane-doe.md", frontmatter: { type: "contact", name: "Jane Doe", lastContact: "2026-01-01" } },
+      deal("Globex", { title: "Globex", stage: "Lead", contact: ["[[BOB ROE]]"] }),
+      contact("Bob Roe", { lastContact: "2026-01-01" }),
+    ], quietTasks);
+    const items: Item[] = await view._computeBriefing();
+    expect(shape(items)).toEqual([["👤", "warn", "Jane Doe — 282 days quiet · Acme renewal (+1 more)"]]);
+    items[0].action!();
+    expect(openFromFile.mock.calls).toEqual([[file("Cadence/Contacts/jane-doe.md")]]);
   });
 
   it("ignores contacts whose only deals are Won or Lost, and leaves out a blank deal title", async () => {
@@ -253,9 +280,9 @@ describe("_computeBriefing: upcoming milestones", () => {
     expect(await setup([project("P", ["- [ ] 2026-10-25 — M"])], quietTasks).view._computeBriefing()).toEqual([]);
   });
 
-  it("QUIRK: an overdue open milestone hides the project's upcoming one", async () => {
+  it("an overdue open milestone doesn't hide the project's upcoming one", async () => {
     const { view } = setup([project("P", ["- [ ] 2026-10-01 — Late", "- [ ] 2026-10-12 — Next"])], quietTasks);
-    expect(await view._computeBriefing()).toEqual([]);
+    expect(shape(await view._computeBriefing())).toEqual([["📅", "mint", 'P · "Next" — due in 2 days']]);
   });
 
   it("skips a project whose note can't be read", async () => {

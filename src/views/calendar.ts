@@ -1,10 +1,9 @@
 import { TFile } from 'obsidian';
 import { addDays, dailyNotePath, sameDay, startOfDay, weekDates, ymd } from '../utils/dates';
-import { ensureDailyNote } from '../utils/daily-notes';
+import { ensureDailyNote, findDailyNote } from '../utils/daily-notes';
 import { parseSections } from '../utils/parsing';
-import { countTaskLines, taskLineRef, taskLineRows, taskNotesToday } from '../utils/task-lines';
+import { countTaskLines, taskLineRef, taskLineRows, taskNotesToday, withoutBlankTasks } from '../utils/task-lines';
 import { listTaskNotesTasks, toggleTaskNotesTask } from '../utils/tasknotes';
-import type { TAbstractFile } from 'obsidian';
 import type { TaskNotesTask } from '../types/entities';
 import type { AppViewHost } from './host';
 
@@ -14,8 +13,8 @@ export interface PlannerDay {
   date: Date;
   path: string;
   exists: boolean;
-  /** A TFile in daily-note mode; in TaskNotes mode whatever sits at the path. */
-  file?: TFile | TAbstractFile | null;
+  /** The day's daily note, when there is one (a folder at the path is not). */
+  file?: TFile | null;
   /** Task lines (`- [ ] …`). */
   tasks: string[];
   /** TaskNotes mode only: the task notes behind `tasks`, by index. */
@@ -35,7 +34,7 @@ export interface PlannerColumn {
   /** Short weekday, upper-case ("MON"). */
   weekday: string;
   dayNum: string;
-  /** `N open · M done`, or 'no note'. */
+  /** `N open · M done`, or 'no note' for a day with no note and no tasks. */
   meta: string;
   /** Text of the empty placeholder ('—' or '' without a note), or null with tasks. */
   empty: string | null;
@@ -55,7 +54,7 @@ export function plannerWeek(dayData: Array<Pick<PlannerDay, 'date' | 'exists' | 
       isToday: sameDay(d.date, today),
       weekday: d.date.toLocaleDateString(undefined, { weekday: 'short' }).toUpperCase(),
       dayNum: String(d.date.getDate()),
-      meta: d.exists ? `${open} open · ${done} done` : 'no note',
+      meta: d.exists || d.tasks.length ? `${open} open · ${done} done` : 'no note',
       empty: d.tasks.length ? null : (d.exists ? '—' : ''),
       rows: taskLineRows(d.tasks),
     };
@@ -90,7 +89,7 @@ export async function renderPlannerPane(view: AppViewHost, root: HTMLElement): P
     const allTasks = listTaskNotesTasks(view.app);
     dayData = days.map((d) => {
       const path = dailyNotePath(settings, d);
-      const file = view.app.vault.getAbstractFileByPath(path);
+      const file = findDailyNote(view.app, settings, d);
       const forDay = taskNotesToday(allTasks, ymd(d));
       return {
         date: d,
@@ -110,7 +109,7 @@ export async function renderPlannerPane(view: AppViewHost, root: HTMLElement): P
       }
       const content = await view.app.vault.read(file);
       const parsed = parseSections(content, settings);
-      return { date: d, path, exists: true, file, tasks: parsed.tasks };
+      return { date: d, path, exists: true, file, tasks: withoutBlankTasks(parsed.tasks) };
     }));
   }
 

@@ -192,6 +192,15 @@ describe("_homeInboxCard", () => {
     );
   });
 
+  it("sorts a reminder whose time can't be read after the readable ones, labelled unreadable, never overdue", async () => {
+    const { view, parent } = setup([], { reminders: [reminder("Bad", "garbage"), reminder("Idea", null), reminder("Soon", "2026-10-11T09:00:00Z")] });
+    await view._homeInboxCard(parent);
+    const c = card(parent);
+    expect([c.title, c.el.dataset.tone]).toEqual(["INBOX — 3 items", "sky"]);
+    expect(rowTexts(c.body).map((r) => r[1])).toEqual(["Soon", "Bad", "Idea"]);
+    expect(rowTexts(c.body)[1][0]).toBe("unreadable time");
+  });
+
   it("uses the singular for one item and labels an unscheduled one", async () => {
     const { view, parent } = setup([], { reminders: [reminder("Idea", null)] });
     await view._homeInboxCard(parent);
@@ -214,15 +223,15 @@ describe("_homeInboxCard", () => {
     expect(rowTexts(card(parent).body)).toEqual([
       ["unscheduled", "A", `📁 Website relaunch  ·  ↻ daily  ·  📝 ${"n".repeat(57)}…`],
       ["unscheduled", "B", "📁 Old plan  ·  ↻ weekly  ·  📝 short"],
-      ["unscheduled", "C", "↻ weekly"],
+      ["unscheduled", "C"],
       ["unscheduled", "D", `📝 ${"n".repeat(60)}`],
     ]);
   });
 
-  it("QUIRK: any repeat other than none or daily reads as weekly", async () => {
+  it("shows no repeat for a value other than daily or weekly, which never repeats", async () => {
     const { view, parent } = setup([], { reminders: [reminder("C", null, { repeat: "monthly" })] });
     await view._homeInboxCard(parent);
-    expect(rowTexts(card(parent).body)).toEqual([["unscheduled", "C", "↻ weekly"]]);
+    expect(rowTexts(card(parent).body)).toEqual([["unscheduled", "C"]]);
   });
 
   it("opens the reminder editor on the reminder object itself when a row is clicked", async () => {
@@ -268,12 +277,26 @@ describe("_homeTodayCard (daily notes)", () => {
     expect(c.body.children.map((e) => [e.classes[0], e.text])).toEqual([["cad-empty", "No tasks yet — add one with + Task above."]]);
   });
 
-  it("QUIRK: creates today's note when missing and lists its blank task", async () => {
+  it("doesn't create today's note when it is missing, and shows the empty state", async () => {
     const { view, parent, app } = setup();
     await view._homeTodayCard(parent);
-    expect(app.vault.created).toEqual(["daily/2026-10-10.md"]);
-    expect(card(parent).title).toBe("TODAY — 1 open · 0 done");
-    expect(card(parent).body.children[0].children[1].text).toBe("");
+    expect(app.vault.created).toEqual([]);
+    expect(card(parent).title).toBe("TODAY — 0 open · 0 done");
+    expect(card(parent).body.children.map((e) => [e.classes[0], e.text])).toEqual([["cad-empty", "No tasks yet — add one with + Task above."]]);
+  });
+
+  it("skips the template's blank task line, and a tick still hits the task its row showed", async () => {
+    const { view, parent, app, file } = setup([today("## Today\n- [ ] \n- [ ] a\n")]);
+    vi.spyOn(view, "_propagateTaskComplete").mockResolvedValue(undefined);
+    await view._homeTodayCard(parent);
+    const c = card(parent);
+    expect(c.title).toBe("TODAY — 1 open · 0 done");
+    expect(c.body.children.map((r) => r.children[1].text)).toEqual(["a"]);
+    const cb = c.body.children[0].children[0];
+    cb.checked = true;
+    cb.trigger("change");
+    await flush();
+    expect(await app.vault.read(file("daily/2026-10-10.md") as never)).toBe("## Today\n- [ ] \n- [x] a\n");
   });
 
   it("ticks a task in the note, propagates the completion, and re-renders, editing only that line", async () => {
@@ -420,6 +443,12 @@ describe("_homeWeekCard", () => {
     expect(wrap.children[1].children[0].style.width).toBe("67%");
   });
 
+  it("doesn't count a daily note's blank `- [ ] ` line", async () => {
+    const { view, parent } = setup([{ path: "daily/2026-10-05.md", body: "## Today\n- [ ] \n- [x] a\n" }]);
+    await view._homeWeekCard(parent);
+    expect(card(parent).title).toBe("THIS WEEK — 1/1 done");
+  });
+
   it("shows 0% in the rose band with nothing logged", async () => {
     const { view, parent, app } = setup();
     await view._homeWeekCard(parent);
@@ -462,6 +491,12 @@ describe("_homeUpcomingCard", () => {
   const cert = (name: string, expires: string): MockFileSpec => ({ path: `Cadence/Certifications/${name}.md`, frontmatter: { name, expires } });
   const proj = (name: string, fm: Record<string, unknown>, milestones = ""): MockFileSpec => ({
     path: `Cadence/Projects/${name}.md`, frontmatter: { type: "project", ...fm }, body: milestones ? `\n## Milestones\n${milestones}\n` : "",
+  });
+
+  it("shows a project's next upcoming milestone even behind an overdue open one", async () => {
+    const { view, parent } = setup([proj("Site", { name: "Site" }, "- [ ] 2026-10-01 — Late\n- [ ] 2026-10-13 — Beta")]);
+    await view._homeUpcomingCard(parent);
+    expect(rowTexts(card(parent).body)).toEqual([["Oct 13, 2026", "Site — Beta", "Milestone"]]);
   });
 
   it("merges project deadlines, next milestones and expiries in the next 7 days, sorted, warn-toned with no link", async () => {
@@ -552,7 +587,7 @@ describe("_homeProjectsCard", () => {
     ]);
     await view._homeProjectsCard(parent);
     const c = card(parent);
-    expect([c.title, c.el.dataset.tone]).toEqual(["ACTIVE PROJECTS — 6", "emerald"]);
+    expect([c.title, c.el.dataset.tone]).toEqual(["ACTIVE PROJECTS — 5", "emerald"]);
     expect(c.links.map((l) => l.text)).toEqual(["Open Projects →"]);
     expect(c.links[0].trigger("click").defaultPrevented).toBe(true);
     expect(setMode.mock.calls).toEqual([["projects.projects"]]);
@@ -571,11 +606,11 @@ describe("_homeProjectsCard", () => {
     expect(openDetail.mock.calls).toEqual([["project", file("Cadence/Projects/Paused.md")]]);
   });
 
-  it("QUIRK: the header counts every project file, active or not", async () => {
+  it("the header counts only active projects", async () => {
     const { view, parent } = setup([proj("A", "done"), proj("B", "cancelled")]);
     await view._homeProjectsCard(parent);
     const c = card(parent);
-    expect(c.title).toBe("ACTIVE PROJECTS — 2");
+    expect(c.title).toBe("ACTIVE PROJECTS — 0");
     expect(c.body.children.map((e) => [e.classes[0], e.text])).toEqual([["cad-empty", "No active projects right now."]]);
   });
 

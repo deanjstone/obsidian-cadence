@@ -117,7 +117,13 @@ export function renderEntityTable(view: AppViewHost, parent: HTMLElement, entity
 
 export function getEntityFiles(view: AppViewHost, entityKey: EntityKey | 'daily'): TFile[] {
   if (entityKey === 'daily') {
-    const folderPath = view.plugin.settings.dailyNoteFolder || 'daily';
+    /* An empty folder setting writes daily notes at the vault root
+       (dailyNotePath), so only the root's dated notes are daily notes, not
+       a `daily` folder or every root note (#55). */
+    const folderPath = (view.plugin.settings.dailyNoteFolder || '').replace(/\/$/, '');
+    if (!folderPath) {
+      return view.app.vault.getMarkdownFiles().filter((f) => /^\d{4}-\d{2}-\d{2}\.md$/.test(f.path));
+    }
     const folder = view.app.vault.getAbstractFileByPath(folderPath) as VaultNode | null;
     if (!folder || !folder.children) return [];
     const out: TFile[] = [];

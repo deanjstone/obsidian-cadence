@@ -71,12 +71,33 @@ describe("renderTodayPane", () => {
     expect(none.parent.querySelectorAll(".cad-greet")[0].text).toBe("Good morning. Nothing on the books — your day is clear.");
   });
 
-  it("creates today's note when it is missing; QUIRK: its blank task line counts as one open task", async () => {
+  it("doesn't create today's note when it is missing: the day reads clear, with an empty journal", async () => {
     const { view, parent, app } = setup();
     await view.renderTodayPane(parent);
-    expect(app.vault.created).toEqual([TODAY_PATH]);
+    expect(app.vault.created).toEqual([]);
+    expect(view.todayFile).toBeNull();
+    expect(parent.querySelectorAll(".cad-greet")[0].text).toBe("Good morning. Nothing on the books — your day is clear.");
+    expect(rows(parent)).toEqual([]);
+    expect(parent.querySelectorAll(".cad-empty").map((e) => e.text)).toEqual(["No tasks in today's note yet."]);
+    expect(parent.querySelectorAll("textarea")[0].value).toBe("");
+  });
+
+  it("doesn't count or list the template's blank `- [ ] ` line", async () => {
+    const { view, parent } = setup([daily("## Today\n- [ ] \n- [ ] Real\n")]);
+    await view.renderTodayPane(parent);
     expect(parent.querySelectorAll(".cad-greet")[0].text).toBe("Good morning. You have 1 thing to handle.");
-    expect(rows(parent).map((r) => r.querySelectorAll(".cad-task-text")[0].text)).toEqual([""]);
+    expect(rows(parent).map((r) => r.querySelectorAll(".cad-task-text")[0].text)).toEqual(["Real"]);
+  });
+
+  it("with no note yet, the footer link creates today's note, then opens it", async () => {
+    const { view, parent, app } = setup();
+    const open = vi.spyOn(app.workspace, "openLinkText");
+    await view.renderTodayPane(parent);
+    const footer = parent.children[parent.children.length - 1];
+    footer.children[0].trigger("click");
+    await flush();
+    expect(app.vault.created).toEqual([TODAY_PATH]);
+    expect(open.mock.calls).toEqual([[TODAY_PATH, "", false]]);
   });
 
   it("shows the task count label and one row per task, done rows marked", async () => {
@@ -263,20 +284,27 @@ describe("renderTodayPane", () => {
       expect(open.mock.calls).toEqual([["TaskNotes/Tasks/Review.md", "", false]]);
     });
 
-    it("still creates and reads today's daily note for the journal", async () => {
+    it("reads today's daily note for the journal, but doesn't create it", async () => {
       const { view, parent, app } = setup(TASKS, TASKNOTES);
       await view.renderTodayPane(parent);
-      expect(app.vault.created).toEqual([TODAY_PATH]);
-      expect(view.todayParsed.tasks).toEqual(["- [ ] "]);
+      expect(app.vault.created).toEqual([]);
+      expect(view.todayParsed.tasks).toEqual([]);
+      expect(rows(parent).map((r) => r.querySelectorAll(".cad-task-text")[0].text)).toEqual(["Write copy", "Review", "Orphan"]);
     });
 
-    it("QUIRK: a project link resolves by basename, not by name", async () => {
+    it("a project link resolves to a project, by name or file name, never to another note", async () => {
       const { view, parent } = setup(
-        [NOTE, { path: "Elsewhere/Nowhere.md", body: "" }, ...TASKS],
+        [
+          NOTE, { path: "Elsewhere/Nowhere.md", body: "" }, ...TASKS,
+          taskNote("Intranet task", { title: "Intranet task", scheduled: "2026-10-10", projects: ["[[intranet v2]]"] }),
+          { path: "Cadence/Projects/Intranet.md", frontmatter: { type: "project", name: "Intranet v2" } },
+        ],
         TASKNOTES,
       );
       await view.renderTodayPane(parent);
-      expect(parent.querySelectorAll(".cad-task-proj-chip").map((c) => c.text)).toEqual(["📁 Nowhere"]);
+      expect(rows(parent).map((r) => r.querySelectorAll(".cad-task-proj-chip").map((c) => c.text))).toEqual([
+        [], [], [], ["📁 Intranet v2"],
+      ]);
     });
   });
 });
@@ -319,14 +347,21 @@ describe("toggleTodayTask", () => {
     expect(rendered).toHaveBeenCalledTimes(1);
   });
 
-  it("writes but skips propagation for a blank task, and writes nothing for an index past the end", async () => {
+  it("a blank task line is no row, so there is nothing to tick, and an index past the end writes nothing", async () => {
     const { view, parent, propagate, rendered, app } = setup([daily("## Today\n- [ ] \n")]);
     await view.renderTodayPane(parent);
     await view.toggleTodayTask(0, true);
     await view.toggleTodayTask(5, true);
-    expect(app.vault.modified).toEqual([TODAY_PATH]);
+    expect(app.vault.modified).toEqual([]);
     expect(propagate).not.toHaveBeenCalled();
     expect(rendered).toHaveBeenCalledTimes(2);
+  });
+
+  it("ticks the row's task past a blank task line above it", async () => {
+    const { view, parent, read } = setup([daily("## Today\n- [ ] \n- [ ] Real\n")]);
+    await view.renderTodayPane(parent);
+    await view.toggleTodayTask(0, true);
+    expect(await read(TODAY_PATH)).toBe("## Today\n- [ ] \n- [x] Real\n");
   });
 
   it("in TaskNotes mode, sets the task note's status, propagates its title and re-renders", async () => {
@@ -364,6 +399,15 @@ describe("appendTodayTask", () => {
     expect(await read(TODAY_PATH)).toBe("# Note\n\n## Journal\nJ\n\n## Today\n- [ ] First\n");
   });
 
+  it("creates today's note on this first write when it is missing", async () => {
+    const { view, parent, app, read } = setup();
+    await view.renderTodayPane(parent);
+    await view.appendTodayTask("First");
+    expect(app.vault.created).toEqual([TODAY_PATH]);
+    expect(await read(TODAY_PATH)).toBe("# 2026-10-10\n\n## Today\n- [ ] \n- [ ] First\n\n## Journal\n\n");
+    expect(view.todayFile).toBe(app.vault.getAbstractFileByPath(TODAY_PATH));
+  });
+
   it("in TaskNotes mode, creates a task note scheduled today", async () => {
     const { view, parent, app, read, rendered } = setup([NOTE], TASKNOTES);
     await view.renderTodayPane(parent);
@@ -388,6 +432,15 @@ describe("saveTodayJournal", () => {
     await view.renderTodayPane(parent);
     await view.saveTodayJournal(null);
     expect(await read(TODAY_PATH)).toBe("# 2026-10-10\n\n## Today\n- [ ] Ship\n- [x] Plan\n- [ ] Call Jane\n\n## Journal\n\n");
+  });
+
+  it("creates today's note on the first journal save when it is missing", async () => {
+    const { view, parent, app, read } = setup();
+    await view.renderTodayPane(parent);
+    await view.saveTodayJournal("Dear diary");
+    await view.saveTodayJournal("Dear diary, again");
+    expect(app.vault.created).toEqual([TODAY_PATH]);
+    expect(await read(TODAY_PATH)).toBe("# 2026-10-10\n\n## Today\n- [ ] \n\n## Journal\nDear diary, again\n");
   });
 
   it("uses the configured journal heading", async () => {
@@ -443,12 +496,14 @@ describe("_quickAddTodayTask", () => {
     expect(prompt).not.toHaveBeenCalled();
   });
 
-  it("QUIRK: in TaskNotes mode without the command, it falls back to the daily note", async () => {
+  it("in TaskNotes mode without the command, it prompts and creates a task note scheduled today", async () => {
     const { view, app, read } = setup([NOTE], TASKNOTES);
     (app as Any).commands = { commands: {}, executeCommandById: vi.fn() };
     vi.spyOn(view, "_prompt").mockResolvedValue("Fallback");
     await view._quickAddTodayTask();
-    expect(await read(TODAY_PATH)).toContain("- [ ] Fallback\n");
-    expect(app.vault.created).toEqual([]);
+    expect(await read(TODAY_PATH)).not.toContain("Fallback");
+    expect(app.vault.created).toEqual(["TaskNotes/Tasks/Fallback.md"]);
+    expect(await read("TaskNotes/Tasks/Fallback.md")).toContain("scheduled: 2026-10-10\n");
+    expect(Notice.messages).toEqual(["Added to today"]);
   });
 });

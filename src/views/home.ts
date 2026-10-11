@@ -2,19 +2,19 @@ import { Platform, TFile } from 'obsidian';
 import { ENTITIES } from '../constants/entities';
 import { CadenceReminderEditModal } from '../modals/reminder-edit';
 import { addDays, dailyNotePath, greeting, newestFirst, startOfDay, startOfWeek, ymd } from '../utils/dates';
-import { ensureDailyNote } from '../utils/daily-notes';
-import { dealClosedAt, dealOutcome } from '../utils/deals';
+import { findDailyNote } from '../utils/daily-notes';
+import { dealClosedAt, dealOutcome, linkedNames } from '../utils/deals';
 import {
   entityValue, listEntities, listEntityFiles, projectNameFromPath, readEntity, readProjectMeta,
 } from '../utils/entities';
 import { fmtValue, pctBand } from '../utils/format';
-import { parseLinkValues, parseSections } from '../utils/parsing';
-import { reminderTimeStr } from '../utils/reminders';
-import { listTaskNotesTasks, toggleTaskNotesTask } from '../utils/tasknotes';
+import { parseSections } from '../utils/parsing';
+import { reminderTime, reminderTimeLabel, repeatLabel } from '../utils/reminders';
+import { listTaskNotesTasks, projectLinkTargets, taskNotesProjectPath, toggleTaskNotesTask, type ProjectLinkTarget } from '../utils/tasknotes';
 import type { Entity, ProjectMeta, TaskNotesTask } from '../types/entities';
 import type { Reminder } from '../types/reminders';
 import type { Milestone } from '../utils/parsing';
-import { countTaskLines, taskLineRef, taskLineRows, taskNotesToday } from '../utils/task-lines';
+import { countTaskLines, taskLineRef, taskLineRows, taskNotesToday, withoutBlankTasks } from '../utils/task-lines';
 import type { AppViewHost } from './host';
 
 /* Moved to src/utils/task-lines.ts, where Today and the Calendar share them. */
@@ -147,7 +147,7 @@ export interface BriefingEntry {
   target: BriefingTarget;
 }
 
-/** A project's next open milestone, as readProjectMeta reports it. */
+/** A project's next upcoming open milestone (nextUpcomingMilestone). */
 export interface ProjectNextMilestone {
   file: TFile;
   name: string | null;
@@ -188,11 +188,11 @@ export function computeBriefing(data: BriefingData, now: Date): BriefingEntry[] 
     });
   }
 
-  /* 2. Overdue reminders */
+  /* 2. Overdue reminders, naming the most overdue (#55) */
   const reminders = (data.reminders || []).filter((r) => !r.done);
   const overdue = reminders.filter((r) => r.when && new Date(r.when).getTime() <= nowMs);
   if (overdue.length) {
-    const ex = overdue[0];
+    const ex = overdue.reduce((a, b) => (new Date(b.when!).getTime() < new Date(a.when!).getTime() ? b : a));
     const exTxt = ex.text.length > 50 ? ex.text.slice(0, 47) + '…' : ex.text;
     items.push({
       icon: '⚠',
@@ -239,35 +239,42 @@ export function computeBriefing(data: BriefingData, now: Date): BriefingEntry[] 
     });
   }
 
-  /* 5. Stale contacts on open deals (>30 days since lastContact) */
+  /* 5. Stale contacts on open deals (>30 days since lastContact). A deal
+     names its contacts as links or text (linkedNames); each matches a
+     contact's name, else its file name, in any case (#55). */
   const contacts = data.contacts;
   const openDeals = deals.filter((e) => dealOutcome(e, dealDef) === 'open');
-  const dealContactNames = new Set(
-    openDeals.map((d) => String(entityValue(d, 'contact', dealDef) || '').trim()).filter(Boolean)
-  );
+  const dealContacts = openDeals.map((d) => ({
+    deal: d,
+    names: new Set(linkedNames(entityValue(d, 'contact', dealDef)).map((n) => n.toLowerCase())),
+  }));
+  const dealFor = (c: Entity, name: string) => dealContacts.find(({ names }) =>
+    names.has(name.toLowerCase()) || names.has(c.basename.toLowerCase()));
   const staleCutoffMs = todayMs - 30 * 86400000;
-  let staleSample = null as { contact: Entity; name: string; lcMs: number | null } | null;
+  let staleSample = null as { contact: Entity; name: string; deal: Entity; lc: unknown; lcMs: number } | null;
   let staleCount = 0;
   contacts.forEach((c) => {
     const name = String(entityValue(c, 'name', contactDef) || '').trim();
-    if (!name || !dealContactNames.has(name)) return;
+    if (!name) return;
+    const linked = dealFor(c, name);
+    if (!linked) return;
     const lc = entityValue(c, 'lastContact', contactDef);
-    const lcMs = lc ? new Date(lc as string).getTime() : null;
-    if (lcMs != null && !isNaN(lcMs) && lcMs >= staleCutoffMs) return;
+    const lcMs = lc ? new Date(lc as string).getTime() : NaN;
+    if (!isNaN(lcMs) && lcMs >= staleCutoffMs) return;
     staleCount++;
-    if (!staleSample) staleSample = { contact: c, name, lcMs };
+    if (!staleSample) staleSample = { contact: c, name, deal: linked.deal, lc, lcMs };
   });
   if (staleSample) {
-    const days = staleSample.lcMs ? Math.floor((todayMs - staleSample.lcMs) / 86400000) : null;
-    const linkedDeal = openDeals.find((d) => String(entityValue(d, 'contact', dealDef) || '').trim() === staleSample!.name);
-    const dealName = linkedDeal ? entityValue(linkedDeal, 'title', dealDef) || '' : '';
-    const ago = days === null ? 'never contacted' : `${days} ${days === 1 ? 'day' : 'days'} quiet`;
+    const { contact, name, deal, lc, lcMs } = staleSample;
+    const days = Math.floor((todayMs - lcMs) / 86400000);
+    const dealName = entityValue(deal, 'title', dealDef) || '';
+    const ago = !lc ? 'never contacted' : isNaN(lcMs) ? 'last contact unreadable' : `${days} ${days === 1 ? 'day' : 'days'} quiet`;
     const more = staleCount > 1 ? ` (+${staleCount - 1} more)` : '';
     items.push({
       icon: '👤',
       tone: 'warn',
-      text: `${staleSample.name} — ${ago}${dealName ? ` · ${dealName}` : ''}${more}`,
-      target: { kind: 'file', file: staleSample.contact.file },
+      text: `${name} — ${ago}${dealName ? ` · ${dealName}` : ''}${more}`,
+      target: { kind: 'file', file: contact.file },
     });
   }
 
@@ -315,6 +322,15 @@ export function computeBriefing(data: BriefingData, now: Date): BriefingEntry[] 
   return items;
 }
 
+/** A project's soonest open milestone dated today or later. An overdue open
+    milestone doesn't hide it (#55); null when there is none. */
+export function nextUpcomingMilestone(milestones: Milestone[], now: Date): Milestone | null {
+  const todayMs = startOfDay(now).getTime();
+  return milestones
+    .filter((m) => !m.done && m.date && m.date.getTime() >= todayMs)
+    .sort((a, b) => a.date!.getTime() - b.date!.getTime())[0] || null;
+}
+
 /* Gathers what the briefing reads (in the original order: tasks, deals,
    contacts, then each project note), runs computeBriefing and turns each
    entry's target into a click action. */
@@ -329,10 +345,13 @@ export async function loadBriefing(view: AppViewHost): Promise<BriefingItem[]> {
       const allTaskNotes = listTaskNotesTasks(view.app);
       openTasks = allTaskNotes.filter(t => t.scheduled === todayYmd && !t.done).length;
     } else {
-      const file = await ensureDailyNote(view.app, settings);
-      const content = await view.app.vault.read(file);
-      const parsed = parseSections(content, settings);
-      openTasks = countTaskLines(parsed.tasks).open;
+      const file = findDailyNote(view.app, settings);
+      if (file) {
+        const parsed = parseSections(await view.app.vault.read(file), settings);
+        openTasks = countTaskLines(withoutBlankTasks(parsed.tasks)).open;
+      } else {
+        openTasks = 0;
+      }
     }
   } catch (_) { }
 
@@ -344,7 +363,7 @@ export async function loadBriefing(view: AppViewHost): Promise<BriefingItem[]> {
   for (const f of listEntityFiles(view.app, 'project')) {
     try {
       const meta = await readProjectMeta(view.app, f);
-      projects.push({ file: f, name: projectNameFromPath(view.app, f.path), next: meta.next });
+      projects.push({ file: f, name: projectNameFromPath(view.app, f.path), next: nextUpcomingMilestone(meta.milestones, new Date()) });
     } catch (_) { }
   }
 
@@ -372,15 +391,15 @@ function briefingAction(view: AppViewHost, target: BriefingTarget): () => void {
 export function selectInboxCard(allReminders: Reminder[] | undefined, now: Date) {
   const nowMs = now.getTime();
   const reminders = (allReminders || []).filter((r) => !r.done);
-  const isOverdue = (r: Reminder) => !!r.when && new Date(r.when).getTime() <= nowMs;
+  const isOverdue = (r: Reminder) => (reminderTime(r.when) ?? Infinity) <= nowMs;
   const overdueCount = reminders.filter(isOverdue).length;
   const tone = overdueCount > 0 ? 'rose' : 'sky';
   const title = `INBOX — ${reminders.length} item${reminders.length === 1 ? '' : 's'}${overdueCount > 0 ? ` · ${overdueCount} overdue` : ''}`;
 
-  // Sort: scheduled by when ascending, unscheduled fall to the end
+  // Sort: scheduled by when ascending, unscheduled and unreadable times fall to the end
   const sorted = [...reminders].sort((a, b) => {
-    const wa = a.when ? new Date(a.when).getTime() : Infinity;
-    const wb = b.when ? new Date(b.when).getTime() : Infinity;
+    const wa = reminderTime(a.when) ?? Infinity;
+    const wb = reminderTime(b.when) ?? Infinity;
     return wa - wb;
   });
   const rows = sorted.slice(0, 5).map((reminder) => ({ reminder, overdue: isOverdue(reminder) }));
@@ -391,7 +410,8 @@ export function selectInboxCard(allReminders: Reminder[] | undefined, now: Date)
 export function inboxRowMeta(r: Reminder, projectName: (path: string) => string | null): string[] {
   const metaBits: string[] = [];
   if (r.project) metaBits.push(`📁 ${projectName(r.project) || 'project'}`);
-  if (r.repeat && r.repeat !== 'none') metaBits.push(r.repeat === 'daily' ? '↻ daily' : '↻ weekly');
+  const repeat = repeatLabel(r.repeat);
+  if (repeat) metaBits.push(repeat);
   if (r.notes) {
     const firstLine = String(r.notes).split('\n').find((l) => l.trim()) || '';
     if (firstLine) metaBits.push(`📝 ${firstLine.length > 60 ? firstLine.slice(0, 57) + '…' : firstLine}`);
@@ -418,7 +438,7 @@ export async function homeInboxCard(view: AppViewHost, parent: HTMLElement): Pro
   rows.forEach(({ reminder: r, overdue }) => {
     const row = body.createDiv({ cls: 'cad-home-row' });
     if (overdue) row.classList.add('overdue');
-    row.createDiv({ cls: 'cad-home-row-date', text: r.when ? reminderTimeStr(r.when) : 'unscheduled' });
+    row.createDiv({ cls: 'cad-home-row-date', text: r.when ? reminderTimeLabel(r.when) : 'unscheduled' });
     const main = row.createDiv({ cls: 'cad-home-row-main' });
     main.createDiv({ cls: 'cad-home-row-title', text: r.text });
     const metaBits = inboxRowMeta(r, (path) => projectNameFromPath(view.app, path));
@@ -448,10 +468,8 @@ export async function homeTodayCard(view: AppViewHost, parent: HTMLElement): Pro
     todayTaskNotes = today.tasks;
     tasksList = today.lines;
   } else {
-    file = await ensureDailyNote(view.app, settings);
-    const content = await view.app.vault.read(file);
-    const parsed = parseSections(content, settings);
-    tasksList = parsed.tasks;
+    file = findDailyNote(view.app, settings);
+    if (file) tasksList = withoutBlankTasks(parseSections(await view.app.vault.read(file), settings).tasks);
   }
 
   const { title, rows } = selectTodayCard(tasksList);
@@ -466,6 +484,7 @@ export async function homeTodayCard(view: AppViewHost, parent: HTMLElement): Pro
     return;
   }
 
+  let projectTargets: ProjectLinkTarget[] | undefined;
   rows.forEach(({ checked, text }, idx) => {
     const row = body.createDiv({ cls: 'cad-home-task' + (checked ? ' done' : '') });
     const cb = row.createEl('input', { type: 'checkbox' });
@@ -497,15 +516,7 @@ export async function homeTodayCard(view: AppViewHost, parent: HTMLElement): Pro
     let linkedProject = null;
     if (settings.taskManagementSystem === 'tasknotes') {
       const taskObj = todayTaskNotes[idx];
-      if (taskObj.projects) {
-        const parsed = parseLinkValues(taskObj.projects);
-        if (parsed.length > 0) {
-          const projFile = view.app.vault.getMarkdownFiles().find(f => f.basename === parsed[0].target);
-          if (projFile) {
-            linkedProject = projFile.path;
-          }
-        }
-      }
+      if (taskObj.projects) linkedProject = taskNotesProjectPath(taskObj.projects, projectTargets ??= projectLinkTargets(view.app));
     } else {
       linkedProject = view._getTaskProjectLink(file!.path, text);
     }
@@ -575,7 +586,7 @@ export async function homeWeekCard(view: AppViewHost, parent: HTMLElement): Prom
       if (f && f instanceof TFile) {
         const c = await view.app.vault.read(f);
         const p = parseSections(c, settings);
-        const counts = countTaskLines(p.tasks);
+        const counts = countTaskLines(withoutBlankTasks(p.tasks));
         open += counts.open;
         done += counts.done;
       }
@@ -608,7 +619,7 @@ export interface UpcomingItem {
 }
 
 /** What the upcoming card reads. `projectNext` holds each project whose
-    note could be read, with its next milestone. */
+    note could be read, with its next upcoming milestone. */
 export interface UpcomingData {
   projects: Entity[];
   projectNext: Array<{ entity: Entity; next: Milestone | null }>;
@@ -670,7 +681,7 @@ export async function homeUpcomingCard(view: AppViewHost, parent: HTMLElement): 
   for (const e of projects) {
     try {
       const meta = await readProjectMeta(view.app, e.file);
-      projectNext.push({ entity: e, next: meta.next });
+      projectNext.push({ entity: e, next: nextUpcomingMilestone(meta.milestones, new Date()) });
     } catch (_) { }
   }
   const items = selectUpcomingItems({
@@ -741,7 +752,9 @@ export function isHomeActiveProject(e: Entity): boolean {
 export async function homeProjectsCard(view: AppViewHost, parent: HTMLElement): Promise<void> {
   const def = ENTITIES.project;
   const files = listEntityFiles(view.app, 'project');
-  const body = view._homeCard(parent, `ACTIVE PROJECTS — ${files.length}`, (head) => {
+  /* The header counts active projects only (#55); the card lists the first three. */
+  const activeEntities = files.map((f) => readEntity(view.app, f)).filter(isHomeActiveProject);
+  const body = view._homeCard(parent, `ACTIVE PROJECTS — ${activeEntities.length}`, (head) => {
     const link = head.createEl('a', { cls: 'cad-home-card-link', text: 'Open Projects →' });
     link.addEventListener('click', (e) => { e.preventDefault(); view.setMode('projects.projects'); });
   }, 'emerald');
@@ -749,13 +762,9 @@ export async function homeProjectsCard(view: AppViewHost, parent: HTMLElement): 
     body.createDiv({ cls: 'cad-empty', text: 'No projects yet — hit + Project above.' });
     return;
   }
-  const projects = await Promise.all(files.map(async (f) => {
-    const e = readEntity(view.app, f);
-    if (!isHomeActiveProject(e)) return null;
-    const meta = await readProjectMeta(view.app, f);
-    return { entity: e, meta };
-  }));
-  const active = projects.filter(Boolean).slice(0, 3) as Array<{ entity: Entity; meta: ProjectMeta }>;
+  const active: Array<{ entity: Entity; meta: ProjectMeta }> = await Promise.all(
+    activeEntities.slice(0, 3).map(async (entity) => ({ entity, meta: await readProjectMeta(view.app, entity.file) })),
+  );
   if (!active.length) {
     body.createDiv({ cls: 'cad-empty', text: 'No active projects right now.' });
     return;
