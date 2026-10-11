@@ -5283,6 +5283,19 @@ var CadenceWidgetCreateModal = class extends import_obsidian16.Modal {
 };
 
 // src/utils/deals.ts
+function foldStage(stage) {
+  return String(stage ?? "").trim().toLowerCase().replace(/[\s_-]+/g, " ");
+}
+function stageOutcome(stage) {
+  const folded = foldStage(stage).replace(/^closed /, "");
+  return folded === "won" ? "won" : folded === "lost" ? "lost" : "open";
+}
+function dealStage(entity, def) {
+  return String(entityValue(entity, "stage", def));
+}
+function dealOutcome(entity, def) {
+  return stageOutcome(dealStage(entity, def));
+}
 function dealValue(entity, def) {
   return Number(entityValue(entity, "value", def)) || 0;
 }
@@ -5290,9 +5303,9 @@ function sumValues(deals, def) {
   return deals.reduce((s, e) => s + dealValue(e, def), 0);
 }
 function crmSummary(deals, def) {
-  const open = deals.filter((e) => !["Won", "Lost"].includes(String(entityValue(e, "stage", def))));
-  const won = deals.filter((e) => String(entityValue(e, "stage", def)) === "Won");
-  const lost = deals.filter((e) => String(entityValue(e, "stage", def)) === "Lost");
+  const open = deals.filter((e) => dealOutcome(e, def) === "open");
+  const won = deals.filter((e) => dealOutcome(e, def) === "won");
+  const lost = deals.filter((e) => dealOutcome(e, def) === "lost");
   const wonValue = sumValues(won, def);
   return {
     open,
@@ -6962,8 +6975,7 @@ function computeBriefing(data, now) {
   const deals = data.deals;
   const weekEnd = todayMs + 7 * 864e5;
   const closingThisWeek = deals.filter((e) => {
-    const stage = String(entityValue(e, "stage", dealDef));
-    if (["Won", "Lost"].includes(stage)) return false;
+    if (dealOutcome(e, dealDef) !== "open") return false;
     const closeBy = entityValue(e, "closeBy", dealDef);
     if (!closeBy) return false;
     const d = new Date(closeBy);
@@ -6979,7 +6991,7 @@ function computeBriefing(data, now) {
     });
   }
   const contacts = data.contacts;
-  const openDeals = deals.filter((e) => !["Won", "Lost"].includes(String(entityValue(e, "stage", dealDef))));
+  const openDeals = deals.filter((e) => dealOutcome(e, dealDef) === "open");
   const dealContactNames = new Set(
     openDeals.map((d) => String(entityValue(d, "contact", dealDef) || "").trim()).filter(Boolean)
   );
@@ -7032,7 +7044,7 @@ function computeBriefing(data, now) {
   }
   const winCutoff = nowMs - 7 * 864e5;
   const recentWins = deals.filter((e) => {
-    if (String(entityValue(e, "stage", dealDef)) !== "Won") return false;
+    if (dealOutcome(e, dealDef) !== "won") return false;
     return e.file && e.file.stat && e.file.stat.mtime >= winCutoff;
   });
   if (recentWins.length) {
@@ -7441,7 +7453,7 @@ async function homeProjectsCard(view, parent) {
 }
 function selectPipelineCard(deals) {
   const def = ENTITIES.deal;
-  const open = deals.filter((e) => !["Won", "Lost"].includes(String(entityValue(e, "stage", def))));
+  const open = deals.filter((e) => dealOutcome(e, def) === "open");
   const value = open.reduce((s, e) => s + (Number(entityValue(e, "value", def)) || 0), 0);
   const top = [...open].sort((a, b) => (Number(entityValue(b, "value", def)) || 0) - (Number(entityValue(a, "value", def)) || 0)).slice(0, 4);
   return { open, value, top };
@@ -9645,7 +9657,7 @@ function partnersReport(deals, partners, certs, now, defs = { deal: ENTITIES.dea
     byPartner.get(p).push(e);
   });
   const partnerSourced = deals.filter((e) => entityValue(e, "partner", dealDef));
-  const partnerWon = partnerSourced.filter((e) => stageOf(e, dealDef) === "Won");
+  const partnerWon = partnerSourced.filter((e) => dealOutcome(e, dealDef) === "won");
   const tierMap = /* @__PURE__ */ new Map();
   partners.forEach((p) => {
     const t = String(entityValue(p, "tier", partnerDef) || "Untiered");

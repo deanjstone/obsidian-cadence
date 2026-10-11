@@ -64,15 +64,15 @@ describe("renderReportPipeline: layout and stats", () => {
     expect(root.children[4].children.map((c) => c.classes)).toEqual([["cad-dash-col"], ["cad-dash-col"]]);
   });
 
-  it("QUIRK: Won and Lost match case-sensitively, so 'won' and custom stages are open; only the four built-in open stages weigh in the forecast", async () => {
+  it("Won and Lost match in any case, so 'won' is won; an off-list stage is open", async () => {
     const { view, root } = setup(DEALS);
     await view.renderReportPipeline(root);
     expect(stats(root)).toEqual([
-      ["sky", "OPEN", "6", cur(15700)],
+      ["sky", "OPEN", "5", cur(15000)],
       ["mint", "WEIGHTED", cur(8600), "forecast on open"],
-      ["emerald", "WON", "1", cur(5000)],
+      ["emerald", "WON", "2", cur(5700)],
       ["rose", "LOST", "1", cur(3000)],
-      ["warn", "WIN RATE", "50%", "1/2 closed"],
+      ["warn", "WIN RATE", "67%", "2/3 closed"],
     ]);
   });
 
@@ -142,7 +142,7 @@ describe("renderReportPipeline: by owner", () => {
     expect(title).toBe("OPEN PIPELINE BY OWNER · top 4");
     expect(rows).toEqual([
       { title: "Bob", titleEntityKey: "contact", meta: `1 deal · ${cur(8000)}` },
-      { title: "(unassigned)", titleEntityKey: null, meta: `3 deals · ${cur(4700)}` },
+      { title: "(unassigned)", titleEntityKey: null, meta: `2 deals · ${cur(4000)}` },
       { title: "Jane", titleEntityKey: "contact", meta: `1 deal · ${cur(2000)}` },
       { title: "[[Jane]]", titleEntityKey: "contact", meta: `1 deal · ${cur(1000)}` },
     ]);
@@ -180,7 +180,7 @@ describe("renderReportPipeline: aging and stale", () => {
     expect(card.children[0].children[0].text).toBe("AGING · OPEN DEALS BY LAST EDIT");
     expect(card.children[1].classes).toEqual(["cad-dash-card-body", "cad-mini-stat-row"]);
     expect(aging(root)).toEqual([
-      ["emerald", "3", "0–7 DAYS", cur(1700), "4px"],
+      ["emerald", "2", "0–7 DAYS", cur(1000), "4px"],
       ["mint", "1", "8–30 DAYS", cur(2000), "4px"],
       ["warn", "1", "31–90 DAYS", cur(4000), "4px"],
       ["rose", "1", "90+ DAYS", cur(8000), "4px"],

@@ -3,6 +3,7 @@ import { ENTITIES } from '../constants/entities';
 import { CadenceReminderEditModal } from '../modals/reminder-edit';
 import { addDays, dailyNotePath, greeting, startOfDay, startOfWeek, ymd } from '../utils/dates';
 import { ensureDailyNote } from '../utils/daily-notes';
+import { dealOutcome } from '../utils/deals';
 import {
   entityValue, listEntities, listEntityFiles, projectNameFromPath, readEntity, readProjectMeta,
 } from '../utils/entities';
@@ -222,8 +223,7 @@ export function computeBriefing(data: BriefingData, now: Date): BriefingEntry[] 
   const deals = data.deals;
   const weekEnd = todayMs + 7 * 86400000;
   const closingThisWeek = deals.filter((e) => {
-    const stage = String(entityValue(e, 'stage', dealDef));
-    if (['Won', 'Lost'].includes(stage)) return false;
+    if (dealOutcome(e, dealDef) !== 'open') return false;
     const closeBy = entityValue(e, 'closeBy', dealDef);
     if (!closeBy) return false;
     const d = new Date(closeBy as string);
@@ -241,7 +241,7 @@ export function computeBriefing(data: BriefingData, now: Date): BriefingEntry[] 
 
   /* 5. Stale contacts on open deals (>30 days since lastContact) */
   const contacts = data.contacts;
-  const openDeals = deals.filter((e) => !['Won', 'Lost'].includes(String(entityValue(e, 'stage', dealDef))));
+  const openDeals = deals.filter((e) => dealOutcome(e, dealDef) === 'open');
   const dealContactNames = new Set(
     openDeals.map((d) => String(entityValue(d, 'contact', dealDef) || '').trim()).filter(Boolean)
   );
@@ -298,7 +298,7 @@ export function computeBriefing(data: BriefingData, now: Date): BriefingEntry[] 
   /* 7. Recent wins (deals moved to Won in last 7 days) */
   const winCutoff = nowMs - 7 * 86400000;
   const recentWins = deals.filter((e) => {
-    if (String(entityValue(e, 'stage', dealDef)) !== 'Won') return false;
+    if (dealOutcome(e, dealDef) !== 'won') return false;
     return e.file && e.file.stat && e.file.stat.mtime >= winCutoff;
   });
   if (recentWins.length) {
@@ -777,10 +777,10 @@ export async function homeProjectsCard(view: AppViewHost, parent: HTMLElement): 
 
 /* ── Pipeline card ── */
 
-/** Open deals (not Won or Lost), their total value, and the top four by value. */
+/** Open deals (not Won or Lost, in any case), their total value, and the top four by value. */
 export function selectPipelineCard(deals: Entity[]): { open: Entity[]; value: number; top: Entity[] } {
   const def = ENTITIES.deal;
-  const open = deals.filter((e) => !['Won', 'Lost'].includes(String(entityValue(e, 'stage', def))));
+  const open = deals.filter((e) => dealOutcome(e, def) === 'open');
   const value = open.reduce((s, e) => s + (Number(entityValue(e, 'value', def)) || 0), 0);
   const top = [...open].sort((a, b) => (Number(entityValue(b, 'value', def)) || 0) - (Number(entityValue(a, 'value', def)) || 0)).slice(0, 4);
   return { open, value, top };

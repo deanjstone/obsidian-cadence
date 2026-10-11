@@ -3,7 +3,7 @@ import { ENTITIES } from '../constants/entities';
 import type { Entity, EntityDef } from '../types/entities';
 import type { DailyNoteSettings } from '../types/settings';
 import { addDays, dailyNotePath, parseYmd, startOfDay, startOfWeek, ymd } from '../utils/dates';
-import { crmSummary, dealValue, sumValues } from '../utils/deals';
+import { crmSummary, dealOutcome, dealValue, sumValues } from '../utils/deals';
 import { entityValue, getDealStages, listEntities } from '../utils/entities';
 import { fmtValue } from '../utils/format';
 import { parseSections } from '../utils/parsing';
@@ -70,7 +70,7 @@ function ownerRows<T>(byOwner: Map<string, T>, size: (data: T) => number, limit:
 const STAGE_CONFIDENCE: Record<string, number> = { 'Lead': 0.10, 'Qualified': 0.25, 'Proposal': 0.50, 'Negotiation': 0.75 };
 
 export interface PipelineReport {
-  /** Every deal not exactly 'Won' or 'Lost', as on the CRM dashboard. */
+  /** Every deal not Won or Lost (in any case), as on the CRM dashboard. */
   open: Entity[];
   won: Entity[];
   lost: Entity[];
@@ -249,7 +249,7 @@ export function partnersReport(
     byPartner.get(p)!.push(e);
   });
   const partnerSourced = deals.filter((e) => entityValue(e, 'partner', dealDef));
-  const partnerWon = partnerSourced.filter((e) => stageOf(e, dealDef) === 'Won');
+  const partnerWon = partnerSourced.filter((e) => dealOutcome(e, dealDef) === 'won');
 
   const tierMap = new Map<string, number>();
   partners.forEach((p) => {

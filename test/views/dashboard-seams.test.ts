@@ -171,10 +171,10 @@ describe("crmSummary / crmStatCards", () => {
     expect(deals.map((d) => dealValue(d, deal))).toEqual([12000, 4500, 1000, 300, 0, 500]);
   });
 
-  it("splits open, won and lost (case-sensitive), with values, win rate and the won average", () => {
+  it("splits open, won and lost in any case, with values, win rate and the won average", () => {
     const s = crmSummary(deals, deal);
-    expect([names(s.open), names(s.won), names(s.lost)]).toEqual([["A", "D", "E"], ["B", "W"], ["C"]]);
-    expect([s.openValue, s.wonValue, s.lostValue, s.winRate, s.avgDeal]).toEqual([12300, 5000, 1000, 67, 2500]);
+    expect([names(s.open), names(s.won), names(s.lost)]).toEqual([["A", "E"], ["B", "D", "W"], ["C"]]);
+    expect([s.openValue, s.wonValue, s.lostValue, s.winRate, s.avgDeal]).toEqual([12000, 5300, 1000, 75, 5300 / 3]);
   });
 
   it("is all zeros with no deals", () => {
@@ -184,11 +184,11 @@ describe("crmSummary / crmStatCards", () => {
 
   it("formats the five cards in order", () => {
     expect(crmStatCards(crmSummary(deals, deal))).toEqual([
-      { label: "OPEN PIPELINE", value: 3, sub: cur(12300), accent: "sky" },
-      { label: "WON", value: 2, sub: cur(5000), accent: "emerald" },
+      { label: "OPEN PIPELINE", value: 2, sub: cur(12000), accent: "sky" },
+      { label: "WON", value: 3, sub: cur(5300), accent: "emerald" },
       { label: "LOST", value: 1, sub: cur(1000), accent: "rose" },
-      { label: "WIN RATE", value: "67%", sub: "2/3 closed", accent: "mint" },
-      { label: "AVG DEAL", value: cur(2500), sub: "2 won deals", accent: "warn" },
+      { label: "WIN RATE", value: "75%", sub: "3/4 closed", accent: "mint" },
+      { label: "AVG DEAL", value: cur(5300 / 3), sub: "3 won deals", accent: "warn" },
     ]);
   });
 });

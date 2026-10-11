@@ -90,15 +90,15 @@ describe("renderDashboard: header and stats", () => {
     ]);
   });
 
-  it("QUIRK: Won and Lost match case-sensitively, so 'won' and a blank stage count as open pipeline", async () => {
+  it("Won and Lost match in any case, so 'won' is won; a blank stage is open pipeline", async () => {
     const { view, root } = setup(ALL);
     await view.renderDashboard(root);
     expect(stats(root)).toEqual([
-      ["sky", "OPEN PIPELINE", "4", cur(19300)],
-      ["emerald", "WON", "1", cur(4500)],
+      ["sky", "OPEN PIPELINE", "3", cur(19000)],
+      ["emerald", "WON", "2", cur(4800)],
       ["rose", "LOST", "1", cur(1000)],
-      ["mint", "WIN RATE", "50%", "1/2 closed"],
-      ["warn", "AVG DEAL", cur(4500), "1 won deals"],
+      ["mint", "WIN RATE", "67%", "2/3 closed"],
+      ["warn", "AVG DEAL", cur(2400), "2 won deals"],
     ]);
   });
 
@@ -188,7 +188,6 @@ describe("renderDashboard: deal and activity cards", () => {
     expect(rows).toEqual([
       { title: "Acme", meta: `Proposal · ${cur(12000)}`, file: file("Cadence/Pipeline/A.md") },
       { title: "Fff", meta: `Negotiation · ${cur(7000)}`, file: file("Cadence/Pipeline/F.md") },
-      { title: "Dee", meta: `won · ${cur(300)}`, file: file("Cadence/Pipeline/D.md") },
       { title: "Eee", meta: `— · ${cur(0)}`, file: file("Cadence/Pipeline/E.md") },
     ]);
   });

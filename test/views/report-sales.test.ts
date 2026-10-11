@@ -61,14 +61,14 @@ describe("renderReportSales: layout and stats", () => {
     ]);
   });
 
-  it("QUIRK: totals only exact 'Won' and 'Lost'; a lower-case 'won' and open deals are in no card", async () => {
+  it("totals Won and Lost in any case, so a lower-case 'won' is revenue; open deals are in no card", async () => {
     const { view, root } = setup(DEALS);
     await view.renderReportSales(root);
     expect(stats(root)).toEqual([
-      ["emerald", "REVENUE", cur(11000), "4 deals"],
+      ["emerald", "REVENUE", cur(20000), "5 deals"],
       ["rose", "LOST", cur(4000), "1 deals"],
-      ["mint", "CAPTURE", "73%", "of closed value"],
-      ["sky", "AVG DEAL", cur(2750), "won deals"],
+      ["mint", "CAPTURE", "83%", "of closed value"],
+      ["sky", "AVG DEAL", cur(4000), "won deals"],
     ]);
   });
 
@@ -92,9 +92,9 @@ describe("renderReportSales: revenue by month", () => {
       ["May", "0%", "empty", `May — ${cur(0)} · 0 deals`],
       ["Jun", "0%", "empty", `Jun — ${cur(0)} · 0 deals`],
       ["Jul", "0%", "empty", `Jul — ${cur(0)} · 0 deals`],
-      ["Aug", "60%", "mid", `Aug — ${cur(3000)} · 1 deals`],
+      ["Aug", `${(3000 / 14000) * 100}%`, "low", `Aug — ${cur(3000)} · 1 deals`],
       ["Sep", "0%", "empty", `Sep — ${cur(0)} · 0 deals`],
-      ["Oct", "100%", "high", `Oct — ${cur(5000)} · 1 deals`],
+      ["Oct", "100%", "high", `Oct — ${cur(14000)} · 2 deals`],
     ]);
     expect(root.children[3].children[0].children.map((c) => c.classes)).toEqual([["cad-bar"], ["cad-bar-label"]]);
   });
@@ -148,6 +148,7 @@ describe("renderReportSales: top wins and owners", () => {
     expect(title).toBe("TOP WINS · top 6");
     const file = (n: string) => app.vault.getAbstractFileByPath(`Cadence/Pipeline/${n}.md`);
     expect(rows).toEqual([
+      { title: "Lower", metaParts: [{ text: "—", entityKey: "company" }, { text: ` · ${cur(9000)}` }], file: file("W5") },
       { title: "Big win", metaParts: [{ text: "[[Acme]]", entityKey: "company" }, { text: ` · ${cur(5000)}` }], file: file("W1") },
       { title: "Mid win", metaParts: [{ text: "—", entityKey: "company" }, { text: ` · ${cur(3000)}` }], file: file("W2") },
       { title: "Old win", metaParts: [{ text: "—", entityKey: "company" }, { text: ` · ${cur(2000)}` }], file: file("W3") },
@@ -170,9 +171,9 @@ describe("renderReportSales: top wins and owners", () => {
     expect(parent).toBe(root.children[4].children[1]);
     expect(title).toBe("OWNER LEADERBOARD · top 6 by revenue");
     expect(rows).toEqual([
+      { title: "(unassigned)", titleEntityKey: null, meta: `2 won · ${cur(11000)}` },
       { title: "Jane", titleEntityKey: "contact", meta: `2 won · ${cur(6000)}` },
       { title: "Bob", titleEntityKey: "contact", meta: `1 won · ${cur(3000)}` },
-      { title: "(unassigned)", titleEntityKey: null, meta: `1 won · ${cur(2000)}` },
     ]);
     expect(empty).toBe("No revenue attributed to owners yet.");
   });
