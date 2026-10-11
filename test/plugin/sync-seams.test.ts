@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  addProjectLink, autoCreateName, collectValidLinks, contactProjectsPlan, extractEntitiesFromValue, isContactField,
+  addProjectLink, collectValidLinks, contactProjectsPlan, extractEntitiesFromValue, isContactField,
   isProjectField, noteLinks, projectLinkValue, removeProjectLink, writeProjectLinks, type SyncNote,
 } from "../../src/plugin/contact-project-sync";
 import type { EntityDef, Frontmatter } from "../../src/types/entities";
@@ -101,17 +101,6 @@ describe("collectValidLinks", () => {
   it("merges duplicates across notes", () => {
     const n = note({ with: "Jane Doe", project: "apollo" });
     expect([...collectValidLinks([n, n], contacts, projects, entities)]).toEqual(["jane doe|apollo"]);
-  });
-});
-
-describe("autoCreateName", () => {
-  it("takes the casing of a note with the same basename", () => {
-    expect(autoCreateName("big plan", ["Other", "Big Plan", "big plan"])).toBe("Big Plan");
-  });
-
-  it("QUIRK: else capitalises the lower-cased name", () => {
-    expect(autoCreateName("ios app", [])).toBe("Ios app");
-    expect(autoCreateName("", [])).toBe("");
   });
 });
 

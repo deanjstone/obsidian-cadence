@@ -1,7 +1,7 @@
 import { Notice, type TFile } from 'obsidian';
 import { ENTITIES } from '../constants/entities';
 import type { EntityDef, Frontmatter } from '../types/entities';
-import { createEntity, entityKeyFromFile, getFieldSuggestionSource, listEntityFiles } from '../utils/entities';
+import { entityKeyFromFile, getFieldSuggestionSource, listEntityFiles } from '../utils/entities';
 import type { PluginHost } from './host';
 
 /* The contact↔project sync. onload runs syncContactProjectRelationships on
@@ -148,13 +148,6 @@ export function collectValidLinks(
   return validLinks;
 }
 
-/* The name to give an auto-created contact or project: the casing of any
-   note with that basename, else the lower-cased name with its first letter
-   capitalised. QUIRK (#22): "iOS App" with no note becomes "Ios app". */
-export function autoCreateName(nameLower: string, basenames: string[]): string {
-  return basenames.find(b => b.toLowerCase() === nameLower) || (nameLower.charAt(0).toUpperCase() + nameLower.slice(1));
-}
-
 /* A contact's `project` value: one link as a string, several as a list, and
    none as null (the key is deleted). Every name is rewritten as a link. */
 export function projectLinkValue(names: string[]): string | string[] | null {
@@ -219,33 +212,12 @@ export async function syncContactProjectRelationships(plugin: PluginHost, change
 
     const frontmatterOf = (f: TFile): Frontmatter => (plugin.app.metadataCache.getFileCache(f) || {}).frontmatter || {};
 
-    const autoCreate = async (entityKey: 'contact' | 'project', nameLower: string, allFiles: TFile[], map: Map<string, TFile>) => {
-      try {
-        const originalName = autoCreateName(nameLower, allFiles.map(f => f.basename));
-        const file = await createEntity(plugin.app, entityKey, originalName);
-        map.set(nameLower, file);
-        new Notice(`Fiche ${entityKey === 'contact' ? 'contact' : 'projet'} créée automatiquement pour "${originalName}".`);
-      } catch (e) {
-        console.error(`Cadence: Failed to auto-create ${entityKey} ${nameLower}`, e);
-      }
-    };
-
     const changedEntityKey = entityKeyFromFile(plugin.app, changedFile);
 
     if (changedEntityKey === 'contact') {
-      const currentProjectsOfContact = new Set(
-        extractEntitiesFromValue(frontmatterOf(changedFile).project).map(p => p.toLowerCase())
-      );
-
-      // Auto-create any projects in contact sheet that do not exist yet
-      for (const p of currentProjectsOfContact) {
-        if (!projectMap.has(p)) {
-          await autoCreate('project', p, plugin.app.vault.getMarkdownFiles(), projectMap);
-        }
-      }
-
       // We only sync projects to contacts (one-way relationship).
-      // Editing a contact sheet does not push the contact name back to project owner fields.
+      // Editing a contact sheet does not push the contact name back to project owner fields,
+      // and the sync never creates notes (#45): only a form edit to a relation field does.
     }
     else if (changedEntityKey === 'project') {
       const projectLower = changedFile.basename.toLowerCase();
@@ -259,13 +231,6 @@ export async function syncContactProjectRelationships(plugin: PluginHost, change
         }
       }
       const currentContactsOfProject = new Set(projectContacts.map(c => c.toLowerCase()));
-
-      // Auto-create any contacts in project sheet that do not exist yet
-      for (const c of currentContactsOfProject) {
-        if (!contactMap.has(c)) {
-          await autoCreate('contact', c, plugin.app.vault.getMarkdownFiles(), contactMap);
-        }
-      }
 
       // For each contact in the vault, check if they should be linked
       for (const [contactLower, contactFile] of contactMap.entries()) {
@@ -298,13 +263,6 @@ export async function syncContactProjectRelationships(plugin: PluginHost, change
         notes.push({ entityKey, basename: f.basename, frontmatter: cache.frontmatter });
       }
       const validLinks = collectValidLinks(notes, contactMap, projectMap, ENTITIES);
-
-      // Auto-create any referenced Contacts or Projects that do not exist yet
-      for (const link of validLinks) {
-        const [c, p] = link.split('|');
-        if (!contactMap.get(c)) await autoCreate('contact', c, allFiles, contactMap);
-        if (!projectMap.get(p)) await autoCreate('project', p, allFiles, projectMap);
-      }
 
       // Sync all Contacts according to validLinks
       for (const [contactLower, contactFile] of contactMap.entries()) {
