@@ -1,7 +1,7 @@
 import { Platform, TFile } from 'obsidian';
 import { ENTITIES } from '../constants/entities';
 import { CadenceReminderEditModal } from '../modals/reminder-edit';
-import { addDays, dailyNotePath, greeting, newestFirst, startOfDay, startOfWeek, ymd } from '../utils/dates';
+import { addDays, dailyNotePath, greeting, newestFirst, partOfDay, startOfDay, startOfWeek, ymd } from '../utils/dates';
 import { findDailyNote } from '../utils/daily-notes';
 import { dealClosedAt, dealOutcome, linkedNames } from '../utils/deals';
 import {
@@ -125,9 +125,10 @@ export function visibleBriefing<T>(items: T[], isMobile: boolean): { shown: T[];
   return { shown: isMobile && items.length > 3 ? items.slice(0, 3) : items, hiddenCount };
 }
 
-export function briefingHeadline(items: BriefingItem[]): string {
+/** The briefing's headline; an overdue item's names the part of the day. */
+export function briefingHeadline(items: BriefingItem[], now: Date = new Date()): string {
   const hasOverdue = items.some((i) => i.tone === 'rose');
-  if (hasOverdue) return 'A couple of things need attention this morning.';
+  if (hasOverdue) return `A couple of things need attention this ${partOfDay(now)}.`;
   if (items.length >= 4) return "Here's what's worth your attention today.";
   if (items.length === 0) return 'Inbox zero. Clear runway.';
   return "Here's what's on your radar.";

@@ -28,11 +28,16 @@ export function dailyNotePath(settings: Pick<DailyNoteSettings, 'dailyNoteFolder
   return folder ? `${folder}/${name}.md` : `${name}.md`;
 }
 
+/* The part of the day by the local clock: before noon, before 6 pm, after. */
+export function partOfDay(now: Date = new Date()): 'morning' | 'afternoon' | 'evening' {
+  const h = now.getHours();
+  if (h < 12) return 'morning';
+  if (h < 18) return 'afternoon';
+  return 'evening';
+}
+
 export function greeting(): string {
-  const h = new Date().getHours();
-  if (h < 12) return 'Good morning';
-  if (h < 18) return 'Good afternoon';
-  return 'Good evening';
+  return `Good ${partOfDay()}`;
 }
 
 export interface DateInfo {
