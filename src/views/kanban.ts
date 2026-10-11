@@ -88,12 +88,41 @@ export function inKanbanGroup(val: unknown, stage: string): boolean {
 export interface KanbanColumn {
   stage: string;
   items: Entity[];
+  /** The `(no <field>)` column: entities with no value. It takes no drop. */
+  blank?: boolean;
 }
 
-/** One column per group, in order. An entity can sit in several columns,
-    and one that matches no group is in none. */
+/** An entity's group-by values: each item of an array, or the one value,
+    links unwrapped, blanks dropped. */
+export function kanbanValues(val: unknown): string[] {
+  if (val == null || val === '') return [];
+  return (Array.isArray(val) ? val : [val]).map(unwrapLink).filter(Boolean);
+}
+
+/** One column per group, in order, then a column per value off the groups
+    (first-seen spelling, matched in any case), then `(no <field>)` when an
+    entity has no value. Each entity sits in exactly one column: that of its
+    first value on a group, else its first value (#57). */
 export function kanbanGroups(list: Entity[], groupBy: string, groups: string[], def: EntityDef): KanbanColumn[] {
-  return groups.map((stage) => ({ stage, items: list.filter((e) => inKanbanGroup(entityValue(e, groupBy, def), stage)) }));
+  const columns: KanbanColumn[] = groups.map((stage) => ({ stage, items: [] }));
+  const byValue = new Map<string, KanbanColumn>();
+  columns.forEach((c) => { if (!byValue.has(c.stage.toLowerCase())) byValue.set(c.stage.toLowerCase(), c); });
+  const field = def.fields.find((f) => f.key === groupBy);
+  const blank: KanbanColumn = { stage: `(no ${(field ? field.label : groupBy).toLowerCase()})`, items: [], blank: true };
+
+  list.forEach((e) => {
+    const values = kanbanValues(entityValue(e, groupBy, def));
+    if (!values.length) { blank.items.push(e); return; }
+    const value = values.find((v) => byValue.has(v.toLowerCase())) ?? values[0];
+    let col = byValue.get(value.toLowerCase());
+    if (!col) {
+      col = { stage: value, items: [] };
+      columns.push(col);
+      byValue.set(value.toLowerCase(), col);
+    }
+    col.items.push(e);
+  });
+  return blank.items.length ? [...columns, blank] : columns;
 }
 
 /** The first currency or number field: summed in column heads, shown on cards. */

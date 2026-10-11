@@ -6061,15 +6061,34 @@ function getEntityKanbanParams(view, entityKey) {
 function kanbanGroupByFields(def) {
   return def.fields.filter((field) => !field.primary && ["enum", "text", "multitext", "tags"].includes(field.type));
 }
-function inKanbanGroup(val, stage) {
-  if (Array.isArray(val)) {
-    const cleanVals = val.map((v) => unwrapLink(v).toLowerCase());
-    return cleanVals.includes(stage.toLowerCase());
-  }
-  return unwrapLink(val || "").toLowerCase() === stage.toLowerCase();
+function kanbanValues(val) {
+  if (val == null || val === "") return [];
+  return (Array.isArray(val) ? val : [val]).map(unwrapLink).filter(Boolean);
 }
 function kanbanGroups(list, groupBy, groups, def) {
-  return groups.map((stage) => ({ stage, items: list.filter((e) => inKanbanGroup(entityValue(e, groupBy, def), stage)) }));
+  const columns = groups.map((stage) => ({ stage, items: [] }));
+  const byValue = /* @__PURE__ */ new Map();
+  columns.forEach((c) => {
+    if (!byValue.has(c.stage.toLowerCase())) byValue.set(c.stage.toLowerCase(), c);
+  });
+  const field = def.fields.find((f) => f.key === groupBy);
+  const blank = { stage: `(no ${(field ? field.label : groupBy).toLowerCase()})`, items: [], blank: true };
+  list.forEach((e) => {
+    const values = kanbanValues(entityValue(e, groupBy, def));
+    if (!values.length) {
+      blank.items.push(e);
+      return;
+    }
+    const value = values.find((v) => byValue.has(v.toLowerCase())) ?? values[0];
+    let col = byValue.get(value.toLowerCase());
+    if (!col) {
+      col = { stage: value, items: [] };
+      columns.push(col);
+      byValue.set(value.toLowerCase(), col);
+    }
+    col.items.push(e);
+  });
+  return blank.items.length ? [...columns, blank] : columns;
 }
 function kanbanValueField(def) {
   return def.fields.find((f) => f.type === "currency" || f.type === "number");
@@ -6576,43 +6595,45 @@ async function renderEntityList(view, root, entityKey, opts = {}) {
       const { groupBy, groups } = kanbanParams;
       const board = kanbanWrap.createDiv({ cls: "cad-kanban-board" });
       const valueField = kanbanValueField(def);
-      kanbanGroups(displayed, groupBy, groups, def).forEach(({ stage, items }) => {
+      kanbanGroups(displayed, groupBy, groups, def).forEach(({ stage, items, blank }) => {
         const col = board.createDiv({ cls: "cad-kanban-col" });
         col.dataset.stage = stage;
         const head = col.createDiv({ cls: "cad-kanban-col-head" });
         head.createDiv({ cls: "cad-kanban-col-title", text: stage });
         head.createDiv({ cls: "cad-kanban-col-meta", text: kanbanColumnMeta(items, def) });
         const list = col.createDiv({ cls: "cad-kanban-col-list" });
-        list.addEventListener("dragover", (ev) => {
-          ev.preventDefault();
-          try {
-            ev.dataTransfer.dropEffect = "move";
-          } catch (_) {
-          }
-          col.addClass("drag-over");
-        });
-        list.addEventListener("dragleave", (ev) => {
-          if (!col.contains(ev.relatedTarget)) col.removeClass("drag-over");
-        });
-        list.addEventListener("drop", async (ev) => {
-          ev.preventDefault();
-          col.removeClass("drag-over");
-          const path = ev.dataTransfer.getData("text/cadence-entity");
-          const fromStage = ev.dataTransfer.getData("text/cadence-stage");
-          if (!path || fromStage === stage) return;
-          const file = view.app.vault.getAbstractFileByPath(path);
-          if (!file || !(file instanceof import_obsidian19.TFile)) return;
-          try {
-            await view.app.fileManager.processFrontMatter(file, (fm) => {
-              const before = fm[groupBy];
-              fm[groupBy] = kanbanDropValue(def.fields.find((fd) => fd.key === groupBy), stage);
-              if (entityKey === "deal" && groupBy === "stage") Object.assign(fm, closedPatch(before, fm[groupBy], /* @__PURE__ */ new Date()));
-            });
-            new import_obsidian19.Notice(`Moved to ${stage}`);
-          } catch (e) {
-            new import_obsidian19.Notice(`Failed to move: ${e.message}`);
-          }
-        });
+        if (!blank) {
+          list.addEventListener("dragover", (ev) => {
+            ev.preventDefault();
+            try {
+              ev.dataTransfer.dropEffect = "move";
+            } catch (_) {
+            }
+            col.addClass("drag-over");
+          });
+          list.addEventListener("dragleave", (ev) => {
+            if (!col.contains(ev.relatedTarget)) col.removeClass("drag-over");
+          });
+          list.addEventListener("drop", async (ev) => {
+            ev.preventDefault();
+            col.removeClass("drag-over");
+            const path = ev.dataTransfer.getData("text/cadence-entity");
+            const fromStage = ev.dataTransfer.getData("text/cadence-stage");
+            if (!path || fromStage === stage) return;
+            const file = view.app.vault.getAbstractFileByPath(path);
+            if (!file || !(file instanceof import_obsidian19.TFile)) return;
+            try {
+              await view.app.fileManager.processFrontMatter(file, (fm) => {
+                const before = fm[groupBy];
+                fm[groupBy] = kanbanDropValue(def.fields.find((fd) => fd.key === groupBy), stage);
+                if (entityKey === "deal" && groupBy === "stage") Object.assign(fm, closedPatch(before, fm[groupBy], /* @__PURE__ */ new Date()));
+              });
+              new import_obsidian19.Notice(`Moved to ${stage}`);
+            } catch (e) {
+              new import_obsidian19.Notice(`Failed to move: ${e.message}`);
+            }
+          });
+        }
         if (!items.length) {
           list.createDiv({ cls: "cad-empty", text: "\u2014" });
         } else {

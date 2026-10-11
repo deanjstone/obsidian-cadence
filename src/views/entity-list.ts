@@ -494,7 +494,7 @@ export async function renderEntityList(
       const board = kanbanWrap.createDiv({ cls: 'cad-kanban-board' });
 
       const valueField = kanbanValueField(def);
-      kanbanGroups(displayed, groupBy, groups, def).forEach(({ stage, items }) => {
+      kanbanGroups(displayed, groupBy, groups, def).forEach(({ stage, items, blank }) => {
 
         const col = board.createDiv({ cls: 'cad-kanban-col' });
         col.dataset.stage = stage;
@@ -505,33 +505,36 @@ export async function renderEntityList(
 
         const list = col.createDiv({ cls: 'cad-kanban-col-list' });
 
-        list.addEventListener('dragover', (ev) => {
-          ev.preventDefault();
-          try { ev.dataTransfer!.dropEffect = 'move'; } catch (_) { }
-          col.addClass('drag-over');
-        });
-        list.addEventListener('dragleave', (ev) => {
-          if (!col.contains(ev.relatedTarget as Node | null)) col.removeClass('drag-over');
-        });
-        list.addEventListener('drop', async (ev) => {
-          ev.preventDefault();
-          col.removeClass('drag-over');
-          const path = ev.dataTransfer!.getData('text/cadence-entity');
-          const fromStage = ev.dataTransfer!.getData('text/cadence-stage');
-          if (!path || fromStage === stage) return;
-          const file = view.app.vault.getAbstractFileByPath(path);
-          if (!file || !(file instanceof TFile)) return;
-          try {
-            await view.app.fileManager.processFrontMatter(file, (fm) => {
-              const before = fm[groupBy];
-              fm[groupBy] = kanbanDropValue(def.fields.find(fd => fd.key === groupBy), stage);
-              if (entityKey === 'deal' && groupBy === 'stage') Object.assign(fm, closedPatch(before, fm[groupBy], new Date()));
-            });
-            new Notice(`Moved to ${stage}`);
-          } catch (e) {
-            new Notice(`Failed to move: ${(e as Error).message}`);
-          }
-        });
+        // The (no value) column is not a drop target: there is nothing to write.
+        if (!blank) {
+          list.addEventListener('dragover', (ev) => {
+            ev.preventDefault();
+            try { ev.dataTransfer!.dropEffect = 'move'; } catch (_) { }
+            col.addClass('drag-over');
+          });
+          list.addEventListener('dragleave', (ev) => {
+            if (!col.contains(ev.relatedTarget as Node | null)) col.removeClass('drag-over');
+          });
+          list.addEventListener('drop', async (ev) => {
+            ev.preventDefault();
+            col.removeClass('drag-over');
+            const path = ev.dataTransfer!.getData('text/cadence-entity');
+            const fromStage = ev.dataTransfer!.getData('text/cadence-stage');
+            if (!path || fromStage === stage) return;
+            const file = view.app.vault.getAbstractFileByPath(path);
+            if (!file || !(file instanceof TFile)) return;
+            try {
+              await view.app.fileManager.processFrontMatter(file, (fm) => {
+                const before = fm[groupBy];
+                fm[groupBy] = kanbanDropValue(def.fields.find(fd => fd.key === groupBy), stage);
+                if (entityKey === 'deal' && groupBy === 'stage') Object.assign(fm, closedPatch(before, fm[groupBy], new Date()));
+              });
+              new Notice(`Moved to ${stage}`);
+            } catch (e) {
+              new Notice(`Failed to move: ${(e as Error).message}`);
+            }
+          });
+        }
 
         if (!items.length) {
           list.createDiv({ cls: 'cad-empty', text: '—' });

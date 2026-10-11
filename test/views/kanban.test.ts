@@ -146,15 +146,37 @@ describe("renderEntityList: kanban layout", () => {
     const { view, root } = setup(DEALS);
     await view.renderEntityList(root, "deal");
     expect(board(root).classes).toEqual(["cad-kanban-board"]);
-    expect(columns(root).map((c) => c.dataset.stage)).toEqual(["Lead", "Qualified", "Proposal", "Negotiation", "Won", "Lost"]);
+    expect(columns(root).map((c) => c.dataset.stage)).toEqual(["Lead", "Qualified", "Proposal", "Negotiation", "Won", "Lost", "Archived"]);
     expect(cardTitles(column(root, "Proposal"))).toEqual(["Acme renewal", "Globex"]);
     expect(cardTitles(column(root, "Won"))).toEqual(["Initech"]);
   });
 
-  it("QUIRK: an entity whose value matches no group is on no column", async () => {
+  it("an entity whose value matches no group gets its own column after the groups, so every counted entity is on the board", async () => {
     const { view, root } = setup(DEALS);
     await view.renderEntityList(root, "deal");
-    expect(columns(root).flatMap((c) => cardTitles(c))).toEqual(["Acme renewal", "Globex", "Initech"]);
+    expect(columns(root).flatMap((c) => cardTitles(c))).toEqual(["Acme renewal", "Globex", "Initech", "Stray"]);
+    expect(colHead(column(root, "Archived"))).toEqual(["Archived", `1 · ${fmtValue(0, "currency")}`]);
+  });
+
+  it("an entity with no value sits in a last (no stage) column, which takes no drop", async () => {
+    const blank = deal("Blank", { title: "Blank", value: 5 });
+    const { view, root, fm } = setup([...DEALS, blank]);
+    await view.renderEntityList(root, "deal");
+    expect(columns(root).map((c) => c.dataset.stage).slice(-2)).toEqual(["Archived", "(no stage)"]);
+    const none = column(root, "(no stage)");
+    expect(cardTitles(none)).toEqual(["Blank"]);
+    const dt = dataTransfer({ "text/cadence-entity": ACME.path, "text/cadence-stage": "Proposal" });
+    const over = none.children[1].trigger("dragover", { dataTransfer: dt });
+    none.children[1].trigger("drop", { dataTransfer: dt });
+    await flush();
+    expect([over.defaultPrevented, none.classes, fm(ACME.path)!.stage, Notice.messages]).toEqual([false, ["cad-kanban-col"], ["Proposal"], []]);
+  });
+
+  it("an entity with several values sits in one column: the first value that matches a group", async () => {
+    const files = [deal("Two", { title: "Two", stage: "Won", owner: ["[[Sam]]", "Kim"] }), deal("One", { title: "One", stage: "Won", owner: "Kim" })];
+    const { view, root } = setup(files, "crm.pipeline", { pageKanbanGroupBy: { deal: "owner" } });
+    await view.renderEntityList(root, "deal");
+    expect(columns(root).map((c) => [c.dataset.stage, cardTitles(c)])).toEqual([["Sam", ["Two"]], ["Kim", ["One"]]]);
   });
 
   it("heads each column with its count and the value field's total, or the count alone", async () => {

@@ -301,14 +301,20 @@ describe("kanban seams", () => {
     ]).toEqual([true, true, true, false, true, false]);
   });
 
-  it("kanbanGroups puts each entity in every column it matches, and unmatched ones in none", () => {
-    const list = [entity("a", { stage: "Won" }), entity("b", { owner: ["Sam", "Kim"] }), entity("c", { stage: "Gone" })];
-    expect(kanbanGroups(list, "stage", ["Won", "Lost"], deal).map((c) => [c.stage, names(c.items)])).toEqual([
-      ["Won", ["a"]], ["Lost", []],
+  it("kanbanGroups puts each entity in one column: its first value on a group, else a column per off-list value, else (no <field>)", () => {
+    const list = [
+      entity("a", { stage: "won" }), entity("b", { owner: ["Sam", "Kim"] }), entity("c", { stage: "Gone" }),
+      entity("d", { stage: "gone" }), entity("e", { owner: ["Lee", "[[Kim]]"] }),
+    ];
+    const cols = (groupBy: string, groups: string[]) =>
+      kanbanGroups(list, groupBy, groups, deal).map((c) => [c.stage, names(c.items), !!c.blank]);
+    expect(cols("stage", ["Won", "Lost"])).toEqual([
+      ["Won", ["a"], false], ["Lost", [], false], ["Gone", ["c", "d"], false], ["(no stage)", ["b", "e"], true],
     ]);
-    expect(kanbanGroups(list, "owner", ["Sam", "Kim"], deal).map((c) => [c.stage, names(c.items)])).toEqual([
-      ["Sam", ["b"]], ["Kim", ["b"]],
+    expect(cols("owner", ["Sam", "Kim"])).toEqual([
+      ["Sam", ["b"], false], ["Kim", ["e"], false], ["(no owner)", ["a", "c", "d"], true],
     ]);
+    expect(cols("stage", ["Won", "Gone", "Lost"]).map(([stage]) => stage)).toEqual(["Won", "Gone", "Lost", "(no stage)"]);
   });
 
   it("kanbanValueField finds the first currency or number field", () => {
