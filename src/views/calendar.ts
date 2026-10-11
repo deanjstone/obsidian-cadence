@@ -43,17 +43,14 @@ export interface PlannerColumn {
 }
 
 /** The week grid's numbers and columns from the loaded days. The totals
-    count a line as done if it has an [x] box, else open if it has a [ ] box;
-    each column counts the two boxes separately, so a line with both counts
-    once in the totals and twice in its column. */
+    and each column count a line by its own leading box (`countTaskLines`). */
 export function plannerWeek(dayData: Array<Pick<PlannerDay, 'date' | 'exists' | 'tasks'>>, today: Date): {
   stats: { open: number; done: number; total: number };
   columns: PlannerColumn[];
 } {
   const totals = countTaskLines(dayData.flatMap((d) => d.tasks));
   const columns = dayData.map((d) => {
-    const open = d.tasks.filter((l) => / \[ \] /.test(l)).length;
-    const done = d.tasks.filter((l) => / \[(x|X)\] /.test(l)).length;
+    const { open, done } = countTaskLines(d.tasks);
     return {
       isToday: sameDay(d.date, today),
       weekday: d.date.toLocaleDateString(undefined, { weekday: 'short' }).toUpperCase(),

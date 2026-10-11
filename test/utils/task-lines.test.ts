@@ -21,13 +21,13 @@ describe("TASK_PREFIX and taskLineRows", () => {
     ]);
   });
 
-  it("QUIRK: a tab after the box is a task line but neither checked nor counted", () => {
-    expect(taskLineRows(["- [x]\tdone"])).toEqual([{ checked: false, text: "done" }]);
-    expect(countTaskLines(["- [x]\tdone", "- [ ]\topen"])).toEqual({ open: 0, done: 0 });
+  it("a tab after the box is a task line, checked and counted by its box", () => {
+    expect(taskLineRows(["- [x]\tdone"])).toEqual([{ checked: true, text: "done" }]);
+    expect(countTaskLines(["- [x]\tdone", "- [ ]\topen"])).toEqual({ open: 1, done: 1 });
   });
 
-  it("countTaskLines counts a line with both boxes as done", () => {
-    expect(countTaskLines(["- [ ] see [x] here", "- [ ] a", "- [X] b"])).toEqual({ open: 1, done: 2 });
+  it("countTaskLines counts a line with both boxes by its leading box", () => {
+    expect(countTaskLines(["- [ ] see [x] here", "- [ ] a", "- [X] b"])).toEqual({ open: 2, done: 1 });
   });
 
   it("Home re-exports the one toggleTaskLine", () => {

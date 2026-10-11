@@ -13,7 +13,7 @@ import { listTaskNotesTasks, toggleTaskNotesTask } from '../utils/tasknotes';
 import type { Entity, ProjectMeta, TaskNotesTask } from '../types/entities';
 import type { Reminder } from '../types/reminders';
 import type { Milestone } from '../utils/parsing';
-import { countTaskLines, TASK_PREFIX, taskNotesToday, toggleDailyTask } from '../utils/task-lines';
+import { countTaskLines, taskLineRows, taskNotesToday, toggleDailyTask } from '../utils/task-lines';
 import type { AppViewHost } from './host';
 
 /* Moved to src/utils/task-lines.ts, where Today and the Calendar share them. */
@@ -331,7 +331,7 @@ export async function loadBriefing(view: AppViewHost): Promise<BriefingItem[]> {
       const file = await ensureDailyNote(view.app, settings);
       const content = await view.app.vault.read(file);
       const parsed = parseSections(content, settings);
-      openTasks = parsed.tasks.filter((l) => / \[ \] /.test(l)).length;
+      openTasks = countTaskLines(parsed.tasks).open;
     }
   } catch (_) { }
 
@@ -430,13 +430,9 @@ export async function homeInboxCard(view: AppViewHost, parent: HTMLElement): Pro
 
 /** The Today card's counts, title and one row per checklist line. */
 export function selectTodayCard(tasksList: string[]) {
-  const open = tasksList.filter((l) => / \[ \] /.test(l));
-  const done = tasksList.filter((l) => / \[(x|X)\] /.test(l));
-  const rows = tasksList.map((rawLine) => ({
-    checked: / \[(x|X)\] /.test(rawLine),
-    text: rawLine.replace(TASK_PREFIX, ''),
-  }));
-  return { open: open.length, done: done.length, title: `TODAY — ${open.length} open · ${done.length} done`, rows };
+  const { open, done } = countTaskLines(tasksList);
+  const rows = taskLineRows(tasksList);
+  return { open, done, title: `TODAY — ${open} open · ${done} done`, rows };
 }
 
 export async function homeTodayCard(view: AppViewHost, parent: HTMLElement): Promise<void> {

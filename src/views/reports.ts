@@ -7,6 +7,7 @@ import { crmSummary, dealValue, sumValues } from '../utils/deals';
 import { entityValue, getDealStages, listEntities } from '../utils/entities';
 import { fmtValue } from '../utils/format';
 import { parseSections } from '../utils/parsing';
+import { countTaskLines } from '../utils/task-lines';
 import type { DashCardRow, MiniStat, StatCard } from './components/cards';
 import type { AppViewHost } from './host';
 
@@ -376,8 +377,6 @@ export function activityReport(activities: Entity[], def: EntityDef, now: Date, 
 }
 
 const WEEKDAY_ACCENTS = ['emerald', 'mint', 'sky', 'warn', 'rose', 'mint', 'sky'];
-const OPEN_TASK = / \[ \] /;
-const DONE_TASK = / \[(x|X)\] /;
 
 export type ProductivitySettings = Pick<DailyNoteSettings, 'tasksHeading' | 'journalHeading'> & { weekStartsOn?: number };
 
@@ -411,8 +410,8 @@ export interface ProductivityReport {
 }
 
 /* The report over the daily notes, given each existing note's content by
-   its `ymd` date. Over the 30 days a task line counts as open and as done
-   if it matches both; the weekly trend counts it as done only. */
+   its `ymd` date. Every count reads a task line's own leading box
+   (`countTaskLines`). */
 export function productivityReport(notes: Map<string, string>, now: Date, settings: ProductivitySettings): ProductivityReport {
   const today = startOfDay(now);
   const days = Array.from({ length: 30 }, (_, i) => addDays(today, -i));
@@ -426,8 +425,7 @@ export function productivityReport(notes: Map<string, string>, now: Date, settin
     if (c !== undefined) {
       hasNote = true;
       const p = parseSections(c, settings);
-      open = p.tasks.filter((l) => OPEN_TASK.test(l)).length;
-      done = p.tasks.filter((l) => DONE_TASK.test(l)).length;
+      ({ open, done } = countTaskLines(p.tasks));
       jChars = (p.journal || '').length;
     }
     perDay.push({ date: d, open, done, jChars, hasNote });
@@ -453,7 +451,9 @@ export function productivityReport(notes: Map<string, string>, now: Date, settin
       if (d.getTime() > today.getTime()) break;
       const c = notes.get(ymd(d));
       if (c !== undefined) {
-        parseSections(c, settings).tasks.forEach((l) => { if (DONE_TASK.test(l)) wd++; else if (OPEN_TASK.test(l)) wo++; });
+        const counts = countTaskLines(parseSections(c, settings).tasks);
+        wd += counts.done;
+        wo += counts.open;
       }
     }
     weeks.push({ done: wd, open: wo, label: ws.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) });

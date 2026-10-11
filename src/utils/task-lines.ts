@@ -14,6 +14,16 @@ type TaskHeadings = Pick<DailyNoteSettings, 'tasksHeading' | 'journalHeading'>;
 /** A checklist line's `- [ ] ` / `- [x] ` prefix, with any indentation. */
 export const TASK_PREFIX = /^\s*-\s\[(x|X| )\]\s/;
 
+/** A checklist line's state, read from its own leading box: 'done' for
+    `[x]`/`[X]`, 'open' for `[ ]`, null for any other line. A box later in
+    the text (`- [ ] see [x] here`) never counts, and any whitespace may
+    follow the box. */
+export function taskLineState(line: string): 'open' | 'done' | null {
+  const match = TASK_PREFIX.exec(line);
+  if (!match) return null;
+  return match[1] === ' ' ? 'open' : 'done';
+}
+
 /** TaskNotes tasks scheduled on `ymd`, and their checklist lines. */
 export function taskNotesToday(allTaskNotes: TaskNotesTask[], todayYmd: string): { tasks: TaskNotesTask[]; lines: string[] } {
   const tasks = allTaskNotes.filter(t => t.scheduled === todayYmd);
@@ -34,18 +44,22 @@ export function toggleTaskLine(tasks: string[], idx: number, checked: boolean): 
   return { tasks: newTasks, taskText };
 }
 
-/** Open and done counts over checklist lines. A line matching neither
-    pattern (e.g. a tab after the box) counts as neither. */
+/** Open and done counts over checklist lines, each by its own leading
+    box. A line that is not a checklist line counts as neither. */
 export function countTaskLines(lines: string[]): { open: number; done: number } {
   let open = 0, done = 0;
-  lines.forEach((l) => { if (/ \[(x|X)\] /.test(l)) done++; else if (/ \[ \] /.test(l)) open++; });
+  lines.forEach((l) => {
+    const state = taskLineState(l);
+    if (state === 'done') done++;
+    else if (state === 'open') open++;
+  });
   return { open, done };
 }
 
 /** One row per checklist line: its box state and its text (untrimmed). */
 export function taskLineRows(lines: string[]): Array<{ checked: boolean; text: string }> {
   return lines.map((rawLine) => ({
-    checked: / \[(x|X)\] /.test(rawLine),
+    checked: taskLineState(rawLine) === 'done',
     text: rawLine.replace(TASK_PREFIX, ''),
   }));
 }

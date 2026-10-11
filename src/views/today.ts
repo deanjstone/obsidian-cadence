@@ -3,7 +3,7 @@ import { dateInfo, greeting, ymd } from '../utils/dates';
 import { ensureDailyNote } from '../utils/daily-notes';
 import { projectNameFromPath } from '../utils/entities';
 import { parseH2Sections, parseHeaderKey, parseLinkValues, parseSections } from '../utils/parsing';
-import { appendDailyTask, replaceJournal, taskLineRows, taskNotesToday, toggleDailyTask } from '../utils/task-lines';
+import { appendDailyTask, countTaskLines, replaceJournal, taskLineRows, taskNotesToday, toggleDailyTask } from '../utils/task-lines';
 import { appendTaskNotesTask, listTaskNotesTasks, toggleTaskNotesTask } from '../utils/tasknotes';
 import type { AppViewHost } from './host';
 
@@ -37,15 +37,15 @@ export async function quickAddTodayTask(view: AppViewHost): Promise<void> {
   new Notice('Added to today');
 }
 
-/** The greeting line and the TODAY label's count. Open is a ` [ ] ` box;
-    done is every other line, so a line matching neither counts as done. */
+/** The greeting line and the TODAY label's count, each line counted by
+    its own leading box (`countTaskLines`). */
 export function todaySummary(tasksList: string[], greet: string): { greeting: string; count: string } {
-  const open = tasksList.filter((l) => / \[ \] /.test(l)).length;
+  const { open, done } = countTaskLines(tasksList);
   return {
     greeting: open === 0
       ? `${greet}. Nothing on the books — your day is clear.`
       : `${greet}. You have ${open} ${open === 1 ? 'thing' : 'things'} to handle.`,
-    count: `${open} open · ${tasksList.length - open} done`,
+    count: `${open} open · ${done} done`,
   };
 }
 

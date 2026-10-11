@@ -264,9 +264,9 @@ describe("productivityReport", () => {
     expect(report.stats.map((s) => s.value)).toEqual(["67%", "2d", "3/30", "3"]);
   });
 
-  it("QUIRK: a line matching both patterns counts as open and done over 30 days, but as done only in the trend", () => {
+  it("a line with both boxes counts once, by its leading box, over 30 days and in the trend", () => {
     const report = productivityReport(notes({ "2026-10-11": "## Today\n- [x] see [ ] here" }), new Date(NOW), settings);
-    expect([report.totalOpen, report.totalDone]).toEqual([1, 1]);
+    expect([report.totalOpen, report.totalDone]).toEqual([0, 1]);
     expect(report.weeks.at(-1)!.title).toBe("Week of Oct 5 — 1 done, 0 open");
   });
 
