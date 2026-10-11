@@ -7666,7 +7666,11 @@ function renderInboxRow(view, parent, r, bucket) {
   const handlers = {
     snooze15: () => view.plugin.snoozeReminder(r.id, 15 * 60 * 1e3),
     snooze60: () => view.plugin.snoozeReminder(r.id, 60 * 60 * 1e3),
-    tomorrow: () => view.plugin.updateReminder(r.id, { when: tomorrowAtNine(/* @__PURE__ */ new Date()), notified: false }),
+    /* A snooze, so a repeating occurrence hands its series on first (#66). */
+    tomorrow: () => {
+      const now = Date.now();
+      return view.plugin.snoozeReminder(r.id, new Date(tomorrowAtNine(new Date(now))).getTime() - now);
+    },
     schedule: () => openEdit(),
     edit: () => openEdit(),
     done: async () => {
@@ -9891,7 +9895,8 @@ async function propagateTaskComplete(view, text, done, source) {
   );
   if (!targets) return;
   for (const id of targets.reminderIds) {
-    await view.plugin.updateReminder(id, { done: !!done });
+    if (done) await view.plugin.completeReminder(id);
+    else await view.plugin.updateReminder(id, { done: false });
   }
   for (const path of targets.projectPaths) {
     const file = view.app.vault.getAbstractFileByPath(path);
