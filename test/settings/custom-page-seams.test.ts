@@ -31,9 +31,9 @@ describe("labels and options", () => {
     expect(sectionLabel("")).toBe("");
   });
 
-  it("labels layouts in title case, defaulting to Table, undefined when unknown", () => {
+  it("labels layouts in title case, defaulting to Table, the stored value when unknown", () => {
     expect(["table", "kanban", "cards", undefined, "", "list"].map(customPageLayoutLabel)).toEqual([
-      "Table View ☰", "Kanban Board 🗂", "Card Grid ⚃", "Table View ☰", "Table View ☰", undefined,
+      "Table View ☰", "Kanban Board 🗂", "Card Grid ⚃", "Table View ☰", "Table View ☰", "list",
     ]);
     expect(LAYOUT_OPTIONS.map((o) => o.label)).toEqual(["Table view ☰", "Kanban board 🗂", "Card grid ⚃"]);
   });

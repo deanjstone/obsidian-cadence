@@ -79,10 +79,16 @@ describe("Custom Navigation Pages: list", () => {
     expect(rows(section)).toEqual([
       ["Areas", "Planner", "planner_area", "Card Grid ⚃", "Delete"],
       ["Ideas", "inbox", "Contact", "Table View ☰", "Delete"],
-      ["Odd", "Reports", "nope", "", "Delete"],
+      ["Odd", "Reports", "nope", "list", "Delete"],
       ["Vendors", "CRM", "crm_vendor", "Kanban Board 🗂", "Delete"],
     ]);
     expect(section.children.map((c) => c.localName)).toEqual(["table", "div"]);
+  });
+
+  it("shows an unknown default layout by its stored value, not an empty cell", () => {
+    const { section } = shown({ customPages: [pages[3]] });
+    const layoutCell = section.findAll("tbody")[0].findAll("tr")[0].children[3];
+    expect(layoutCell.text).toBe("list");
   });
 
   it("does not reorder the stored pages when sorting the table", () => {

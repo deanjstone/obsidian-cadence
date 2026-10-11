@@ -67,9 +67,9 @@ export function sectionLabel(sectionId: string): string {
   return SECTION_LABELS[sectionId] || sectionId;
 }
 
-/* The table's layout label; undefined (an empty cell) for an unknown layout. */
-export function customPageLayoutLabel(layout: string | undefined): string | undefined {
-  return LAYOUT_LABELS[layout || 'table'];
+/* The table's layout label; the stored value itself for an unknown layout. */
+export function customPageLayoutLabel(layout: string | undefined): string {
+  return LAYOUT_LABELS[layout || 'table'] || layout!;
 }
 
 export interface CustomPageRow {
@@ -77,7 +77,7 @@ export interface CustomPageRow {
   label: string;
   section: string;
   entity: string;
-  layout: string | undefined;
+  layout: string;
 }
 
 /* The table's rows: a copy of the pages sorted by label, each with its

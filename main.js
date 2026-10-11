@@ -2209,7 +2209,7 @@ function sectionLabel(sectionId) {
   return SECTION_LABELS[sectionId] || sectionId;
 }
 function customPageLayoutLabel(layout) {
-  return LAYOUT_LABELS[layout || "table"];
+  return LAYOUT_LABELS[layout || "table"] || layout;
 }
 function customPageRows(customPages, entities) {
   return customPages.slice().sort((a, b) => a.label.localeCompare(b.label)).map((p) => ({
