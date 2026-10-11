@@ -5843,7 +5843,6 @@ async function renderEntityDetail(view, root, entityKey, file) {
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => writeField(key, val), 350);
   };
-  const isCore = ["contact", "company", "partner", "registration", "commission", "lead", "certification", "activity", "sequence", "project", "deal"].includes(entityKey);
   detailFields(def).forEach((f) => {
     const row = form.createDiv({ cls: "cad-form-row" });
     row.createDiv({ cls: "cad-form-label", text: f.label.toUpperCase() });
@@ -5864,39 +5863,18 @@ async function renderEntityDetail(view, root, entityKey, file) {
         const date = dateInputValue(current);
         if (date !== null) inp.value = date;
       }
-      if (!isCore && f.key === "type") {
-        inp.disabled = true;
-        inp.style.opacity = "0.6";
-        inp.style.cursor = "not-allowed";
-        inp.title = "This property is read-only unless configured as a Select (Enum) in settings.";
-      } else {
-        inp.addEventListener("change", () => writeField(f.key, inp.value));
-      }
+      inp.addEventListener("change", () => writeField(f.key, inp.value));
     } else if (control === "number") {
       const inp = row.createEl("input", { type: "number", cls: "cad-form-input" });
       if (current != null) inp.value = String(current);
       if (fieldType === "currency") inp.placeholder = `${view.plugin.settings.currency || "USD"} amount`;
-      if (!isCore && f.key === "type") {
-        inp.disabled = true;
-        inp.style.opacity = "0.6";
-        inp.style.cursor = "not-allowed";
-        inp.title = "This property is read-only unless configured as a Select (Enum) in settings.";
-      } else {
-        inp.addEventListener("input", () => debouncedWrite(f.key, inp.value));
-        inp.addEventListener("blur", () => writeField(f.key, inp.value));
-      }
+      inp.addEventListener("input", () => debouncedWrite(f.key, inp.value));
+      inp.addEventListener("blur", () => writeField(f.key, inp.value));
     } else if (control === "email") {
       const inp = row.createEl("input", { type: "email", cls: "cad-form-input" });
       if (current) inp.value = String(current);
-      if (!isCore && f.key === "type") {
-        inp.disabled = true;
-        inp.style.opacity = "0.6";
-        inp.style.cursor = "not-allowed";
-        inp.title = "This property is read-only unless configured as a Select (Enum) in settings.";
-      } else {
-        inp.addEventListener("input", () => debouncedWrite(f.key, inp.value));
-        inp.addEventListener("blur", () => writeField(f.key, inp.value));
-      }
+      inp.addEventListener("input", () => debouncedWrite(f.key, inp.value));
+      inp.addEventListener("blur", () => writeField(f.key, inp.value));
     } else {
       if (control === "chips") {
         const { suggestionSource, isPlainChip, isList, targetEntityKey, customFolderPath } = chipConfig(f, ENTITIES, DETAIL_LIST_KEYS);
@@ -5924,10 +5902,6 @@ async function renderEntityDetail(view, root, entityKey, file) {
         inp.style.margin = "0";
         inp.style.height = "24px";
         inp.placeholder = "Add " + f.label.toLowerCase() + "...";
-        if (!isCore && f.key === "type") {
-          inp.disabled = true;
-          inp.style.display = "none";
-        }
         const suggestionsBox = row.createDiv({ cls: "cad-pd-tag-suggestions" });
         suggestionsBox.style.position = "absolute";
         suggestionsBox.style.zIndex = "10000";
@@ -6016,21 +5990,17 @@ async function renderEntityDetail(view, root, entityKey, file) {
               });
             }
             const close = chip.createSpan({ text: "\xD7" });
-            if (!isCore && f.key === "type") {
-              close.style.display = "none";
-            } else {
-              close.style.cursor = "pointer";
-              close.style.fontWeight = "bold";
-              close.style.fontSize = "14px";
-              close.style.lineHeight = "1";
-              close.style.color = "var(--text-muted)";
-              close.addEventListener("click", async (ev) => {
-                ev.stopPropagation();
-                valuesList = valuesList.filter((v) => v !== valName);
-                await save();
-                renderChips();
-              });
-            }
+            close.style.cursor = "pointer";
+            close.style.fontWeight = "bold";
+            close.style.fontSize = "14px";
+            close.style.lineHeight = "1";
+            close.style.color = "var(--text-muted)";
+            close.addEventListener("click", async (ev) => {
+              ev.stopPropagation();
+              valuesList = valuesList.filter((v) => v !== valName);
+              await save();
+              renderChips();
+            });
             wrap.insertBefore(chip, inp);
           });
         };
@@ -6059,29 +6029,27 @@ async function renderEntityDetail(view, root, entityKey, file) {
             }
           }
         };
-        if (isCore || f.key !== "type") {
-          inp.addEventListener("input", updateSuggestions);
-          inp.addEventListener("focus", updateSuggestions);
-          inp.addEventListener("keydown", async (ev) => {
-            if (ev.key === "Enter") {
-              ev.preventDefault();
+        inp.addEventListener("input", updateSuggestions);
+        inp.addEventListener("focus", updateSuggestions);
+        inp.addEventListener("keydown", async (ev) => {
+          if (ev.key === "Enter") {
+            ev.preventDefault();
+            await addVal(inp.value);
+            suggestionsBox.style.display = "none";
+          } else if (ev.key === "Backspace" && !inp.value && valuesList.length > 0) {
+            valuesList.pop();
+            await save();
+            renderChips();
+          }
+        });
+        inp.addEventListener("blur", async () => {
+          setTimeout(async () => {
+            suggestionsBox.style.display = "none";
+            if (inp.value.trim()) {
               await addVal(inp.value);
-              suggestionsBox.style.display = "none";
-            } else if (ev.key === "Backspace" && !inp.value && valuesList.length > 0) {
-              valuesList.pop();
-              await save();
-              renderChips();
             }
-          });
-          inp.addEventListener("blur", async () => {
-            setTimeout(async () => {
-              suggestionsBox.style.display = "none";
-              if (inp.value.trim()) {
-                await addVal(inp.value);
-              }
-            }, 180);
-          });
-        }
+          }, 180);
+        });
         wrap.addEventListener("click", () => {
           inp.focus();
         });
@@ -6090,15 +6058,8 @@ async function renderEntityDetail(view, root, entityKey, file) {
         const inp = row.createEl("input", { type: "text", cls: "cad-form-input" });
         if (current) inp.value = String(current);
         if (f.key === primaryKey) inp.placeholder = `${def.label} name`;
-        if (!isCore && f.key === "type") {
-          inp.disabled = true;
-          inp.style.opacity = "0.6";
-          inp.style.cursor = "not-allowed";
-          inp.title = "This property is read-only unless configured as a Select (Enum) in settings.";
-        } else {
-          inp.addEventListener("input", () => debouncedWrite(f.key, inp.value));
-          inp.addEventListener("blur", () => writeField(f.key, inp.value));
-        }
+        inp.addEventListener("input", () => debouncedWrite(f.key, inp.value));
+        inp.addEventListener("blur", () => writeField(f.key, inp.value));
       }
     }
   });
