@@ -2,14 +2,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { FakeElement, Notice, Platform, type MockFileSpec } from "../mocks/obsidian";
 import { flush, makeAppView } from "../helpers/app-view";
 import { ENTITIES } from "../../src/constants/entities";
-import { CadenceImportModal } from "../../src/modals/import-modal";
 import { fmtValue } from "../../src/utils/format";
 import type { EntityDef } from "../../src/types/entities";
 
 /* Characterization tests for the kanban: getEntityKanbanParams (which field
-   groups the columns, and which columns), the kanban layout of
-   renderEntityList (group-by selector, columns, cards, drag and drop), and
-   renderEntityKanban, the older pipeline board that has no call site. */
+   groups the columns, and which columns) and the kanban layout of
+   renderEntityList (group-by selector, columns, cards, drag and drop). */
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Any = any;
@@ -387,97 +385,6 @@ describe("renderEntityList: kanban layout", () => {
       await flush();
       expect(fm(V.path)![groupBy]).toEqual(written);
     });
-  });
-});
-
-describe("renderEntityKanban (no call site)", () => {
-  it("has no caller anywhere in src (no `.renderEntityKanban(` call)", async () => {
-    const { readdirSync, readFileSync } = await import("node:fs");
-    const files = readdirSync("src", { recursive: true, withFileTypes: true })
-      .filter((d) => d.isFile() && /\.(ts|js)$/.test(d.name))
-      .map((d) => `${d.parentPath}/${d.name}`);
-    const callers = files.filter((f) => /\.renderEntityKanban\(/.test(readFileSync(f, "utf8")));
-    expect(callers).toEqual([]);
-  });
-
-  it("heads the board with the count and the total value, plus Import CSV and + New", async () => {
-    const { view, root, created } = setup(DEALS);
-    const open = vi.spyOn(CadenceImportModal.prototype, "open").mockImplementation(() => {});
-    await view.renderEntityKanban(root, "deal", "stage", ["Proposal", "Won"]);
-    expect(root.classes).toEqual(["cadence-kanban"]);
-    const head = root.children[0];
-    expect(head.children[0].children.map((c) => c.text)).toEqual(["CADENCE", "Deals", `4 deals · ${fmtValue(17500, "currency")} total`]);
-    const [importBtn, newBtn] = head.children[1].children;
-    importBtn.trigger("click");
-    expect((open.mock.contexts[0] as Any).entityKey).toBe("deal");
-    newBtn.trigger("click");
-    expect(created.mock.calls).toEqual([["deal"]]);
-  });
-
-  it("QUIRK: matches stages by exact string, so 'proposal' and multi-value arrays miss", async () => {
-    const files = [...DEALS, deal("Two", { title: "Two", stage: ["Won", "Lost"] })];
-    const { view, root } = setup(files);
-    await view.renderEntityKanban(root, "deal", "stage", ["Proposal", "Won", "Lost"]);
-    const cols = root.children[1].children;
-    expect(cols.map((c) => [c.dataset.stage, cardTitles(c)])).toEqual([
-      ["Proposal", ["Acme renewal"]],
-      ["Won", ["Initech", "Two"]],
-      ["Lost", []],
-    ]);
-    expect(cols.map((c) => c.children[0].children[1].text)).toEqual([
-      `1 · ${fmtValue(12000, "currency")}`, `2 · ${fmtValue(1000, "currency")}`, `0 · ${fmtValue(0, "currency")}`,
-    ]);
-  });
-
-  it("cards show the value and comma-separated company and contact links", async () => {
-    const sam: MockFileSpec = { path: "Cadence/Companies/Acme Corp.md", frontmatter: { name: "Acme Corp" } };
-    const { view, root, opened, file, app } = setup([deal("M", { title: "M", stage: "Won", value: 5, company: "[[Acme Corp]], [[Beta]]", contact: ["[[Jane]]"] }), sam]);
-    await view.renderEntityKanban(root, "deal", "stage", ["Won"]);
-    const meta = cards(root.children[1].children[0])[0].children[1];
-    expect(meta.children.map((c) => [c.classes[0], c.text])).toEqual([
-      ["cad-kanban-card-value", fmtValue(5, "currency")], [undefined, " · "], ["cad-company-link", "Acme Corp"], [undefined, ", "],
-      ["cad-company-link", "Beta"], [undefined, " · "], ["cad-contact-link", "Jane"],
-    ]);
-    meta.children[2].trigger("click");
-    meta.children[6].trigger("click");
-    expect(opened.mock.calls).toEqual([["company", file(sam.path)]]);
-    expect(app.workspace.openedLinks).toEqual([["Jane", "", false]]);
-  });
-
-  it("drop writes [stage] when grouped by stage and a scalar otherwise", async () => {
-    const { view, root, fm } = setup(DEALS);
-    await view.renderEntityKanban(root, "deal", "stage", ["Won"]);
-    root.children[1].children[0].children[1].trigger("drop", { dataTransfer: dataTransfer({ "text/cadence-entity": GLOBEX.path }) });
-    await flush();
-    expect(fm(GLOBEX.path)!.stage).toEqual(["Won"]);
-    const other = setup(DEALS);
-    await other.view.renderEntityKanban(other.root, "deal", "owner", ["Kim"]);
-    other.root.children[1].children[0].children[1].trigger("drop", { dataTransfer: dataTransfer({ "text/cadence-entity": GLOBEX.path }) });
-    await flush();
-    expect(other.fm(GLOBEX.path)!.owner).toBe("Kim");
-    expect(Notice.messages).toEqual(["Moved to Won", "Moved to Kim"]);
-  });
-
-  it("drag, drop guards, card click and mobile match the list's kanban", async () => {
-    const { view, root, opened, file } = setup(DEALS);
-    await view.renderEntityKanban(root, "deal", "stage", ["Won"]);
-    const col = root.children[1].children[0];
-    const card = cards(col)[0];
-    const dt = dataTransfer();
-    card.trigger("dragstart", { dataTransfer: dt });
-    expect(dt.store).toEqual({ "text/cadence-entity": INITECH.path, "text/cadence-stage": "Won", "text/plain": "[[Initech]]" });
-    col.children[1].trigger("dragover", { dataTransfer: dt });
-    expect(col.classes).toContain("drag-over");
-    col.children[1].trigger("drop", { dataTransfer: dt });
-    await flush();
-    expect(Notice.messages).toEqual([]);
-    card.trigger("click");
-    expect(opened.mock.calls).toEqual([["deal", file(INITECH.path)]]);
-    Platform.isMobile = true;
-    const mobile = setup(DEALS);
-    await mobile.view.renderEntityKanban(mobile.root, "deal", "stage", ["Won", "Lead"]);
-    expect(cards(mobile.root.children[1].children[0])[0].classes).toEqual(["cad-kanban-card", "cad-kanban-card-touch"]);
-    expect(mobile.root.children[1].children[1].children[1].children[0].text).toBe("—");
   });
 });
 

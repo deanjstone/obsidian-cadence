@@ -32,7 +32,7 @@ import {
 } from './home';
 import type { AppViewHost, AppViewPlugin, ListFilter, PromptOptions, TaskCompleteSource } from './host';
 import { inboxOverdueCount, renderInbox, renderInboxRow, renderProjectTasksSection } from './inbox';
-import { getEntityKanbanParams, renderEntityKanban } from './kanban';
+import { getEntityKanbanParams } from './kanban';
 import {
   migrateModeId, modeUsesEntityFolder, resolveSurface, routeFor, setMode, toggleCadenceDark, toggleGroup, toggleMobileNav,
   visibleNavGroups,
@@ -655,9 +655,6 @@ export class CadenceAppView extends ItemView implements AppViewHost {
   _renderInboxRow(parent: HTMLElement, r: Reminder, bucket: ReminderBucket) { return renderInboxRow(this, parent, r, bucket); }
 
   _quickAddTodayTask() { return quickAddTodayTask(this); }
-
-  /* ── Pipeline kanban (deals grouped by stage) ───── */
-  renderEntityKanban(root: HTMLElement, entityKey: string, groupBy: string, groups: string[]) { return renderEntityKanban(this, root, entityKey, groupBy, groups); }
 
   /* Central chart dispatcher — replaces 4 duplicated if-elseif blocks at call sites. */
   _drawChart(parent: HTMLElement, style: ChartStyle | string, data: ChartDatum[]) { return drawChart(this, parent, style, data); }

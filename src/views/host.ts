@@ -167,8 +167,6 @@ export interface AppViewHost {
   /* ── Entity list and kanban (src/views/entity-list.ts, src/views/kanban.ts) ── */
   renderEntityList(root: HTMLElement, entityKey: string, opts?: EntityListOptions): Promise<void>;
   getEntityKanbanParams(entityKey: string): KanbanParams;
-  /** Flagged: no call site; characterized and kept. */
-  renderEntityKanban(root: HTMLElement, entityKey: string, groupBy: string, groups: string[]): Promise<void>;
 
   /* ── Entity and company detail (src/views/entity-detail.ts, src/views/company-detail.ts) ── */
   renderEntityDetail(root: HTMLElement, entityKey: string, file: TFile): Promise<void>;
