@@ -1,6 +1,8 @@
 import type { App, TFile } from 'obsidian';
+import { ENTITIES } from '../constants/entities';
 import type { Frontmatter, TaskNotesTask } from '../types/entities';
 import { ymd } from './dates';
+import { entityValue, listEntities } from './entities';
 import { parseLinkValues } from './parsing';
 import { ensureFolderSync, type VaultNode } from './vault';
 
@@ -72,4 +74,35 @@ priority: normal
 ---
 `;
   await app.vault.create(filename, content);
+}
+
+/** A note a TaskNotes `projects` link may name: a project's file, with its `name`. */
+export interface ProjectLinkTarget {
+  basename: string;
+  path: string;
+  name?: string;
+}
+
+/** The project notes, as TaskNotes project links resolve against them. */
+export function projectLinkTargets(app: App): ProjectLinkTarget[] {
+  return listEntities(app, 'project').map((e) => ({
+    basename: e.basename,
+    path: e.file.path,
+    name: String(entityValue(e, 'name', ENTITIES.project) || ''),
+  }));
+}
+
+/** A TaskNotes task's linked project: the first `projects` link, matched to
+    a project's name, else its file name, else its path without `.md`, in any
+    case. Only the listed projects match, so a link to another note with the
+    same basename names no project (#55). */
+export function taskNotesProjectPath(projects: unknown, targets: ProjectLinkTarget[]): string | null {
+  if (!projects) return null;
+  const parsed = parseLinkValues(projects);
+  if (!parsed.length) return null;
+  const target = parsed[0].target.toLowerCase();
+  const match = targets.find((t) => (t.name || '').trim().toLowerCase() === target)
+    || targets.find((t) => t.basename.toLowerCase() === target)
+    || targets.find((t) => t.path.replace(/\.md$/i, '').toLowerCase() === target);
+  return match ? match.path : null;
 }

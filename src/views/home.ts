@@ -8,9 +8,9 @@ import {
   entityValue, listEntities, listEntityFiles, projectNameFromPath, readEntity, readProjectMeta,
 } from '../utils/entities';
 import { fmtValue, pctBand } from '../utils/format';
-import { parseLinkValues, parseSections } from '../utils/parsing';
+import { parseSections } from '../utils/parsing';
 import { reminderTime, reminderTimeLabel, repeatLabel } from '../utils/reminders';
-import { listTaskNotesTasks, toggleTaskNotesTask } from '../utils/tasknotes';
+import { listTaskNotesTasks, projectLinkTargets, taskNotesProjectPath, toggleTaskNotesTask, type ProjectLinkTarget } from '../utils/tasknotes';
 import type { Entity, ProjectMeta, TaskNotesTask } from '../types/entities';
 import type { Reminder } from '../types/reminders';
 import type { Milestone } from '../utils/parsing';
@@ -484,6 +484,7 @@ export async function homeTodayCard(view: AppViewHost, parent: HTMLElement): Pro
     return;
   }
 
+  let projectTargets: ProjectLinkTarget[] | undefined;
   rows.forEach(({ checked, text }, idx) => {
     const row = body.createDiv({ cls: 'cad-home-task' + (checked ? ' done' : '') });
     const cb = row.createEl('input', { type: 'checkbox' });
@@ -515,15 +516,7 @@ export async function homeTodayCard(view: AppViewHost, parent: HTMLElement): Pro
     let linkedProject = null;
     if (settings.taskManagementSystem === 'tasknotes') {
       const taskObj = todayTaskNotes[idx];
-      if (taskObj.projects) {
-        const parsed = parseLinkValues(taskObj.projects);
-        if (parsed.length > 0) {
-          const projFile = view.app.vault.getMarkdownFiles().find(f => f.basename === parsed[0].target);
-          if (projFile) {
-            linkedProject = projFile.path;
-          }
-        }
-      }
+      if (taskObj.projects) linkedProject = taskNotesProjectPath(taskObj.projects, projectTargets ??= projectLinkTargets(view.app));
     } else {
       linkedProject = view._getTaskProjectLink(file!.path, text);
     }

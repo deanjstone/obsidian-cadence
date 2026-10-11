@@ -2,9 +2,9 @@ import { Notice, TFile } from 'obsidian';
 import { dailyNotePath, dateInfo, greeting, ymd } from '../utils/dates';
 import { ensureDailyNote, findDailyNote } from '../utils/daily-notes';
 import { projectNameFromPath } from '../utils/entities';
-import { parseH2Sections, parseHeaderKey, parseLinkValues, parseSections } from '../utils/parsing';
+import { parseH2Sections, parseHeaderKey, parseSections } from '../utils/parsing';
 import { appendDailyTask, countTaskLines, replaceJournal, taskLineRef, taskLineRows, taskNotesToday, withoutBlankTasks } from '../utils/task-lines';
-import { appendTaskNotesTask, listTaskNotesTasks, toggleTaskNotesTask } from '../utils/tasknotes';
+import { appendTaskNotesTask, listTaskNotesTasks, projectLinkTargets, taskNotesProjectPath, toggleTaskNotesTask, type ProjectLinkTarget } from '../utils/tasknotes';
 import type { AppViewHost } from './host';
 
 /* App.commands is not in the public obsidian.d.ts. */
@@ -31,9 +31,15 @@ export async function quickAddTodayTask(view: AppViewHost): Promise<void> {
     cta: 'Add task',
   });
   if (!text) return;
-  const file = await ensureDailyNote(view.app, view.plugin.settings);
-  const content = await view.app.vault.read(file);
-  await view.app.vault.modify(file, appendDailyTask(content, view.plugin.settings, text));
+  if (view.plugin.settings.taskManagementSystem === 'tasknotes') {
+    /* Without TaskNotes' own command, add a task note scheduled today, as
+       Today's quick-add input does, rather than a daily-note line (#55). */
+    await appendTaskNotesTask(view.app, text, new Date());
+  } else {
+    const file = await ensureDailyNote(view.app, view.plugin.settings);
+    const content = await view.app.vault.read(file);
+    await view.app.vault.modify(file, appendDailyTask(content, view.plugin.settings, text));
+  }
   new Notice('Added to today');
   view.render();
 }
@@ -50,15 +56,8 @@ export function todaySummary(tasksList: string[], greet: string): { greeting: st
   };
 }
 
-/** A TaskNotes task's linked project: the first `projects` link, resolved
-    to the first markdown file with that basename. */
-export function taskNotesProjectPath(projects: unknown, files: Array<{ basename: string; path: string }>): string | null {
-  if (!projects) return null;
-  const parsed = parseLinkValues(projects);
-  if (!parsed.length) return null;
-  const projFile = files.find(f => f.basename === parsed[0].target);
-  return projFile ? projFile.path : null;
-}
+/* Moved to src/utils/tasknotes.ts, where Home shares it. */
+export { taskNotesProjectPath } from '../utils/tasknotes';
 
 /** The daily note's other H2 sections: every key whose clean label is not
     the tasks or journal heading (case-insensitive, defaults when unset). */
@@ -115,6 +114,7 @@ export async function renderTodayPane(view: AppViewHost, root: HTMLElement): Pro
     taskSection.createDiv({ cls: 'cad-empty', text: 'No tasks in today\'s note yet.' });
   } else {
     const dailyPath = view.todayFile?.path ?? dailyNotePath(view.plugin.settings);
+    let projectTargets: ProjectLinkTarget[] | undefined;
     taskLineRows(tasksList).forEach(({ checked, text }, idx) => {
       const row = taskSection.createDiv({ cls: 'cad-task-row' + (checked ? ' done' : '') });
       const cb = row.createEl('input', { type: 'checkbox' });
@@ -137,7 +137,7 @@ export async function renderTodayPane(view: AppViewHost, root: HTMLElement): Pro
       let linkedProject: string | null = null;
       if (view.plugin.settings.taskManagementSystem === 'tasknotes') {
         const taskObj = view.todayTaskNotes![idx];
-        if (taskObj.projects) linkedProject = taskNotesProjectPath(taskObj.projects, view.app.vault.getMarkdownFiles());
+        if (taskObj.projects) linkedProject = taskNotesProjectPath(taskObj.projects, projectTargets ??= projectLinkTargets(view.app));
       } else {
         linkedProject = view._getTaskProjectLink(dailyPath, text);
       }

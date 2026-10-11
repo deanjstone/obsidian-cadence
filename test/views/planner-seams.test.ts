@@ -149,6 +149,17 @@ describe("Today seams", () => {
     expect(taskNotesProjectPath([], files)).toBeNull();
   });
 
+  it("taskNotesProjectPath matches a project's name, else its file name or path, in any case", () => {
+    const projects = [
+      { basename: "intranet", path: "Cadence/Projects/intranet.md", name: "Intranet v2" },
+      { basename: "Site", path: "Cadence/Projects/Site.md", name: "Website" },
+    ];
+    expect(taskNotesProjectPath("[[intranet V2]]", projects)).toBe("Cadence/Projects/intranet.md");
+    expect(taskNotesProjectPath("[[SITE]]", projects)).toBe("Cadence/Projects/Site.md");
+    expect(taskNotesProjectPath("[[Cadence/Projects/Site]]", projects)).toBe("Cadence/Projects/Site.md");
+    expect(taskNotesProjectPath("[[Nowhere]]", projects)).toBeNull();
+  });
+
   it("customSectionKeys drops the tasks and journal headings by clean label, case-insensitively", () => {
     const sections = { Today: "", "today #x": "", Journal: "", "Notes #text": "", Habits: "" };
     expect(customSectionKeys(sections, { tasksHeading: "## Today", journalHeading: "## Journal" })).toEqual(["Notes #text", "Habits"]);
@@ -192,9 +203,9 @@ describe("Calendar seams", () => {
     expect(week.columns[0].meta).toBe("1 open · 0 done");
   });
 
-  it("shows tasks even for a day without a note (TaskNotes mode)", () => {
+  it("shows and counts tasks even for a day without a note (TaskNotes mode)", () => {
     const week = plannerWeek([day("2026-10-09T00:00:00Z", false, ["- [ ] a"])], NOW);
-    expect([week.columns[0].meta, week.columns[0].empty, week.columns[0].rows]).toEqual(["no note", null, [{ checked: false, text: "a" }]]);
+    expect([week.columns[0].meta, week.columns[0].empty, week.columns[0].rows]).toEqual(["1 open · 0 done", null, [{ checked: false, text: "a" }]]);
   });
 });
 

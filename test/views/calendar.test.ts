@@ -204,19 +204,19 @@ describe("renderPlannerPane", () => {
       expect(dayTasks(fri)).toEqual([[["cad-pl-task"], ["", "C"]]]);
     });
 
-    it("QUIRK: a day with scheduled tasks but no daily note reads 'no note'", async () => {
+    it("a day with scheduled tasks but no daily note counts its tasks", async () => {
       const { view, parent } = setup(TASKS, TASKNOTES);
       await view.renderPlannerPane(parent);
       const fri = days(parent)[4];
-      expect(dayHead(fri)).toEqual(["FRI", "9", "no note"]);
+      expect(dayHead(fri)).toEqual(["FRI", "9", "1 open · 0 done"]);
       expect(dayTasks(fri)).toEqual([[["cad-pl-task"], ["", "C"]]]);
     });
 
-    it("QUIRK: a folder at the daily path counts as a note", async () => {
+    it("a folder at the daily path is no note", async () => {
       const { view, parent } = setup([{ path: "daily/2026-10-06.md/x.md", body: "" }], TASKNOTES);
       await view.renderPlannerPane(parent);
-      expect(dayHead(days(parent)[1])).toEqual(["TUE", "6", "0 open · 0 done"]);
-      expect(days(parent)[1].children[1].children[0].text).toBe("—");
+      expect(dayHead(days(parent)[1])).toEqual(["TUE", "6", "no note"]);
+      expect(days(parent)[1].children[1].children[0].text).toBe("");
     });
   });
 });

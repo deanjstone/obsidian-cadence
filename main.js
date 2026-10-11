@@ -3915,6 +3915,21 @@ priority: normal
 `;
   await app.vault.create(filename, content);
 }
+function projectLinkTargets(app) {
+  return listEntities(app, "project").map((e) => ({
+    basename: e.basename,
+    path: e.file.path,
+    name: String(entityValue(e, "name", ENTITIES.project) || "")
+  }));
+}
+function taskNotesProjectPath(projects, targets) {
+  if (!projects) return null;
+  const parsed = parseLinkValues(projects);
+  if (!parsed.length) return null;
+  const target = parsed[0].target.toLowerCase();
+  const match = targets.find((t) => (t.name || "").trim().toLowerCase() === target) || targets.find((t) => t.basename.toLowerCase() === target) || targets.find((t) => t.path.replace(/\.md$/i, "").toLowerCase() === target);
+  return match ? match.path : null;
+}
 
 // src/views/calendar.ts
 function plannerWeekTitle(days) {
@@ -3930,7 +3945,7 @@ function plannerWeek(dayData, today) {
       isToday: sameDay(d.date, today),
       weekday: d.date.toLocaleDateString(void 0, { weekday: "short" }).toUpperCase(),
       dayNum: String(d.date.getDate()),
-      meta: d.exists ? `${open} open \xB7 ${done} done` : "no note",
+      meta: d.exists || d.tasks.length ? `${open} open \xB7 ${done} done` : "no note",
       empty: d.tasks.length ? null : d.exists ? "\u2014" : "",
       rows: taskLineRows(d.tasks)
     };
@@ -3968,7 +3983,7 @@ async function renderPlannerPane(view, root) {
     const allTasks = listTaskNotesTasks(view.app);
     dayData = days.map((d) => {
       const path = dailyNotePath(settings, d);
-      const file = view.app.vault.getAbstractFileByPath(path);
+      const file = findDailyNote(view.app, settings, d);
       const forDay = taskNotesToday(allTasks, ymd(d));
       return {
         date: d,
@@ -7317,6 +7332,7 @@ async function homeTodayCard(view, parent) {
     body.createDiv({ cls: "cad-empty", text: "No tasks yet \u2014 add one with + Task above." });
     return;
   }
+  let projectTargets;
   rows.forEach(({ checked, text }, idx) => {
     const row = body.createDiv({ cls: "cad-home-task" + (checked ? " done" : "") });
     const cb = row.createEl("input", { type: "checkbox" });
@@ -7345,15 +7361,7 @@ async function homeTodayCard(view, parent) {
     let linkedProject = null;
     if (settings.taskManagementSystem === "tasknotes") {
       const taskObj = todayTaskNotes[idx];
-      if (taskObj.projects) {
-        const parsed = parseLinkValues(taskObj.projects);
-        if (parsed.length > 0) {
-          const projFile = view.app.vault.getMarkdownFiles().find((f) => f.basename === parsed[0].target);
-          if (projFile) {
-            linkedProject = projFile.path;
-          }
-        }
-      }
+      if (taskObj.projects) linkedProject = taskNotesProjectPath(taskObj.projects, projectTargets ??= projectLinkTargets(view.app));
     } else {
       linkedProject = view._getTaskProjectLink(file.path, text);
     }
@@ -10984,9 +10992,13 @@ async function quickAddTodayTask(view) {
     cta: "Add task"
   });
   if (!text) return;
-  const file = await ensureDailyNote(view.app, view.plugin.settings);
-  const content = await view.app.vault.read(file);
-  await view.app.vault.modify(file, appendDailyTask(content, view.plugin.settings, text));
+  if (view.plugin.settings.taskManagementSystem === "tasknotes") {
+    await appendTaskNotesTask(view.app, text, /* @__PURE__ */ new Date());
+  } else {
+    const file = await ensureDailyNote(view.app, view.plugin.settings);
+    const content = await view.app.vault.read(file);
+    await view.app.vault.modify(file, appendDailyTask(content, view.plugin.settings, text));
+  }
   new import_obsidian30.Notice("Added to today");
   view.render();
 }
@@ -10996,13 +11008,6 @@ function todaySummary(tasksList, greet) {
     greeting: open === 0 ? `${greet}. Nothing on the books \u2014 your day is clear.` : `${greet}. You have ${open} ${open === 1 ? "thing" : "things"} to handle.`,
     count: `${open} open \xB7 ${done} done`
   };
-}
-function taskNotesProjectPath(projects, files) {
-  if (!projects) return null;
-  const parsed = parseLinkValues(projects);
-  if (!parsed.length) return null;
-  const projFile = files.find((f) => f.basename === parsed[0].target);
-  return projFile ? projFile.path : null;
 }
 function customSectionKeys(sections, settings) {
   const cleanTasksHeading = (settings.tasksHeading || "## Today").replace(/^##\s+/, "").trim().toLowerCase();
@@ -11045,6 +11050,7 @@ async function renderTodayPane(view, root) {
     taskSection.createDiv({ cls: "cad-empty", text: "No tasks in today's note yet." });
   } else {
     const dailyPath = view.todayFile?.path ?? dailyNotePath(view.plugin.settings);
+    let projectTargets;
     taskLineRows(tasksList).forEach(({ checked, text }, idx) => {
       const row = taskSection.createDiv({ cls: "cad-task-row" + (checked ? " done" : "") });
       const cb = row.createEl("input", { type: "checkbox" });
@@ -11064,7 +11070,7 @@ async function renderTodayPane(view, root) {
       let linkedProject = null;
       if (view.plugin.settings.taskManagementSystem === "tasknotes") {
         const taskObj = view.todayTaskNotes[idx];
-        if (taskObj.projects) linkedProject = taskNotesProjectPath(taskObj.projects, view.app.vault.getMarkdownFiles());
+        if (taskObj.projects) linkedProject = taskNotesProjectPath(taskObj.projects, projectTargets ??= projectLinkTargets(view.app));
       } else {
         linkedProject = view._getTaskProjectLink(dailyPath, text);
       }

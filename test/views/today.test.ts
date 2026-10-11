@@ -292,13 +292,19 @@ describe("renderTodayPane", () => {
       expect(rows(parent).map((r) => r.querySelectorAll(".cad-task-text")[0].text)).toEqual(["Write copy", "Review", "Orphan"]);
     });
 
-    it("QUIRK: a project link resolves by basename, not by name", async () => {
+    it("a project link resolves to a project, by name or file name, never to another note", async () => {
       const { view, parent } = setup(
-        [NOTE, { path: "Elsewhere/Nowhere.md", body: "" }, ...TASKS],
+        [
+          NOTE, { path: "Elsewhere/Nowhere.md", body: "" }, ...TASKS,
+          taskNote("Intranet task", { title: "Intranet task", scheduled: "2026-10-10", projects: ["[[intranet v2]]"] }),
+          { path: "Cadence/Projects/Intranet.md", frontmatter: { type: "project", name: "Intranet v2" } },
+        ],
         TASKNOTES,
       );
       await view.renderTodayPane(parent);
-      expect(parent.querySelectorAll(".cad-task-proj-chip").map((c) => c.text)).toEqual(["📁 Nowhere"]);
+      expect(rows(parent).map((r) => r.querySelectorAll(".cad-task-proj-chip").map((c) => c.text))).toEqual([
+        [], [], [], ["📁 Intranet v2"],
+      ]);
     });
   });
 });
@@ -490,12 +496,14 @@ describe("_quickAddTodayTask", () => {
     expect(prompt).not.toHaveBeenCalled();
   });
 
-  it("QUIRK: in TaskNotes mode without the command, it falls back to the daily note", async () => {
+  it("in TaskNotes mode without the command, it prompts and creates a task note scheduled today", async () => {
     const { view, app, read } = setup([NOTE], TASKNOTES);
     (app as Any).commands = { commands: {}, executeCommandById: vi.fn() };
     vi.spyOn(view, "_prompt").mockResolvedValue("Fallback");
     await view._quickAddTodayTask();
-    expect(await read(TODAY_PATH)).toContain("- [ ] Fallback\n");
-    expect(app.vault.created).toEqual([]);
+    expect(await read(TODAY_PATH)).not.toContain("Fallback");
+    expect(app.vault.created).toEqual(["TaskNotes/Tasks/Fallback.md"]);
+    expect(await read("TaskNotes/Tasks/Fallback.md")).toContain("scheduled: 2026-10-10\n");
+    expect(Notice.messages).toEqual(["Added to today"]);
   });
 });
