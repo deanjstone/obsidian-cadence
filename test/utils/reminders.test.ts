@@ -5,6 +5,8 @@ import {
   nextRepeat,
   reminderBucket,
   reminderId,
+  reminderTime,
+  reminderTimeLabel,
   reminderTimeStr,
 } from "../../src/utils/reminders";
 
@@ -129,5 +131,18 @@ describe("findProjectTaskReminder", () => {
     expect(findProjectTaskReminder(plugin, "", "Call")).toBeNull();
     expect(findProjectTaskReminder(plugin, "P/x.md", "")).toBeNull();
     expect(findProjectTaskReminder({ settings: {} }, "P/x.md", "Call")).toBeNull();
+  });
+});
+
+describe("reminderTime and reminderTimeLabel", () => {
+  it("reads a time as ms, and a missing or unreadable one as null", () => {
+    expect(reminderTime("2026-10-08T12:00:00Z")).toBe(Date.parse("2026-10-08T12:00:00Z"));
+    expect([reminderTime(null), reminderTime(undefined), reminderTime(""), reminderTime("garbage")]).toEqual([null, null, null, null]);
+  });
+
+  it("labels a readable time as reminderTimeStr, an unreadable one as such, and none as ''", () => {
+    expect(reminderTimeLabel("2026-10-08T12:00:00Z")).toBe(reminderTimeStr("2026-10-08T12:00:00Z"));
+    expect(reminderTimeLabel("garbage")).toBe("unreadable time");
+    expect(reminderTimeLabel(null)).toBe("");
   });
 });

@@ -3,7 +3,7 @@ import { CadenceConfirmModal } from '../modals/confirm';
 import { CadenceReminderEditModal } from '../modals/reminder-edit';
 import { listEntityFiles, projectNameFromPath } from '../utils/entities';
 import { parseH2Sections, parseTasksList } from '../utils/parsing';
-import { findProjectTaskReminder, reminderBucket, reminderTimeStr, repeatLabel } from '../utils/reminders';
+import { findProjectTaskReminder, reminderBucket, reminderTime, reminderTimeLabel, repeatLabel } from '../utils/reminders';
 import type { Reminder, ReminderBucket } from '../types/reminders';
 import type { TaskItem } from '../utils/parsing';
 import type { AppViewHost } from './host';
@@ -11,7 +11,7 @@ import type { AppViewHost } from './host';
 /** Open reminders due at or before `now` (ms). An unparseable time never is. */
 export function overdueCount(reminders: Reminder[] | undefined, now: number): number {
   const open = (reminders || []).filter((r) => !r.done);
-  return open.filter((r) => r.when && new Date(r.when).getTime() <= now).length;
+  return open.filter((r) => (reminderTime(r.when) ?? Infinity) <= now).length;
 }
 
 export function inboxOverdueCount(view: AppViewHost): number {
@@ -34,10 +34,10 @@ export interface InboxSection {
 export function inboxRows(reminders: Reminder[] | undefined): { count: number; subtitle: string; sections: InboxSection[] } {
   const all = (reminders || []).filter((r) => !r.done);
 
-  // Sort: scheduled by when, captures by createdAt
+  // Sort: scheduled by when, captures (and unreadable times) by createdAt
   all.sort((a, b) => {
-    const wa = a.when ? new Date(a.when).getTime() : Infinity;
-    const wb = b.when ? new Date(b.when).getTime() : Infinity;
+    const wa = reminderTime(a.when) ?? Infinity;
+    const wb = reminderTime(b.when) ?? Infinity;
     if (wa !== wb) return wa - wb;
     const ca = a.createdAt ? new Date(a.createdAt).getTime() : 0;
     const cb = b.createdAt ? new Date(b.createdAt).getTime() : 0;
@@ -136,7 +136,7 @@ export async function renderProjectTasksSection(view: AppViewHost, root: HTMLEle
       const txt = row.createSpan({ cls: 'cad-pt-text', text: t.title });
       void txt;
       if (linked && linked.when) {
-        row.createSpan({ cls: 'cad-pt-when', text: reminderTimeStr(linked.when) });
+        row.createSpan({ cls: 'cad-pt-when', text: reminderTimeLabel(linked.when) });
       }
       const bell = row.createEl('button', {
         cls: 'cad-btn cad-btn-sm cad-pt-bell' + (linked ? ' linked' : ''),
@@ -203,8 +203,10 @@ export function renderInboxRow(view: AppViewHost, parent: HTMLElement, r: Remind
 
   const left = row.createDiv({ cls: 'cad-inbox-row-left' });
   const tWrap = left.createDiv({ cls: 'cad-inbox-time' });
-  if (r.when) {
-    tWrap.createSpan({ cls: 'cad-inbox-time-text', text: reminderTimeStr(r.when) });
+  if (r.when && reminderTime(r.when) === null) {
+    tWrap.createSpan({ cls: 'cad-inbox-time-text muted', text: reminderTimeLabel(r.when) });
+  } else if (r.when) {
+    tWrap.createSpan({ cls: 'cad-inbox-time-text', text: reminderTimeLabel(r.when) });
     const repeat = repeatLabel(r.repeat);
     if (repeat) tWrap.createSpan({ cls: 'cad-inbox-repeat', text: repeat });
   } else {

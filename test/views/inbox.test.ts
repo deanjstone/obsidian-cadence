@@ -72,7 +72,7 @@ describe("_inboxOverdueCount", () => {
     expect(view._inboxOverdueCount()).toBe(0);
   });
 
-  it("QUIRK: an unparseable time is never overdue", () => {
+  it("an unparseable time is never overdue: it can't be read, so it counts as unscheduled", () => {
     const { view } = setup([], { reminders: [reminder("a", "garbage")] });
     expect(view._inboxOverdueCount()).toBe(0);
   });
@@ -181,11 +181,11 @@ describe("renderInbox", () => {
     expect(plugin.settings.reminders).toHaveLength(1);
   });
 
-  it("QUIRK: an unparseable time lands in LATER but sorts as NaN", async () => {
+  it("an unparseable time lands in LATER, after every readable time", async () => {
     const { view, parent } = setup([], { reminders: [reminder("bad", "garbage"), reminder("ok", "2026-10-20T09:00:00Z")] });
     await view.renderInbox(parent);
     expect(sectionLabels(parent)).toEqual(["LATER · UNSCHEDULED · 2"]);
-    expect(rowTexts(parent)).toEqual(["Task bad", "Task ok"]);
+    expect(rowTexts(parent)).toEqual(["Task ok", "Task bad"]);
   });
 });
 
@@ -216,6 +216,12 @@ describe("_renderInboxRow", () => {
       ["Done", "Mark done", ["cad-btn", "cad-btn-sm", "primary"]],
       ["×", "Delete", ["cad-btn", "cad-btn-sm", "cad-btn-danger"]],
     ]);
+  });
+
+  it("says a time it can't read is unreadable, muted, rather than showing nothing", () => {
+    const { view } = setup();
+    const { left } = row(view, reminder("a", "garbage", { repeat: "daily" }), "later");
+    expect(left.children[0].children.map((c) => [c.classes, c.text])).toEqual([[["cad-inbox-time-text", "muted"], "unreadable time"]]);
   });
 
   it("marks the now bucket as overdue", () => {

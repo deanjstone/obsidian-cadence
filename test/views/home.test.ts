@@ -192,6 +192,15 @@ describe("_homeInboxCard", () => {
     );
   });
 
+  it("sorts a reminder whose time can't be read after the readable ones, labelled unreadable, never overdue", async () => {
+    const { view, parent } = setup([], { reminders: [reminder("Bad", "garbage"), reminder("Idea", null), reminder("Soon", "2026-10-11T09:00:00Z")] });
+    await view._homeInboxCard(parent);
+    const c = card(parent);
+    expect([c.title, c.el.dataset.tone]).toEqual(["INBOX — 3 items", "sky"]);
+    expect(rowTexts(c.body).map((r) => r[1])).toEqual(["Soon", "Bad", "Idea"]);
+    expect(rowTexts(c.body)[1][0]).toBe("unreadable time");
+  });
+
   it("uses the singular for one item and labels an unscheduled one", async () => {
     const { view, parent } = setup([], { reminders: [reminder("Idea", null)] });
     await view._homeInboxCard(parent);

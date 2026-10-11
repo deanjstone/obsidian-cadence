@@ -21,6 +21,22 @@ export function nextRepeat(when: DateInput | null | undefined, repeat?: string):
   return null;
 }
 
+/** A reminder's time in ms, or null when it has none or Date can't read it.
+    An unreadable time never fires (isDue), so the Inbox and Home treat it as
+    unscheduled: never overdue, sorted after every readable time (#55). */
+export function reminderTime(when: DateInput | null | undefined): number | null {
+  if (!when) return null;
+  const t = new Date(when).getTime();
+  return isNaN(t) ? null : t;
+}
+
+/** A reminder's time label: reminderTimeStr, 'unreadable time' when Date
+    can't read it, '' with no time. */
+export function reminderTimeLabel(when: DateInput | null | undefined): string {
+  if (!when) return '';
+  return reminderTime(when) === null ? 'unreadable time' : reminderTimeStr(when);
+}
+
 export function reminderBucket(when: DateInput | null | undefined): ReminderBucket {
   if (!when) return 'later';
   const now = Date.now();

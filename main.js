@@ -1726,6 +1726,15 @@ function nextRepeat(when, repeat) {
   if (repeat === "weekly") return new Date(d.getTime() + 7 * 864e5);
   return null;
 }
+function reminderTime(when) {
+  if (!when) return null;
+  const t = new Date(when).getTime();
+  return isNaN(t) ? null : t;
+}
+function reminderTimeLabel(when) {
+  if (!when) return "";
+  return reminderTime(when) === null ? "unreadable time" : reminderTimeStr(when);
+}
 function reminderBucket(when) {
   if (!when) return "later";
   const now = Date.now();
@@ -7224,13 +7233,13 @@ function briefingAction(view, target) {
 function selectInboxCard(allReminders, now) {
   const nowMs = now.getTime();
   const reminders = (allReminders || []).filter((r) => !r.done);
-  const isOverdue = (r) => !!r.when && new Date(r.when).getTime() <= nowMs;
+  const isOverdue = (r) => (reminderTime(r.when) ?? Infinity) <= nowMs;
   const overdueCount2 = reminders.filter(isOverdue).length;
   const tone = overdueCount2 > 0 ? "rose" : "sky";
   const title = `INBOX \u2014 ${reminders.length} item${reminders.length === 1 ? "" : "s"}${overdueCount2 > 0 ? ` \xB7 ${overdueCount2} overdue` : ""}`;
   const sorted = [...reminders].sort((a, b) => {
-    const wa = a.when ? new Date(a.when).getTime() : Infinity;
-    const wb = b.when ? new Date(b.when).getTime() : Infinity;
+    const wa = reminderTime(a.when) ?? Infinity;
+    const wb = reminderTime(b.when) ?? Infinity;
     return wa - wb;
   });
   const rows = sorted.slice(0, 5).map((reminder) => ({ reminder, overdue: isOverdue(reminder) }));
@@ -7269,7 +7278,7 @@ async function homeInboxCard(view, parent) {
   rows.forEach(({ reminder: r, overdue }) => {
     const row = body.createDiv({ cls: "cad-home-row" });
     if (overdue) row.classList.add("overdue");
-    row.createDiv({ cls: "cad-home-row-date", text: r.when ? reminderTimeStr(r.when) : "unscheduled" });
+    row.createDiv({ cls: "cad-home-row-date", text: r.when ? reminderTimeLabel(r.when) : "unscheduled" });
     const main = row.createDiv({ cls: "cad-home-row-main" });
     main.createDiv({ cls: "cad-home-row-title", text: r.text });
     const metaBits = inboxRowMeta(r, (path) => projectNameFromPath(view.app, path));
@@ -7630,7 +7639,7 @@ async function homeActivitiesCard(view, parent) {
 var import_obsidian22 = require("obsidian");
 function overdueCount(reminders, now) {
   const open = (reminders || []).filter((r) => !r.done);
-  return open.filter((r) => r.when && new Date(r.when).getTime() <= now).length;
+  return open.filter((r) => (reminderTime(r.when) ?? Infinity) <= now).length;
 }
 function inboxOverdueCount(view) {
   return overdueCount(view.plugin.settings.reminders, Date.now());
@@ -7639,8 +7648,8 @@ var INBOX_SECTION_LABELS = { now: "NOW \xB7 OVERDUE OR DUE WITHIN 1 HOUR", today
 function inboxRows(reminders) {
   const all = (reminders || []).filter((r) => !r.done);
   all.sort((a, b) => {
-    const wa = a.when ? new Date(a.when).getTime() : Infinity;
-    const wb = b.when ? new Date(b.when).getTime() : Infinity;
+    const wa = reminderTime(a.when) ?? Infinity;
+    const wb = reminderTime(b.when) ?? Infinity;
     if (wa !== wb) return wa - wb;
     const ca = a.createdAt ? new Date(a.createdAt).getTime() : 0;
     const cb = b.createdAt ? new Date(b.createdAt).getTime() : 0;
@@ -7722,7 +7731,7 @@ async function renderProjectTasksSection(view, root) {
       const txt = row.createSpan({ cls: "cad-pt-text", text: t.title });
       void txt;
       if (linked && linked.when) {
-        row.createSpan({ cls: "cad-pt-when", text: reminderTimeStr(linked.when) });
+        row.createSpan({ cls: "cad-pt-when", text: reminderTimeLabel(linked.when) });
       }
       const bell = row.createEl("button", {
         cls: "cad-btn cad-btn-sm cad-pt-bell" + (linked ? " linked" : ""),
@@ -7776,8 +7785,10 @@ function renderInboxRow(view, parent, r, bucket) {
   const row = parent.createDiv({ cls: "cad-inbox-row" + (bucket === "now" ? " overdue" : "") });
   const left = row.createDiv({ cls: "cad-inbox-row-left" });
   const tWrap = left.createDiv({ cls: "cad-inbox-time" });
-  if (r.when) {
-    tWrap.createSpan({ cls: "cad-inbox-time-text", text: reminderTimeStr(r.when) });
+  if (r.when && reminderTime(r.when) === null) {
+    tWrap.createSpan({ cls: "cad-inbox-time-text muted", text: reminderTimeLabel(r.when) });
+  } else if (r.when) {
+    tWrap.createSpan({ cls: "cad-inbox-time-text", text: reminderTimeLabel(r.when) });
     const repeat = repeatLabel(r.repeat);
     if (repeat) tWrap.createSpan({ cls: "cad-inbox-repeat", text: repeat });
   } else {

@@ -9,7 +9,7 @@ import {
 } from '../utils/entities';
 import { fmtValue, pctBand } from '../utils/format';
 import { parseLinkValues, parseSections } from '../utils/parsing';
-import { reminderTimeStr, repeatLabel } from '../utils/reminders';
+import { reminderTime, reminderTimeLabel, repeatLabel } from '../utils/reminders';
 import { listTaskNotesTasks, toggleTaskNotesTask } from '../utils/tasknotes';
 import type { Entity, ProjectMeta, TaskNotesTask } from '../types/entities';
 import type { Reminder } from '../types/reminders';
@@ -391,15 +391,15 @@ function briefingAction(view: AppViewHost, target: BriefingTarget): () => void {
 export function selectInboxCard(allReminders: Reminder[] | undefined, now: Date) {
   const nowMs = now.getTime();
   const reminders = (allReminders || []).filter((r) => !r.done);
-  const isOverdue = (r: Reminder) => !!r.when && new Date(r.when).getTime() <= nowMs;
+  const isOverdue = (r: Reminder) => (reminderTime(r.when) ?? Infinity) <= nowMs;
   const overdueCount = reminders.filter(isOverdue).length;
   const tone = overdueCount > 0 ? 'rose' : 'sky';
   const title = `INBOX — ${reminders.length} item${reminders.length === 1 ? '' : 's'}${overdueCount > 0 ? ` · ${overdueCount} overdue` : ''}`;
 
-  // Sort: scheduled by when ascending, unscheduled fall to the end
+  // Sort: scheduled by when ascending, unscheduled and unreadable times fall to the end
   const sorted = [...reminders].sort((a, b) => {
-    const wa = a.when ? new Date(a.when).getTime() : Infinity;
-    const wb = b.when ? new Date(b.when).getTime() : Infinity;
+    const wa = reminderTime(a.when) ?? Infinity;
+    const wb = reminderTime(b.when) ?? Infinity;
     return wa - wb;
   });
   const rows = sorted.slice(0, 5).map((reminder) => ({ reminder, overdue: isOverdue(reminder) }));
@@ -438,7 +438,7 @@ export async function homeInboxCard(view: AppViewHost, parent: HTMLElement): Pro
   rows.forEach(({ reminder: r, overdue }) => {
     const row = body.createDiv({ cls: 'cad-home-row' });
     if (overdue) row.classList.add('overdue');
-    row.createDiv({ cls: 'cad-home-row-date', text: r.when ? reminderTimeStr(r.when) : 'unscheduled' });
+    row.createDiv({ cls: 'cad-home-row-date', text: r.when ? reminderTimeLabel(r.when) : 'unscheduled' });
     const main = row.createDiv({ cls: 'cad-home-row-main' });
     main.createDiv({ cls: 'cad-home-row-title', text: r.text });
     const metaBits = inboxRowMeta(r, (path) => projectNameFromPath(view.app, path));
