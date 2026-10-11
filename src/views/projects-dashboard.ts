@@ -4,9 +4,9 @@ import { CadenceImportModal } from '../modals/import-modal';
 import { CadenceWidgetCreateModal } from '../modals/widget-create';
 import type { EntityDef, Entity, ProjectMeta } from '../types/entities';
 import type { WidgetConfig } from '../types/modals';
-import { entityValue, getEnumOptions, listEntities, listEntityFiles, readEntity, readProjectMeta } from '../utils/entities';
+import { entityKeyFromFile, entityValue, getEnumOptions, listEntities, listEntityFiles, readEntity, readProjectMeta } from '../utils/entities';
 import { fmtValue } from '../utils/format';
-import { WIDGET_STYLE_OPTIONS, chartData, dashboardWidgets, removeWidget } from './components/charts';
+import { WIDGET_STYLE_OPTIONS, chartData, dashboardWidgets, removeWidget, widgetTitle } from './components/charts';
 import type { AppViewHost } from './host';
 
 /* The Projects dashboard (projects.dashboard): status cards, the priority
@@ -49,11 +49,10 @@ export interface DashboardColumn {
 }
 
 /* A field's options from the def, or the fallback when the field is
-   missing or has no options list. Unlike getEnumOptions, an empty list
-   is kept, so it gives no cards. */
+   missing or its options list is missing or empty (as getEnumOptions). */
 export function dashboardOptions(def: EntityDef, key: string, fallback: string[]): string[] {
-  const field = def.fields.find(f => f.key === key) || { options: fallback };
-  return field.options || fallback;
+  const field = def.fields.find(f => f.key === key);
+  return field && field.options && field.options.length ? field.options : fallback;
 }
 
 /* A status card's accent: its known colour (only the first '-' is read
@@ -66,24 +65,35 @@ export function priorityAccent(priority: string): string {
   return PRIORITY_ACCENTS[priority.toLowerCase()] || 'sky';
 }
 
-/* The projects whose field matches the option, ignoring case. A blank or
-   off-list value matches no option. */
-function projectsWith(projects: Entity[], def: EntityDef, key: string, option: string): Entity[] {
-  return projects.filter(p => String(entityValue(p, key, def)).toLowerCase() === option.toLowerCase());
+/* An option as the dashboard compares it: lower case, with runs of
+   spaces, '-' and '_' folded to one '_' ('On Hold', 'on-hold', 'on_hold'). */
+export function optionKey(value: unknown): string {
+  return String(value ?? '').trim().toLowerCase().replace(/[\s_-]+/g, '_');
 }
 
-/* The dashboard's numbers: the total, one card per status option and one
-   per priority option. A project counts in the total even when no card
-   matches its status. */
-export function projectsSummary(projects: Entity[], def: EntityDef): { total: number; statuses: DashboardColumn[]; priorities: DashboardColumn[] } {
+/* The projects whose field matches the option (optionKey). A blank or
+   off-list value matches no option. */
+function projectsWith(projects: Entity[], def: EntityDef, key: string, option: string): Entity[] {
+  return projects.filter(p => optionKey(entityValue(p, key, def)) === optionKey(option));
+}
+
+/* The dashboard's numbers: the total, one card per status option, the
+   projects no status card holds (no status, or off the list), and one card
+   per priority option. */
+export function projectsSummary(projects: Entity[], def: EntityDef): {
+  total: number; statuses: DashboardColumn[]; otherStatuses: Entity[]; priorities: DashboardColumn[];
+} {
+  const statuses = dashboardOptions(def, 'status', PROJECT_STATUSES).map((status, index) => ({
+    value: status,
+    label: `${status.replace(/_/g, ' ').toUpperCase()} PROJECTS`,
+    accent: statusAccent(status, index),
+    items: projectsWith(projects, def, 'status', status),
+  }));
+  const carded = new Set(statuses.flatMap(c => c.items));
   return {
     total: projects.length,
-    statuses: dashboardOptions(def, 'status', PROJECT_STATUSES).map((status, index) => ({
-      value: status,
-      label: `${status.replace(/_/g, ' ').toUpperCase()} PROJECTS`,
-      accent: statusAccent(status, index),
-      items: projectsWith(projects, def, 'status', status),
-    })),
+    statuses,
+    otherStatuses: projects.filter(p => !carded.has(p)),
     priorities: dashboardOptions(def, 'priority', PROJECT_PRIORITIES).map((prio) => ({
       value: prio,
       label: `${prio.toUpperCase()} PRIORITY`,
@@ -100,11 +110,12 @@ export function projectRowName(entity: Entity, def: EntityDef): string {
 }
 
 /* A dashboard row's pill (priority on a status card, status on a priority
-   card), or null when the value is blank. */
+   card), or null when the value is blank. The class folds spaces to '-',
+   as the card grid and the detail page do. */
 export function dashRowPill(value: unknown): { cls: string; text: string } | null {
   if (!value) return null;
   return {
-    cls: `cad-pill cad-pill-${String(value).toLowerCase().replace(/\s+/g, '_')}`,
+    cls: `cad-pill cad-pill-${String(value).toLowerCase().replace(/\s+/g, '-')}`,
     text: String(value).replace(/_/g, ' ')
   };
 }
@@ -113,6 +124,31 @@ export function dashRowPill(value: unknown): { cls: string; text: string } | nul
    on its own card is ignored. */
 export function acceptsDrop(path: string, fromStage: string, stage: string): boolean {
   return !(!path || fromStage === stage);
+}
+
+/* Whether a drop changes the field: a value already on that card
+   (optionKey) writes nothing. */
+export function dropChanges(current: unknown, target: string): boolean {
+  return optionKey(current) !== optionKey(target);
+}
+
+/* A drop on a status or priority card: writes the field to a project note
+   whose value it changes. Any other note, or an unchanged value, is left
+   alone. */
+async function dropOntoCard(view: AppViewHost, def: EntityDef, path: string, key: 'status' | 'priority', value: string): Promise<void> {
+  const file = view.app.vault.getAbstractFileByPath(path);
+  if (!file || !(file instanceof TFile)) return;
+  if (entityKeyFromFile(view.app, file) !== 'project') return;
+  if (!dropChanges(entityValue(readEntity(view.app, file), key, def), value)) return;
+  try {
+    await view.app.fileManager.processFrontMatter(file, (fm) => {
+      fm[key] = value;
+    });
+    new Notice(`Project ${key} set to ${value}`);
+    view.render();
+  } catch (e) {
+    new Notice(`Failed to change ${key}: ${(e as Error).message}`);
+  }
 }
 
 /* The status key a card grid groups by: lower case, spaces as '_'. */
@@ -184,11 +220,11 @@ export async function renderProjectsDashboard(view: AppViewHost, root: HTMLEleme
   totalCard.createDiv({ cls: 'cad-stat-value', text: String(summary.total), attr: { style: 'font-size: 3rem; font-weight: 800; margin-top: 12px; line-height: 1;' } });
   totalCard.createDiv({ cls: 'cad-stat-sub', text: 'Across all active and custom statuses', attr: { style: 'margin-top: 12px; font-size: 0.85em; color: var(--text-muted);' } });
 
-  // 2. Dynamic status cards
-  summary.statuses.forEach(({ value: status, label, accent, items }) => {
+  // 2. Dynamic status cards, then OTHER for any project none of them holds
+  const drawStatusCard = ({ value: status, label, accent, items }: DashboardColumn, droppable: boolean) => {
     const colCard = grid.createDiv({ cls: 'cad-stat-card', attr: { style: 'padding: 20px; display: flex; flex-direction: column; min-height: 280px; margin: 0; position: relative;' } });
     colCard.dataset.accent = accent;
-    colCard.dataset.stage = status; // For drag & drop target
+    if (droppable) colCard.dataset.stage = status; // For drag & drop target
 
     // Header info
     colCard.createDiv({
@@ -203,34 +239,26 @@ export async function renderProjectsDashboard(view: AppViewHost, root: HTMLEleme
     const list = colCard.createDiv({ attr: { style: 'margin-top: 16px; flex: 1; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; padding-right: 4px; min-height: 120px;' } });
 
     // Drag and drop listeners on the status card itself
-    colCard.addEventListener('dragover', (ev) => {
-      ev.preventDefault();
-      try { ev.dataTransfer!.dropEffect = 'move'; } catch (_) { }
-      colCard.style.boxShadow = '0 0 0 2px var(--interactive-accent)';
-    });
-    colCard.addEventListener('dragleave', (ev) => {
-      if (!colCard.contains(ev.relatedTarget as Node | null)) {
+    if (droppable) {
+      colCard.addEventListener('dragover', (ev) => {
+        ev.preventDefault();
+        try { ev.dataTransfer!.dropEffect = 'move'; } catch (_) { }
+        colCard.style.boxShadow = '0 0 0 2px var(--interactive-accent)';
+      });
+      colCard.addEventListener('dragleave', (ev) => {
+        if (!colCard.contains(ev.relatedTarget as Node | null)) {
+          colCard.style.boxShadow = '';
+        }
+      });
+      colCard.addEventListener('drop', async (ev) => {
+        ev.preventDefault();
         colCard.style.boxShadow = '';
-      }
-    });
-    colCard.addEventListener('drop', async (ev) => {
-      ev.preventDefault();
-      colCard.style.boxShadow = '';
-      const path = ev.dataTransfer!.getData('text/cadence-entity');
-      const fromStage = ev.dataTransfer!.getData('text/cadence-stage-status');
-      if (!acceptsDrop(path, fromStage, status)) return;
-      const file = view.app.vault.getAbstractFileByPath(path);
-      if (!file || !(file instanceof TFile)) return;
-      try {
-        await view.app.fileManager.processFrontMatter(file, (fm) => {
-          fm['status'] = status;
-        });
-        new Notice(`Project status set to ${status}`);
-        view.render();
-      } catch (e) {
-        new Notice(`Failed to change status: ${(e as Error).message}`);
-      }
-    });
+        const path = ev.dataTransfer!.getData('text/cadence-entity');
+        const fromStage = ev.dataTransfer!.getData('text/cadence-stage-status');
+        if (!acceptsDrop(path, fromStage, status)) return;
+        await dropOntoCard(view, def, path, 'status', status);
+      });
+    }
 
     if (!items.length) {
       list.createDiv({ cls: 'cad-empty', text: 'No projects', attr: { style: 'text-align: center; color: var(--text-faint); margin-top: 32px;' } });
@@ -274,7 +302,11 @@ export async function renderProjectsDashboard(view: AppViewHost, root: HTMLEleme
         }
       });
     }
-  });
+  };
+  summary.statuses.forEach((column) => drawStatusCard(column, true));
+  if (summary.otherStatuses.length) {
+    drawStatusCard({ value: '', label: 'OTHER PROJECTS', accent: 'sky', items: summary.otherStatuses }, false);
+  }
 
   // ─── Priority Board Section ────────────────────────
   root.createDiv({ cls: 'cad-section-label-lg', text: 'PROJECTS BY PRIORITY' });
@@ -319,17 +351,7 @@ export async function renderProjectsDashboard(view: AppViewHost, root: HTMLEleme
         const path = ev.dataTransfer!.getData('text/cadence-entity');
         const fromStage = ev.dataTransfer!.getData('text/cadence-stage');
         if (!acceptsDrop(path, fromStage, prio)) return;
-        const file = view.app.vault.getAbstractFileByPath(path);
-        if (!file || !(file instanceof TFile)) return;
-        try {
-          await view.app.fileManager.processFrontMatter(file, (fm) => {
-            fm['priority'] = prio;
-          });
-          new Notice(`Project priority set to ${prio}`);
-          view.render();
-        } catch (e) {
-          new Notice(`Failed to change priority: ${(e as Error).message}`);
-        }
+        await dropOntoCard(view, def, path, 'priority', prio);
       });
 
       if (!items.length) {
@@ -403,7 +425,7 @@ export async function renderProjectsDashboard(view: AppViewHost, root: HTMLEleme
       // Card Head
       const head = card.createDiv({ cls: 'cad-dash-card-head', attr: { style: 'display: flex; justify-content: space-between; align-items: center; padding: 10px 14px;' } });
 
-      head.createDiv({ cls: 'cad-dash-card-title', text: w.title.toUpperCase(), attr: { style: 'font-weight: 700; font-size: 0.75rem; letter-spacing: 0.12em;' } });
+      head.createDiv({ cls: 'cad-dash-card-title', text: widgetTitle(w).toUpperCase(), attr: { style: 'font-weight: 700; font-size: 0.75rem; letter-spacing: 0.12em;' } });
 
       const actionsWrap = head.createDiv({ attr: { style: 'display: flex; gap: 8px; align-items: center;' } });
 
@@ -433,7 +455,7 @@ export async function renderProjectsDashboard(view: AppViewHost, root: HTMLEleme
       const delBtn = actionsWrap.createEl('button', { cls: 'cad-btn',
         text: '×', attr: { style: 'color: var(--text-error); padding: 2px 8px; font-weight: bold; border-color: var(--text-error); font-size: 1.1em; height: auto; border-radius: 4px; background: transparent;' } });
       delBtn.addEventListener('click', async () => {
-        if (!confirm(`Delete chart "${w.title}"?`)) return;
+        if (!confirm(`Delete chart "${widgetTitle(w)}"?`)) return;
         view.plugin.settings.projectDashboardWidgets = removeWidget(view.plugin.settings.projectDashboardWidgets, w.id);
         await view.plugin.saveSettings();
         view.render();

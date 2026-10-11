@@ -69,6 +69,12 @@ export function dashboardWidgets(settings: Pick<AppViewSettings, DashboardWidget
   return settings[key] || [];
 }
 
+/* A widget's title, or 'Untitled chart' when it has none (a hand-edited
+   or older settings entry), so one bad widget never stops the rest. */
+export function widgetTitle(widget: Partial<Pick<WidgetConfig, 'title'>>): string {
+  return String(widget.title ?? '').trim() || 'Untitled chart';
+}
+
 /* The widget list with every widget of this id removed. */
 export function removeWidget(widgets: WidgetConfig[] | undefined, id: string): WidgetConfig[] {
   return (widgets || []).filter(item => item.id !== id);

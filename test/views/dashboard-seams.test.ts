@@ -2,13 +2,13 @@ import { describe, expect, it } from "vitest";
 import type { TFile } from "obsidian";
 import { ENTITIES } from "../../src/constants/entities";
 import {
-  WIDGET_STYLE_OPTIONS, chartData, dashboardWidgets, removeWidget,
+  WIDGET_STYLE_OPTIONS, chartData, dashboardWidgets, removeWidget, widgetTitle,
 } from "../../src/views/components/charts";
 import {
   crmStatCards, crmSummary, customerBase, dealValue, hotDeals, pipelineByStage, recentActivities, staleDeals,
 } from "../../src/views/crm-dashboard";
 import {
-  PROJECT_PRIORITIES, PROJECT_STATUSES, acceptsDrop, dashRowPill, dashboardOptions, priorityAccent, projectCardPills,
+  PROJECT_PRIORITIES, PROJECT_STATUSES, acceptsDrop, dashRowPill, dropChanges, dashboardOptions, priorityAccent, projectCardPills,
   projectRowName, projectsSummary, projectsViewGroups, statusAccent, type ProjectCardData,
 } from "../../src/views/projects-dashboard";
 import { fmtValue } from "../../src/utils/format";
@@ -35,8 +35,8 @@ describe("dashboardOptions", () => {
     expect(dashboardOptions(withFields(project, [{ key: "status", label: "S" }]), "status", ["x"])).toEqual(["x"]);
   });
 
-  it("QUIRK: keeps an empty options list (getEnumOptions would fall back), so there are no cards", () => {
-    expect(dashboardOptions(withFields(project, [{ key: "status", label: "S", options: [] }]), "status", ["x"])).toEqual([]);
+  it("falls back on an empty options list, as getEnumOptions does, so the field still has cards", () => {
+    expect(dashboardOptions(withFields(project, [{ key: "status", label: "S", options: [] }]), "status", ["x"])).toEqual(["x"]);
   });
 });
 
@@ -70,7 +70,7 @@ describe("projectsSummary", () => {
     expect(summary.total).toBe(4);
     expect(summary.statuses.map((c) => [c.value, c.label, c.accent, names(c.items)])).toEqual([
       ["active", "ACTIVE PROJECTS", "emerald", ["A"]],
-      ["on_hold", "ON HOLD PROJECTS", "warn", []],
+      ["on_hold", "ON HOLD PROJECTS", "warn", ["C"]],
       ["backlog", "BACKLOG PROJECTS", "purple", []],
       ["done", "DONE PROJECTS", "mint", ["B"]],
       ["cancelled", "CANCELLED PROJECTS", "rose", []],
@@ -80,6 +80,12 @@ describe("projectsSummary", () => {
       ["medium", "MEDIUM PRIORITY", "warn", []],
       ["high", "HIGH PRIORITY", "rose", ["A"]],
     ]);
+  });
+
+  it("puts a project with no status, or one matching no option, in otherStatuses", () => {
+    const summary = projectsSummary([...projects, entity("E", { status: "archived" }), entity("F", { status: "On Hold" })], project);
+    expect(names(summary.otherStatuses)).toEqual(["D", "E"]);
+    expect(names(summary.statuses[1].items)).toEqual(["C", "F"]);
   });
 
   it("falls back to the default statuses and priorities when the def has neither field", () => {
@@ -95,8 +101,8 @@ describe("dashboard rows", () => {
     expect(projectRowName(entity("B", {}), project)).toBe("B");
   });
 
-  it("dashRowPill: _ class, spaces from underscores, null when blank", () => {
-    expect(dashRowPill("On Hold_x")).toEqual({ cls: "cad-pill cad-pill-on_hold_x", text: "On Hold x" });
+  it("dashRowPill: spaces as - in the class (as pillClass), spaces from underscores in the text, null when blank", () => {
+    expect(dashRowPill("On Hold_x")).toEqual({ cls: "cad-pill cad-pill-on-hold_x", text: "On Hold x" });
     expect(dashRowPill(["high"])).toEqual({ cls: "cad-pill cad-pill-high", text: "high" });
     expect([dashRowPill(""), dashRowPill(undefined), dashRowPill(0)]).toEqual([null, null, null]);
   });
@@ -106,6 +112,12 @@ describe("dashboard rows", () => {
     expect(acceptsDrop("a.md", "active", "done")).toBe(true);
     expect(acceptsDrop("", "active", "done")).toBe(false);
     expect(acceptsDrop("a.md", "done", "done")).toBe(false);
+  });
+
+  it("dropChanges is false when the note already holds the card's value, in any case", () => {
+    expect([dropChanges("Done", "done"), dropChanges(["high"], "high"), dropChanges("", "active"), dropChanges(undefined, "active"), dropChanges("active", "done")]).toEqual([
+      false, false, true, true, true,
+    ]);
   });
 });
 
@@ -280,6 +292,14 @@ describe("dashboard widgets", () => {
   it("removeWidget drops every widget with the id, tolerating a missing list", () => {
     expect(removeWidget([W1, W2, { ...W1, title: "dup" }], "w1")).toEqual([W2]);
     expect(removeWidget(undefined, "w1")).toEqual([]);
+  });
+
+  it("widgetTitle keeps a title, and gives 'Untitled chart' for a missing, blank or null one", () => {
+    expect(widgetTitle(W1)).toBe(W1.title);
+    expect(widgetTitle({ title: 42 as unknown as string })).toBe("42");
+    expect([widgetTitle({}), widgetTitle({ title: "  " }), widgetTitle({ title: null as unknown as string })]).toEqual([
+      "Untitled chart", "Untitled chart", "Untitled chart",
+    ]);
   });
 
   it("offers donut, bar, KPI and list", () => {

@@ -6,7 +6,7 @@ import { crmSummary, dealValue, sumValues, type CrmSummary } from '../utils/deal
 import { entityValue, getDealStages, listEntities, listEntityFiles } from '../utils/entities';
 import { fmtValue } from '../utils/format';
 import type { DashCardRow, StatCard } from './components/cards';
-import { WIDGET_STYLE_OPTIONS, chartData, dashboardWidgets, removeWidget } from './components/charts';
+import { WIDGET_STYLE_OPTIONS, chartData, dashboardWidgets, removeWidget, widgetTitle } from './components/charts';
 import type { AppViewHost } from './host';
 
 /* The CRM dashboard (crm.dashboard): pipeline stats, the pipeline by stage,
@@ -231,7 +231,7 @@ export async function renderCrmDashboard(view: AppViewHost, root: HTMLElement): 
       // Card Head
       const head = card.createDiv({ cls: 'cad-dash-card-head', attr: { style: 'display: flex; justify-content: space-between; align-items: center; padding: 10px 14px;' } });
 
-      head.createDiv({ cls: 'cad-dash-card-title', text: w.title.toUpperCase(), attr: { style: 'font-weight: 700; font-size: 0.75rem; letter-spacing: 0.12em;' } });
+      head.createDiv({ cls: 'cad-dash-card-title', text: widgetTitle(w).toUpperCase(), attr: { style: 'font-weight: 700; font-size: 0.75rem; letter-spacing: 0.12em;' } });
 
       const actionsWrap = head.createDiv({ attr: { style: 'display: flex; gap: 8px; align-items: center;' } });
 
@@ -261,7 +261,7 @@ export async function renderCrmDashboard(view: AppViewHost, root: HTMLElement): 
       const delBtn = actionsWrap.createEl('button', { cls: 'cad-btn',
         text: '×', attr: { style: 'color: var(--text-error); padding: 2px 8px; font-weight: bold; border-color: var(--text-error); font-size: 1.1em; height: auto; border-radius: 4px; background: transparent;' } });
       delBtn.addEventListener('click', async () => {
-        if (!confirm(`Delete chart "${w.title}"?`)) return;
+        if (!confirm(`Delete chart "${widgetTitle(w)}"?`)) return;
         view.plugin.settings.crmDashboardWidgets = removeWidget(view.plugin.settings.crmDashboardWidgets, w.id);
         await view.plugin.saveSettings();
         view.render();
