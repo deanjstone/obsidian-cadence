@@ -134,6 +134,11 @@ export function milestoneDateFromInput(value: string): Date | null {
   return value ? parseYmd(value) : null;
 }
 
+/** A milestone's notes from the notes editor: whitespace only is no notes (#50). */
+export function milestoneNotesFromInput(value: string): string {
+  return value.trim() ? value : '';
+}
+
 /** Rewrite (or append) the `## <rawKey>` section with the milestones. */
 export function commitMilestones(content: string, items: MilestoneInput[], rawKey = 'Milestones'): string {
   const body = stringifyMilestones(items);
@@ -718,16 +723,20 @@ export function renderMilestoneSection(
           ta.style.height = Math.max(60, ta.scrollHeight + 2) + 'px';
         };
         let nt: ReturnType<typeof setTimeout> | undefined;
+        const saveNotes = async () => {
+          const notes = milestoneNotesFromInput(ta.value);
+          if (notes === (mile.item()?.notes || '')) return;
+          if (!mile.patch({ notes })) return;
+          await view._commitMilestones(file, items, flashSaved, true, rawKey);
+        };
         ta.addEventListener('input', () => {
           autosize();
           clearTimeout(nt);
-          nt = setTimeout(async () => {
-            if (!mile.patch({ notes: ta.value })) return;
-            await view._commitMilestones(file, items, flashSaved, true, rawKey);
-          }, 400);
+          nt = setTimeout(saveNotes, 400);
         });
         ta.addEventListener('blur', async () => {
-          if (mile.patch({ notes: ta.value })) await view._commitMilestones(file, items, flashSaved, true, rawKey);
+          clearTimeout(nt);
+          await saveNotes();
           renderNotesIdle();
         });
         setTimeout(() => { ta.focus(); autosize(); }, 0);
@@ -822,15 +831,16 @@ export function renderTaskSection(
         const bell = row.createEl('button', { cls: bellState.cls, text: bellState.text });
         bell.title = bellState.title;
         bell.addEventListener('click', async () => {
-          if (!task.patch({ title: titleInp.value })) return;
-          await view._commitTasks(file, items, flashSaved, true, rawKey);
-
+          // A blank title is checked before anything is written (#50).
           const taskText = titleInp.value.trim();
           if (!taskText) {
             new Notice('Add a task title first.');
             titleInp.focus();
             return;
           }
+          if (!task.patch({ title: titleInp.value })) return;
+          await view._commitTasks(file, items, flashSaved, true, rawKey);
+
           const existing = findProjectTaskReminder(view.plugin, file.path, taskText);
           if (existing) {
             new CadenceReminderEditModal(view.app, view.plugin, existing).open();

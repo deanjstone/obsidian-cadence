@@ -7,7 +7,7 @@ import { reminderTimeStr } from "../../src/utils/reminders";
 import { companyMetaControl } from "../../src/views/company-detail";
 import {
   PROJECT_PRIORITY_FALLBACK, PROJECT_STATUS_FALLBACK, PROJECT_TEXT_SECTIONS, TASKNOTES_FOLDER, TASKNOTES_PROMPT, addMilestone,
-  addTask, commitMilestones, commitTasks, milestoneCardTitle, milestoneDateFromInput, milestoneDateValue, newTaskReminder,
+  addTask, commitMilestones, commitTasks, milestoneCardTitle, milestoneDateFromInput, milestoneDateValue, milestoneNotesFromInput, newTaskReminder,
   projectDetailTitle, projectMetaFields, projectPills, projectProgress, projectTextSection, removeItem, taskBell, taskCardTitle,
   taskNoteContent, taskNotePath, taskNotesItems, updateItem, writeProjectFrontmatter,
 } from "../../src/views/project-detail";
@@ -105,6 +105,10 @@ describe("milestone seams", () => {
         expect(milestoneDateFromInput("")).toBeNull();
       });
     }
+  });
+
+  it("milestoneNotesFromInput: whitespace only is no notes, anything else is kept as typed", () => {
+    expect([milestoneNotesFromInput(""), milestoneNotesFromInput(" \n\t"), milestoneNotesFromInput(" a\n")]).toEqual(["", "", " a\n"]);
   });
 
   it("commitMilestones: rewrites the section, or appends it under the raw key", () => {

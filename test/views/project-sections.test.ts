@@ -252,6 +252,24 @@ describe("_renderMilestoneSection", () => {
   });
 });
 
+describe("_renderMilestoneSection: blank notes", () => {
+  it("whitespace-only notes on a milestone without notes write nothing, typed or blurred", async () => {
+    const { parent, milestones, app, flashSaved } = setup();
+    const items = milestones();
+    const modify = vi.spyOn(app.vault, "modify");
+    notesEl(parent, 1).children[0].trigger("click");
+    const ta = notesEl(parent, 1).children[0];
+    type(ta, "   ");
+    await vi.advanceTimersByTimeAsync(400);
+    type(ta, " \n ", "blur");
+    await flush();
+    expect(modify).not.toHaveBeenCalled();
+    expect(flashSaved).not.toHaveBeenCalled();
+    expect(items[1].notes || "").toBe("");
+    expect(notesEl(parent, 1).children[0].text).toBe("+ Add notes");
+  });
+});
+
 describe("_commitMilestones", () => {
   it("replaces the named section, flashes, and re-renders unless skipRender", async () => {
     const { view, file, read, section, flashSaved, rendered, app } = setup();
@@ -424,6 +442,27 @@ describe("_renderTaskSection (native)", () => {
     expect(Notice.messages).toEqual(["Add a task title first."]);
     expect(name.focusCount).toBe(1);
     expect(modals).toHaveLength(1);
+  });
+});
+
+describe("_renderTaskSection: the bell's blank check", () => {
+  it("a blank title notices before anything is written", async () => {
+    const modals: Any[] = [];
+    vi.spyOn(CadenceReminderEditModal.prototype, "open").mockImplementation(function (this: Any) {
+      modals.push(this);
+    });
+    const { parent, tasks, app, section, flashSaved } = setup();
+    const items = tasks();
+    const modify = vi.spyOn(app.vault, "modify");
+    taskRow(parent, 1).children[1].value = "  ";
+    taskRow(parent, 1).children[2].trigger("click");
+    await flush();
+    expect(Notice.messages).toEqual(["Add a task title first."]);
+    expect(modify).not.toHaveBeenCalled();
+    expect(flashSaved).not.toHaveBeenCalled();
+    expect(items[1].title).toBe("Hire");
+    expect(await section("## Tasks")).toBe("- [ ] Plan\n- [x] Hire");
+    expect(modals).toEqual([]);
   });
 });
 
