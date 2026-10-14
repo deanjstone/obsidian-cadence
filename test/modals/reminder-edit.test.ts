@@ -260,6 +260,36 @@ describe("CadenceReminderEditModal", () => {
     }
   });
 
+  it("an unreadable stored time notices on open and won't save blank until a time is picked or Clear is pressed (#82)", async () => {
+    const stored = { ...existing(), when: "soon" };
+    const untouched = openEdit(stored);
+    expect(Notice.messages).toEqual(["Couldn't read this reminder's time (soon). Pick a time, or Clear it to unschedule."]);
+    Notice.messages.length = 0;
+    buttonByText(untouched.content, "Save").trigger("click");
+    await flush();
+    expect(untouched.plugin.updateReminder).not.toHaveBeenCalled();
+    expect(Notice.messages).toEqual(["Couldn't read that time, so nothing was saved. Fix it, or Clear it to unschedule."]);
+    expect(untouched.modal._submitted).toBe(false);
+
+    const cleared = openEdit({ ...stored });
+    buttonByText(cleared.content, "Clear").trigger("click");
+    buttonByText(cleared.content, "Save").trigger("click");
+    await flush();
+    expect(cleared.plugin.updateReminder.mock.calls[0][1]).toMatchObject({ when: null, notified: false });
+
+    const picked = openEdit({ ...stored });
+    picked.dateInput.value = "2026-10-10T08:00";
+    buttonByText(picked.content, "Save").trigger("click");
+    await flush();
+    expect(picked.plugin.updateReminder.mock.calls[0][1]).toMatchObject({ when: "2026-10-10T08:00:00.000Z", notified: false });
+  });
+
+  it("a readable or empty stored time opens without a notice", () => {
+    openEdit();
+    openEdit({ ...existing(), when: null });
+    expect(Notice.messages).toEqual([]);
+  });
+
   it("creates a new reminder with a 'Reminder set' notice, or 'Captured to Inbox' when unscheduled", async () => {
     const scheduled = openEdit({}, { isNew: true });
     scheduled.textInput.value = "Dentist";
