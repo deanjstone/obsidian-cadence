@@ -10,7 +10,7 @@ import { CadencePromptModal } from '../modals/prompt';
 import { dailyNotePath, startOfDay, weekDates } from '../utils/dates';
 import { createEntity, entityKeyFromFile, getFieldSuggestionSource } from '../utils/entities';
 import { autoCreatesNote } from '../utils/field-edit';
-import type { DailySections, Milestone, MilestoneInput, TaskItem } from '../utils/parsing';
+import type { DailySections, Milestone, TaskItem } from '../utils/parsing';
 import type { TaskRef } from '../utils/task-lines';
 import { renderPlannerPane, togglePlannerTask, type PlannerDay } from './calendar';
 import { renderCompanyDetail } from './company-detail';
@@ -40,7 +40,7 @@ import {
 } from './nav';
 import { renderPRMAnalytics, renderTeam } from './prm';
 import {
-  renderMilestoneSection, renderProjectDetail, renderTaskSection, saveMilestones, saveProjectFrontmatter, saveTasks,
+  renderMilestoneSection, renderProjectDetail, renderTaskSection, saveProjectFrontmatter,
 } from './project-detail';
 import { renderProjectsDashboard } from './projects-dashboard';
 import { renderReportGraph } from './report-graph';
@@ -579,11 +579,9 @@ export class CadenceAppView extends ItemView implements AppViewHost {
 
   _renderMilestoneSection(parent: HTMLElement, file: TFile, milestones: Milestone[], flashSaved?: FlashSaved, rawKey?: string) { return renderMilestoneSection(this, parent, file, milestones, flashSaved, rawKey); }
 
-  _commitMilestones(file: TFile, items: MilestoneInput[], flashSaved?: FlashSaved, skipRender?: boolean, rawKey?: string) { return saveMilestones(this, file, items, flashSaved, skipRender, rawKey); }
 
   _renderTaskSection(parent: HTMLElement, file: TFile, tasks: TaskItem[], flashSaved?: FlashSaved, rawKey?: string) { return renderTaskSection(this, parent, file, tasks, flashSaved, rawKey); }
 
-  _commitTasks(file: TFile, items: Array<Partial<TaskItem>>, flashSaved?: FlashSaved, skipRender?: boolean, rawKey?: string) { return saveTasks(this, file, items, flashSaved, skipRender, rawKey); }
 
   _writeProjectFrontmatter(file: TFile, patch: Record<string, unknown>, flashSaved?: FlashSaved) { return saveProjectFrontmatter(this, file, patch, flashSaved); }
 

@@ -7,7 +7,7 @@ import { reminderTimeStr } from "../../src/utils/reminders";
 import { companyMetaControl } from "../../src/views/company-detail";
 import {
   PROJECT_PRIORITY_FALLBACK, PROJECT_STATUS_FALLBACK, PROJECT_TEXT_SECTIONS, TASKNOTES_FOLDER, TASKNOTES_PROMPT, addMilestone,
-  addTask, commitMilestones, commitTasks, milestoneCardTitle, milestoneDateFromInput, milestoneDateValue, milestoneNotesFromInput, newTaskReminder,
+  addTask, milestoneCardTitle, milestoneDateFromInput, milestoneDateValue, milestoneNotesFromInput, newTaskReminder,
   projectDetailTitle, projectMetaFields, projectPills, projectProgress, projectTextSection, removeItem, taskBell, taskCardTitle,
   taskNoteContent, taskNotePath, taskNotesItems, updateItem, writeProjectFrontmatter,
 } from "../../src/views/project-detail";
@@ -16,8 +16,6 @@ import type { Reminder } from "../../src/types/reminders";
 import type { Milestone } from "../../src/utils/parsing";
 
 /* Direct tests for the project detail page's pure seams. */
-
-const DOC = "## Brief\nGo\n## Milestones\n- [ ] Old\n## Tasks\n- [ ] Old\n## Notes\nN\n";
 
 describe("project page seams", () => {
   it("projectDetailTitle: the name unless it is missing or empty, else the basename, as the company page does", () => {
@@ -115,14 +113,6 @@ describe("milestone seams", () => {
     expect([milestoneNotesFromInput(""), milestoneNotesFromInput(" \n\t"), milestoneNotesFromInput(" a\n")]).toEqual(["", "", " a\n"]);
   });
 
-  it("commitMilestones: rewrites the section, or appends it under the raw key", () => {
-    expect(commitMilestones(DOC, ms())).toBe(
-      "## Brief\nGo\n## Milestones\n- [x] 2026-09-15 — Kickoff\n- [ ] Beta\n    n\n\n## Tasks\n- [ ] Old\n## Notes\nN\n",
-    );
-    expect(commitMilestones(DOC, [])).toBe("## Brief\nGo\n## Milestones\n\n## Tasks\n- [ ] Old\n## Notes\nN\n");
-    expect(commitMilestones("Intro\n\n", [{ title: "A" }], "Plan #milestones")).toBe("Intro\n\n## Plan #milestones\n- [ ] A\n");
-  });
-
   it("updateItem and removeItem return new lists and leave the input alone", () => {
     const items = ms();
     const ticked = updateItem(items, 1, { done: true });
@@ -161,13 +151,6 @@ describe("task seams", () => {
       { file: new TFile("TaskNotes/Tasks/b.md"), title: "B", done: false, status: "open" },
     ] as unknown as TaskNotesTask[];
     expect(taskNotesItems(tasks)).toEqual([{ done: true, title: "A" }, { done: false, title: "B" }]);
-  });
-
-  it("commitTasks: rewrites the section, or appends it under the raw key", () => {
-    expect(commitTasks(DOC, [{ done: true, title: "New" }, {}])).toBe(
-      "## Brief\nGo\n## Milestones\n- [ ] Old\n## Tasks\n- [x] New\n- [ ] \n\n## Notes\nN\n",
-    );
-    expect(commitTasks("", [{ title: "A" }], "Todo #tasks")).toBe("\n\n## Todo #tasks\n- [ ] A\n");
   });
 
   it("addTask appends an empty open task", () => {

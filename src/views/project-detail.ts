@@ -10,11 +10,12 @@ import {
   COMPANY_LIST_KEYS, dateInputValue, enumCurrent, metaControl, metaInputType, metaInputValue, splitSectionColumns, withStoredOption,
 } from '../utils/field-edit';
 import { pctBand, type PctBand } from '../utils/format';
-import {
-  parseHeaderKey, replaceSection, stringifyMilestones, stringifyTasks, type Milestone, type MilestoneInput, type TaskItem,
-} from '../utils/parsing';
+import { parseHeaderKey, type Milestone, type TaskItem } from '../utils/parsing';
 import { findProjectTaskReminder, reminderTimeStr } from '../utils/reminders';
-import { taskRefAt, toggleProjectTaskByRef } from '../utils/task-lines';
+import {
+  appendMilestone, appendProjectTask, editMilestoneByRef, editProjectTaskByRef, milestoneRefAt, removeMilestoneByRef,
+  removeProjectTaskByRef, taskRefAt, toggleProjectTaskByRef, type TaskRef,
+} from '../utils/task-lines';
 import { listTaskNotesTasksForFile, toggleTaskNotesTask } from '../utils/tasknotes';
 import { ensureFolderSync } from '../utils/vault';
 import type { FlashSaved, ProjectTextSectionDef } from './components/sections';
@@ -139,12 +140,6 @@ export function milestoneNotesFromInput(value: string): string {
   return value.trim() ? value : '';
 }
 
-/** Rewrite (or append) the `## <rawKey>` section with the milestones. */
-export function commitMilestones(content: string, items: MilestoneInput[], rawKey = 'Milestones'): string {
-  const body = stringifyMilestones(items);
-  return replaceSection(content, `## ${rawKey}`, body || '');
-}
-
 /** The list with item `idx` replaced by a copy carrying `patch`. A missing
     item leaves the list as it was, as removeItem does (#50). */
 export function updateItem<T>(items: T[], idx: number, patch: Partial<T>): T[] {
@@ -171,12 +166,6 @@ export function taskCardTitle(rawKey: string, tasks: Array<Pick<TaskItem, 'done'
 /** TaskNotes mode: the rows for the task notes linked to the project. */
 export function taskNotesItems(tasks: TaskNotesTask[]): TaskItem[] {
   return tasks.map(t => ({ done: t.done, title: t.title }));
-}
-
-/** Rewrite (or append) the `## <rawKey>` section with the tasks. */
-export function commitTasks(content: string, items: Array<Partial<TaskItem>>, rawKey = 'Tasks'): string {
-  const body = stringifyTasks(items);
-  return replaceSection(content, `## ${rawKey}`, body || '');
 }
 
 /** The list with an empty open task appended. */
@@ -472,8 +461,8 @@ export function renderMilestoneSection(
       const cb = row.createEl('input', { type: 'checkbox' });
       cb.checked = !!m.done;
       cb.addEventListener('change', async () => {
-        if (!mile.patch({ done: cb.checked })) return;
-        await view._commitMilestones(file, items, flashSaved, false, rawKey);
+        if (!await editMilestoneRow(view, file, items, mile, { done: cb.checked }, flashSaved, rawKey)) return;
+        view.render();
       });
       const dateInp = row.createEl('input', { type: 'date', cls: 'cad-pd-mile-date' });
       const dateValue = milestoneDateValue(m.date);
@@ -482,8 +471,7 @@ export function renderMilestoneSection(
       dateInp.addEventListener('input', () => {
         clearTimeout(dt);
         dt = setTimeout(async () => {
-          if (!mile.patch({ date: milestoneDateFromInput(dateInp.value) })) return;
-          await view._commitMilestones(file, items, flashSaved, true, rawKey);
+          await editMilestoneRow(view, file, items, mile, { date: milestoneDateFromInput(dateInp.value) }, flashSaved, rawKey);
         }, 350);
       });
       const titleInp = row.createEl('input', { type: 'text', cls: 'cad-pd-mile-title' });
@@ -493,15 +481,17 @@ export function renderMilestoneSection(
       titleInp.addEventListener('input', () => {
         clearTimeout(tt);
         tt = setTimeout(async () => {
-          if (!mile.patch({ title: titleInp.value })) return;
-          await view._commitMilestones(file, items, flashSaved, true, rawKey);
+          await editMilestoneRow(view, file, items, mile, { title: titleInp.value }, flashSaved, rawKey);
         }, 400);
       });
       const del = row.createEl('button', { cls: 'cad-btn cad-btn-sm cad-btn-danger', text: '×' });
       del.title = 'Delete milestone';
       del.addEventListener('click', async () => {
-        if (!mile.remove()) return;
-        await view._commitMilestones(file, items, flashSaved, false, rawKey);
+        const ref = milestoneRefAt(items, mile.index());
+        if (!ref) return;
+        if (!await writeRow(view, file, (c) => removeMilestoneByRef(c, rawKey, ref), MILESTONE_CHANGED, flashSaved)) return;
+        mile.remove();
+        view.render();
       });
 
       // Notes section — preview ⇄ textarea, indented under the milestone in markdown
@@ -533,8 +523,7 @@ export function renderMilestoneSection(
         const saveNotes = async () => {
           const notes = milestoneNotesFromInput(ta.value);
           if (notes === (mile.item()?.notes || '')) return;
-          if (!mile.patch({ notes })) return;
-          await view._commitMilestones(file, items, flashSaved, true, rawKey);
+          await editMilestoneRow(view, file, items, mile, { notes }, flashSaved, rawKey);
         };
         ta.addEventListener('input', () => {
           autosize();
@@ -555,20 +544,61 @@ export function renderMilestoneSection(
   renderRows(milestones);
 
   addBtn.addEventListener('click', async () => {
-    replaceItems(milestones, addMilestone(milestones, new Date()));
-    await view._commitMilestones(file, milestones, flashSaved, false, rawKey);
+    const next = addMilestone(milestones, new Date());
+    if (!await writeRow(view, file, (c) => appendMilestone(c, rawKey, next[next.length - 1]), MILESTONE_CHANGED, flashSaved)) return;
+    replaceItems(milestones, next);
+    view.render();
   });
 }
 
-export async function saveMilestones(
-  view: AppViewHost, file: TFile, items: MilestoneInput[], flashSaved?: FlashSaved, skipRender = false, rawKey = 'Milestones',
-): Promise<void> {
-  // Snapshot before the read: the list is stringified as it was when the commit began.
-  const snapshot = [...items];
+const TASK_CHANGED = 'That task changed in the note, so nothing was saved.';
+const MILESTONE_CHANGED = 'That milestone changed in the note, so nothing was saved.';
+
+/* One row's write: re-reads the note, applies `edit` (which touches only
+   that row's lines, #76) and writes the result. When the row is gone from
+   the note (`edit` gives null) it writes nothing and says so. */
+async function writeRow(
+  view: AppViewHost, file: TFile, edit: (content: string) => string | null, changedMessage: string, flashSaved: FlashSaved | undefined,
+): Promise<boolean> {
   const content = await view.app.vault.read(file);
-  await view.app.vault.modify(file, commitMilestones(content, snapshot, rawKey));
+  const next = edit(content);
+  if (next === null) {
+    new Notice(changedMessage);
+    return false;
+  }
+  if (next !== content) await view.app.vault.modify(file, next);
   if (typeof flashSaved === 'function') flashSaved();
-  if (!skipRender) view.render();
+  return true;
+}
+
+/* A milestone row's edit: rewrites that milestone's lines in the note,
+   found by the ref of the row as it was, then patches the shared list. */
+async function editMilestoneRow(
+  view: AppViewHost, file: TFile, items: Milestone[], mile: RowHandle<Milestone>, patch: Partial<Milestone>,
+  flashSaved: FlashSaved | undefined, rawKey: string,
+): Promise<boolean> {
+  const idx = mile.index();
+  const ref = milestoneRefAt(items, idx);
+  if (!ref) return false;
+  const next = { ...items[idx], ...patch };
+  if (!await writeRow(view, file, (c) => editMilestoneByRef(c, rawKey, ref, next), MILESTONE_CHANGED, flashSaved)) return false;
+  return mile.patch(patch);
+}
+
+/* A task row's retitle: rewrites that task's line only, found by the ref
+   of the row as it was, then patches the shared list. */
+async function retitleTaskRow(
+  view: AppViewHost, file: TFile, items: TaskItem[], task: RowHandle<TaskItem>, title: string, flashSaved: FlashSaved | undefined, rawKey: string,
+): Promise<boolean> {
+  const ref = taskRowRef(items, task);
+  if (!ref) return false;
+  if (!await writeRow(view, file, (c) => editProjectTaskByRef(c, rawKey, ref, title), TASK_CHANGED, flashSaved)) return false;
+  return task.patch({ title });
+}
+
+function taskRowRef(items: TaskItem[], task: RowHandle<TaskItem>): TaskRef | null {
+  const idx = task.index();
+  return idx === -1 ? null : taskRefAt(items.map((item) => item.title || ''), idx);
 }
 
 export function renderTaskSection(
@@ -628,8 +658,7 @@ export function renderTaskSection(
         titleInp.addEventListener('input', () => {
           clearTimeout(tt);
           tt = setTimeout(async () => {
-            if (!task.patch({ title: titleInp.value })) return;
-            await view._commitTasks(file, items, flashSaved, true, rawKey);
+            await retitleTaskRow(view, file, items, task, titleInp.value, flashSaved, rawKey);
           }, 400);
         });
 
@@ -645,8 +674,7 @@ export function renderTaskSection(
             titleInp.focus();
             return;
           }
-          if (!task.patch({ title: titleInp.value })) return;
-          await view._commitTasks(file, items, flashSaved, true, rawKey);
+          if (!await retitleTaskRow(view, file, items, task, titleInp.value, flashSaved, rawKey)) return;
 
           const existing = findProjectTaskReminder(view.plugin, file.path, taskText);
           if (existing) {
@@ -660,8 +688,11 @@ export function renderTaskSection(
       if (view.plugin.settings.taskManagementSystem !== 'tasknotes') {
         const del = row.createEl('button', { cls: 'cad-btn cad-btn-sm cad-btn-danger', text: '×' });
         del.addEventListener('click', async () => {
-          if (!task.remove()) return;
-          await view._commitTasks(file, items, flashSaved, false, rawKey);
+          const ref = taskRowRef(items, task);
+          if (!ref) return;
+          if (!await writeRow(view, file, (c) => removeProjectTaskByRef(c, rawKey, ref), TASK_CHANGED, flashSaved)) return;
+          task.remove();
+          view.render();
         });
       }
     });
@@ -688,8 +719,9 @@ export function renderTaskSection(
       view.render();
       return;
     }
+    if (!await writeRow(view, file, (c) => appendProjectTask(c, rawKey), TASK_CHANGED, flashSaved)) return;
     replaceItems(tasks, addTask(tasks));
-    await view._commitTasks(file, tasks, flashSaved, false, rawKey);
+    view.render();
   });
 }
 
@@ -700,8 +732,7 @@ export function renderTaskSection(
 async function tickProjectTaskRow(
   view: AppViewHost, file: TFile, items: TaskItem[], task: RowHandle<TaskItem>, checked: boolean, flashSaved: FlashSaved | undefined, rawKey: string,
 ): Promise<void> {
-  const idx = task.index();
-  const ref = idx === -1 ? null : taskRefAt(items.map((item) => item.title || ''), idx);
+  const ref = taskRowRef(items, task);
   const content = await view.app.vault.read(file);
   const toggled = ref ? toggleProjectTaskByRef(content, rawKey, ref, checked) : null;
   if (!toggled) {
@@ -712,17 +743,6 @@ async function tickProjectTaskRow(
   task.patch({ done: checked });
   if (typeof flashSaved === 'function') flashSaved();
   if (toggled.taskText) await view._propagateTaskComplete(toggled.taskText, checked, { kind: 'project', file });
-}
-
-export async function saveTasks(
-  view: AppViewHost, file: TFile, items: Array<Partial<TaskItem>>, flashSaved?: FlashSaved, skipRender = false, rawKey = 'Tasks',
-): Promise<void> {
-  // Snapshot before the read: the list is stringified as it was when the commit began.
-  const snapshot = [...items];
-  const content = await view.app.vault.read(file);
-  await view.app.vault.modify(file, commitTasks(content, snapshot, rawKey));
-  if (typeof flashSaved === 'function') flashSaved();
-  if (!skipRender) view.render();
 }
 
 export async function saveProjectFrontmatter(

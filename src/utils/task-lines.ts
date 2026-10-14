@@ -1,15 +1,18 @@
 import type { DailyNoteSettings } from '../types/settings';
 import type { TaskNotesTask } from '../types/entities';
-import { parseHeaderKey, parseSections, replaceSection } from './parsing';
+import { ymd } from './dates';
+import {
+  appendSection, parseHeaderKey, parseMilestones, parseSections, replaceSection, stringifyMilestones, type MilestoneInput,
+} from './parsing';
 
 /* Checklist lines (`- [ ] …`) and the markdown rewrites behind every task
    tick and append on Home, Today, the Calendar and task propagation. Each
    rewrite is `(content, input) → content`; the caller reads and writes the
    file. A tick edits only the box of the lines it changes, so every other
-   line, indentation and blank line in the note stays as it was. Appending a
-   task and replacing the journal go through replaceSection, which leaves a
-   blank line before the next heading, and only checklist lines survive an
-   append. */
+   line, indentation and blank line in the note stays as it was. Appending,
+   retitling or removing a task or milestone edits, inserts or removes only
+   its own lines too (#76). Replacing the journal goes through
+   replaceSection. */
 
 type TaskHeadings = Pick<DailyNoteSettings, 'tasksHeading' | 'journalHeading'>;
 
@@ -173,24 +176,170 @@ export function toggleDailyTaskByRef(content: string, settings: TaskHeadings, re
     line. Null when the task is gone from the section. */
 export function toggleProjectTaskByRef(content: string, rawKey: string, ref: TaskRef, checked: boolean): { content: string; taskText: string } | null {
   const lines = content.split('\n');
-  const isHeading = (line: string) => /^##\s/.test(line);
-  const start = lines.map((line) => isHeading(line) && line.replace(/^##\s+/, '').trim() === rawKey).lastIndexOf(true);
-  if (start === -1) return null;
-  const indexes: number[] = [];
-  for (let i = start + 1; i < lines.length && !isHeading(lines[i]); i++) {
-    if (TASK_PREFIX.test(lines[i])) indexes.push(i);
-  }
-  const at = findTaskLine(indexes.map((i) => lines[i]), ref);
-  if (at === -1) return null;
-  const toggled = toggleTaskLine(lines, indexes[at], checked)!;
+  const lineIdx = projectTaskLineIndex(lines, rawKey, ref);
+  if (lineIdx === -1) return null;
+  const toggled = toggleTaskLine(lines, lineIdx, checked)!;
   return { content: toggled.tasks.join('\n'), taskText: toggled.taskText };
 }
 
-/** Appends an open task under the tasks heading (added at the end if missing). */
+const isH2 = (line: string) => /^##\s/.test(line);
+
+/* A section's heading line index and its end (the next H2, or the end of
+   the note). */
+interface SectionBounds {
+  start: number;
+  end: number;
+}
+
+function sectionEnd(lines: string[], start: number): SectionBounds {
+  let end = start + 1;
+  while (end < lines.length && !isH2(lines[end])) end++;
+  return { start, end };
+}
+
+/* The last `## <rawKey>` section, as parseH2Sections reads it, or null. */
+function projectSection(lines: string[], rawKey: string): SectionBounds | null {
+  const start = lines.map((line) => isH2(line) && line.replace(/^##\s+/, '').trim() === rawKey).lastIndexOf(true);
+  return start === -1 ? null : sectionEnd(lines, start);
+}
+
+function checklistIndexes(lines: string[], { start, end }: SectionBounds): number[] {
+  const indexes: number[] = [];
+  for (let i = start + 1; i < end; i++) if (TASK_PREFIX.test(lines[i])) indexes.push(i);
+  return indexes;
+}
+
+/* An indented, non-blank line that is not a checklist line: a note or
+   continuation under the checklist line above it. */
+const isIndentedNote = (line: string) => /^[ \t]/.test(line) && !!line.trim() && !TASK_PREFIX.test(line);
+
+/* Where a new checklist line goes: after the section's last checklist line
+   and the indented lines under it, or right under the heading. */
+function insertionIndex(lines: string[], bounds: SectionBounds): number {
+  const last = checklistIndexes(lines, bounds).pop();
+  if (last === undefined) return bounds.start + 1;
+  let at = last + 1;
+  while (at < bounds.end && isIndentedNote(lines[at])) at++;
+  return at;
+}
+
+function insertLine(content: string, bounds: SectionBounds | null, heading: string, line: string): string {
+  if (!bounds) return appendSection(content, heading, line);
+  const lines = content.split('\n');
+  lines.splice(insertionIndex(lines, bounds), 0, line);
+  return lines.join('\n');
+}
+
+/** Appends an open task under the tasks heading (added at the end if
+    missing), inserting only that line after the last task (#76). */
 export function appendDailyTask(content: string, settings: TaskHeadings, text: string): string {
-  const parsed = parseSections(content, settings);
-  const newTasks = [...parsed.tasks, `- [ ] ${text}`];
-  return replaceSection(content, settings.tasksHeading, newTasks.join('\n'));
+  const lines = content.split('\n');
+  const start = lines.findIndex((l) => l.trim() === settings.tasksHeading);
+  return insertLine(content, start === -1 ? null : sectionEnd(lines, start), settings.tasksHeading, `- [ ] ${text}`);
+}
+
+function projectTaskLineIndex(lines: string[], rawKey: string, ref: TaskRef): number {
+  const bounds = projectSection(lines, rawKey);
+  if (!bounds) return -1;
+  const indexes = checklistIndexes(lines, bounds);
+  const at = findTaskLine(indexes.map((i) => lines[i]), ref);
+  return at === -1 ? -1 : indexes[at];
+}
+
+/** Retitles the task `ref` names in a project's `## <rawKey>` section,
+    keeping its box and indentation. Null when the task is gone. */
+export function editProjectTaskByRef(content: string, rawKey: string, ref: TaskRef, title: string): string | null {
+  const lines = content.split('\n');
+  const i = projectTaskLineIndex(lines, rawKey, ref);
+  if (i === -1) return null;
+  lines[i] = lines[i].match(TASK_PREFIX)![0] + title;
+  return lines.join('\n');
+}
+
+/** Removes the task `ref` names, and only its line. Null when it is gone. */
+export function removeProjectTaskByRef(content: string, rawKey: string, ref: TaskRef): string | null {
+  const lines = content.split('\n');
+  const i = projectTaskLineIndex(lines, rawKey, ref);
+  if (i === -1) return null;
+  lines.splice(i, 1);
+  return lines.join('\n');
+}
+
+/** Inserts an open task after the section's last task, or right under its
+    heading; a missing section is appended under its raw key. */
+export function appendProjectTask(content: string, rawKey: string, title = ''): string {
+  return insertLine(content, projectSection(content.split('\n'), rawKey), `## ${rawKey}`, `- [ ] ${title}`);
+}
+
+/** Which milestone a rendered row shows: its box, date and title, and
+    which occurrence of those it is in the section. */
+export interface MilestoneRef {
+  key: string;
+  occurrence: number;
+}
+
+function milestoneKey(m: MilestoneInput): string {
+  const date = m.date instanceof Date && !isNaN(m.date.getTime()) ? ymd(m.date) : '';
+  return `${m.done ? 'x' : ' '}|${date}|${(m.title || '').trim()}`;
+}
+
+/** The ref of the milestone at `idx`, or null past the end. */
+export function milestoneRefAt(items: MilestoneInput[], idx: number): MilestoneRef | null {
+  const item = items[idx];
+  if (item === undefined) return null;
+  const key = milestoneKey(item);
+  return { key, occurrence: items.slice(0, idx).filter((m) => milestoneKey(m) === key).length };
+}
+
+/* The milestone `ref` names: its head line, the note lines parseMilestones
+   reads as its notes, and the milestone as parsed. Null when it is gone. */
+function findMilestone(lines: string[], rawKey: string, ref: MilestoneRef) {
+  const bounds = projectSection(lines, rawKey);
+  if (!bounds) return null;
+  const heads = checklistIndexes(lines, bounds);
+  let seen = 0;
+  for (let h = 0; h < heads.length; h++) {
+    const next = h + 1 < heads.length ? heads[h + 1] : bounds.end;
+    const noteLines: number[] = [];
+    for (let i = heads[h] + 1; i < next; i++) if (isIndentedNote(lines[i])) noteLines.push(i);
+    const parsed = parseMilestones([heads[h], ...noteLines].map((i) => lines[i]).join('\n'))[0];
+    if (milestoneKey(parsed) !== ref.key) continue;
+    if (seen === ref.occurrence) return { head: heads[h], noteLines, parsed };
+    seen++;
+  }
+  return null;
+}
+
+/** Rewrites the milestone `ref` names to `next`: its head line (keeping its
+    indentation), and its note lines only when the notes change. Every
+    other line stays. Null when the milestone is gone. */
+export function editMilestoneByRef(content: string, rawKey: string, ref: MilestoneRef, next: MilestoneInput): string | null {
+  const lines = content.split('\n');
+  const found = findMilestone(lines, rawKey, ref);
+  if (!found) return null;
+  const indent = lines[found.head].match(/^\s*/)![0];
+  const [head, ...notes] = stringifyMilestones([next]).split('\n');
+  lines[found.head] = indent + head;
+  if ((next.notes || '') !== found.parsed.notes) {
+    for (const i of [...found.noteLines].reverse()) lines.splice(i, 1);
+    lines.splice(found.head + 1, 0, ...notes);
+  }
+  return lines.join('\n');
+}
+
+/** Removes the milestone `ref` names: its head line and its note lines. */
+export function removeMilestoneByRef(content: string, rawKey: string, ref: MilestoneRef): string | null {
+  const lines = content.split('\n');
+  const found = findMilestone(lines, rawKey, ref);
+  if (!found) return null;
+  for (const i of [...found.noteLines, found.head].sort((a, b) => b - a)) lines.splice(i, 1);
+  return lines.join('\n');
+}
+
+/** Inserts a milestone after the section's last one and its notes, or
+    right under its heading; a missing section is appended. */
+export function appendMilestone(content: string, rawKey: string, m: MilestoneInput): string {
+  return insertLine(content, projectSection(content.split('\n'), rawKey), `## ${rawKey}`, stringifyMilestones([m]));
 }
 
 /** Replaces the journal section's body; null or undefined writes it empty. */

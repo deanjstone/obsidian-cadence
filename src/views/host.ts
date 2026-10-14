@@ -5,7 +5,7 @@ import type { Entity, EntityField, EntityKey, TaskNotesTask } from '../types/ent
 import type { ChartStyle } from '../types/modals';
 import type { Reminder, ReminderBucket } from '../types/reminders';
 import type { AppViewSettings } from '../types/settings';
-import type { DailySections, Milestone, MilestoneInput, TaskItem } from '../utils/parsing';
+import type { DailySections, Milestone, TaskItem } from '../utils/parsing';
 import type { TaskRef } from '../utils/task-lines';
 import type { DashCardRow } from './components/cards';
 import type { PlannerDay } from './calendar';
@@ -181,14 +181,8 @@ export interface AppViewHost {
   _renderMilestoneSection(
     parent: HTMLElement, file: TFile, milestones: Milestone[], flashSaved?: FlashSaved, rawKey?: string,
   ): void;
-  /** Rewrite a milestones section; re-renders the view unless skipRender. */
-  _commitMilestones(file: TFile, items: MilestoneInput[], flashSaved?: FlashSaved, skipRender?: boolean, rawKey?: string): Promise<void>;
   /** Called by _renderDynamicH2Section for a tasks section. */
   _renderTaskSection(parent: HTMLElement, file: TFile, tasks: TaskItem[], flashSaved?: FlashSaved, rawKey?: string): void;
-  /** Rewrite a tasks section; re-renders the view unless skipRender. */
-  _commitTasks(
-    file: TFile, items: Array<Partial<TaskItem>>, flashSaved?: FlashSaved, skipRender?: boolean, rawKey?: string,
-  ): Promise<void>;
   /** Write a frontmatter patch to a project note, then flash Saved; a failure notices. */
   _writeProjectFrontmatter(file: TFile, patch: Record<string, unknown>, flashSaved?: FlashSaved): Promise<void>;
 
