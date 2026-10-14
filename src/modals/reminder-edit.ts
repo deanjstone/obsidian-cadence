@@ -33,19 +33,33 @@ export interface ReminderForm {
   datetimeValue: string;
   /** The input's `validity.badInput`: a half-typed time reads as ''. */
   badInput?: boolean;
+  /** Clear was pressed, so a blank time unschedules even when the stored
+      time couldn't be read. */
+  cleared?: boolean;
 }
 
 export const BAD_TIME_MESSAGE = "Couldn't read that time, so nothing was saved. Fix it, or Clear it to unschedule.";
 
+/** The notice on opening a reminder whose stored time can't be read (#82). */
+export const unreadableStoredTimeMessage = (when: string) =>
+  `Couldn't read this reminder's time (${when}). Pick a time, or Clear it to unschedule.`;
+
+/** A stored `when` that is set but doesn't parse, e.g. hand-edited. */
+export function storedTimeUnreadable(when: string | null | undefined): boolean {
+  return !!when && isNaN(new Date(when).getTime());
+}
+
 /** The fields saved through addReminder / updateReminder, null when the
     trimmed text is blank, or 'bad-time' when the time can't be read, so
     nothing is saved and the reminder keeps its old time (#52). A blank time
-    unschedules. `notified` resets only when the time changes. */
+    unschedules, except over an unreadable stored time until Clear is
+    pressed (#82). `notified` resets only when the time changes. */
 export function buildReminderPatch(form: ReminderForm, reminder: Partial<Reminder>): ReminderPatch | 'bad-time' | null {
   const text = form.text.trim();
   if (!text) return null;
   let when: string | null = null;
   if (form.badInput) return 'bad-time';
+  if (!form.datetimeValue && !form.cleared && storedTimeUnreadable(reminder.when)) return 'bad-time';
   if (form.datetimeValue) {
     const d = fromLocalDatetimeValue(form.datetimeValue);
     if (!d || isNaN(d.getTime())) return 'bad-time';
@@ -142,14 +156,16 @@ export class CadenceReminderEditModal extends Modal {
     whenWrap.style.alignItems = 'center';
     const dateInput = whenWrap.createEl('input', { type: 'datetime-local', cls: 'cad-create-input' });
     dateInput.style.flex = '1';
-    if (this.reminder.when) {
-      const d = new Date(this.reminder.when);
-      if (!isNaN(d.getTime())) dateInput.value = toLocalDatetimeValue(d);
+    if (storedTimeUnreadable(this.reminder.when)) {
+      new Notice(unreadableStoredTimeMessage(this.reminder.when!));
+    } else if (this.reminder.when) {
+      dateInput.value = toLocalDatetimeValue(new Date(this.reminder.when));
     }
+    let cleared = false;
     const clearBtn = whenWrap.createEl('button', { cls: 'cad-btn cad-btn-sm', text: 'Clear' });
     clearBtn.type = 'button';
     clearBtn.title = 'Move to unscheduled';
-    clearBtn.addEventListener('click', () => { dateInput.value = ''; });
+    clearBtn.addEventListener('click', () => { dateInput.value = ''; cleared = true; });
 
     /* Repeat */
     const repeatRow = form.createDiv({ cls: 'cad-create-row' });
@@ -254,6 +270,7 @@ export class CadenceReminderEditModal extends Modal {
         repeat: repeatSel.value,
         datetimeValue: dateInput.value,
         badInput: dateInput.validity?.badInput,
+        cleared,
       }, { ...this.reminder, project: this.project });
       if (!fields) { textInput.focus(); return; }
       if (fields === 'bad-time') {

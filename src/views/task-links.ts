@@ -1,6 +1,7 @@
 import { Notice, SuggestModal, TFile, type App } from 'obsidian';
 import { ymd } from '../utils/dates';
 import { listEntityFiles, projectNameFromPath } from '../utils/entities';
+import { isRepeating } from '../utils/reminders';
 import { tickDailyTasks, tickProjectTasks, toggleDailyTaskByRef, type TaskRef } from '../utils/task-lines';
 import type { Reminder } from '../types/reminders';
 import type { AppViewHost, TaskCompleteSource } from './host';
@@ -93,7 +94,8 @@ export function openTaskProjectPicker(view: AppViewHost, dailyPath: string, text
 export interface PropagationTargets {
   /** The trimmed task text every target is matched on. */
   text: string;
-  /** Reminders whose done state changes (the source reminder excluded). */
+  /** Reminders whose done state changes (the source reminder excluded).
+      Completing, only the earliest open occurrence of a repeating text. */
   reminderIds: string[];
   /** Linked project paths, once each, the source project excluded: each
       matching reminder's project, then the project each considered daily
@@ -102,6 +104,12 @@ export interface PropagationTargets {
   /** Daily-note paths: today, each match's `when` and `createdAt` dates, and a
       daily source's date, once each, the source note excluded. */
   dailyPaths: string[];
+}
+
+/* A reminder's time for ordering occurrences; unscheduled or unreadable last. */
+function whenTime(r: Reminder): number {
+  const t = r.when ? new Date(r.when).getTime() : NaN;
+  return isNaN(t) ? Infinity : t;
 }
 
 /** The pure part of _propagateTaskComplete. Null for blank text. Its five
@@ -118,10 +126,24 @@ export function propagationTargets(
   source = source || ({} as TaskCompleteSource);
   const matches = reminders.filter((r) => r.text && r.text.trim() === t);
 
+  /* Completing, a repeating series has a fired occurrence and the next one
+     the ticker appended open under the same text. Only the earliest is the
+     one the tick is about, or none when the source is itself a repeating
+     match, so the series hands on from there (#102). */
+  const sourceId = source.kind === 'reminder' ? source.id : null;
+  let repeatingTarget: Reminder | null = null;
+  if (done && !matches.some((r) => r.id === sourceId && isRepeating(r.repeat))) {
+    for (const r of matches) {
+      if (r.done || !isRepeating(r.repeat) || r.id === sourceId) continue;
+      if (!repeatingTarget || whenTime(r) < whenTime(repeatingTarget)) repeatingTarget = r;
+    }
+  }
+
   const reminderIds: string[] = [];
   for (const r of matches) {
-    if (source.kind === 'reminder' && r.id === source.id) continue;
+    if (r.id === sourceId) continue;
     if (!!r.done === !!done) continue;
+    if (done && isRepeating(r.repeat) && r !== repeatingTarget) continue;
     reminderIds.push(r.id);
   }
 

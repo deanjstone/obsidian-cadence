@@ -271,6 +271,29 @@ describe("propagationTargets", () => {
     expect(propagationTargets("Ship", true, fromProject, [], "daily", NOW, links)!.projectPaths).toEqual([]);
   });
 
+  it("a tick completes only the earliest open repeating match, not the series' next occurrence (#102)", () => {
+    const fired = reminder("r1", "2026-10-10T08:00:00Z", { text: "Water plants", repeat: "daily", notified: true, advanced: true });
+    const next = reminder("r2", "2026-10-11T08:00:00Z", { text: "Water plants", repeat: "daily" });
+    const oneOff = reminder("r3", null, { text: "Water plants" });
+    expect(propagationTargets("Water plants", true, undefined, [next, fired, oneOff], "daily", NOW)!.reminderIds).toEqual(["r1", "r3"]);
+    expect(propagationTargets("Water plants", true, undefined, [next], "daily", NOW)!.reminderIds).toEqual(["r2"]);
+  });
+
+  it("a repeating reminder source is the occurrence the tick is about, so no other repeating match completes (#102)", () => {
+    const fired = reminder("r1", "2026-10-10T08:00:00Z", { text: "Water plants", repeat: "daily", notified: true, advanced: true });
+    const next = reminder("r2", "2026-10-11T08:00:00Z", { text: "Water plants", repeat: "daily" });
+    const oneOff = reminder("r3", null, { text: "Water plants" });
+    expect(propagationTargets("Water plants", true, { kind: "reminder", id: "r1" }, [fired, next, oneOff], "daily", NOW)!.reminderIds).toEqual(["r3"]);
+  });
+
+  it("un-ticking still reopens every done match, repeating or not", () => {
+    const rs = [
+      reminder("r1", "2026-10-10T08:00:00Z", { text: "Water plants", repeat: "daily", done: true }),
+      reminder("r2", "2026-10-11T08:00:00Z", { text: "Water plants", repeat: "daily", done: true }),
+    ];
+    expect(propagationTargets("Water plants", false, undefined, rs, "daily", NOW)!.reminderIds).toEqual(["r1", "r2"]);
+  });
+
   it("uses the passed clock for today's note", () => {
     expect(propagationTargets("Ship", true, undefined, [], "d", new Date("2027-01-02T10:00:00Z"))!.dailyPaths).toEqual(["d/2027-01-02.md"]);
   });
