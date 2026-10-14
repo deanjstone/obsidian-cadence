@@ -36,7 +36,6 @@ export function autoDetectCsvMapping(def: EntityDef | undefined, headers: string
   const synonyms: Record<string, string> = {
     'fullname': 'name', 'displayname': 'name', 'contact': 'name',
     'companyname': 'company', 'organisation': 'company', 'organization': 'company',
-    'phone': 'name', // not great — leave unmapped
     'mail': 'email', 'emailaddress': 'email',
     'amount': 'value', 'price': 'value', 'mrr': 'value', 'arr': 'value',
     'closedate': 'closeBy', 'expectedclose': 'closeBy',

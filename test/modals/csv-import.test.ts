@@ -73,8 +73,8 @@ describe("CadenceImportModal state", () => {
     });
   });
 
-  it("maps a Phone column to name for entities without a phone field (flagged synonym)", () => {
-    expect(modalWith("partner", "Phone\n").mapping).toEqual({ Phone: "name" });
+  it("maps a Phone column to phone where the entity has one, else leaves it unmapped (#93)", () => {
+    expect(modalWith("partner", "Phone\n").mapping).toEqual({ Phone: null });
     expect(modalWith("contact", "Phone\n").mapping).toEqual({ Phone: "phone" });
   });
 
