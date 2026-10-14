@@ -6581,11 +6581,16 @@ var import_obsidian21 = require("obsidian");
 // src/modals/reminder-edit.ts
 var import_obsidian20 = require("obsidian");
 var BAD_TIME_MESSAGE = "Couldn't read that time, so nothing was saved. Fix it, or Clear it to unschedule.";
+var unreadableStoredTimeMessage = (when) => `Couldn't read this reminder's time (${when}). Pick a time, or Clear it to unschedule.`;
+function storedTimeUnreadable(when) {
+  return !!when && isNaN(new Date(when).getTime());
+}
 function buildReminderPatch(form, reminder) {
   const text = form.text.trim();
   if (!text) return null;
   let when = null;
   if (form.badInput) return "bad-time";
+  if (!form.datetimeValue && !form.cleared && storedTimeUnreadable(reminder.when)) return "bad-time";
   if (form.datetimeValue) {
     const d = fromLocalDatetimeValue(form.datetimeValue);
     if (!d || isNaN(d.getTime())) return "bad-time";
@@ -6652,15 +6657,18 @@ var CadenceReminderEditModal = class extends import_obsidian20.Modal {
     whenWrap.style.alignItems = "center";
     const dateInput = whenWrap.createEl("input", { type: "datetime-local", cls: "cad-create-input" });
     dateInput.style.flex = "1";
-    if (this.reminder.when) {
-      const d = new Date(this.reminder.when);
-      if (!isNaN(d.getTime())) dateInput.value = toLocalDatetimeValue(d);
+    if (storedTimeUnreadable(this.reminder.when)) {
+      new import_obsidian20.Notice(unreadableStoredTimeMessage(this.reminder.when));
+    } else if (this.reminder.when) {
+      dateInput.value = toLocalDatetimeValue(new Date(this.reminder.when));
     }
+    let cleared = false;
     const clearBtn = whenWrap.createEl("button", { cls: "cad-btn cad-btn-sm", text: "Clear" });
     clearBtn.type = "button";
     clearBtn.title = "Move to unscheduled";
     clearBtn.addEventListener("click", () => {
       dateInput.value = "";
+      cleared = true;
     });
     const repeatRow = form.createDiv({ cls: "cad-create-row" });
     repeatRow.createDiv({ cls: "cad-create-label", text: "REPEAT" });
@@ -6756,7 +6764,8 @@ var CadenceReminderEditModal = class extends import_obsidian20.Modal {
         notes: notesArea.value,
         repeat: repeatSel.value,
         datetimeValue: dateInput.value,
-        badInput: dateInput.validity?.badInput
+        badInput: dateInput.validity?.badInput,
+        cleared
       }, { ...this.reminder, project: this.project });
       if (!fields) {
         textInput.focus();
@@ -9840,15 +9849,28 @@ function openTaskProjectPicker(view, dailyPath, text, currentLink) {
   }(view.app, projects, !!currentLink);
   picker.open();
 }
+function whenTime(r) {
+  const t = r.when ? new Date(r.when).getTime() : NaN;
+  return isNaN(t) ? Infinity : t;
+}
 function propagationTargets(text, done, source, reminders, dailyNoteFolder, now, taskProjectLinks = {}) {
   const t = String(text || "").trim();
   if (!t) return null;
   source = source || {};
   const matches = reminders.filter((r) => r.text && r.text.trim() === t);
+  const sourceId = source.kind === "reminder" ? source.id : null;
+  let repeatingTarget = null;
+  if (done && !matches.some((r) => r.id === sourceId && isRepeating(r.repeat))) {
+    for (const r of matches) {
+      if (r.done || !isRepeating(r.repeat) || r.id === sourceId) continue;
+      if (!repeatingTarget || whenTime(r) < whenTime(repeatingTarget)) repeatingTarget = r;
+    }
+  }
   const reminderIds = [];
   for (const r of matches) {
-    if (source.kind === "reminder" && r.id === source.id) continue;
+    if (r.id === sourceId) continue;
     if (!!r.done === !!done) continue;
+    if (done && isRepeating(r.repeat) && r !== repeatingTarget) continue;
     reminderIds.push(r.id);
   }
   const projectPaths = [];
