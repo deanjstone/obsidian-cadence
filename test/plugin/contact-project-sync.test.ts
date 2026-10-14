@@ -347,7 +347,7 @@ describe("a project note is deleted", () => {
     await app.vault.trigger("delete", new TFile(website.path));
     expect(fm(app, jane.path)).not.toHaveProperty("project");
     expect(fm(app, ola.path)?.project).toEqual(["[[Apollo]]", "[[Zeta]]"]);
-    expect(fm(app, "Cadence/Contacts/Lu.md")?.project).toBe("[[Apollo]]");
+    expect(fm(app, "Cadence/Contacts/Lu.md")?.project).toBe("Apollo");
     expect(app.fileManager.processed).toEqual([jane.path, ola.path, "Cadence/Contacts/Lu.md"]);
     expect(Notice.messages).toEqual([
       'Auto-link: project "Website relaunch" removed from contact "Jane Doe".',

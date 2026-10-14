@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   addProjectLink, appendProjectLink, collectValidLinks, contactProjectsPlan, extractEntitiesFromValue, isContactField,
-  isProjectField, noteLinks, projectLinkValue, removeProjectLink, writeProjectLinks, type SyncNote,
+  isProjectField, noteLinks, dropProjectLink, type SyncNote,
 } from "../../src/plugin/contact-project-sync";
 import type { EntityDef, Frontmatter } from "../../src/types/entities";
 
@@ -105,20 +105,6 @@ describe("collectValidLinks", () => {
 });
 
 describe("project link values", () => {
-  it("writes one link as a string, several as a list, none as null", () => {
-    expect(projectLinkValue([])).toBeNull();
-    expect(projectLinkValue(["Apollo"])).toBe("[[Apollo]]");
-    expect(projectLinkValue(["Apollo", "Zeta"])).toEqual(["[[Apollo]]", "[[Zeta]]"]);
-  });
-
-  it("writeProjectLinks sets the key, or deletes it for none", () => {
-    const fm: Frontmatter = { project: "x", name: "Jane" };
-    writeProjectLinks(fm, ["A"]);
-    expect(fm).toEqual({ project: "[[A]]", name: "Jane" });
-    writeProjectLinks(fm, []);
-    expect(fm).toEqual({ name: "Jane" });
-  });
-
   it("appendProjectLink appends a link to the raw value, keeping each item as typed", () => {
     expect(appendProjectLink(undefined, "Apollo")).toBe("[[Apollo]]");
     expect(appendProjectLink("", "Apollo")).toBe("[[Apollo]]");
@@ -135,8 +121,13 @@ describe("project link values", () => {
     expect(current).toEqual(["Apollo"]);
   });
 
-  it("removeProjectLink drops every case-insensitive match", () => {
-    expect(removeProjectLink(["Apollo", "apollo", "Zeta"], "APOLLO")).toEqual(["Zeta"]);
+  it("dropProjectLink drops every case-insensitive match from the raw value, keeping the rest as typed (#67)", () => {
+    expect(dropProjectLink(["Apollo", "apollo", "Zeta"], "APOLLO")).toEqual(["Zeta"]);
+    expect(dropProjectLink("website RELAUNCH, Apollo", "Website relaunch")).toBe("Apollo");
+    expect(dropProjectLink("Zeta, [[Old|the old one]], plain", "old")).toBe("Zeta, plain");
+    expect(dropProjectLink(["[[Apollo]]", "[[Website relaunch]]"], "Website relaunch")).toEqual(["[[Apollo]]"]);
+    expect(dropProjectLink(["[[Website relaunch]]"], "Website relaunch")).toBeNull();
+    expect(dropProjectLink("[[Website relaunch]]", "Website relaunch")).toBeNull();
   });
 });
 
