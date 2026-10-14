@@ -7,7 +7,7 @@ import { crmSummary, dealClosedAt, dealOutcome, dealValue, dealsByStage, linkedN
 import { entityValue, getDealStages, listEntities } from '../utils/entities';
 import { countLabel, fmtValue } from '../utils/format';
 import { parseSections } from '../utils/parsing';
-import { countTaskLines } from '../utils/task-lines';
+import { countTaskLines, withoutBlankTasks } from '../utils/task-lines';
 import type { DashCardRow, MiniStat, StatCard } from './components/cards';
 import type { AppViewHost } from './host';
 
@@ -429,7 +429,7 @@ export interface ProductivityReport {
 
 /* The report over the daily notes, given each existing note's content by
    its `ymd` date. Every count reads a task line's own leading box
-   (`countTaskLines`). */
+   (`countTaskLines`), skipping the template's bare `- [ ] ` line (#86). */
 export function productivityReport(notes: Map<string, string>, now: Date, settings: ProductivitySettings): ProductivityReport {
   const today = startOfDay(now);
   const days = Array.from({ length: 30 }, (_, i) => addDays(today, -i));
@@ -443,7 +443,7 @@ export function productivityReport(notes: Map<string, string>, now: Date, settin
     if (c !== undefined) {
       hasNote = true;
       const p = parseSections(c, settings);
-      ({ open, done } = countTaskLines(p.tasks));
+      ({ open, done } = countTaskLines(withoutBlankTasks(p.tasks)));
       jChars = (p.journal || '').length;
     }
     perDay.push({ date: d, open, done, jChars, hasNote });
@@ -469,7 +469,7 @@ export function productivityReport(notes: Map<string, string>, now: Date, settin
       if (d.getTime() > today.getTime()) break;
       const c = notes.get(ymd(d));
       if (c !== undefined) {
-        const counts = countTaskLines(parseSections(c, settings).tasks);
+        const counts = countTaskLines(withoutBlankTasks(parseSections(c, settings).tasks));
         wd += counts.done;
         wo += counts.open;
       }

@@ -1190,8 +1190,6 @@ function autoDetectCsvMapping(def, headers) {
     "companyname": "company",
     "organisation": "company",
     "organization": "company",
-    "phone": "name",
-    // not great — leave unmapped
     "mail": "email",
     "emailaddress": "email",
     "amount": "value",
@@ -6669,11 +6667,16 @@ var import_obsidian21 = require("obsidian");
 // src/modals/reminder-edit.ts
 var import_obsidian20 = require("obsidian");
 var BAD_TIME_MESSAGE = "Couldn't read that time, so nothing was saved. Fix it, or Clear it to unschedule.";
+var unreadableStoredTimeMessage = (when) => `Couldn't read this reminder's time (${when}). Pick a time, or Clear it to unschedule.`;
+function storedTimeUnreadable(when) {
+  return !!when && isNaN(new Date(when).getTime());
+}
 function buildReminderPatch(form, reminder) {
   const text = form.text.trim();
   if (!text) return null;
   let when = null;
   if (form.badInput) return "bad-time";
+  if (!form.datetimeValue && !form.cleared && storedTimeUnreadable(reminder.when)) return "bad-time";
   if (form.datetimeValue) {
     const d = fromLocalDatetimeValue(form.datetimeValue);
     if (!d || isNaN(d.getTime())) return "bad-time";
@@ -6740,15 +6743,18 @@ var CadenceReminderEditModal = class extends import_obsidian20.Modal {
     whenWrap.style.alignItems = "center";
     const dateInput = whenWrap.createEl("input", { type: "datetime-local", cls: "cad-create-input" });
     dateInput.style.flex = "1";
-    if (this.reminder.when) {
-      const d = new Date(this.reminder.when);
-      if (!isNaN(d.getTime())) dateInput.value = toLocalDatetimeValue(d);
+    if (storedTimeUnreadable(this.reminder.when)) {
+      new import_obsidian20.Notice(unreadableStoredTimeMessage(this.reminder.when));
+    } else if (this.reminder.when) {
+      dateInput.value = toLocalDatetimeValue(new Date(this.reminder.when));
     }
+    let cleared = false;
     const clearBtn = whenWrap.createEl("button", { cls: "cad-btn cad-btn-sm", text: "Clear" });
     clearBtn.type = "button";
     clearBtn.title = "Move to unscheduled";
     clearBtn.addEventListener("click", () => {
       dateInput.value = "";
+      cleared = true;
     });
     const repeatRow = form.createDiv({ cls: "cad-create-row" });
     repeatRow.createDiv({ cls: "cad-create-label", text: "REPEAT" });
@@ -6844,7 +6850,8 @@ var CadenceReminderEditModal = class extends import_obsidian20.Modal {
         notes: notesArea.value,
         repeat: repeatSel.value,
         datetimeValue: dateInput.value,
-        badInput: dateInput.validity?.badInput
+        badInput: dateInput.validity?.badInput,
+        cleared
       }, { ...this.reminder, project: this.project });
       if (!fields) {
         textInput.focus();
@@ -9669,7 +9676,7 @@ function productivityReport(notes, now, settings) {
     if (c !== void 0) {
       hasNote = true;
       const p = parseSections(c, settings);
-      ({ open, done } = countTaskLines(p.tasks));
+      ({ open, done } = countTaskLines(withoutBlankTasks(p.tasks)));
       jChars = (p.journal || "").length;
     }
     perDay.push({ date: d, open, done, jChars, hasNote });
@@ -9695,7 +9702,7 @@ function productivityReport(notes, now, settings) {
       if (d.getTime() > today.getTime()) break;
       const c = notes.get(ymd(d));
       if (c !== void 0) {
-        const counts = countTaskLines(parseSections(c, settings).tasks);
+        const counts = countTaskLines(withoutBlankTasks(parseSections(c, settings).tasks));
         wd += counts.done;
         wo += counts.open;
       }
@@ -9940,15 +9947,28 @@ function openTaskProjectPicker(view, dailyPath, text, currentLink) {
   }(view.app, projects, !!currentLink);
   picker.open();
 }
+function whenTime(r) {
+  const t = r.when ? new Date(r.when).getTime() : NaN;
+  return isNaN(t) ? Infinity : t;
+}
 function propagationTargets(text, done, source, reminders, dailyNoteFolder, now, taskProjectLinks = {}) {
   const t = String(text || "").trim();
   if (!t) return null;
   source = source || {};
   const matches = reminders.filter((r) => r.text && r.text.trim() === t);
+  const sourceId = source.kind === "reminder" ? source.id : null;
+  let repeatingTarget = null;
+  if (done && !matches.some((r) => r.id === sourceId && isRepeating(r.repeat))) {
+    for (const r of matches) {
+      if (r.done || !isRepeating(r.repeat) || r.id === sourceId) continue;
+      if (!repeatingTarget || whenTime(r) < whenTime(repeatingTarget)) repeatingTarget = r;
+    }
+  }
   const reminderIds = [];
   for (const r of matches) {
-    if (source.kind === "reminder" && r.id === source.id) continue;
+    if (r.id === sourceId) continue;
     if (!!r.done === !!done) continue;
+    if (done && isRepeating(r.repeat) && r !== repeatingTarget) continue;
     reminderIds.push(r.id);
   }
   const projectPaths = [];
@@ -10596,9 +10616,9 @@ function renderTemplateSectionWithDelete(view, parent, file, sections, rawKey, f
   delBtn.addEventListener("click", async (ev) => {
     ev.stopPropagation();
     const propagates = entityKey !== "daily";
-    const usedFiles = propagates ? await view._getFilesUsingTemplateSection(entityKey, rawKey) : [];
-    if (!confirm(deleteSectionMessage(cleanLabel, usedFiles.map((f) => f.basename)))) return;
     const curContent = await view.app.vault.read(file);
+    const usedFiles = propagates ? await view._getFilesUsingTemplateSection(entityKey, rawKey, curContent) : [];
+    if (!confirm(deleteSectionMessage(cleanLabel, usedFiles.map((f) => f.basename)))) return;
     const nextContent = removeTemplateSection(curContent, rawKey);
     if (nextContent !== null) {
       await view.app.vault.modify(file, nextContent);
@@ -10608,13 +10628,15 @@ function renderTemplateSectionWithDelete(view, parent, file, sections, rawKey, f
     }
   });
 }
-async function getFilesUsingTemplateSection(view, entityKey, rawKey) {
+async function getFilesUsingTemplateSection(view, entityKey, rawKey, templateContent) {
   const files = view._getEntityFiles(entityKey);
   const notes = [];
   for (const file of files) {
     notes.push({ file, content: await view.app.vault.read(file) });
   }
-  return filesUsingTemplateSection(notes, rawKey);
+  const defaultContent = entityKey === "daily" ? DAILY_TEMPLATE_CONTENT : entityKey in ENTITIES ? defaultTemplateContent(entityKey) : "";
+  const untouched = [defaultContent, templateContent ?? ""].flatMap((c) => templateSectionBodies(c, rawKey));
+  return filesUsingTemplateSection(notes, rawKey, untouched);
 }
 async function propagateTemplateSectionAdd(view, entityKey, cleanTitle, tag, defaultBody = "") {
   const files = view._getEntityFiles(entityKey);
@@ -10763,16 +10785,23 @@ var TEMPLATE_PLACEHOLDER_PATTERNS = [
 function isPlaceholderBody(body) {
   return TEMPLATE_PLACEHOLDERS.some((p) => body.startsWith(p)) || TEMPLATE_PLACEHOLDER_PATTERNS.some((p) => p.test(body));
 }
-function sectionInUse(content, sectionKey) {
+function normalizedBody(body) {
+  return body.split("\n").map((l) => l.trimEnd()).join("\n").trim();
+}
+function templateSectionBodies(content, sectionKey) {
   const target = parseHeaderKey(sectionKey);
   const sections = parseH2Sections(content);
-  return Object.keys(sections).filter((k) => sameSection(k, target)).some((k) => {
-    const body = (sections[k] || "").trim();
-    return !!body && !isPlaceholderBody(body);
+  return Object.keys(sections).filter((k) => sameSection(k, target)).map((k) => sections[k] || "");
+}
+function sectionInUse(content, sectionKey, untouchedBodies = []) {
+  const untouched = new Set(untouchedBodies.map(normalizedBody));
+  return templateSectionBodies(content, sectionKey).some((raw) => {
+    const body = normalizedBody(raw);
+    return !!body && !isPlaceholderBody(body) && !untouched.has(body);
   });
 }
-function filesUsingTemplateSection(notes, sectionKey) {
-  return notes.filter((n) => sectionInUse(n.content, sectionKey)).map((n) => n.file);
+function filesUsingTemplateSection(notes, sectionKey, untouchedBodies = []) {
+  return notes.filter((n) => sectionInUse(n.content, sectionKey, untouchedBodies)).map((n) => n.file);
 }
 
 // src/views/today.ts
@@ -11521,8 +11550,8 @@ var CadenceAppView = class extends import_obsidian31.ItemView {
   _getEntityFiles(entityKey) {
     return getEntityFiles(this, entityKey);
   }
-  _getFilesUsingTemplateSection(entityKey, rawKey) {
-    return getFilesUsingTemplateSection(this, entityKey, rawKey);
+  _getFilesUsingTemplateSection(entityKey, rawKey, templateContent) {
+    return getFilesUsingTemplateSection(this, entityKey, rawKey, templateContent);
   }
   _propagateTemplateSectionAdd(entityKey, cleanTitle, tag, defaultBody) {
     return propagateTemplateSectionAdd(this, entityKey, cleanTitle, tag, defaultBody);

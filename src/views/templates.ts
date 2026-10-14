@@ -429,10 +429,10 @@ export function renderTemplateSectionWithDelete(
     /* A daily-template delete changes the template only: daily notes are
        never rewritten (owner decision on #43), so there is nothing to warn about. */
     const propagates = entityKey !== 'daily';
-    const usedFiles = propagates ? await view._getFilesUsingTemplateSection(entityKey, rawKey) : [];
+    const curContent = await view.app.vault.read(file);
+    const usedFiles = propagates ? await view._getFilesUsingTemplateSection(entityKey, rawKey, curContent) : [];
     if (!confirm(deleteSectionMessage(cleanLabel, usedFiles.map(f => f.basename)))) return;
 
-    const curContent = await view.app.vault.read(file);
     const nextContent = removeTemplateSection(curContent, rawKey);
     if (nextContent !== null) {
       await view.app.vault.modify(file, nextContent);
@@ -443,13 +443,22 @@ export function renderTemplateSectionWithDelete(
   });
 }
 
-export async function getFilesUsingTemplateSection(view: AppViewHost, entityKey: EntityKey | 'daily', rawKey: string): Promise<TFile[]> {
+/* The notes whose section has content. A body equal to the section's body
+   in the default template, or in `templateContent` (the template as it is
+   now), is untouched and doesn't count (#63). */
+export async function getFilesUsingTemplateSection(
+  view: AppViewHost, entityKey: EntityKey | 'daily', rawKey: string, templateContent?: string,
+): Promise<TFile[]> {
   const files = view._getEntityFiles(entityKey);
   const notes: Array<TemplateNote<TFile>> = [];
   for (const file of files) {
     notes.push({ file, content: await view.app.vault.read(file) });
   }
-  return filesUsingTemplateSection(notes, rawKey);
+  const defaultContent = entityKey === 'daily' ? DAILY_TEMPLATE_CONTENT
+    : entityKey in ENTITIES ? defaultTemplateContent(entityKey) : '';
+  const untouched = [defaultContent, templateContent ?? '']
+    .flatMap(c => templateSectionBodies(c, rawKey));
+  return filesUsingTemplateSection(notes, rawKey, untouched);
 }
 
 export async function propagateTemplateSectionAdd(
@@ -663,13 +672,27 @@ function isPlaceholderBody(body: string): boolean {
     || TEMPLATE_PLACEHOLDER_PATTERNS.some(p => p.test(body));
 }
 
-/* Does the note have the same section (name and tag) with real content? */
-export function sectionInUse(content: string, sectionKey: string): boolean {
+/* A section body compared line by line without trailing whitespace, so a
+   `- ` skeleton line an editor trimmed to `-` still matches. */
+function normalizedBody(body: string): string {
+  return body.split('\n').map(l => l.trimEnd()).join('\n').trim();
+}
+
+/* The bodies of the content's sections that match the key (name and tag). */
+export function templateSectionBodies(content: string, sectionKey: string): string[] {
   const target = parseHeaderKey(sectionKey);
   const sections = parseH2Sections(content);
-  return Object.keys(sections).filter(k => sameSection(k, target)).some((k) => {
-    const body = (sections[k] || '').trim();
-    return !!body && !isPlaceholderBody(body);
+  return Object.keys(sections).filter(k => sameSection(k, target)).map(k => sections[k] || '');
+}
+
+/* Does the note have the same section (name and tag) with real content?
+   A placeholder body, or one equal to any of `untouchedBodies` (the
+   template's own body for the section), is not content. */
+export function sectionInUse(content: string, sectionKey: string, untouchedBodies: string[] = []): boolean {
+  const untouched = new Set(untouchedBodies.map(normalizedBody));
+  return templateSectionBodies(content, sectionKey).some((raw) => {
+    const body = normalizedBody(raw);
+    return !!body && !isPlaceholderBody(body) && !untouched.has(body);
   });
 }
 
@@ -680,6 +703,6 @@ export interface TemplateNote<F> {
 }
 
 /* The notes whose section has content, in the order given. */
-export function filesUsingTemplateSection<F>(notes: Array<TemplateNote<F>>, sectionKey: string): F[] {
-  return notes.filter(n => sectionInUse(n.content, sectionKey)).map(n => n.file);
+export function filesUsingTemplateSection<F>(notes: Array<TemplateNote<F>>, sectionKey: string, untouchedBodies: string[] = []): F[] {
+  return notes.filter(n => sectionInUse(n.content, sectionKey, untouchedBodies)).map(n => n.file);
 }

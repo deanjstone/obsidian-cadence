@@ -637,7 +637,7 @@ export class CadenceAppView extends ItemView implements AppViewHost {
 
   _getEntityFiles(entityKey: EntityKey | 'daily') { return getEntityFiles(this, entityKey); }
 
-  _getFilesUsingTemplateSection(entityKey: EntityKey | 'daily', rawKey: string) { return getFilesUsingTemplateSection(this, entityKey, rawKey); }
+  _getFilesUsingTemplateSection(entityKey: EntityKey | 'daily', rawKey: string, templateContent?: string) { return getFilesUsingTemplateSection(this, entityKey, rawKey, templateContent); }
 
   _propagateTemplateSectionAdd(entityKey: EntityKey | 'daily', cleanTitle: string, tag: string, defaultBody?: string) { return propagateTemplateSectionAdd(this, entityKey, cleanTitle, tag, defaultBody); }
 

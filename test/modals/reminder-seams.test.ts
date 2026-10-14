@@ -61,6 +61,13 @@ describe("buildReminderPatch", () => {
   it("refuses a half-typed time (blank value, badInput) instead of unscheduling", () => {
     expect(buildReminderPatch(form({ datetimeValue: "", badInput: true }), reminder)).toBe("bad-time");
   });
+
+  it("refuses a blank time over an unreadable stored time until Clear is pressed (#82)", () => {
+    const unreadable = { ...reminder, when: "soon" };
+    expect(buildReminderPatch(form({ datetimeValue: "" }), unreadable)).toBe("bad-time");
+    expect(buildReminderPatch(form({ datetimeValue: "", cleared: true }), unreadable)).toMatchObject({ when: null, notified: false });
+    expect(buildReminderPatch(form(), unreadable)).toMatchObject({ when: "2026-10-09T09:30:00.000Z", notified: false });
+  });
 });
 
 describe("filterReminderProjects", () => {

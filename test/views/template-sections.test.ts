@@ -177,6 +177,17 @@ describe("_renderTemplateSectionWithDelete: × delete", () => {
     expect(rendered).not.toHaveBeenCalled();
   });
 
+  it("a note whose section still holds this template's own body is not named (#63)", async () => {
+    const confirm = vi.fn(() => false);
+    vi.stubGlobal("confirm", confirm);
+    const { draw } = setup([note("Ann", "## Tasks #tasks\n- [ ] a\n"), note("Bob", "## Tasks #tasks\n- [ ] a\n- [ ] b\n")]);
+    delButton(draw("Tasks #tasks")).trigger("click");
+    await flush();
+    expect(confirm.mock.calls).toEqual([
+      ['Warning: The section "Tasks" has active content in the following files:\nBob\n\nAre you sure you want to delete it from the template?'],
+    ]);
+  });
+
   it("warns with the names of notes whose section has content", async () => {
     const confirm = vi.fn(() => false);
     vi.stubGlobal("confirm", confirm);
@@ -335,7 +346,7 @@ describe("_getFilesUsingTemplateSection", () => {
     expect(await view._getFilesUsingTemplateSection("Contacts", "Bio")).toEqual([]);
   });
 
-  it("over notes made fresh from each of the 12 default templates, only these untouched sections still count as content", async () => {
+  it("over notes made fresh from each of the 12 default templates, no untouched section counts as content", async () => {
     const made = makeAppView();
     await ensureDefaultTemplates(made.app as Any);
     const templates = made.app.vault.getFiles().filter((f) => f.path.startsWith(`${T}/`));
@@ -352,12 +363,23 @@ describe("_getFilesUsingTemplateSection", () => {
         if (files.length) (used[key] ??= []).push(rawKey);
       }
     }
-    /* Not fixed by #43 row 6: contact's starter task and project's Scope,
-       Risks and Stakeholders skeletons (tracked in a follow-up issue). */
-    expect(used).toEqual({
-      contact: ["Tasks #tasks"],
-      project: ["Scope", "Risks", "Stakeholders"],
-    });
+    expect(used).toEqual({});
+  });
+
+  it("a section edited from its default body counts: Scope, Risks, Stakeholders and the contact's starter task (#63)", async () => {
+    const { view } = makeAppView({
+      files: [
+        { path: "Cadence/Projects/A.md", body: "## Scope\n**In scope:**\n- Website\n\n**Out of scope:**\n- \n\n## Risks\n- Budget\n" },
+        { path: "Cadence/Projects/B.md", body: "## Scope\n**In scope:**\n-\n\n**Out of scope:**\n-\n\n## Risks\n-\n" },
+        { path: `${C}/Ann.md`, body: "## Tasks #tasks\n- [ ] Follow up in 2 weeks\n- [ ] Send deck\n" },
+        { path: `${C}/Bob.md`, body: "## Tasks #tasks\n- [x] Follow up in 2 weeks\n" },
+        { path: `${C}/Cy.md`, body: "## Tasks #tasks\n- [ ] Follow up in 2 weeks\n" },
+      ],
+    }) as Any;
+    const paths = (files: Any[]) => files.map((f) => f.path);
+    expect(paths(await view._getFilesUsingTemplateSection("project", "Scope"))).toEqual(["Cadence/Projects/A.md"]);
+    expect(paths(await view._getFilesUsingTemplateSection("project", "Risks"))).toEqual(["Cadence/Projects/A.md"]);
+    expect(paths(await view._getFilesUsingTemplateSection("contact", "Tasks #tasks"))).toEqual([`${C}/Ann.md`, `${C}/Bob.md`]);
   });
 });
 

@@ -200,7 +200,7 @@ export interface AppViewHost {
     parent: HTMLElement, file: TFile, sections: Record<string, string>, rawKey: string, flashSaved?: FlashSaved,
   ): void;
   /** The entity's notes whose same-named section has non-placeholder content. */
-  _getFilesUsingTemplateSection(entityKey: EntityKey | 'daily', rawKey: string): Promise<TFile[]>;
+  _getFilesUsingTemplateSection(entityKey: EntityKey | 'daily', rawKey: string, templateContent?: string): Promise<TFile[]>;
   _propagateTemplateSectionAdd(entityKey: EntityKey | 'daily', cleanTitle: string, tag: string, defaultBody?: string): Promise<void>;
   _propagateTemplateSectionDelete(entityKey: EntityKey | 'daily', rawKey: string): Promise<void>;
 
