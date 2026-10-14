@@ -727,10 +727,6 @@ function parseTasksList(text) {
     title: l.replace(/^\s*-\s\[(x|X| )\]\s/, "")
   }));
 }
-function stringifyTasks(items) {
-  if (!items || !items.length) return "";
-  return items.map((t) => `${t.done ? "- [x] " : "- [ ] "}${t.title || ""}`).join("\n");
-}
 function parseSections(content, settings) {
   const lines = content.split("\n");
   const tasks = [];
@@ -1580,19 +1576,6 @@ function collectValidLinks(notes, contactNames, projectNames, entities) {
   }
   return validLinks;
 }
-function projectLinkValue(names) {
-  if (names.length === 0) return null;
-  if (names.length === 1) return `[[${names[0]}]]`;
-  return names.map((p) => `[[${p}]]`);
-}
-function writeProjectLinks(fm, names) {
-  const value = projectLinkValue(names);
-  if (value === null) {
-    delete fm.project;
-  } else {
-    fm.project = value;
-  }
-}
 function addProjectLink(current, projectName) {
   if (current.some((p) => p.toLowerCase() === projectName.toLowerCase())) return current;
   return [...current, projectName];
@@ -1608,8 +1591,17 @@ function appendProjectLink(value, projectName) {
   const items = [...projectItems(value), `[[${projectName}]]`];
   return items.length === 1 ? items[0] : items;
 }
-function removeProjectLink(current, projectName) {
-  return current.filter((p) => p.toLowerCase() !== projectName.toLowerCase());
+function dropProjectLink(value, projectName) {
+  const target = projectName.toLowerCase();
+  const isTarget = (name) => name.toLowerCase() === target;
+  const items = projectItems(value).flatMap((item) => {
+    if (!extractEntitiesFromValue(item).some(isTarget)) return [item];
+    if (!item.includes("[[")) return [];
+    const rest = item.replace(/\[\[(.*?)\]\]/g, (link, inner) => isTarget(inner.split("|")[0].trim()) ? "" : link).trim();
+    return rest ? [rest] : [];
+  });
+  if (!items.length) return null;
+  return Array.isArray(value) ? items : items.join(", ");
 }
 function contactProjectsPlan(existing, backed) {
   const added = backed.filter((p) => !existing.some((ep) => ep.toLowerCase() === p.toLowerCase()));
@@ -1718,9 +1710,10 @@ async function handleProjectDeletion(plugin, file) {
       const existingProjectNames = extractEntitiesFromValue(existingProjectsVal);
       const hasProject = existingProjectNames.some((p) => p.toLowerCase() === projectName.toLowerCase());
       if (hasProject) {
-        const remainingProjects = removeProjectLink(existingProjectNames, projectName);
+        const remaining2 = dropProjectLink(existingProjectsVal, projectName);
         await plugin.app.fileManager.processFrontMatter(contactFile, (cfm) => {
-          writeProjectLinks(cfm, remainingProjects);
+          if (remaining2 === null) delete cfm.project;
+          else cfm.project = remaining2;
         });
         new import_obsidian4.Notice(`Auto-link: project "${projectName}" removed from contact "${contactFile.basename}".`);
       }
@@ -3886,22 +3879,117 @@ function toggleDailyTaskByRef(content, settings, ref, checked) {
 }
 function toggleProjectTaskByRef(content, rawKey, ref, checked) {
   const lines = content.split("\n");
-  const isHeading = (line) => /^##\s/.test(line);
-  const start = lines.map((line) => isHeading(line) && line.replace(/^##\s+/, "").trim() === rawKey).lastIndexOf(true);
-  if (start === -1) return null;
-  const indexes = [];
-  for (let i = start + 1; i < lines.length && !isHeading(lines[i]); i++) {
-    if (TASK_PREFIX.test(lines[i])) indexes.push(i);
-  }
-  const at = findTaskLine(indexes.map((i) => lines[i]), ref);
-  if (at === -1) return null;
-  const toggled = toggleTaskLine(lines, indexes[at], checked);
+  const lineIdx = projectTaskLineIndex(lines, rawKey, ref);
+  if (lineIdx === -1) return null;
+  const toggled = toggleTaskLine(lines, lineIdx, checked);
   return { content: toggled.tasks.join("\n"), taskText: toggled.taskText };
 }
+var isH2 = (line) => /^##\s/.test(line);
+function sectionEnd(lines, start) {
+  let end = start + 1;
+  while (end < lines.length && !isH2(lines[end])) end++;
+  return { start, end };
+}
+function projectSection(lines, rawKey) {
+  const start = lines.map((line) => isH2(line) && line.replace(/^##\s+/, "").trim() === rawKey).lastIndexOf(true);
+  return start === -1 ? null : sectionEnd(lines, start);
+}
+function checklistIndexes(lines, { start, end }) {
+  const indexes = [];
+  for (let i = start + 1; i < end; i++) if (TASK_PREFIX.test(lines[i])) indexes.push(i);
+  return indexes;
+}
+var isIndentedNote = (line) => /^[ \t]/.test(line) && !!line.trim() && !TASK_PREFIX.test(line);
+function insertionIndex(lines, bounds) {
+  const last = checklistIndexes(lines, bounds).pop();
+  if (last === void 0) return bounds.start + 1;
+  let at = last + 1;
+  while (at < bounds.end && isIndentedNote(lines[at])) at++;
+  return at;
+}
+function insertLine(content, bounds, heading, line) {
+  if (!bounds) return appendSection(content, heading, line);
+  const lines = content.split("\n");
+  lines.splice(insertionIndex(lines, bounds), 0, line);
+  return lines.join("\n");
+}
 function appendDailyTask(content, settings, text) {
-  const parsed = parseSections(content, settings);
-  const newTasks = [...parsed.tasks, `- [ ] ${text}`];
-  return replaceSection(content, settings.tasksHeading, newTasks.join("\n"));
+  const lines = content.split("\n");
+  const start = lines.findIndex((l) => l.trim() === settings.tasksHeading);
+  return insertLine(content, start === -1 ? null : sectionEnd(lines, start), settings.tasksHeading, `- [ ] ${text}`);
+}
+function projectTaskLineIndex(lines, rawKey, ref) {
+  const bounds = projectSection(lines, rawKey);
+  if (!bounds) return -1;
+  const indexes = checklistIndexes(lines, bounds);
+  const at = findTaskLine(indexes.map((i) => lines[i]), ref);
+  return at === -1 ? -1 : indexes[at];
+}
+function editProjectTaskByRef(content, rawKey, ref, title) {
+  const lines = content.split("\n");
+  const i = projectTaskLineIndex(lines, rawKey, ref);
+  if (i === -1) return null;
+  lines[i] = lines[i].match(TASK_PREFIX)[0] + title;
+  return lines.join("\n");
+}
+function removeProjectTaskByRef(content, rawKey, ref) {
+  const lines = content.split("\n");
+  const i = projectTaskLineIndex(lines, rawKey, ref);
+  if (i === -1) return null;
+  lines.splice(i, 1);
+  return lines.join("\n");
+}
+function appendProjectTask(content, rawKey, title = "") {
+  return insertLine(content, projectSection(content.split("\n"), rawKey), `## ${rawKey}`, `- [ ] ${title}`);
+}
+function milestoneKey(m) {
+  const date = m.date instanceof Date && !isNaN(m.date.getTime()) ? ymd(m.date) : "";
+  return `${m.done ? "x" : " "}|${date}|${(m.title || "").trim()}`;
+}
+function milestoneRefAt(items, idx) {
+  const item = items[idx];
+  if (item === void 0) return null;
+  const key = milestoneKey(item);
+  return { key, occurrence: items.slice(0, idx).filter((m) => milestoneKey(m) === key).length };
+}
+function findMilestone(lines, rawKey, ref) {
+  const bounds = projectSection(lines, rawKey);
+  if (!bounds) return null;
+  const heads = checklistIndexes(lines, bounds);
+  let seen = 0;
+  for (let h = 0; h < heads.length; h++) {
+    const next = h + 1 < heads.length ? heads[h + 1] : bounds.end;
+    const noteLines = [];
+    for (let i = heads[h] + 1; i < next; i++) if (isIndentedNote(lines[i])) noteLines.push(i);
+    const parsed = parseMilestones([heads[h], ...noteLines].map((i) => lines[i]).join("\n"))[0];
+    if (milestoneKey(parsed) !== ref.key) continue;
+    if (seen === ref.occurrence) return { head: heads[h], noteLines, parsed };
+    seen++;
+  }
+  return null;
+}
+function editMilestoneByRef(content, rawKey, ref, next) {
+  const lines = content.split("\n");
+  const found = findMilestone(lines, rawKey, ref);
+  if (!found) return null;
+  const indent = lines[found.head].match(/^\s*/)[0];
+  const [head, ...notes] = stringifyMilestones([next]).split("\n");
+  lines[found.head] = indent + head;
+  if ((next.notes || "") !== found.parsed.notes) {
+    for (const i of [...found.noteLines].reverse()) lines.splice(i, 1);
+    lines.splice(found.head + 1, 0, ...notes);
+  }
+  return lines.join("\n");
+}
+function removeMilestoneByRef(content, rawKey, ref) {
+  const lines = content.split("\n");
+  const found = findMilestone(lines, rawKey, ref);
+  if (!found) return null;
+  for (const i of [...found.noteLines, found.head].sort((a, b) => b - a)) lines.splice(i, 1);
+  return lines.join("\n");
+}
+function appendMilestone(content, rawKey, m) {
+  return insertLine(content, projectSection(content.split("\n"), rawKey), `## ${rawKey}`, stringifyMilestones([m]));
 }
 function replaceJournal(content, settings, body) {
   return replaceSection(content, settings.journalHeading, body || "");
@@ -8060,10 +8148,6 @@ function milestoneDateFromInput(value) {
 function milestoneNotesFromInput(value) {
   return value.trim() ? value : "";
 }
-function commitMilestones(content, items, rawKey = "Milestones") {
-  const body = stringifyMilestones(items);
-  return replaceSection(content, `## ${rawKey}`, body || "");
-}
 function updateItem(items, idx, patch) {
   return items.map((item, i) => i === idx ? { ...item, ...patch } : item);
 }
@@ -8080,10 +8164,6 @@ function taskCardTitle(rawKey, tasks) {
 }
 function taskNotesItems(tasks) {
   return tasks.map((t) => ({ done: t.done, title: t.title }));
-}
-function commitTasks(content, items, rawKey = "Tasks") {
-  const body = stringifyTasks(items);
-  return replaceSection(content, `## ${rawKey}`, body || "");
 }
 function addTask(items) {
   return [...items, { done: false, title: "" }];
@@ -8315,8 +8395,8 @@ function renderMilestoneSection(view, parent, file, milestones, flashSaved, rawK
       const cb = row.createEl("input", { type: "checkbox" });
       cb.checked = !!m.done;
       cb.addEventListener("change", async () => {
-        if (!mile.patch({ done: cb.checked })) return;
-        await view._commitMilestones(file, items, flashSaved, false, rawKey);
+        if (!await editMilestoneRow(view, file, items, mile, { done: cb.checked }, flashSaved, rawKey)) return;
+        view.render();
       });
       const dateInp = row.createEl("input", { type: "date", cls: "cad-pd-mile-date" });
       const dateValue = milestoneDateValue(m.date);
@@ -8325,8 +8405,7 @@ function renderMilestoneSection(view, parent, file, milestones, flashSaved, rawK
       dateInp.addEventListener("input", () => {
         clearTimeout(dt);
         dt = setTimeout(async () => {
-          if (!mile.patch({ date: milestoneDateFromInput(dateInp.value) })) return;
-          await view._commitMilestones(file, items, flashSaved, true, rawKey);
+          await editMilestoneRow(view, file, items, mile, { date: milestoneDateFromInput(dateInp.value) }, flashSaved, rawKey);
         }, 350);
       });
       const titleInp = row.createEl("input", { type: "text", cls: "cad-pd-mile-title" });
@@ -8336,15 +8415,17 @@ function renderMilestoneSection(view, parent, file, milestones, flashSaved, rawK
       titleInp.addEventListener("input", () => {
         clearTimeout(tt);
         tt = setTimeout(async () => {
-          if (!mile.patch({ title: titleInp.value })) return;
-          await view._commitMilestones(file, items, flashSaved, true, rawKey);
+          await editMilestoneRow(view, file, items, mile, { title: titleInp.value }, flashSaved, rawKey);
         }, 400);
       });
       const del = row.createEl("button", { cls: "cad-btn cad-btn-sm cad-btn-danger", text: "\xD7" });
       del.title = "Delete milestone";
       del.addEventListener("click", async () => {
-        if (!mile.remove()) return;
-        await view._commitMilestones(file, items, flashSaved, false, rawKey);
+        const ref = milestoneRefAt(items, mile.index());
+        if (!ref) return;
+        if (!await writeRow(view, file, (c) => removeMilestoneByRef(c, rawKey, ref), MILESTONE_CHANGED, flashSaved)) return;
+        mile.remove();
+        view.render();
       });
       const notesEl = wrapper.createDiv({ cls: "cad-mile-notes-section" });
       const renderNotesIdle = () => {
@@ -8377,8 +8458,7 @@ function renderMilestoneSection(view, parent, file, milestones, flashSaved, rawK
         const saveNotes = async () => {
           const notes = milestoneNotesFromInput(ta.value);
           if (notes === (mile.item()?.notes || "")) return;
-          if (!mile.patch({ notes })) return;
-          await view._commitMilestones(file, items, flashSaved, true, rawKey);
+          await editMilestoneRow(view, file, items, mile, { notes }, flashSaved, rawKey);
         };
         ta.addEventListener("input", () => {
           autosize();
@@ -8400,16 +8480,42 @@ function renderMilestoneSection(view, parent, file, milestones, flashSaved, rawK
   };
   renderRows(milestones);
   addBtn.addEventListener("click", async () => {
-    replaceItems(milestones, addMilestone(milestones, /* @__PURE__ */ new Date()));
-    await view._commitMilestones(file, milestones, flashSaved, false, rawKey);
+    const next = addMilestone(milestones, /* @__PURE__ */ new Date());
+    if (!await writeRow(view, file, (c) => appendMilestone(c, rawKey, next[next.length - 1]), MILESTONE_CHANGED, flashSaved)) return;
+    replaceItems(milestones, next);
+    view.render();
   });
 }
-async function saveMilestones(view, file, items, flashSaved, skipRender = false, rawKey = "Milestones") {
-  const snapshot = [...items];
+var TASK_CHANGED = "That task changed in the note, so nothing was saved.";
+var MILESTONE_CHANGED = "That milestone changed in the note, so nothing was saved.";
+async function writeRow(view, file, edit, changedMessage, flashSaved) {
   const content = await view.app.vault.read(file);
-  await view.app.vault.modify(file, commitMilestones(content, snapshot, rawKey));
+  const next = edit(content);
+  if (next === null) {
+    new import_obsidian23.Notice(changedMessage);
+    return false;
+  }
+  if (next !== content) await view.app.vault.modify(file, next);
   if (typeof flashSaved === "function") flashSaved();
-  if (!skipRender) view.render();
+  return true;
+}
+async function editMilestoneRow(view, file, items, mile, patch, flashSaved, rawKey) {
+  const idx = mile.index();
+  const ref = milestoneRefAt(items, idx);
+  if (!ref) return false;
+  const next = { ...items[idx], ...patch };
+  if (!await writeRow(view, file, (c) => editMilestoneByRef(c, rawKey, ref, next), MILESTONE_CHANGED, flashSaved)) return false;
+  return mile.patch(patch);
+}
+async function retitleTaskRow(view, file, items, task, title, flashSaved, rawKey) {
+  const ref = taskRowRef(items, task);
+  if (!ref) return false;
+  if (!await writeRow(view, file, (c) => editProjectTaskByRef(c, rawKey, ref, title), TASK_CHANGED, flashSaved)) return false;
+  return task.patch({ title });
+}
+function taskRowRef(items, task) {
+  const idx = task.index();
+  return idx === -1 ? null : taskRefAt(items.map((item) => item.title || ""), idx);
 }
 function renderTaskSection(view, parent, file, tasks, flashSaved, rawKey = "Tasks") {
   const card = parent.createDiv({ cls: "cad-pd-card" });
@@ -8462,8 +8568,7 @@ function renderTaskSection(view, parent, file, tasks, flashSaved, rawKey = "Task
         titleInp.addEventListener("input", () => {
           clearTimeout(tt);
           tt = setTimeout(async () => {
-            if (!task.patch({ title: titleInp.value })) return;
-            await view._commitTasks(file, items, flashSaved, true, rawKey);
+            await retitleTaskRow(view, file, items, task, titleInp.value, flashSaved, rawKey);
           }, 400);
         });
         const bellState = taskBell(findProjectTaskReminder(view.plugin, file.path, t.title || ""));
@@ -8476,8 +8581,7 @@ function renderTaskSection(view, parent, file, tasks, flashSaved, rawKey = "Task
             titleInp.focus();
             return;
           }
-          if (!task.patch({ title: titleInp.value })) return;
-          await view._commitTasks(file, items, flashSaved, true, rawKey);
+          if (!await retitleTaskRow(view, file, items, task, titleInp.value, flashSaved, rawKey)) return;
           const existing = findProjectTaskReminder(view.plugin, file.path, taskText);
           if (existing) {
             new CadenceReminderEditModal(view.app, view.plugin, existing).open();
@@ -8489,8 +8593,11 @@ function renderTaskSection(view, parent, file, tasks, flashSaved, rawKey = "Task
       if (view.plugin.settings.taskManagementSystem !== "tasknotes") {
         const del = row.createEl("button", { cls: "cad-btn cad-btn-sm cad-btn-danger", text: "\xD7" });
         del.addEventListener("click", async () => {
-          if (!task.remove()) return;
-          await view._commitTasks(file, items, flashSaved, false, rawKey);
+          const ref = taskRowRef(items, task);
+          if (!ref) return;
+          if (!await writeRow(view, file, (c) => removeProjectTaskByRef(c, rawKey, ref), TASK_CHANGED, flashSaved)) return;
+          task.remove();
+          view.render();
         });
       }
     });
@@ -8513,13 +8620,13 @@ function renderTaskSection(view, parent, file, tasks, flashSaved, rawKey = "Task
       view.render();
       return;
     }
+    if (!await writeRow(view, file, (c) => appendProjectTask(c, rawKey), TASK_CHANGED, flashSaved)) return;
     replaceItems(tasks, addTask(tasks));
-    await view._commitTasks(file, tasks, flashSaved, false, rawKey);
+    view.render();
   });
 }
 async function tickProjectTaskRow(view, file, items, task, checked, flashSaved, rawKey) {
-  const idx = task.index();
-  const ref = idx === -1 ? null : taskRefAt(items.map((item) => item.title || ""), idx);
+  const ref = taskRowRef(items, task);
   const content = await view.app.vault.read(file);
   const toggled = ref ? toggleProjectTaskByRef(content, rawKey, ref, checked) : null;
   if (!toggled) {
@@ -8530,13 +8637,6 @@ async function tickProjectTaskRow(view, file, items, task, checked, flashSaved, 
   task.patch({ done: checked });
   if (typeof flashSaved === "function") flashSaved();
   if (toggled.taskText) await view._propagateTaskComplete(toggled.taskText, checked, { kind: "project", file });
-}
-async function saveTasks(view, file, items, flashSaved, skipRender = false, rawKey = "Tasks") {
-  const snapshot = [...items];
-  const content = await view.app.vault.read(file);
-  await view.app.vault.modify(file, commitTasks(content, snapshot, rawKey));
-  if (typeof flashSaved === "function") flashSaved();
-  if (!skipRender) view.render();
 }
 async function saveProjectFrontmatter(view, file, patch, flashSaved) {
   try {
@@ -11367,14 +11467,8 @@ var CadenceAppView = class extends import_obsidian31.ItemView {
   _renderMilestoneSection(parent, file, milestones, flashSaved, rawKey) {
     return renderMilestoneSection(this, parent, file, milestones, flashSaved, rawKey);
   }
-  _commitMilestones(file, items, flashSaved, skipRender, rawKey) {
-    return saveMilestones(this, file, items, flashSaved, skipRender, rawKey);
-  }
   _renderTaskSection(parent, file, tasks, flashSaved, rawKey) {
     return renderTaskSection(this, parent, file, tasks, flashSaved, rawKey);
-  }
-  _commitTasks(file, items, flashSaved, skipRender, rawKey) {
-    return saveTasks(this, file, items, flashSaved, skipRender, rawKey);
   }
   _writeProjectFrontmatter(file, patch, flashSaved) {
     return saveProjectFrontmatter(this, file, patch, flashSaved);

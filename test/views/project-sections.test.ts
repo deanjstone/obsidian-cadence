@@ -6,8 +6,8 @@ import { parseMilestones, parseTasksList } from "../../src/utils/parsing";
 import { reminderTimeStr } from "../../src/utils/reminders";
 
 /* Characterization tests for the project page's checklist sections:
-   _renderMilestoneSection and _commitMilestones, _renderTaskSection and
-   _commitTasks (native and TaskNotes), and the frontmatter write behind
+   _renderMilestoneSection and _renderTaskSection (native and TaskNotes),
+   whose row writes touch only their own lines, and the frontmatter write behind
    every project field, _writeProjectFrontmatter. */
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -113,7 +113,7 @@ describe("_renderMilestoneSection", () => {
     tick(mileRow(parent, 1).children[0], true);
     await flush();
     expect(await section("## Milestones")).toBe(
-      "- [x] 2026-09-15 — Kickoff\n    Went well\n- [x] 2026-11-01 — Beta\n- [ ] Launch\n",
+      "- [x] 2026-09-15 — Kickoff\n    Went well\n- [x] 2026-11-01 — Beta\n- [ ] Launch",
     );
     expect(flashSaved).toHaveBeenCalledTimes(1);
     expect(rendered).toHaveBeenCalledTimes(1);
@@ -127,10 +127,10 @@ describe("_renderMilestoneSection", () => {
     await vi.advanceTimersByTimeAsync(349);
     expect(await section("## Milestones")).toBe(MILESTONES);
     await vi.advanceTimersByTimeAsync(1);
-    expect(await section("## Milestones")).toContain("- [ ] 2027-02-01 — Launch\n");
+    expect(await section("## Milestones")).toContain("- [ ] 2027-02-01 — Launch");
     type(date, "");
     await vi.advanceTimersByTimeAsync(350);
-    expect(await section("## Milestones")).toContain("- [ ] Launch\n");
+    expect(await section("## Milestones")).toContain("- [ ] Launch");
     expect(rendered).not.toHaveBeenCalled();
   });
 
@@ -154,7 +154,7 @@ describe("_renderMilestoneSection", () => {
     milestones();
     mileRow(parent, 0).children[3].trigger("click");
     await flush();
-    expect(await section("## Milestones")).toBe("- [ ] 2026-11-01 — Beta\n- [ ] Launch\n");
+    expect(await section("## Milestones")).toBe("- [ ] 2026-11-01 — Beta\n- [ ] Launch");
     expect(rendered).toHaveBeenCalledTimes(1);
   });
 
@@ -164,7 +164,7 @@ describe("_renderMilestoneSection", () => {
     addButton(parent).trigger("click");
     await flush();
     expect(items).toHaveLength(4);
-    expect(await section("## Milestones")).toContain("- [ ] Launch\n- [ ] 2026-10-10\n");
+    expect(await section("## Milestones")).toContain("- [ ] Launch\n- [ ] 2026-10-10");
     expect(rendered).toHaveBeenCalledTimes(1);
   });
 
@@ -175,13 +175,13 @@ describe("_renderMilestoneSection", () => {
     await vi.advanceTimersByTimeAsync(400);
     addButton(parent).trigger("click");
     await flush();
-    expect(await section("## Milestones")).toContain("- [ ] Go live\n- [ ] 2026-10-10\n");
+    expect(await section("## Milestones")).toContain("- [ ] Go live\n- [ ] 2026-10-10");
     tick(mileRow(parent, 2).children[0], true);
     await flush();
-    expect(await section("## Milestones")).toContain("- [x] Go live\n- [ ] 2026-10-10\n");
+    expect(await section("## Milestones")).toContain("- [x] Go live\n- [ ] 2026-10-10");
     mileRow(parent, 0).children[3].trigger("click");
     await flush();
-    expect(await section("## Milestones")).toBe("- [ ] 2026-11-01 — Beta\n- [x] Go live\n- [ ] 2026-10-10\n");
+    expect(await section("## Milestones")).toBe("- [ ] 2026-11-01 — Beta\n- [x] Go live\n- [ ] 2026-10-10");
   });
 
   it("a pending edit lands on the row it was made on after an earlier row is deleted", async () => {
@@ -192,7 +192,7 @@ describe("_renderMilestoneSection", () => {
     mileRow(parent, 0).children[3].trigger("click");
     await flush();
     await vi.advanceTimersByTimeAsync(400);
-    expect(await section("## Milestones")).toBe("- [ ] 2026-11-01 — Beta 2\n- [ ] 2027-02-01 — Launch\n");
+    expect(await section("## Milestones")).toBe("- [ ] 2026-11-01 — Beta 2\n- [ ] 2027-02-01 — Launch");
   });
 
   it("a pending edit on a deleted row is dropped, without throwing", async () => {
@@ -202,7 +202,7 @@ describe("_renderMilestoneSection", () => {
     mileRow(parent, 2).children[3].trigger("click");
     await flush();
     await vi.advanceTimersByTimeAsync(400);
-    expect(await section("## Milestones")).toBe("- [x] 2026-09-15 — Kickoff\n    Went well\n- [ ] 2026-11-01 — Beta\n");
+    expect(await section("## Milestones")).toBe("- [x] 2026-09-15 — Kickoff\n    Went well\n- [ ] 2026-11-01 — Beta");
   });
 
   it("shows notes as a preview, or a + Add notes link", () => {
@@ -270,22 +270,44 @@ describe("_renderMilestoneSection: blank notes", () => {
   });
 });
 
-describe("_commitMilestones", () => {
-  it("replaces the named section, flashes, and re-renders unless skipRender", async () => {
-    const { view, file, read, section, flashSaved, rendered, app } = setup();
-    await view._commitMilestones(file(), [{ done: true, date: null, title: "Only" }], flashSaved);
-    expect(await section("## Milestones")).toBe("- [x] Only\n");
-    expect([flashSaved.mock.calls.length, rendered.mock.calls.length, app.vault.modified]).toEqual([1, 1, [APOLLO.path]]);
-    await view._commitMilestones(file(), [], undefined, true);
-    expect(await section("## Milestones")).toBe("");
-    expect(rendered).toHaveBeenCalledTimes(1);
-    expect(await read()).toContain("## Tasks\n- [ ] Plan");
+describe("milestone row writes touch only their own lines (#76)", () => {
+  const BODY = "## Milestones\nWhy these dates\n- [x] 2026-09-15 — Kickoff\n    Went well\n- [ ] Launch\n  - a sub-bullet\n\n## Tasks\n- [ ] Plan\n";
+  const NOTE: MockFileSpec = { path: "Cadence/Projects/Mixed.md", body: BODY };
+
+  it("a tick, a title edit and a delete keep the section's other lines, nesting and spacing", async () => {
+    const { parent, view, file, read } = setup([NOTE]);
+    const list = parseMilestones("- [x] 2026-09-15 — Kickoff\n    Went well\n- [ ] Launch\n  - a sub-bullet");
+    view._renderMilestoneSection(parent, file(NOTE.path), list, undefined);
+    tick(mileRow(parent, 1).children[0], true);
+    await flush();
+    expect(await read(NOTE.path)).toBe(BODY.replace("- [ ] Launch", "- [x] Launch"));
+    type(mileRow(parent, 0).children[2], "Kick-off");
+    await vi.advanceTimersByTimeAsync(400);
+    mileRow(parent, 0).children[3].trigger("click");
+    await flush();
+    expect(await read(NOTE.path)).toBe("## Milestones\nWhy these dates\n- [x] Launch\n  - a sub-bullet\n\n## Tasks\n- [ ] Plan\n");
   });
 
-  it("appends a missing section under its raw key", async () => {
-    const { view, file, read } = setup([{ path: "Cadence/Projects/New.md", body: "## Brief\nx\n\n" }]);
-    await view._commitMilestones(file("Cadence/Projects/New.md"), [{ done: false, title: "A" }], null, true, "Plan #milestones");
-    expect(await read("Cadence/Projects/New.md")).toBe("## Brief\nx\n\n## Plan #milestones\n- [ ] A\n");
+  it("keeps a line added to the note since the render, and notices when the row's milestone is gone", async () => {
+    const { parent, view, app, file, read } = setup([NOTE]);
+    view._renderMilestoneSection(parent, file(NOTE.path), parseMilestones("- [x] 2026-09-15 — Kickoff\n    Went well\n- [ ] Launch"), undefined);
+    await app.vault.modify(file(NOTE.path), BODY.replace("- [ ] Launch", "- [ ] Added in the note\n- [ ] Launch"));
+    tick(mileRow(parent, 1).children[0], true);
+    await flush();
+    expect(await read(NOTE.path)).toContain("- [ ] Added in the note\n- [x] Launch\n");
+    await app.vault.modify(file(NOTE.path), "## Milestones\n- [ ] Other\n");
+    tick(mileRow(parent, 0).children[0], false);
+    await flush();
+    expect(await read(NOTE.path)).toBe("## Milestones\n- [ ] Other\n");
+    expect(Notice.messages).toEqual(["That milestone changed in the note, so nothing was saved."]);
+  });
+
+  it("+ Add appends a missing section under its raw key", async () => {
+    const { parent, view, file, read } = setup([{ path: "Cadence/Projects/New.md", body: "## Brief\nx\n\n" }]);
+    view._renderMilestoneSection(parent, file("Cadence/Projects/New.md"), [], undefined, "Plan #milestones");
+    addButton(parent).trigger("click");
+    await flush();
+    expect(await read("Cadence/Projects/New.md")).toBe("## Brief\nx\n\n## Plan #milestones\n- [ ] 2026-10-10\n");
   });
 });
 
@@ -359,27 +381,27 @@ describe("_renderTaskSection (native)", () => {
     await vi.advanceTimersByTimeAsync(399);
     expect(await section("## Tasks")).toBe("- [ ] Plan\n- [x] Hire");
     await vi.advanceTimersByTimeAsync(1);
-    expect(await section("## Tasks")).toBe("- [ ] Plan\n- [x] Hire two\n");
+    expect(await section("## Tasks")).toBe("- [ ] Plan\n- [x] Hire two");
     expect(rendered).not.toHaveBeenCalled();
     taskRow(parent, 0).children[3].trigger("click");
     await flush();
-    expect(await section("## Tasks")).toBe("- [x] Hire two\n");
+    expect(await section("## Tasks")).toBe("- [x] Hire two");
     expect(rendered).toHaveBeenCalledTimes(1);
   });
 
   it("a pending title edit lands on its own task after an earlier task is deleted, and is dropped with its task", async () => {
-    const { parent, tasks, section } = setup();
+    const { parent, tasks, section, read } = setup();
     tasks();
     type(taskRow(parent, 1).children[1], "Hire two");
     taskRow(parent, 0).children[3].trigger("click");
     await flush();
     await vi.advanceTimersByTimeAsync(400);
-    expect(await section("## Tasks")).toBe("- [x] Hire two\n");
+    expect(await section("## Tasks")).toBe("- [x] Hire two");
     type(taskRow(parent, 1).children[1], "Hire three");
     taskRow(parent, 1).children[3].trigger("click");
     await flush();
     await vi.advanceTimersByTimeAsync(400);
-    expect(await section("## Tasks")).toBe("");
+    expect(await read()).toContain("## Tasks\n## Notes");
   });
 
   it("+ Add appends an empty task to the shared list, keeping a pending edit", async () => {
@@ -390,7 +412,7 @@ describe("_renderTaskSection (native)", () => {
     addButton(parent).trigger("click");
     await flush();
     expect(items).toHaveLength(3);
-    expect(await section("## Tasks")).toBe("- [ ] Plan it\n- [x] Hire\n- [ ] \n");
+    expect(await section("## Tasks")).toBe("- [ ] Plan it\n- [x] Hire\n- [ ] ");
   });
 
   it("the bell shows a linked reminder; clicking saves the title and edits that reminder", async () => {
@@ -410,7 +432,7 @@ describe("_renderTaskSection (native)", () => {
     expect(taskRow(parent, 1).children[2].text).toBe("🔕");
     bell.trigger("click");
     await flush();
-    expect(await section("## Tasks")).toBe("- [ ] Plan\n- [x] Hire\n");
+    expect(await section("## Tasks")).toBe("- [ ] Plan\n- [x] Hire");
     expect(rendered).not.toHaveBeenCalled();
     expect(modals.map((m) => [m.reminder, m.isNew])).toEqual([[reminder, false]]);
   });
@@ -432,7 +454,7 @@ describe("_renderTaskSection (native)", () => {
     name.value = " Hire again ";
     taskRow(parent, 1).children[2].trigger("click");
     await flush();
-    expect(await section("## Tasks")).toBe("- [ ] Plan\n- [x]  Hire again \n");
+    expect(await section("## Tasks")).toBe("- [ ] Plan\n- [x]  Hire again ");
     expect(modals.map((m) => [m.reminder, m.isNew])).toEqual([
       [{ text: "Hire again", when: null, repeat: "none", notes: "", project: APOLLO.path }, true],
     ]);
@@ -574,21 +596,44 @@ describe("_renderTaskSection (TaskNotes): numbering", () => {
   });
 });
 
-describe("_commitTasks", () => {
-  it("replaces the named section, flashes, and re-renders unless skipRender", async () => {
-    const { view, file, section, flashSaved, rendered } = setup();
-    await view._commitTasks(file(), [{ done: true, title: "Only" }, {}], flashSaved);
-    expect(await section("## Tasks")).toBe("- [x] Only\n- [ ] \n");
-    expect([flashSaved.mock.calls.length, rendered.mock.calls.length]).toEqual([1, 1]);
-    await view._commitTasks(file(), [], "not a function", true);
-    expect(await section("## Tasks")).toBe("");
-    expect(rendered).toHaveBeenCalledTimes(1);
+describe("task row writes touch only their own lines (#76)", () => {
+  const BODY = "## Tasks\nWhy these matter\n- [ ] Plan\n  - [ ] Sub\n- [x] Hire\n- a plain bullet\n\n## Notes\nN\n";
+  const NOTE: MockFileSpec = { path: "Cadence/Projects/Mixed.md", body: BODY };
+
+  it("a title edit, + Add and a delete keep the section's other lines, nesting and spacing", async () => {
+    const { parent, view, file, read } = setup([NOTE]);
+    view._renderTaskSection(parent, file(NOTE.path), parseTasksList("- [ ] Plan\n  - [ ] Sub\n- [x] Hire"), undefined);
+    type(taskRow(parent, 1).children[1], "Child");
+    await vi.advanceTimersByTimeAsync(400);
+    expect(await read(NOTE.path)).toBe(BODY.replace("  - [ ] Sub", "  - [ ] Child"));
+    addButton(parent).trigger("click");
+    await flush();
+    expect(await read(NOTE.path)).toBe(BODY.replace("  - [ ] Sub", "  - [ ] Child").replace("- [x] Hire\n", "- [x] Hire\n- [ ] \n"));
+    taskRow(parent, 0).children[3].trigger("click");
+    await flush();
+    expect(await read(NOTE.path)).toBe("## Tasks\nWhy these matter\n  - [ ] Child\n- [x] Hire\n- [ ] \n- a plain bullet\n\n## Notes\nN\n");
   });
 
-  it("appends a missing section under its raw key", async () => {
-    const { view, file, read } = setup([{ path: "Cadence/Projects/New.md", body: "Intro" }]);
-    await view._commitTasks(file("Cadence/Projects/New.md"), [{ title: "A" }], null, true, "Todo #tasks");
-    expect(await read("Cadence/Projects/New.md")).toBe("Intro\n\n## Todo #tasks\n- [ ] A\n");
+  it("keeps a line added to the note since the render, and notices when the row's task is gone", async () => {
+    const { parent, view, app, file, read } = setup([NOTE]);
+    view._renderTaskSection(parent, file(NOTE.path), parseTasksList("- [ ] Plan\n- [x] Hire"), undefined);
+    await app.vault.modify(file(NOTE.path), BODY.replace("- [ ] Plan", "- [ ] Added in the note\n- [ ] Plan"));
+    type(taskRow(parent, 0).children[1], "Plan it");
+    await vi.advanceTimersByTimeAsync(400);
+    expect(await read(NOTE.path)).toContain("- [ ] Added in the note\n- [ ] Plan it\n");
+    await app.vault.modify(file(NOTE.path), "## Tasks\n- [ ] Other\n");
+    taskRow(parent, 1).children[3].trigger("click");
+    await flush();
+    expect(await read(NOTE.path)).toBe("## Tasks\n- [ ] Other\n");
+    expect(Notice.messages).toEqual(["That task changed in the note, so nothing was saved."]);
+  });
+
+  it("+ Add appends a missing section under its raw key", async () => {
+    const { parent, view, file, read } = setup([{ path: "Cadence/Projects/New.md", body: "Intro" }]);
+    view._renderTaskSection(parent, file("Cadence/Projects/New.md"), [], undefined, "Todo #tasks");
+    addButton(parent).trigger("click");
+    await flush();
+    expect(await read("Cadence/Projects/New.md")).toBe("Intro\n\n## Todo #tasks\n- [ ] \n");
   });
 });
 

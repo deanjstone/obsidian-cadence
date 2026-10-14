@@ -3,7 +3,8 @@ import { FakeElement, type MockFileSpec } from "../mocks/obsidian";
 import { flush, makeAppView } from "../helpers/app-view";
 import { describeInZones, JAN_OFFSET } from "../helpers/timezone";
 import { parseMilestones, stringifyMilestones } from "../../src/utils/parsing";
-import { commitMilestones, milestoneDateFromInput, milestoneDateValue } from "../../src/views/project-detail";
+import { milestoneDateFromInput, milestoneDateValue } from "../../src/views/project-detail";
+import { editMilestoneByRef, milestoneRefAt } from "../../src/utils/task-lines";
 
 /* #46: a milestone's bare YYYY-MM-DD is a local date, read and written the
    same way, so no edit moves a date in any zone. Each block runs under a zone
@@ -57,9 +58,12 @@ describeInZones("#46 row 1: milestone dates survive every write", () => {
     vi.setSystemTime(new Date(2026, 9, 10, 9));
   });
 
-  it("parse → stringify is the identity, and so is the section commit", () => {
-    expect(stringifyMilestones(parseMilestones(MILESTONES))).toBe(MILESTONES);
-    expect(commitMilestones(BODY, parseMilestones(MILESTONES))).toBe(BODY);
+  it("parse → stringify is the identity, and so is rewriting each milestone as itself", () => {
+    const items = parseMilestones(MILESTONES);
+    expect(stringifyMilestones(items)).toBe(MILESTONES);
+    items.forEach((m, i) => {
+      expect(editMilestoneByRef(BODY, "Milestones", milestoneRefAt(items, i)!, m)).toBe(BODY);
+    });
   });
 
   it("ticking one milestone moves no date", async () => {

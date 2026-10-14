@@ -15,8 +15,8 @@ import type { PluginHost } from './host';
    The link maths is plain data over names and frontmatter: which names a
    value holds (extractEntitiesFromValue), which fields name contacts or
    projects, which contact–project pairs a note backs (noteLinks,
-   collectValidLinks), and the `project` value to write (projectLinkValue,
-   appendProjectLink, removeProjectLink, contactProjectsPlan). */
+   collectValidLinks), and the `project` value to write (appendProjectLink,
+   dropProjectLink, contactProjectsPlan). */
 
 /* A note as the sync sees it: its entity type, name and frontmatter. */
 export interface SyncNote {
@@ -148,24 +148,6 @@ export function collectValidLinks(
   return validLinks;
 }
 
-/* A contact's `project` value: one link as a string, several as a list, and
-   none as null (the key is deleted). Every name is rewritten as a link. */
-export function projectLinkValue(names: string[]): string | string[] | null {
-  if (names.length === 0) return null;
-  if (names.length === 1) return `[[${names[0]}]]`;
-  return names.map(p => `[[${p}]]`);
-}
-
-/* Writes a projectLinkValue into frontmatter, deleting the key for none. */
-export function writeProjectLinks(fm: Frontmatter, names: string[]): void {
-  const value = projectLinkValue(names);
-  if (value === null) {
-    delete fm.project;
-  } else {
-    fm.project = value;
-  }
-}
-
 /* The contact's project names with `projectName` appended, unless it is
    already there (case-insensitive). */
 export function addProjectLink(current: string[], projectName: string): string[] {
@@ -191,9 +173,21 @@ export function appendProjectLink(value: unknown, projectName: string): string |
   return items.length === 1 ? items[0] : items;
 }
 
-/* The contact's project names without `projectName` (case-insensitive). */
-export function removeProjectLink(current: string[], projectName: string): string[] {
-  return current.filter(p => p.toLowerCase() !== projectName.toLowerCase());
+/* The contact's `project` value without `projectName` (case-insensitive),
+   or null when nothing is left. The other items stay as typed (#67): a
+   list stays a list, a string keeps its other comma-separated items, and
+   an item holding several links loses only the matching one. */
+export function dropProjectLink(value: unknown, projectName: string): string | string[] | null {
+  const target = projectName.toLowerCase();
+  const isTarget = (name: string) => name.toLowerCase() === target;
+  const items = projectItems(value).flatMap((item) => {
+    if (!extractEntitiesFromValue(item).some(isTarget)) return [item];
+    if (!item.includes('[[')) return [];
+    const rest = item.replace(/\[\[(.*?)\]\]/g, (link, inner: string) => isTarget(inner.split('|')[0].trim()) ? '' : link).trim();
+    return rest ? [rest] : [];
+  });
+  if (!items.length) return null;
+  return Array.isArray(value) ? items : items.join(', ');
 }
 
 /* The backed projects the vault-wide pass adds to one contact, or null when
@@ -349,10 +343,11 @@ export async function handleProjectDeletion(plugin: PluginHost, file: TFile | nu
       const hasProject = existingProjectNames.some(p => p.toLowerCase() === projectName.toLowerCase());
 
       if (hasProject) {
-        const remainingProjects = removeProjectLink(existingProjectNames, projectName);
+        const remaining = dropProjectLink(existingProjectsVal, projectName);
 
         await plugin.app.fileManager.processFrontMatter(contactFile, (cfm: Frontmatter) => {
-          writeProjectLinks(cfm, remainingProjects);
+          if (remaining === null) delete cfm.project;
+          else cfm.project = remaining;
         });
 
         new Notice(`Auto-link: project "${projectName}" removed from contact "${contactFile.basename}".`);
