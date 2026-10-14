@@ -230,3 +230,22 @@ describe("renderProductivity: by weekday", () => {
     expect(bars(root.children[5]).at(-1)![3]).toBe("Week of Oct 5 — 1 done, 0 open");
   });
 });
+
+describe("renderProductivity: the daily template's blank task (#86)", () => {
+  it("a bare `- [ ] ` line is not a task, over 30 days, in the trend and by weekday", async () => {
+    const { view, root } = setup([note("2026-10-11", "## Today\n- [x] a\n- [ ] \n- [ ]\n## Journal\n")]);
+    await view.renderProductivity(root);
+    expect(stats(root)[0]).toEqual(["emerald", "COMPLETION", "100%", "1/1 tasks"]);
+    expect(bars(root.children[3]).at(-1)![3]).toBe(`${localDate(2026, 9, 11)} — 1 done, 0 open`);
+    expect(bars(root.children[5]).at(-1)![3]).toBe("Week of Oct 5 — 1 done, 0 open");
+    expect(weekdays(root)[6]).toEqual(["sky", "100%", "SUN", "1/1"]);
+  });
+
+  it("a day holding only the blank task has no tasks; the streak reads done tasks, so it is unchanged", async () => {
+    const { view, root } = setup([note("2026-10-11", "## Today\n- [ ] \n## Journal\n"), note("2026-10-10", "## Today\n- [x] a")]);
+    await view.renderProductivity(root);
+    expect(stats(root)[0]).toEqual(["emerald", "COMPLETION", "100%", "1/1 tasks"]);
+    expect(stats(root)[1]).toEqual(["mint", "STREAK", "1d", "consecutive active days"]);
+    expect(weekdays(root)[6]).toEqual(["sky", "—", "SUN", "no data"]);
+  });
+});
