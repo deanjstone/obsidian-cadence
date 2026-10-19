@@ -8704,10 +8704,10 @@ function projectsSummary(projects, def) {
 function projectRowName(entity, def) {
   return entityValue(entity, "name", def) || entity.basename;
 }
-function dashRowPill(value) {
+function dashRowPill(value, prefix = "") {
   if (!value) return null;
   return {
-    cls: `cad-pill cad-pill-${String(value).toLowerCase().replace(/\s+/g, "-")}`,
+    cls: `cad-pill cad-pill-${prefix}${String(value).toLowerCase().replace(/\s+/g, "-")}`,
     text: String(value).replace(/_/g, " ")
   };
 }
@@ -8798,7 +8798,7 @@ async function renderProjectsDashboard(view, root) {
         const row = list.createDiv({ cls: "cad-dash-row", attr: { style: "display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; background: var(--background-secondary); border-radius: 6px; cursor: pointer; border: 1px solid var(--border-color);" } });
         const nameEl = row.createDiv({ attr: { style: "font-weight: 500; font-size: 0.9em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px;" } });
         nameEl.setText(projectRowName(e, def));
-        const pillData = dashRowPill(entityValue(e, "priority", def));
+        const pillData = dashRowPill(entityValue(e, "priority", def), "prio-");
         if (pillData) {
           const pill = row.createDiv(pillData);
           pill.style.fontSize = "0.7em";
