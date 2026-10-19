@@ -105,6 +105,7 @@ describe("dashboard rows", () => {
     expect(dashRowPill("On Hold_x")).toEqual({ cls: "cad-pill cad-pill-on-hold_x", text: "On Hold x" });
     expect(dashRowPill(["high"])).toEqual({ cls: "cad-pill cad-pill-high", text: "high" });
     expect([dashRowPill(""), dashRowPill(undefined), dashRowPill(0)]).toEqual([null, null, null]);
+    expect(dashRowPill("Very High", "prio-")).toEqual({ cls: "cad-pill cad-pill-prio-very-high", text: "Very High" });
   });
 
   it("acceptsDrop needs a path and a different source card", () => {

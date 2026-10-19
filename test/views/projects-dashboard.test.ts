@@ -142,10 +142,10 @@ describe("renderProjectsDashboard: header and stats", () => {
     const { view, root } = setup(PROJECTS);
     await view.renderProjectsDashboard(root);
     expect(cardRows(statusCard(root, "active")).map(rowView)).toEqual([
-      ["Alpha launch", ["high", ["cad-pill", "cad-pill-high"]]],
-      ["Epsilon", ["high", ["cad-pill", "cad-pill-high"]]],
+      ["Alpha launch", ["high", ["cad-pill", "cad-pill-prio-high"]]],
+      ["Epsilon", ["high", ["cad-pill", "cad-pill-prio-high"]]],
     ]);
-    expect(cardRows(statusCard(root, "done")).map(rowView)).toEqual([["Beta", ["Medium", ["cad-pill", "cad-pill-medium"]]]]);
+    expect(cardRows(statusCard(root, "done")).map(rowView)).toEqual([["Beta", ["Medium", ["cad-pill", "cad-pill-prio-medium"]]]]);
     const empty = cardRows(statusCard(root, "backlog"));
     expect(empty.map((e) => [e.classes, e.text])).toEqual([[["cad-empty"], "No projects"]]);
     const pill = cardRows(statusCard(root, "active"))[0].children[1];
@@ -156,7 +156,7 @@ describe("renderProjectsDashboard: header and stats", () => {
     const files = [project("Zeta", { status: "backlog", priority: "very_high" })];
     const { view, root } = setup(files);
     await view.renderProjectsDashboard(root);
-    expect(cardRows(statusCard(root, "backlog")).map(rowView)).toEqual([["Zeta", ["very high", ["cad-pill", "cad-pill-very_high"]]]]);
+    expect(cardRows(statusCard(root, "backlog")).map(rowView)).toEqual([["Zeta", ["very high", ["cad-pill", "cad-pill-prio-very_high"]]]]);
   });
 
   it("takes the status cards from the project def's options, with fallback accents by index", async () => {

@@ -102,11 +102,12 @@ export function projectRowName(entity: Entity, def: EntityDef): string {
 
 /* A dashboard row's pill (priority on a status card, status on a priority
    card), or null when the value is blank. The class folds spaces to '-',
-   as the card grid and the detail page do. */
-export function dashRowPill(value: unknown): { cls: string; text: string } | null {
+   as the card grid and the detail page do; a priority passes 'prio-', the
+   prefix styles.css styles priorities under. */
+export function dashRowPill(value: unknown, prefix = ''): { cls: string; text: string } | null {
   if (!value) return null;
   return {
-    cls: `cad-pill cad-pill-${String(value).toLowerCase().replace(/\s+/g, '-')}`,
+    cls: `cad-pill cad-pill-${prefix}${String(value).toLowerCase().replace(/\s+/g, '-')}`,
     text: String(value).replace(/_/g, ' ')
   };
 }
@@ -225,7 +226,7 @@ export async function renderProjectsDashboard(view: AppViewHost, root: HTMLEleme
         nameEl.setText(projectRowName(e, def));
 
         // Right content: Priority Pill
-        const pillData = dashRowPill(entityValue(e, 'priority', def));
+        const pillData = dashRowPill(entityValue(e, 'priority', def), 'prio-');
         if (pillData) {
           const pill = row.createDiv(pillData);
           pill.style.fontSize = '0.7em';
