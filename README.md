@@ -4,6 +4,19 @@ A unified Obsidian plugin for **CRM, PRM, project management, daily planning, an
 
 ![Cadence Home](docs/screenshots/01-home.png)
 
+> **This fork is the TypeScript rewrite.** It started from
+> [`wesswart77/obsidian-cadence`](https://github.com/wesswart77/obsidian-cadence) v0.15.0, where the
+> whole plugin shipped as one untyped, untested JavaScript file (`main.js`, about 11,000 lines
+> of source, kept in the fork as `src/legacy/cadence.js` until the rewrite finished). It diverged to make that code safe to change: every view, modal and
+> the settings tab is now a typed module, the logic behind each render path is covered by
+> characterization tests (1,995 at the last count), and CI checks types, tests, the build and that
+> the committed `main.js` matches it. The move changed no behaviour: the quirks it found are
+> flagged and left alone, tracked on
+> [issue 42](https://github.com/deanjstone/obsidian-cadence/issues/42), and the story is in
+> [issue 1](https://github.com/deanjstone/obsidian-cadence/issues/1). The fork is 48 commits ahead
+> of upstream and 0 behind.
+
+
 ---
 
 ## Why Cadence
@@ -75,7 +88,7 @@ Bring an entire client list, pipeline, or partner roster in from a spreadsheet. 
 3. Install → Enable
 
 ### Manual install (works today)
-1. Download `main.js`, `manifest.json`, `styles.css` from the [latest release](https://github.com/wesswart77/obsidian-cadence/releases/latest)
+1. Download `main.js`, `manifest.json`, `styles.css` from this repo's `main` branch (the built `main.js` is committed), or from the upstream [latest release](https://github.com/wesswart77/obsidian-cadence/releases/latest) for the original JavaScript build
 2. Drop them into `<your-vault>/.obsidian/plugins/cadence-planner/`
 3. Settings → Community plugins → Reload → Enable **Cadence**
 
@@ -227,10 +240,13 @@ A matching **Cadence** theme is available separately for vaults that want a full
 ## Development
 
 ```bash
-git clone https://github.com/wesswart77/obsidian-cadence
+git clone https://github.com/deanjstone/obsidian-cadence
 cd obsidian-cadence
-# Plugin is plain JS, no build step. Drop main.js + manifest.json + styles.css
-# into <vault>/.obsidian/plugins/cadence-planner/ to test.
+pnpm install
+pnpm typecheck   # tsc over src and test
+pnpm test        # vitest
+pnpm build       # esbuild src/main.ts to main.js (committed; CI fails if it drifts)
+# Copy main.js + manifest.json + styles.css into <vault>/.obsidian/plugins/cadence-planner/ to test.
 ```
 
 PRs welcome. For bug reports, please include your Obsidian version, OS, and a minimal vault to reproduce.
